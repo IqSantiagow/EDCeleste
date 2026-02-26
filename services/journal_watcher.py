@@ -4,11 +4,14 @@ import time
 
 
 class JournalWatcherService:
+    exit_signal = False
 
     def __init__(self, journal_path):
         self.journal_path = journal_path
 
     def follow_journal(self):
+        self.exit_signal=False
+
         latest_file_path = self.__get_latest_journal_filepath()
 
         with open(latest_file_path, 'r') as f:
@@ -20,6 +23,9 @@ class JournalWatcherService:
                     continue
                 yield line
 
+    def stop_watcher_service(self):
+        self.exit_signal=True
+
     def __get_latest_journal_filepath(self):
         all_files = glob.glob(self.journal_path + '/*.log')
 
@@ -30,4 +36,4 @@ class JournalWatcherService:
 
         latest_file = max(journal_files, key=os.path.getctime)
 
-        return os.path.join(self.journal_path, latest_file)
+        return latest_file
