@@ -4,6 +4,8 @@ import os
 import time
 from typing import Generator
 
+from pydantic import TypeAdapter
+
 from services.models.journal_event import JournalEvent
 
 logger = logging.getLogger(__name__)
@@ -14,6 +16,7 @@ class JournalWatcherService:
 
     def __init__(self, journal_path):
         self.journal_path = journal_path
+        self.adapter = TypeAdapter(JournalEvent)
 
     def emit_journal_events(self) -> Generator[JournalEvent]:
         self.exit_signal = False
@@ -22,7 +25,7 @@ class JournalWatcherService:
 
         for event in raw_journal_event:
             if event: #Check if not empty
-                yield JournalEvent.model_validate_json(event)
+                yield self.adapter.validate_json(event)
 
     def stop_watcher_service(self) -> None:
         self.exit_signal = True
