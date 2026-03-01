@@ -1,21 +1,30 @@
 import unittest
-from unittest.mock import patch, mock_open, MagicMock
+from datetime import datetime
+from unittest.mock import patch, mock_open
+
+from pydantic import TypeAdapter
 
 from services.journal_watcher import JournalWatcherService
+from services.models.game_events import UnknownCheckedEvent
+from services.models.journal_event import JournalEvent
 
 
-class MyTestCase(unittest.TestCase):
+class JournalWatcherTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.adapter = TypeAdapter(JournalEvent)
 
     @patch('services.journal_watcher.glob.glob')
     @patch('services.journal_watcher.os.path.getctime')
     def test_get_latest_journal_filepath(self, mock_getctime, mock_glob):
-
         mock_glob.return_value = [
             'C:/journals/Journal.2024-01-01.log',
             'C:/journals/Journal.2024-01-02.log',
         ]
 
-        mock_getctime.side_effect = [100,200] #getCtime is called for every file that is why it has to be iterable, not array, and we use side_effect
+        mock_getctime.side_effect = [100,
+                                     200]  # getCtime is called for every file that is why it has to be iterable, not array, and we use side_effect
 
         watcher = JournalWatcherService('C:/journals')
 
@@ -25,7 +34,7 @@ class MyTestCase(unittest.TestCase):
 
     @patch('services.journal_watcher.glob.glob')
     def test_no_journal_files_raises_error(self, mock_glob):
-        mock_glob.return_value=[]
+        mock_glob.return_value = []
 
         watcher = JournalWatcherService('C:/journals')
 
@@ -34,25 +43,27 @@ class MyTestCase(unittest.TestCase):
 
     @patch('services.journal_watcher.glob.glob')
     @patch('services.journal_watcher.os.path.getctime')
-    def test_follow_journal_lines(self,mock_getctime, mock_glob):
+    def test_follow_journal_lines(self, mock_getctime, mock_glob):
         mock_glob.return_value = ['C:/journals/Journal.log']
         mock_getctime.return_value = 100
 
+        event1 = UnknownCheckedEvent(event="SomeEvent1", timestamp=datetime.now())
+        event2 = UnknownCheckedEvent(event="SomeEvent2", timestamp=datetime.now())
+
         with patch('builtins.open', mock_open()) as m:
-            #By creating mock object we call open() function
+            # By creating mock object we call open() function
             mock_open_file = m()
 
             mock_open_file.readline.side_effect = [
-            '{"event": "Startup"}\n',
-            '{"event": "LoadGame"}\n',
-        ]
+                event1.model_dump_json(),
+                event2.model_dump_json()
+            ]
             watcher = JournalWatcherService('C:/journals')
 
-            gen = watcher.follow_journal()
+            gen = watcher.emit_journal_events()
 
-            self.assertEqual(next(gen), '{"event": "Startup"}\n')
-            self.assertEqual(next(gen), '{"event": "LoadGame"}\n')
-
+            self.assertEqual(next(gen), event1)
+            self.assertEqual(next(gen), event2)
 
 
 if __name__ == '__main__':

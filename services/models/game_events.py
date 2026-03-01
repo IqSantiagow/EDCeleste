@@ -8,7 +8,7 @@ class LoadedGameEvent(IgnoreExtraFieldsModel):
     event: Literal["LoadGame"]
     timestamp: datetime
     Commander: str
-    FID: int
+    FID: str
     Horizons: bool
     Odyssey: bool
     Ship: str
