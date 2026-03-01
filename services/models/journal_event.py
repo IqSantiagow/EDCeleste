@@ -3,11 +3,30 @@ from typing import Annotated, Union
 
 from pydantic import Discriminator, Tag
 
-from services.models.game_events import LoadedGameEvent, UnknownCheckedEvent
+from services.models.game_events import (
+    LoadedGameEvent,
+    UnknownCheckedEvent,
+    StartJumpEvent,
+    FSDJumpEvent,
+    DockedEvent,
+    UndockedEvent,
+    FuelScoopEvent,
+    DockingGrantedEvent,
+)
 
 logger = logging.getLogger(__name__)
 
-KNOWN_EVENTS: frozenset[str] = frozenset(["LoadGame"])
+KNOWN_EVENTS: frozenset[str] = frozenset(
+    [
+        "LoadGame",
+        "StartJump",
+        "FSDJump",
+        "Docked",
+        "Undocked",
+        "FuelScoop",
+        "DockingGranted",
+    ]
+)
 
 
 def event_discriminator(raw: dict) -> str:
@@ -21,6 +40,12 @@ def event_discriminator(raw: dict) -> str:
 JournalEvent = Annotated[
     Union[
         Annotated[LoadedGameEvent, Tag("LoadGame")],
+        Annotated[StartJumpEvent, Tag("StartJump")],
+        Annotated[FSDJumpEvent, Tag("FSDJump")],
+        Annotated[DockedEvent, Tag("Docked")],
+        Annotated[UndockedEvent, Tag("Undocked")],
+        Annotated[FuelScoopEvent, Tag("FuelScoop")],
+        Annotated[DockingGrantedEvent, Tag("DockingGranted")],
         Annotated[UnknownCheckedEvent, Tag("Unknown")],
     ],
     Discriminator(event_discriminator),
