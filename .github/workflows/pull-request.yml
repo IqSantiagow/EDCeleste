@@ -26,8 +26,10 @@ jobs:
           fetch-depth: 1
 
       - uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
         with:
-          base_url: ${{ secrets.ANTHROPIC_BASE_URL }}
+          # base_url: ${{ secrets.ANTHROPIC_BASE_URL }} to be changed after merge https://github.com/anthropics/claude-code-action/pull/841
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
           prompt: |
