@@ -45,8 +45,8 @@ class FSDJumpEvent(IgnoreExtraFieldsModel):
     JumpDist: float
     FuelUsed: float
     FuelLevel: float
-    Factions: list[FactionModel]
-    SystemFaction: BaseFactionModel
+    Factions: list[FactionModel] = []
+    SystemFaction: Optional[BaseFactionModel] = None
 
 
 class DockedEvent(IgnoreExtraFieldsModel):
@@ -95,7 +95,7 @@ class StartJumpEvent(IgnoreExtraFieldsModel):
     Taxi: bool
     StarSystem: str
     SystemAddress: int
-    StarClass: Optional[str]
+    StarClass: Optional[str] = None
 
 
 class UnknownCheckedEvent(IgnoreExtraFieldsModel):

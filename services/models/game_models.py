@@ -1,15 +1,15 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from services.models.pydantic_base_models import IgnoreExtraFieldsModel
 
 
-class ActiveFactionStateModel(BaseModel):
+class ActiveFactionStateModel(IgnoreExtraFieldsModel):
     State: str
 
 
-class BaseFactionModel(BaseModel):
+class BaseFactionModel(IgnoreExtraFieldsModel):
     Name: str
-    FactionState: Optional[str] = None
+    FactionState: Optional[str] = "None"
 
 
 class FactionModel(BaseFactionModel):
@@ -21,6 +21,6 @@ class FactionModel(BaseFactionModel):
     ActiveStates: Optional[list[ActiveFactionStateModel]] = None
 
 
-class StationEconomyModel(BaseModel):
+class StationEconomyModel(IgnoreExtraFieldsModel):
     Name_Localised: str
     Proportion: float
