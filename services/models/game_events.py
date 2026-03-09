@@ -97,6 +97,37 @@ class StartJumpEvent(IgnoreExtraFieldsModel):
     SystemAddress: int
     StarClass: Optional[str] = None
 
+class LocationEvent(IgnoreExtraFieldsModel):
+        event: Literal["Location"]
+        timestamp: datetime
+        StarSystem: str
+        SystemAddress: int
+        StarPos: list[float]
+        DistFromStarLS: float
+        Docked: bool
+        StationName: Optional[str] = None
+        StationType: Optional[str] = None
+        MarketID: Optional[int] = None
+        StationFaction: Optional[BaseFactionModel] = None
+        StationGovernment_Localised: Optional[str] = None
+        StationAllegiance: Optional[str] = None
+        StationEconomy_Localised: Optional[str] = None
+        StationEconomies: list[StationEconomyModel] = []
+        SystemAllegiance: Optional[str] = None
+        SystemEconomy_Localised: Optional[str] = None
+        SystemSecondEconomy_Localised: Optional[str] = None
+        SystemGovernment_Localised: Optional[str] = None
+        SystemSecurity_Localised: Optional[str] = None
+        Population: Optional[int] = None
+        Body: Optional[str] = None
+        BodyID: Optional[int] = None
+        BodyType: Optional[str] = None
+        ControllingPower: Optional[str] = None
+        Powers: list[str] = []
+        PowerplayState: Optional[str] = None
+        Factions: list[FactionModel] = []
+        SystemFaction: Optional[BaseFactionModel] = None
+
 
 class UnknownCheckedEvent(IgnoreExtraFieldsModel):
     event: str

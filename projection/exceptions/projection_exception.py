@@ -1,0 +1,2 @@
+class ProjectionException(Exception):
+    pass
