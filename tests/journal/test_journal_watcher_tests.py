@@ -66,6 +66,67 @@ class JournalWatcherTest(unittest.TestCase):
             self.assertEqual(next(gen), event1)
             self.assertEqual(next(gen), event2)
 
+    @patch("services.journal_watcher.glob.glob")
+    @patch("services.journal_watcher.os.path.getmtime")
+    def test_should_stop_emitting_events_on_stop_signal(self, mock_getmtime, mock_glob):
+        mock_glob.return_value = ["C:/journals/Journal.log"]
+        mock_getmtime.return_value = 100
+
+        event1 = UnknownCheckedEvent(event="SomeEvent1", timestamp=datetime.now())
+        event2 = UnknownCheckedEvent(event="SomeEvent2", timestamp=datetime.now())
+
+        with patch("builtins.open", mock_open()) as m:
+            # By creating mock object we call open() function
+            mock_open_file = m()
+
+            mock_open_file.readline.side_effect = [
+                event1.model_dump_json(),
+                event2.model_dump_json(),
+            ]
+            watcher = JournalWatcherService("C:/journals")
+
+            gen = watcher.emit_journal_events()
+
+            self.assertEqual(next(gen), event1)
+
+            watcher.stop_watcher_service()
+
+            with self.assertRaises(StopIteration):
+                next(gen)
+
+    @patch("services.journal_watcher.glob.glob")
+    @patch("services.journal_watcher.os.path.getmtime")
+    def test_should_start_emitting_events(self, mock_getmtime, mock_glob):
+        mock_glob.return_value = ["C:/journals/Journal.log"]
+        mock_getmtime.return_value = 100
+
+        event1 = UnknownCheckedEvent(event="SomeEvent1", timestamp=datetime.now())
+        event2 = UnknownCheckedEvent(event="SomeEvent2", timestamp=datetime.now())
+        event3 = UnknownCheckedEvent(event="SomeEvent3", timestamp=datetime.now())
+
+        with patch("builtins.open", mock_open()) as m:
+            # By creating mock object we call open() function
+            mock_open_file = m()
+
+            mock_open_file.readline.side_effect = [
+                event1.model_dump_json(),
+                event2.model_dump_json(),
+                event3.model_dump_json(),
+            ]
+            watcher = JournalWatcherService("C:/journals")
+
+            gen = watcher.emit_journal_events()
+
+            self.assertEqual(next(gen), event1)
+
+            watcher.stop_watcher_service()
+
+            with self.assertRaises(StopIteration):
+                next(gen)
+
+            gen = watcher.emit_journal_events()
+
+            self.assertEqual(next(gen), event2)
 
 if __name__ == "__main__":
     unittest.main()
