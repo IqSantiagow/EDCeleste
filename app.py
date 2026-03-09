@@ -1,6 +1,7 @@
 import logging
 
 from config.config import load_config
+from projection.event_projections.fuel_projection import FuelProjection
 from services.journal_watcher import JournalWatcherService
 
 
@@ -14,5 +15,8 @@ if __name__ == "__main__":
     print(config.ed.main_path)
     watcher = JournalWatcherService(config.ed.main_path)
 
+    fuel_projection = FuelProjection()
+
     for event in watcher.emit_journal_events():
-        print(event.event)
+        fuel_projection.process_event(event)
+        print(fuel_projection.create_projection())
