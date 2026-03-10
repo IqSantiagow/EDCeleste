@@ -12,6 +12,7 @@ from services.models.game_events import (
     UndockedEvent,
     FuelScoopEvent,
     DockingGrantedEvent,
+    LocationEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ KNOWN_EVENTS: frozenset[str] = frozenset(
         "Undocked",
         "FuelScoop",
         "DockingGranted",
+        "Location",
     ]
 )
 
@@ -46,6 +48,7 @@ JournalEvent = Annotated[
         Annotated[UndockedEvent, Tag("Undocked")],
         Annotated[FuelScoopEvent, Tag("FuelScoop")],
         Annotated[DockingGrantedEvent, Tag("DockingGranted")],
+        Annotated[LocationEvent, Tag("Location")],
         Annotated[UnknownCheckedEvent, Tag("Unknown")],
     ],
     Discriminator(event_discriminator),
