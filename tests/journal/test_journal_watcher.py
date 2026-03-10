@@ -128,5 +128,6 @@ class JournalWatcherTest(unittest.TestCase):
 
             self.assertEqual(next(gen), event2)
 
+
 if __name__ == "__main__":
     unittest.main()
