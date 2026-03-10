@@ -11,7 +11,8 @@ from services.models.game_events import (
     DockedEvent,
     UndockedEvent,
     FuelScoopEvent,
-    DockingGrantedEvent, LocationEvent,
+    DockingGrantedEvent,
+    LocationEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ KNOWN_EVENTS: frozenset[str] = frozenset(
         "Undocked",
         "FuelScoop",
         "DockingGranted",
-        "Location"
+        "Location",
     ]
 )
 

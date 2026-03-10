@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class Projection(ABC):
     @abstractmethod
     def process_event(self, event):

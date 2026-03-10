@@ -2,31 +2,57 @@ import unittest
 from datetime import datetime
 
 from projection.event_projections.location_projection import LocationProjection
-from services.models.game_events import DockedEvent, UndockedEvent, LocationEvent, FSDJumpEvent
+from services.models.game_events import (
+    DockedEvent,
+    UndockedEvent,
+    LocationEvent,
+    FSDJumpEvent,
+)
 from services.models.game_models import BaseFactionModel, StationEconomyModel
 
 
 class TestLocationProjection(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.docked_event = DockedEvent(event="Docked", timestamp=datetime.now(), StarSystem="Sol",
-                                       StationName="Galileo", MarketID=12345, StationType="Coriolis",
-                                       SystemAddress=123456789,
-                                       StationFaction=BaseFactionModel(Name="Galileo Corporation",
-                                                                       FactionState="Boom", ),
-                                       StationEconomy_Localised="Industrial",
-                                       StationEconomies=[
-                                           StationEconomyModel(Name_Localised="Industrial", Proportion=0.7)],
-                                       DistFromStarLS=100.0, StationGovernment_Localised="Democracy",
-                                       StationAllegiance="Federation", StationServices=["Refuel", "Repair"], )
+        cls.docked_event = DockedEvent(
+            event="Docked",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            StationName="Galileo",
+            MarketID=12345,
+            StationType="Coriolis",
+            SystemAddress=123456789,
+            StationFaction=BaseFactionModel(
+                Name="Galileo Corporation",
+                FactionState="Boom",
+            ),
+            StationEconomy_Localised="Industrial",
+            StationEconomies=[
+                StationEconomyModel(Name_Localised="Industrial", Proportion=0.7)
+            ],
+            DistFromStarLS=100.0,
+            StationGovernment_Localised="Democracy",
+            StationAllegiance="Federation",
+            StationServices=["Refuel", "Repair"],
+        )
 
-        cls.undocked_event = UndockedEvent(event="Undocked", timestamp=datetime.now(), StationName="Galileo", )
+        cls.undocked_event = UndockedEvent(
+            event="Undocked",
+            timestamp=datetime.now(),
+            StationName="Galileo",
+        )
 
-        cls.location_event = LocationEvent(event="Location", timestamp=datetime.now(), StarSystem="Sol",
-                                           SystemAddress=123456789,
-                                           StarPos=[0.0, 0.0, 0.0], DistFromStarLS=100.0, Docked=True,
-                                           StationName="Galileo",
-                                           StationType="Coriolis", )
+        cls.location_event = LocationEvent(
+            event="Location",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            SystemAddress=123456789,
+            StarPos=[0.0, 0.0, 0.0],
+            DistFromStarLS=100.0,
+            Docked=True,
+            StationName="Galileo",
+            StationType="Coriolis",
+        )
 
         cls.fsd_jump_event = FSDJumpEvent(
             event="FSDJump",
@@ -78,6 +104,18 @@ class TestLocationProjection(unittest.TestCase):
 
         location_projection.process_event(self.fsd_jump_event)
 
-        expected_projection = "Player is currently during the FSD jump to system Proxima Centauri."
+        expected_projection = (
+            "Player is currently during the FSD jump to system Proxima Centauri."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_set_fsd_jump_state_to_false_after_docked_and_undocked_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.fsd_jump_event)
+        location_projection.process_event(self.docked_event)
+
+        expected_projection = "Player is currently in the Sol system.Player is currently docked at station: Galileo."
 
         self.assertEqual(expected_projection, location_projection.create_projection())

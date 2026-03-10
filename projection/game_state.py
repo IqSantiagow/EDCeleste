@@ -16,7 +16,8 @@ class GameState:
     def __init__(self) -> None:
         self.__game_state_projection = None
         self.__projections: frozenset[Projection] = frozenset(
-            [PlayerProjection(), FuelProjection(), LocationProjection()])
+            [PlayerProjection(), FuelProjection(), LocationProjection()]
+        )
 
     def process_event(self, event: BaseModel):
         for projection in self.__projections:
@@ -31,5 +32,9 @@ class GameState:
         return self.GAME_PROJECTION.format(self.__game_state_projection)
 
     def __refresh_state(self):
-        self.__game_state_projection = ''.join([projection.create_projection() for projection in self.__projections])
-        logger.debug("Game state projection refreshed: %s", self.__game_state_projection)
+        self.__game_state_projection = "".join(
+            [projection.create_projection() for projection in self.__projections]
+        )
+        logger.debug(
+            "Game state projection refreshed: %s", self.__game_state_projection
+        )
