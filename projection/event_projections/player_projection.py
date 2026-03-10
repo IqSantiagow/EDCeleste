@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlayerProjection(Projection):
-    PROJECTION_STRING = "Commander name is {0}. Commander has {1} of credits. Commander ship is {2}"
+    PROJECTION_STRING = "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}."
 
     def __init__(self):
         self.player_name = None

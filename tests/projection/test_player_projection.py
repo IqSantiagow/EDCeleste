@@ -30,7 +30,7 @@ class PlayerProjectionTest(unittest.TestCase):
 
         player_projection.process_event(self.loaded_game_event)
 
-        expected_projection = "Commander name is {0}. Commander has {1} of credits. Commander ship is {2}".format(
+        expected_projection = "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}.".format(
             self.loaded_game_event.Commander, self.loaded_game_event.Credits, self.loaded_game_event.Ship)
 
         self.assertEqual(expected_projection, player_projection.create_projection())
