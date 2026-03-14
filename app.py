@@ -1,7 +1,7 @@
 import logging
 
 from config.config import load_config
-from projection.game_state import GameState
+from services.event_bus import EventBus
 from services.journal_watcher import JournalWatcherService
 
 if __name__ == "__main__":
@@ -12,9 +12,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=getattr(logging, log_level))
 
     print(config.ed.main_path)
-    watcher = JournalWatcherService(config.ed.main_path)
 
-    game_state_projection = GameState()
+    event_bus = EventBus()
 
-    for event in watcher.emit_journal_events():
-        game_state_projection.process_event(event)
+    watcher = JournalWatcherService(config.ed.main_path, event_bus)
+
+    watcher.start_watcher_service()

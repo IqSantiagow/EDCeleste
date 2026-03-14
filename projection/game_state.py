@@ -6,6 +6,8 @@ from projection.event_projections.fuel_projection import FuelProjection
 from projection.event_projections.location_projection import LocationProjection
 from projection.event_projections.player_projection import PlayerProjection
 from projection.event_projections.projection import Projection
+from services.event_bus import EventBus
+from services.models.game_events import GameEvent
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,14 @@ logger = logging.getLogger(__name__)
 class GameState:
     GAME_PROJECTION = "Current game state is: {0}"
 
-    def __init__(self) -> None:
+    def __init__(self, event_bus: EventBus) -> None:
+        self.event_bus = event_bus
         self.__game_state_projection = None
         self.__projections: frozenset[Projection] = frozenset(
             [PlayerProjection(), FuelProjection(), LocationProjection()]
         )
+
+        event_bus.subscribe(GameEvent, self.process_event)
 
     def process_event(self, event: BaseModel):
         for projection in self.__projections:

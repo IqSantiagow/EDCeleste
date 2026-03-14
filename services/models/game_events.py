@@ -9,7 +9,11 @@ from services.models.game_models import (
 from services.models.pydantic_base_models import IgnoreExtraFieldsModel
 
 
-class LoadedGameEvent(IgnoreExtraFieldsModel):
+class GameEvent(IgnoreExtraFieldsModel):
+    pass
+
+
+class LoadedGameEvent(GameEvent):
     event: Literal["LoadGame"]
     timestamp: datetime
     Commander: str
@@ -30,7 +34,7 @@ class LoadedGameEvent(IgnoreExtraFieldsModel):
     FuelCapacity: float
 
 
-class FSDJumpEvent(IgnoreExtraFieldsModel):
+class FSDJumpEvent(GameEvent):
     event: Literal["FSDJump"]
     timestamp: datetime
     StarSystem: str
@@ -49,7 +53,7 @@ class FSDJumpEvent(IgnoreExtraFieldsModel):
     SystemFaction: Optional[BaseFactionModel] = None
 
 
-class DockedEvent(IgnoreExtraFieldsModel):
+class DockedEvent(GameEvent):
     event: Literal["Docked"]
     timestamp: datetime
     StarSystem: str
@@ -66,20 +70,20 @@ class DockedEvent(IgnoreExtraFieldsModel):
     DistFromStarLS: float
 
 
-class UndockedEvent(IgnoreExtraFieldsModel):
+class UndockedEvent(GameEvent):
     event: Literal["Undocked"]
     timestamp: datetime
     StationName: str
 
 
-class FuelScoopEvent(IgnoreExtraFieldsModel):
+class FuelScoopEvent(GameEvent):
     event: Literal["FuelScoop"]
     timestamp: datetime
     Scooped: float
     Total: float
 
 
-class DockingGrantedEvent(IgnoreExtraFieldsModel):
+class DockingGrantedEvent(GameEvent):
     event: Literal["DockingGranted"]
     timestamp: datetime
     StationName: str
@@ -88,7 +92,7 @@ class DockingGrantedEvent(IgnoreExtraFieldsModel):
     LandingPad: int
 
 
-class StartJumpEvent(IgnoreExtraFieldsModel):
+class StartJumpEvent(GameEvent):
     event: Literal["StartJump"]
     timestamp: datetime
     JumpType: str
@@ -98,7 +102,7 @@ class StartJumpEvent(IgnoreExtraFieldsModel):
     StarClass: Optional[str] = None
 
 
-class LocationEvent(IgnoreExtraFieldsModel):
+class LocationEvent(GameEvent):
     event: Literal["Location"]
     timestamp: datetime
     StarSystem: str
@@ -130,6 +134,6 @@ class LocationEvent(IgnoreExtraFieldsModel):
     SystemFaction: Optional[BaseFactionModel] = None
 
 
-class UnknownCheckedEvent(IgnoreExtraFieldsModel):
+class UnknownCheckedEvent(GameEvent):
     event: str
     timestamp: datetime

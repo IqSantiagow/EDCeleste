@@ -6,20 +6,29 @@ from typing import Generator
 
 from pydantic import TypeAdapter, ValidationError
 
-from services.models.journal_event import JournalEvent
+from services.event_bus import EventBus
+from services.models.game_events import GameEvent
+from services.models.journal_event import _JournalEvent
 
 logger = logging.getLogger(__name__)
 
 
 class JournalWatcherService:
-    def __init__(self, journal_path):
-        self.journal_path = journal_path
-        self.adapter = TypeAdapter(JournalEvent)
-        self.exit_signal = False
+    def __init__(self, journal_path: str, event_bus: EventBus):
+        self.journal_path: str = journal_path
+        self.event_bus: EventBus = event_bus
+        self.adapter: TypeAdapter = TypeAdapter(_JournalEvent)
+        self.exit_signal: bool = False
 
-    def emit_journal_events(self) -> Generator[JournalEvent]:
+    def start_watcher_service(self):
         self.exit_signal = False
+        for event in self.__generate_journal_events():
+            self.event_bus.publish(event)
 
+    def stop_watcher_service(self) -> None:
+        self.exit_signal = True
+
+    def __generate_journal_events(self) -> Generator[GameEvent]:
         raw_journal_event = self.__fetch_raw_journal_line()
 
         for event in raw_journal_event:
@@ -28,9 +37,6 @@ class JournalWatcherService:
             except ValidationError:
                 logger.error("Error during validation for event: %s", event)
                 continue
-
-    def stop_watcher_service(self) -> None:
-        self.exit_signal = True
 
     def __fetch_raw_journal_line(self) -> Generator[str]:
         latest_file_path = self.__get_latest_journal_filepath()
