@@ -4,7 +4,7 @@ import unittest
 from pydantic import TypeAdapter
 
 from services.models.game_events import UnknownCheckedEvent
-from services.models.journal_event import JournalEvent
+from services.models.journal_event import _JournalEvent
 
 from tests import TEST_KNOWN_EVENTS_FILE_LOCATION
 
@@ -14,7 +14,7 @@ class JournalEventTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.adapter = TypeAdapter(JournalEvent)
+        cls.adapter = TypeAdapter(_JournalEvent)
 
     def test_should_return_unknown_discriminator(self):
         json_event = self.event_template.format("Unknown", datetime.now())
