@@ -3,3 +3,5 @@ ed:
   main_path: "C:\Users\YourUsername\Saved Games\Frontier Developments\Elite Dangerous"
   logging:
     level: DEBUG
+llm:
+  ANTHROPIC_API_KEY: sk-...

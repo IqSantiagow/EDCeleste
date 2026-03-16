@@ -11,9 +11,12 @@ class EDConfig(BaseModel):
     main_path: str
     logging: Logging
 
+class LLMConfig(BaseModel):
+    ANTHROPIC_API_KEY: str
 
 class AppConfig(BaseModel):
     ed: EDConfig
+    llm: LLMConfig
 
 
 def load_config(path="config.yaml") -> AppConfig:
