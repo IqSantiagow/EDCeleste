@@ -1,6 +1,8 @@
 import logging
 import threading
 
+from langchain_core.exceptions import LangChainException
+
 from config.config import load_config
 from projection.game_state import GameState
 from services.event_bus import EventBus
@@ -14,6 +16,8 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=getattr(logging, log_level))
 
+    logger = logging.getLogger(__name__)
+
     event_bus = EventBus()
 
     watcher = JournalWatcherService(config.ed.main_path, event_bus)
@@ -25,7 +29,7 @@ if __name__ == "__main__":
     watcher_thread.start()
 
     llm_service = LLMService(
-        game_state=game_state, api_key=config.llm.ANTHROPIC_API_KEY
+        game_state=game_state, api_key=config.llm.anthropic_api_key
     )
 
     while True:
@@ -36,3 +40,5 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             watcher.stop_watcher_service()
             break
+        except LangChainException as e:
+            logger.error("Raised a Langchain exception: %s", e)

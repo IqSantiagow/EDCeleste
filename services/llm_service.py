@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from pydantic import SecretStr
 
 from projection.game_state import GameState
@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 # ONLY FOR TESTING
 
-SYSTEM_PROMPT = "Your are the intelligent space ship pilot assistant called Celeste."
+SYSTEM_PROMPT = "You are the intelligent space ship pilot assistant called Celeste."
 
 
 class LLMService:
     def __init__(self, game_state: GameState, api_key: str) -> None:
         self.game_state: GameState = game_state
-        self.conversation: list[Any] = []
+        self.conversation: list[BaseMessage] = []
         self.__model = ChatAnthropic(  # type: ignore[call-arg]
             model="claude-haiku-4-5",
             temperature=0.9,
@@ -39,7 +39,7 @@ class LLMService:
         self.conversation.append(AIMessage(content=response.content))
         return str(response.content)
 
-    def __get_conv_history_with_system_prompt_and_state(self) -> list[Any]:
+    def __get_conv_history_with_system_prompt_and_state(self) -> list[BaseMessage]:
         # Append sys prompt and state at the beginning of the conv each request
         game_state = self.game_state.get_game_state_projection()
         conv_copy = self.conversation.copy()

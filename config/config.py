@@ -11,8 +11,10 @@ class EDConfig(BaseModel):
     main_path: str
     logging: Logging
 
+
 class LLMConfig(BaseModel):
-    ANTHROPIC_API_KEY: str
+    anthropic_api_key: str
+
 
 class AppConfig(BaseModel):
     ed: EDConfig

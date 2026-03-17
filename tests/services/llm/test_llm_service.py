@@ -46,6 +46,8 @@ class LLMServiceTest(unittest.TestCase):
 
         self.assertIn(HumanMessage(content=message1), self.llm_service.conversation)
         self.assertIn(HumanMessage(content=message2), self.llm_service.conversation)
+        self.assertIn(AIMessage(content="Test output 1"), self.llm_service.conversation)
+        self.assertIn(AIMessage(content="Test output 2"), self.llm_service.conversation)
 
     def test_should_add_state_and_prompt_to_each_request(self):
         message1 = "Test message 1"
