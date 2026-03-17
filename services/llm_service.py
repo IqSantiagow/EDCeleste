@@ -13,23 +13,25 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = "Your are the intelligent space ship pilot assistant called Celeste."
 
-class LLMService:
 
+class LLMService:
     def __init__(self, game_state: GameState, api_key: str) -> None:
         self.game_state: GameState = game_state
         self.conversation: list[Any] = []
         self.__model = ChatAnthropic(  # type: ignore[call-arg]
-        model="claude-haiku-4-5",
-        temperature=0.9,
-        max_retries=2,
-        api_key=SecretStr(api_key)
-    )
+            model="claude-haiku-4-5",
+            temperature=0.9,
+            max_retries=2,
+            api_key=SecretStr(api_key),
+        )
 
     def send_and_receive_message(self, message: str) -> str:
         logger.debug("Got an LLM request: %s", message)
         self.conversation.append(HumanMessage(content=message))
 
-        conv_history_with_sys_prompt = self.__get_conv_history_with_system_prompt_and_state()
+        conv_history_with_sys_prompt = (
+            self.__get_conv_history_with_system_prompt_and_state()
+        )
 
         logger.debug("Built a conv history : %s", conv_history_with_sys_prompt)
 
@@ -44,6 +46,6 @@ class LLMService:
 
         conv_copy.insert(0, SystemMessage(content=SYSTEM_PROMPT, role="system"))
 
-        conv_copy.insert(0, SystemMessage(content=game_state, role="system"))
+        conv_copy.insert(1, SystemMessage(content=game_state, role="system"))
 
         return conv_copy

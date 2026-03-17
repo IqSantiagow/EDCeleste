@@ -24,7 +24,9 @@ if __name__ == "__main__":
 
     watcher_thread.start()
 
-    llm_service = LLMService(game_state=game_state, api_key=config.llm.ANTHROPIC_API_KEY)
+    llm_service = LLMService(
+        game_state=game_state, api_key=config.llm.ANTHROPIC_API_KEY
+    )
 
     while True:
         try:
