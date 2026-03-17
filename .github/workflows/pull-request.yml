@@ -58,21 +58,21 @@ jobs:
             - Missing features unrelated to the PR's goal
             - Pre-existing issues in unchanged code
             - Hypothetical edge cases with no realistic trigger
-           ## Response format
+            ## Response format
 
-           ### Summary
-           One paragraph: what this PR does, whether the changes are correct, and the merge verdict (approve / request changes).
+            ### Summary
+            One paragraph: what this PR does, whether the changes are correct, and the merge verdict (approve / request changes).
 
-           ### Issues (only if found)
-           For each real issue:
-           - **File:line** — severity (bug | security | performance)
-           - Description of the problem
-           - Suggested fix (code snippet if helpful)
+            ### Issues (only if found)
+            For each real issue:
+            - **File:line** — severity (bug | security | performance)
+            - Description of the problem
+            - Suggested fix (code snippet if helpful)
 
-           If no issues found, write: "No issues found. Ready to merge."
+            If no issues found, write: "No issues found. Ready to merge."
 
-           ### Maintenance notes (optional)
-           Non-critical observations that could go into a weekly maintenance ticket. Keep to max 2-3 bullet points. Skip this section entirely if nothing worth noting
+            ### Maintenance notes (optional)
+            Non-critical observations that could go into a weekly maintenance ticket. Keep to max 2-3 bullet points. Skip this section entirely if nothing worth noting
 
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
