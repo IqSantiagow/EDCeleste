@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
@@ -9,8 +8,6 @@ from projection.game_state import GameState
 
 logger = logging.getLogger(__name__)
 
-# ONLY FOR TESTING
-
 SYSTEM_PROMPT = "You are the intelligent space ship pilot assistant called Celeste."
 
 
@@ -19,7 +16,7 @@ class LLMService:
         self.game_state: GameState = game_state
         self.conversation: list[BaseMessage] = []
         self.__model = ChatAnthropic(  # type: ignore[call-arg]
-            model="claude-haiku-4-5",
+            model="claude-haiku-4-5-20251001",
             temperature=0.9,
             max_retries=2,
             api_key=SecretStr(api_key),

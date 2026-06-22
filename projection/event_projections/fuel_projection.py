@@ -27,7 +27,8 @@ class FuelProjection(Projection):
 
         if isinstance(event, FuelScoopEvent):
             logger.debug("Received fuel event: %s", event)
-            # TODO: Check in game if its total fuel or total scooped
+            # TODO: Verify in-game whether FuelScoopEvent.Total is the per-scoop
+            # amount or the resulting tank total. Currently assumed to be the tank total.
             self.fuel_level = event.Total
             return
 

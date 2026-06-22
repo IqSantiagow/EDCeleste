@@ -11,10 +11,11 @@ Celeste is an AI companion that reacts to in-game events in real-time using STT,
 **Requirements:** Python 3.12+, Elite Dangerous (PC)
 
 ```bash
-git clone https://https://github.com/IqSantiagow/EDCeleste
+git clone https://github.com/IqSantiagow/EDCeleste
 cd EDCeleste
 python -m venv .venv
-.venv/Scripts/activate   # Windows
+.venv/Scripts/activate     # Windows
+source .venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 ```
 
@@ -38,7 +39,9 @@ python app.py
 EDCeleste/
 ├── app.py                 # Entry point
 ├── config/                # Config loading (YAML + Pydantic)
-├── services/              # Core services (journal watcher, etc.)
+├── projection/             # Event projections (fuel, location, player, game state)
+├── services/              # Core services (journal watcher, event bus, LLM, etc.)
+│   ├── event_bus.py       # Pub/sub event bus
 │   └── models/            # Pydantic models for journal events
 ├── ui/                    # UI layer (planned)
 ├── tools/                 # Tool integrations (planned)
