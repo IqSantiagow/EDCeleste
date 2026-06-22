@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
