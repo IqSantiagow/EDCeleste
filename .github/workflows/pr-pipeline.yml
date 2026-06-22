@@ -1,4 +1,4 @@
-name: EDCeleste PR review
+name: PR pipeline
 
 permissions:
   contents: read
@@ -8,6 +8,8 @@ permissions:
 
 on:
   pull_request:
+    branches:
+      - main
     types: [ opened, synchronize, ready_for_review, reopened ]
   issue_comment:
     types: [ created ]
@@ -17,15 +19,75 @@ on:
     types: [ opened, assigned ]
 
 jobs:
-  review:
+  lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Lint code
+        run: ruff check --output-format=github
+
+      - name: Format check
+        run: ruff format --diff
+
+  test:
+    needs: lint
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     environment: pr-action
-    # Run on PR events, or on comments only when @claude is mentioned
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.14
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests and coverage
+        run: |
+          coverage run -m unittest discover
+          coverage report -m
+          coverage xml
+
+      - name: Generate coverage report
+        uses: orgoro/coverage@v3.2
+        with:
+          coverageFile: coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  claude-review:
+    needs: [ lint, test ]
+    runs-on: ubuntu-latest
+    environment: pr-action
+    # Run after lint/test succeed (or were skipped for non-PR events), on PR events,
+    # or on comments/issues only when @claude is mentioned
     if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'issues' ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+      always() &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (
+        github.event_name == 'pull_request' ||
+        github.event_name == 'issues' ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+      )
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +114,7 @@ jobs:
             2. Security vulnerabilities introduced by the changes
             3. Significant performance regressions
             4. Violations of existing code patterns/conventions visible in the diff context
-            
+
             ## What to IGNORE
             - Style nitpicks (formatting, naming preferences) unless they break consistency
             - Missing features unrelated to the PR's goal
