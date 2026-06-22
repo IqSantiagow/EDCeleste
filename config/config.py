@@ -1,10 +1,11 @@
+from typing import Literal
+
 import yaml
 from pydantic import BaseModel
 
 
-# TODO: Add strict validation for loglevel types
 class Logging(BaseModel):
-    level: str
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class EDConfig(BaseModel):
