@@ -76,7 +76,10 @@ class TestLocationProjection(unittest.TestCase):
 
         location_projection.process_event(self.docked_event)
 
-        expected_projection = "Player is currently in the Sol system.Player is currently docked at station: Galileo."
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player is currently docked at station: Galileo."
+        )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
 
@@ -86,7 +89,10 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.docked_event)
         location_projection.process_event(self.undocked_event)
 
-        expected_projection = "Player is currently in the Sol system.Player is currently un-docked from station: Galileo flying nearby."
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player is currently un-docked from station: Galileo flying nearby."
+        )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
 
@@ -95,7 +101,10 @@ class TestLocationProjection(unittest.TestCase):
 
         location_projection.process_event(self.location_event)
 
-        expected_projection = "Player is currently in the Sol system.Player is currently docked at station: Galileo."
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player is currently docked at station: Galileo."
+        )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
 
@@ -116,6 +125,9 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.fsd_jump_event)
         location_projection.process_event(self.docked_event)
 
-        expected_projection = "Player is currently in the Sol system.Player is currently docked at station: Galileo."
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player is currently docked at station: Galileo."
+        )
 
         self.assertEqual(expected_projection, location_projection.create_projection())

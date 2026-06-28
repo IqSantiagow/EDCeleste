@@ -14,16 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 class JournalWatcherService:
-    def __init__(self, journal_path: str, event_bus: EventBus):
+    def __init__(self, journal_path: str, event_bus: EventBus) -> None:
         self.journal_path: str = journal_path
-        self.event_bus: EventBus = event_bus
+        self.event_bus = event_bus
         self.adapter: TypeAdapter = TypeAdapter(_JournalEvent)
         self.exit_signal: bool = False
 
-    def start_watcher_service(self):
+    def start_watcher_service(self) -> None:
         self.exit_signal = False
         for event in self.__generate_journal_events():
             self.event_bus.publish(event)
+
+    def start_watcher_service_and_generate_events(self) -> Generator[GameEvent]:
+        self.exit_signal = False
+        return self.__generate_journal_events()
 
     def stop_watcher_service(self) -> None:
         self.exit_signal = True

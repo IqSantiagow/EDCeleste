@@ -1,0 +1,6 @@
+[tool.ruff.lint]
+select = ["E", "F", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"tkinter".msg = "Nie używaj tkinter w tym projekcie."
+"rich".msg = "Nie importuj rich bezpośrednio; używaj Textual/CSS."
