@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import AsyncGenerator
 import logging
 
 from pydantic import BaseModel
@@ -12,15 +14,24 @@ from services.models.game_events import GameEvent
 logger = logging.getLogger(__name__)
 
 
-class GameState:
+class GameStateService:
     GAME_PROJECTION = "Current game state is: {0}"
 
     def __init__(self, event_bus: EventBus) -> None:
         self.event_bus = event_bus
         self.__game_state_projection = None
+        self.__player_projection = PlayerProjection()
+        self.__fuel_projection = FuelProjection()
+        self.__location_projection = LocationProjection()
         self.__projections: frozenset[Projection] = frozenset(
-            [PlayerProjection(), FuelProjection(), LocationProjection()]
+            [
+                self.__player_projection,
+                self.__fuel_projection,
+                self.__location_projection,
+            ]
         )
+        self.__game_state_changed_event = asyncio.Event()
+        self.__event_loop: asyncio.AbstractEventLoop | None = None
 
         event_bus.subscribe(GameEvent, self.process_event)
 
@@ -40,6 +51,27 @@ class GameState:
         self.__game_state_projection = "".join(
             [projection.create_projection() for projection in self.__projections]
         )
+
+        if self.__event_loop is not None:
+            self.__event_loop.call_soon_threadsafe(self.__game_state_changed_event.set)
+        else:
+            self.__game_state_changed_event.set()
+
         logger.debug(
             "Game state projection refreshed: %s", self.__game_state_projection
         )
+
+    def get_dashboard_stats(self) -> dict[str, str]:
+        return {
+            "player": self.__player_projection.player_name or "",
+            "fuel": str(self.__fuel_projection.fuel_level),
+            "location": self.__location_projection.current_star_system or "",
+            "ship": self.__player_projection.player_ship or "",
+        }
+
+    async def stream_dashboard_stats(self) -> AsyncGenerator[dict[str, str], None]:
+        self.__event_loop = asyncio.get_running_loop()
+        while True:
+            await self.__game_state_changed_event.wait()
+            self.__game_state_changed_event.clear()
+            yield self.get_dashboard_stats()

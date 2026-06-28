@@ -19,13 +19,13 @@ source .venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 ```
 
-Copy and edit the config file:
+Copy and edit the env file:
 
 ```bash
-cp config.example.yaml config.yaml
+cp .env-example .env
 ```
 
-Set `main_path` to your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`).
+Set `ED__MAIN_PATH` to your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`) and `LLM__ANTHROPIC_API_KEY` to your Anthropic API key.
 
 ## Usage
 
@@ -33,12 +33,22 @@ Set `main_path` to your Elite Dangerous journal directory (typically `C:\Users\<
 python app.py
 ```
 
+## Debugging
+Run console in separate terminal to see logs and events:
+```bash
+textual console -x EVENT --port 5000
+```
+Run app in dev mode to see logs and events:
+```bash
+textual run --dev --port 5000 app.py 
+```
+
 ## Project Structure
 
 ```
 EDCeleste/
 ├── app.py                 # Entry point
-├── config/                # Config loading (YAML + Pydantic)
+├── config/                # Config loading (pydantic-settings + .env)
 ├── projection/             # Event projections (fuel, location, player, game state)
 ├── services/              # Core services (journal watcher, event bus, LLM, etc.)
 │   ├── event_bus.py       # Pub/sub event bus

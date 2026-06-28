@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, Mock, call
 
-from services.journal_watcher import JournalWatcherService
+from services.journal_watcher_service import JournalWatcherService
 from services.models.game_events import UnknownCheckedEvent
 
 JOURNAL_PATH = "C:/journals"
@@ -10,8 +10,8 @@ JOURNAL_PATH = "C:/journals"
 
 class JournalWatcherEventBusTest(unittest.TestCase):
     def setUp(self):
-        glob_patcher = patch("services.journal_watcher.glob.glob")
-        getmtime_patcher = patch("services.journal_watcher.os.path.getmtime")
+        glob_patcher = patch("services.journal_watcher_service.glob.glob")
+        getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()

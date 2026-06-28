@@ -1,0 +1,67 @@
+Screen {
+    border: heavy $primary;
+    background: $background;
+}
+
+Header {
+    layout: horizontal;
+}
+
+Dashboard {
+    layout: horizontal;
+}
+
+.col {
+    height: 100%;
+}
+
+.left-col {
+    width: 0.7fr;
+}
+
+.right-col {
+    width: 0.3fr;
+}
+
+EdDashboard {
+    height: 100%;
+    layout: vertical;
+    background: $surface;
+}
+
+#dashboard-main {
+    height: auto;
+    padding: 1 1 1 1;
+    border-bottom: heavy $primary;
+}
+
+#dashboard-header {
+    height: auto;
+    width: 0.8fr;
+    border: heavy red
+}
+
+#dashboard-header Rule{
+    height:1;
+}
+
+#dashboard-body {
+    height: 1fr;
+}
+
+#dashboard-status {
+    height: auto;
+    align: right middle;
+    border: heavy red;
+    width: 0.2fr;
+
+}
+
+#dashboard-status Rule{
+    height:1;
+}
+
+WidgetCommonStatLabel {
+    width: 10;
+    padding: 0 1 0 1
+}

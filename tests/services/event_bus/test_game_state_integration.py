@@ -1,7 +1,7 @@
 from datetime import datetime
 import unittest
 
-from projection.game_state import GameState
+from projection.game_state_service import GameStateService
 from services.event_bus import EventBus
 from services.models.game_events import LoadedGameEvent
 
@@ -33,7 +33,7 @@ class GameStateIntegration(unittest.TestCase):
     def test_should_receive_event_from_bus(self):
         event_bus = EventBus()
 
-        game_state = GameState(event_bus)
+        game_state = GameStateService(event_bus)
 
         event_bus.publish(self.loaded_game_event)
 

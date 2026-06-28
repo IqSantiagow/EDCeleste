@@ -1,11 +1,11 @@
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Logging(BaseModel):
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]
 
 
 class EDConfig(BaseModel):
@@ -17,12 +17,15 @@ class LLMConfig(BaseModel):
     anthropic_api_key: str
 
 
-class AppConfig(BaseModel):
+class AppConfig(BaseSettings):
     ed: EDConfig
     llm: LLMConfig
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_nested_delimiter="__",
+    )
 
-def load_config(path="config.yaml") -> AppConfig:
-    with open(path, "r") as f:
-        config = yaml.safe_load(f)
-    return AppConfig(**config)
+
+def load_config() -> AppConfig:
+    return AppConfig()  # type: ignore[call-arg]
