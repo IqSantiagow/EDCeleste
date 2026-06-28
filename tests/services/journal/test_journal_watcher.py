@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, Mock
 
-from services.journal_watcher import JournalWatcherService
+from services.journal_watcher_service import JournalWatcherService
 from services.models.game_events import UnknownCheckedEvent
 
 JOURNAL_PATH = "C:/journals"
@@ -10,8 +10,8 @@ JOURNAL_PATH = "C:/journals"
 
 class JournalWatcherTest(unittest.TestCase):
     def setUp(self):
-        glob_patcher = patch("services.journal_watcher.glob.glob")
-        getmtime_patcher = patch("services.journal_watcher.os.path.getmtime")
+        glob_patcher = patch("services.journal_watcher_service.glob.glob")
+        getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
@@ -38,7 +38,7 @@ class JournalWatcherTest(unittest.TestCase):
 
         watcher = self._make_watcher()
 
-        result = watcher._JournalWatcherService__get_latest_journal_filepath()
+        result = watcher._JournalWatcherService__get_latest_journal_filepath()  # type: ignore
 
         self.assertEqual(result, f"{JOURNAL_PATH}/Journal.2024-01-02.log")
 
@@ -48,7 +48,7 @@ class JournalWatcherTest(unittest.TestCase):
         watcher = self._make_watcher()
 
         with self.assertRaises(FileNotFoundError):
-            watcher._JournalWatcherService__get_latest_journal_filepath()
+            watcher._JournalWatcherService__get_latest_journal_filepath()  # type: ignore
 
     def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
@@ -64,7 +64,7 @@ class JournalWatcherTest(unittest.TestCase):
 
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()
+            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
             self.assertEqual(next(gen), event1)
             self.assertEqual(next(gen), event2)
@@ -83,7 +83,7 @@ class JournalWatcherTest(unittest.TestCase):
 
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()
+            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
             self.assertEqual(next(gen), event1)
 
@@ -108,7 +108,7 @@ class JournalWatcherTest(unittest.TestCase):
 
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()
+            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
             self.assertEqual(next(gen), event1)
 
@@ -118,7 +118,7 @@ class JournalWatcherTest(unittest.TestCase):
                 next(gen)
 
             watcher.exit_signal = False
-            gen = watcher._JournalWatcherService__generate_journal_events()
+            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
             self.assertEqual(next(gen), event2)
 

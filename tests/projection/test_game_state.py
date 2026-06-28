@@ -2,7 +2,7 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
-from projection.game_state import GameState
+from projection.game_state_service import GameStateService
 from services.models.game_events import LoadedGameEvent, FuelScoopEvent
 
 
@@ -37,7 +37,7 @@ class TestGameState(unittest.TestCase):
     def test_should_process_event_and_refresh_state_soft_assert(self):
         mock_event_bus = Mock()
 
-        game_state = GameState(mock_event_bus)
+        game_state = GameStateService(mock_event_bus)
 
         game_state.process_event(self.loaded_game_event)
 
@@ -61,7 +61,7 @@ class TestGameState(unittest.TestCase):
     def test_should_refresh_state_with_new_event(self):
         mock_event_bus = Mock()
 
-        game_state = GameState(mock_event_bus)
+        game_state = GameStateService(mock_event_bus)
 
         game_state.process_event(self.loaded_game_event)
 
@@ -81,7 +81,7 @@ class TestGameState(unittest.TestCase):
     ):
         mock_event_bus = Mock()
 
-        game_state = GameState(mock_event_bus)
+        game_state = GameStateService(mock_event_bus)
 
         game_state.process_event(self.loaded_game_event)
 
@@ -99,6 +99,6 @@ class TestGameState(unittest.TestCase):
     def test_should_return_empty_projection_if_no_data(self):
         mock_event_bus = Mock()
 
-        game_state = GameState(mock_event_bus)
+        game_state = GameStateService(mock_event_bus)
 
         self.assertEqual("", game_state.get_game_state_projection())
