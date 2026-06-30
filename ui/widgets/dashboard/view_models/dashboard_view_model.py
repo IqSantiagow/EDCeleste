@@ -2,13 +2,13 @@ from dataclasses import dataclass
 
 
 @dataclass(slots=True)
-class DashboardViewModel:
+class DashboardStatsViewModel:
     location: str
     ship: str
     fuel: str
 
     @classmethod
-    def from_snapshot(cls, snapshot: dict[str, str]) -> "DashboardViewModel":
+    def from_snapshot(cls, snapshot: dict[str, str]) -> "DashboardStatsViewModel":
         return cls(
             location=snapshot.get("location", ""),
             ship=snapshot.get("ship", ""),
@@ -16,5 +16,5 @@ class DashboardViewModel:
         )
 
     @classmethod
-    def empty(cls) -> "DashboardViewModel":
+    def empty(cls) -> "DashboardStatsViewModel":
         return cls(location="", ship="", fuel="")

@@ -12,13 +12,15 @@ from ui.widgets.dashboard.comms.widget_comms_col import WidgetCommsCol
 from ui.widgets.dashboard.dashboard_headers.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
-from ui.widgets.dashboard.dashboard_view_model import DashboardViewModel
+from ui.widgets.dashboard.view_models.dashboard_view_model import (
+    DashboardStatsViewModel,
+)
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from ui.widgets.dashboard.ship_log.widget_ship_log_col import WidgetShipLogCol
 
 
 class EdDashboard(Widget):
-    state: reactive[DashboardViewModel] = reactive(DashboardViewModel.empty())
+    state: reactive[DashboardStatsViewModel] = reactive(DashboardStatsViewModel.empty())
 
     @inject
     def __init__(
@@ -30,7 +32,7 @@ class EdDashboard(Widget):
         super().__init__()
         self.ed_dashboard_presenter = ed_dashboard_presenter
 
-    def watch_state(self, new_state: DashboardViewModel) -> None:
+    def watch_state(self, new_state: DashboardStatsViewModel) -> None:
         self.query_one("#stat-sys", WidgetCommonStatLabel).update_value(
             new_state.location
         )
@@ -38,8 +40,6 @@ class EdDashboard(Widget):
         self.query_one("#stat-fuel", WidgetCommonStatLabel).update_value(new_state.fuel)
 
     def on_mount(self) -> None:
-        self.state = self.ed_dashboard_presenter.get_dashboard_stats()
-        log.info(f"Initial dashboard state: {self.state}")
         self.set_up_stream_worker()
 
     def compose(self) -> ComposeResult:
@@ -55,12 +55,16 @@ class EdDashboard(Widget):
                 yield Rule(orientation="vertical")
                 yield WidgetCommonStatLabel(text="FUEL", stat_value="", id="stat-fuel")
             with Horizontal(id="dashboard-status"):
-                yield WidgetCommonStatLabel(text="LLM", stat_value="OK")
+                yield WidgetCommonStatLabel(text="LLM", stat_value="OK", id="stat-llm")
                 yield Rule(orientation="vertical")
-                yield WidgetCommonStatLabel(text="JRNL", stat_value="OK")
+                yield WidgetCommonStatLabel(
+                    text="JRNL", stat_value="OK", id="stat-jrnl"
+                )
         with Horizontal(id="dashboard-body"):
             yield WidgetCommsCol()
-            yield WidgetShipLogCol()
+            yield WidgetShipLogCol(
+                ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col"
+            )
 
     @work(exclusive=True)
     async def set_up_stream_worker(self) -> None:

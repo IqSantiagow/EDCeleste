@@ -8,7 +8,7 @@ from ui.widgets.dashboard.comms.widget_comms_input import WidgetCommsInput
 
 
 class WidgetCommsCol(Widget):
-    DEFAULT_CLASSES = "col left-col"
+    DEFAULT_CLASSES = "col"
 
     def __init__(self) -> None:
         super().__init__()

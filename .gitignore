@@ -1,7 +1,6 @@
 #Personal
-/LOG.md
+LOG.md
 *config.yaml
-.env
 /.coverage
 /.idea
 /.mypy_cache
@@ -11,5 +10,5 @@
 /.vscode
 /.htmlcov
 /.venv
-*/*.pyc
-
+.env
+*.pyc
