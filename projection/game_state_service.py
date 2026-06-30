@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 import logging
+import threading
 
 from pydantic import BaseModel
 
@@ -31,6 +32,7 @@ class GameStateService:
             ]
         )
         self.__queue_watchers: list[asyncio.Queue] = []
+        self.__queue_watchers_lock = threading.Lock()
         self.__event_loop: asyncio.AbstractEventLoop | None = None
 
         event_bus.subscribe(GameEvent, self.process_event)
@@ -39,7 +41,10 @@ class GameStateService:
         for projection in self.__projections:
             projection.process_event(event)
 
-        for watcher in self.__queue_watchers:
+        with self.__queue_watchers_lock:
+            watchers = list(self.__queue_watchers)
+
+        for watcher in watchers:
             if self.__event_loop is None:
                 watcher.put_nowait(event)
             else:
@@ -72,22 +77,26 @@ class GameStateService:
     async def stream_dashboard_stats(self) -> AsyncGenerator[dict[str, str], None]:
         queue: asyncio.Queue = asyncio.Queue()
         self.__event_loop = asyncio.get_running_loop()
-        self.__queue_watchers.append(queue)
+        with self.__queue_watchers_lock:
+            self.__queue_watchers.append(queue)
 
         try:
             while True:
                 await queue.get()
                 yield self.get_dashboard_stats()
         finally:
-            self.__queue_watchers.remove(queue)
+            with self.__queue_watchers_lock:
+                self.__queue_watchers.remove(queue)
 
     async def stream_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         queue: asyncio.Queue = asyncio.Queue()
         self.__event_loop = asyncio.get_running_loop()
-        self.__queue_watchers.append(queue)
+        with self.__queue_watchers_lock:
+            self.__queue_watchers.append(queue)
         try:
             while True:
                 event = await queue.get()
                 yield event
         finally:
-            self.__queue_watchers.remove(queue)
+            with self.__queue_watchers_lock:
+                self.__queue_watchers.remove(queue)

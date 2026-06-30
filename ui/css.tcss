@@ -60,13 +60,10 @@ WidgetCommonStatLabel {
 
 WidgetCommsCol{
     width: 0.7fr;
-    border: heavy red;
-
 }
 
 
 WidgetShipLogCol{
     width: 0.3fr;
-    border: heavy red;
 }
 

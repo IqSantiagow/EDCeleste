@@ -19,7 +19,7 @@ class WidgetShipLogCol(Widget):
         self.old_state = []
         self.ed_dashboard_presenter = ed_dashboard_presenter
 
-    DEFAULT_CLASSES = "col right-col"
+    DEFAULT_CLASSES = "col"
 
     def compose(self) -> ComposeResult:
         yield Static(content="Ship log")
