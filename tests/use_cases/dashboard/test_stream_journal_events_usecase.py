@@ -80,7 +80,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_map_loaded_game_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.loaded_game_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -91,7 +91,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_map_start_jump_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.start_jump_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -102,7 +102,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_map_docked_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.docked_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -113,7 +113,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_fallback_for_unhandled_event_type(self):
         reader = FakeGameStateReader(events=[self.fuel_scoop_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -123,7 +123,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_preserve_event_timestamp_as_string(self):
         reader = FakeGameStateReader(events=[self.start_jump_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -131,7 +131,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_yield_multiple_events_in_order(self):
         reader = FakeGameStateReader(events=[self.loaded_game_event, self.docked_event])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -141,7 +141,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_complete_when_stream_is_empty(self):
         reader = FakeGameStateReader(events=[])
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -149,7 +149,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_propagate_exception_from_underlying_stream(self):
         reader = FakeGameStateReader(events=[], error=RuntimeError("boom"))
-        use_case = StreamJournalEventsUseCase(reader) # type: ignore
+        use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         with self.assertRaises(RuntimeError):
             async for _ in use_case():

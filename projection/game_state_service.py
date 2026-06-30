@@ -38,7 +38,7 @@ class GameStateService:
     def process_event(self, event: BaseModel):
         for projection in self.__projections:
             projection.process_event(event)
-        
+
         for watcher in self.__queue_watchers:
             if self.__event_loop is None:
                 watcher.put_nowait(event)
@@ -71,7 +71,7 @@ class GameStateService:
 
     async def stream_dashboard_stats(self) -> AsyncGenerator[dict[str, str], None]:
         queue: asyncio.Queue = asyncio.Queue()
-        self.__event_loop = asyncio.get_running_loop() 
+        self.__event_loop = asyncio.get_running_loop()
         self.__queue_watchers.append(queue)
 
         try:
@@ -83,7 +83,7 @@ class GameStateService:
 
     async def stream_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         queue: asyncio.Queue = asyncio.Queue()
-        self.__event_loop = asyncio.get_running_loop() 
+        self.__event_loop = asyncio.get_running_loop()
         self.__queue_watchers.append(queue)
         try:
             while True:

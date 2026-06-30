@@ -30,7 +30,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
                 {"player": "X", "location": "Sol", "ship": "Sidewinder", "fuel": "5.0"}
             ]
         )
-        use_case = StreamDashboardStatsUseCase(reader) # type: ignore
+        use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -41,7 +41,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_default_missing_keys_to_empty_string(self):
         reader = FakeGameStateReader(snapshots=[{}])
-        use_case = StreamDashboardStatsUseCase(reader) # type: ignore
+        use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -56,7 +56,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
             {"location": "Sirius"},
         ]
         reader = FakeGameStateReader(snapshots=snapshots)
-        use_case = StreamDashboardStatsUseCase(reader) # type: ignore
+        use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -67,7 +67,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_complete_when_stream_is_empty(self):
         reader = FakeGameStateReader(snapshots=[])
-        use_case = StreamDashboardStatsUseCase(reader) # type: ignore
+        use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
@@ -75,7 +75,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_propagate_exception_from_underlying_stream(self):
         reader = FakeGameStateReader(snapshots=[], error=RuntimeError("boom"))
-        use_case = StreamDashboardStatsUseCase(reader) # type: ignore
+        use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         with self.assertRaises(RuntimeError):
             async for _ in use_case():

@@ -35,7 +35,8 @@ class Container(containers.DeclarativeContainer):
     )
 
     stream_journal_events_use_case = providers.Factory(
-        StreamJournalEventsUseCase, game_state_reader=game_state_service)
+        StreamJournalEventsUseCase, game_state_reader=game_state_service
+    )
 
     ed_dashboard_presenter = providers.Singleton(
         EdDashboardPresenter,

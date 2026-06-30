@@ -12,6 +12,7 @@ from services.models.pydantic_base_models import IgnoreExtraFieldsModel
 class GameEvent(IgnoreExtraFieldsModel):
     timestamp: datetime
 
+
 class LoadedGameEvent(GameEvent):
     event: Literal["LoadGame"]
     Commander: str

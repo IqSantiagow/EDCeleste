@@ -36,7 +36,7 @@ class UIApp(App):
         self.watcher_thread = threading.Thread(
             target=self.journal_watcher_service.start_watcher_service,
             daemon=True,
-            context=contextvars.copy_context(), # type: ignore
+            context=contextvars.copy_context(),  # type: ignore
         )
         self.watcher_thread.start()
         logger.info(

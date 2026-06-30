@@ -1,4 +1,4 @@
-from textual import work, log
+from textual import work
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widget import Widget
@@ -18,12 +18,12 @@ class WidgetShipLogCol(Widget):
         self.state = []
         self.old_state = []
         self.ed_dashboard_presenter = ed_dashboard_presenter
- 
+
     DEFAULT_CLASSES = "col right-col"
 
     def compose(self) -> ComposeResult:
         yield Static(content="Ship log")
-        with VerticalScroll(id = "ship-log-scroll"):
+        with VerticalScroll(id="ship-log-scroll"):
             for event in self.state:
                 yield Label(
                     content=f"{event.timestamp} - {event.event} - {event.details}"
@@ -36,9 +36,7 @@ class WidgetShipLogCol(Widget):
         new_events = [event for event in new_state if event not in self.old_state]
         for event in new_events:
             self.query_one("#ship-log-scroll", VerticalScroll).mount(
-                Label(
-                    content=f"{event.timestamp} - {event.event} - {event.details}"
-                )
+                Label(content=f"{event.timestamp} - {event.event} - {event.details}")
             )
         self.old_state = list(new_state)
 

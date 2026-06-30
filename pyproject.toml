@@ -9,5 +9,5 @@ select = ["E", "F", "TID"]
 source = ["."]
 
 [tool.coverage.report]
-omit = ["*/tests/*", "test_*, "/app.py", "*/projection/exceptions/*", "*/ui/*"]
+omit = ["*/tests/*", "test_*", "/app.py", "*/projection/exceptions/*", "*/ui/*"]
 skip_empty = true

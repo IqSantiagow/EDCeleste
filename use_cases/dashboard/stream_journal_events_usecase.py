@@ -11,10 +11,5 @@ class StreamJournalEventsUseCase:
         self.game_state_reader = game_state_reader
 
     async def __call__(self) -> AsyncGenerator[JournalLogViewModel, None]:
-         async for event in self.game_state_reader.stream_journal_events():
-             yield JournalLogViewModel.from_event(event)
-
-             
-    
-
-            
+        async for event in self.game_state_reader.stream_journal_events():
+            yield JournalLogViewModel.from_event(event)

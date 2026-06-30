@@ -12,7 +12,9 @@ from ui.widgets.dashboard.comms.widget_comms_col import WidgetCommsCol
 from ui.widgets.dashboard.dashboard_headers.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
-from ui.widgets.dashboard.view_models.dashboard_view_model import DashboardStatsViewModel
+from ui.widgets.dashboard.view_models.dashboard_view_model import (
+    DashboardStatsViewModel,
+)
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from ui.widgets.dashboard.ship_log.widget_ship_log_col import WidgetShipLogCol
 
@@ -55,10 +57,14 @@ class EdDashboard(Widget):
             with Horizontal(id="dashboard-status"):
                 yield WidgetCommonStatLabel(text="LLM", stat_value="OK", id="stat-llm")
                 yield Rule(orientation="vertical")
-                yield WidgetCommonStatLabel(text="JRNL", stat_value="OK", id="stat-jrnl")
+                yield WidgetCommonStatLabel(
+                    text="JRNL", stat_value="OK", id="stat-jrnl"
+                )
         with Horizontal(id="dashboard-body"):
             yield WidgetCommsCol()
-            yield WidgetShipLogCol(ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col")
+            yield WidgetShipLogCol(
+                ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col"
+            )
 
     @work(exclusive=True)
     async def set_up_stream_worker(self) -> None:
