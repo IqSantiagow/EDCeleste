@@ -33,7 +33,8 @@ class UIApp(App):
         self.register_theme(amber_theme)
         self.theme = "amber"
         self.watcher_thread = threading.Thread(
-            target=self.journal_watcher_service.start_watcher_service, daemon=True
+            target=self.journal_watcher_service.start_watcher_service,
+            daemon=True,
         )
         self.watcher_thread.start()
         logger.info(

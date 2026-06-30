@@ -1,23 +1,26 @@
 from collections.abc import AsyncGenerator
 
-from use_cases.dashboard.load_dashboard_stats_usecase import LoadDashboardStatsUseCase
+from ui.widgets.dashboard.view_models.journal_log_view_model import JournalLogViewModel
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
-from ui.widgets.dashboard.dashboard_view_model import DashboardViewModel
+from ui.widgets.dashboard.view_models.dashboard_view_model import (
+    DashboardStatsViewModel,
+)
+from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 
 
 class EdDashboardPresenter:
     def __init__(
         self,
-        load_dashboard_stats_usecase: LoadDashboardStatsUseCase,
         stream_dashboard_stats_usecase: StreamDashboardStatsUseCase,
+        stream_journal_events_usecase: StreamJournalEventsUseCase,
     ) -> None:
-        self.load_dashboard_stats_usecase = load_dashboard_stats_usecase
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
+        self.stream_journal_events_usecase = stream_journal_events_usecase
 
-    def get_dashboard_stats(self) -> DashboardViewModel:
-        return self.load_dashboard_stats_usecase()
-
-    def stream_dashboard_stats(self) -> AsyncGenerator[DashboardViewModel, None]:
+    def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         return self.stream_dashboard_stats_usecase()
+
+    def stream_journal_events(self) -> AsyncGenerator[JournalLogViewModel, None]:
+        return self.stream_journal_events_usecase()
