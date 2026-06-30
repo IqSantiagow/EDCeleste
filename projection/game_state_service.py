@@ -30,7 +30,7 @@ class GameStateService:
                 self.__location_projection,
             ]
         )
-        self.__game_state_changed_event = asyncio.Event()
+        self.__queue_watchers: list[asyncio.Queue] = []
         self.__event_loop: asyncio.AbstractEventLoop | None = None
 
         event_bus.subscribe(GameEvent, self.process_event)
@@ -38,6 +38,12 @@ class GameStateService:
     def process_event(self, event: BaseModel):
         for projection in self.__projections:
             projection.process_event(event)
+        
+        for watcher in self.__queue_watchers:
+            if self.__event_loop is None:
+                watcher.put_nowait(event)
+            else:
+                self.__event_loop.call_soon_threadsafe(watcher.put_nowait, event)
 
         self.__refresh_state()
 
@@ -51,12 +57,6 @@ class GameStateService:
         self.__game_state_projection = "".join(
             [projection.create_projection() for projection in self.__projections]
         )
-
-        if self.__event_loop is not None:
-            self.__event_loop.call_soon_threadsafe(self.__game_state_changed_event.set)
-        else:
-            self.__game_state_changed_event.set()
-
         logger.debug(
             "Game state projection refreshed: %s", self.__game_state_projection
         )
@@ -70,8 +70,24 @@ class GameStateService:
         }
 
     async def stream_dashboard_stats(self) -> AsyncGenerator[dict[str, str], None]:
-        self.__event_loop = asyncio.get_running_loop()
-        while True:
-            await self.__game_state_changed_event.wait()
-            self.__game_state_changed_event.clear()
-            yield self.get_dashboard_stats()
+        queue: asyncio.Queue = asyncio.Queue()
+        self.__event_loop = asyncio.get_running_loop() 
+        self.__queue_watchers.append(queue)
+
+        try:
+            while True:
+                await queue.get()
+                yield self.get_dashboard_stats()
+        finally:
+            self.__queue_watchers.remove(queue)
+
+    async def stream_journal_events(self) -> AsyncGenerator[GameEvent, None]:
+        queue: asyncio.Queue = asyncio.Queue()
+        self.__event_loop = asyncio.get_running_loop() 
+        self.__queue_watchers.append(queue)
+        try:
+            while True:
+                event = await queue.get()
+                yield event
+        finally:
+            self.__queue_watchers.remove(queue)

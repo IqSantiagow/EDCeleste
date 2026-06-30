@@ -15,14 +15,6 @@ Dashboard {
     height: 100%;
 }
 
-.left-col {
-    width: 0.7fr;
-}
-
-.right-col {
-    width: 0.3fr;
-}
-
 EdDashboard {
     height: 100%;
     layout: vertical;
@@ -62,6 +54,19 @@ EdDashboard {
 }
 
 WidgetCommonStatLabel {
-    width: 10;
+    width: 15;
     padding: 0 1 0 1
 }
+
+WidgetCommsCol{
+    width: 0.7fr;
+    border: heavy red;
+
+}
+
+
+WidgetShipLogCol{
+    width: 0.3fr;
+    border: heavy red;
+}
+

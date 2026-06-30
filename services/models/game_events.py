@@ -10,12 +10,10 @@ from services.models.pydantic_base_models import IgnoreExtraFieldsModel
 
 
 class GameEvent(IgnoreExtraFieldsModel):
-    pass
-
+    timestamp: datetime
 
 class LoadedGameEvent(GameEvent):
     event: Literal["LoadGame"]
-    timestamp: datetime
     Commander: str
     FID: str
     Horizons: bool
@@ -36,7 +34,6 @@ class LoadedGameEvent(GameEvent):
 
 class FSDJumpEvent(GameEvent):
     event: Literal["FSDJump"]
-    timestamp: datetime
     StarSystem: str
     SystemAddress: int
     StarPos: list[float]
@@ -55,7 +52,6 @@ class FSDJumpEvent(GameEvent):
 
 class DockedEvent(GameEvent):
     event: Literal["Docked"]
-    timestamp: datetime
     StarSystem: str
     StationName: str
     StationType: str
@@ -72,20 +68,17 @@ class DockedEvent(GameEvent):
 
 class UndockedEvent(GameEvent):
     event: Literal["Undocked"]
-    timestamp: datetime
     StationName: str
 
 
 class FuelScoopEvent(GameEvent):
     event: Literal["FuelScoop"]
-    timestamp: datetime
     Scooped: float
     Total: float
 
 
 class DockingGrantedEvent(GameEvent):
     event: Literal["DockingGranted"]
-    timestamp: datetime
     StationName: str
     StationType: str
     MarketID: int
@@ -94,7 +87,6 @@ class DockingGrantedEvent(GameEvent):
 
 class StartJumpEvent(GameEvent):
     event: Literal["StartJump"]
-    timestamp: datetime
     JumpType: str
     Taxi: bool
     StarSystem: str
@@ -104,7 +96,6 @@ class StartJumpEvent(GameEvent):
 
 class LocationEvent(GameEvent):
     event: Literal["Location"]
-    timestamp: datetime
     StarSystem: str
     SystemAddress: int
     StarPos: list[float]
@@ -136,4 +127,3 @@ class LocationEvent(GameEvent):
 
 class UnknownCheckedEvent(GameEvent):
     event: str
-    timestamp: datetime

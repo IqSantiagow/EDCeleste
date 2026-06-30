@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 
 from protocols.game_state_reader import GameStateReader
-from ui.widgets.dashboard.dashboard_view_model import DashboardViewModel
+from ui.widgets.dashboard.view_models.dashboard_view_model import DashboardStatsViewModel
 
 
 class StreamDashboardStatsUseCase:
@@ -10,6 +10,6 @@ class StreamDashboardStatsUseCase:
     def __init__(self, game_state_reader: GameStateReader) -> None:
         self.game_state_reader = game_state_reader
 
-    async def __call__(self) -> AsyncGenerator[DashboardViewModel, None]:
+    async def __call__(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         async for snapshot in self.game_state_reader.stream_dashboard_stats():
-            yield DashboardViewModel.from_snapshot(snapshot)
+            yield DashboardStatsViewModel.from_snapshot(snapshot)
