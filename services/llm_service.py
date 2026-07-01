@@ -37,7 +37,7 @@ class LLMService:
     def get_llm_healthcheck(self) -> bool:
         try:
             self.__model.get_num_tokens_from_messages(
-                [HumanMessage(content=SYSTEM_PROMPT, role="system")]
+                [SystemMessage(content=SYSTEM_PROMPT, role="system")]
             )
             return True
         except anthropic.APIError as e:
