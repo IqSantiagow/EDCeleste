@@ -1,25 +1,25 @@
 ---
 name: textual-debug
-description: Uruchamia aplikację Textual w trybie debugowania — konsola debugowania i aplikacja działają równolegle na porcie 7342.
+description: Runs the Textual app in debug mode — debug console and app run in parallel on port 7342.
 ---
 
-Uruchom aplikację Textual w trybie debugowania, uruchamiając równolegle konsolę Textual i aplikację.
+Run the Textual app in debug mode by starting the Textual console and the app in parallel.
 
-## Kroki
+## Steps
 
-1. Uruchom w tle konsolę debugowania Textual z filtrowaniem zdarzeń EVENT:
+1. Start the Textual debug console in the background with EVENT filtering:
    ```
    textual console -x EVENT --port 7342
    ```
 
-2. Równolegle uruchom aplikację w trybie deweloperskim (nie czekaj na zakończenie konsoli):
+2. In parallel, run the app in dev mode (don't wait for the console to finish):
    ```
    textual run --dev --port 7342 app.py
    ```
 
-Obie komendy uruchamiaj jako procesy w tle (`run_in_background: true`), żeby działały jednocześnie. Konsolę uruchom jako pierwszą, chwilę poczekaj (kilka sekund), a potem uruchom aplikację — tak żeby konsola była gotowa przed podłączeniem się aplikacji.
+Run both commands as background processes (`run_in_background: true`) so they run at the same time. Start the console first, wait a moment (a few seconds), then start the app — so the console is ready before the app connects.
 
-Gdy procesy zostaną uruchomione, poinformuj użytkownika, że:
-- konsola Textual nasłuchuje na porcie 7342 (z filtrowaniem zdarzeń EVENT)
-- aplikacja działa w trybie `--dev` i wysyła logi do konsoli
-- żeby zatrzymać — niech zamknie oba procesy (Ctrl+C w odpowiednich terminalach)
+Once the processes are running, tell the user that:
+- the Textual console is listening on port 7342 (with EVENT filtering)
+- the app is running in `--dev` mode and sending logs to the console
+- to stop it — they should close both processes (Ctrl+C in the respective terminals)
