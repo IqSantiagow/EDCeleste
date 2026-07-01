@@ -1,170 +1,183 @@
 ---
 name: pr-flow
-description: Tworzy PR, monitoruje pipeline CI i code review od Claude, zarządza poprawkami iteracyjnie — od commitu do merge-ready
+description: Creates a PR, monitors the CI pipeline and Claude code review, manages fixes iteratively — from commit to merge-ready
 ---
 
-Przeprowadź pełny cykl PR dla bieżącego brancha. Wykonuj kroki po kolei.
+Run the full PR cycle for the current branch. Execute the steps in order.
 
-## Krok 1 — Sprawdź stan
+## Step 1 — Local check: lint and tests
+
+Before committing, verify locally that the code is clean and the tests pass — this catches issues before they hit the CI pipeline:
+
+```bash
+ruff check
+ruff format --diff
+coverage run -m unittest discover
+coverage report -m
+```
+
+If `ruff check` reports errors, fix them (`ruff check --fix` and `ruff format`). If any test fails, identify and fix the cause. Do not proceed to Step 2 until both lint and tests are clean.
+
+## Step 2 — Check state
 
 ```bash
 git status
 git diff HEAD
 ```
 
-Upewnij się, że:
-- Branch to `feature/*` lub `fix/*` — nie `main`
-- Są zmiany do commitu
+Make sure that:
+- The branch is `feature/*` or `fix/*` — not `main`
+- There are changes to commit
 
-## Krok 2 — Commit
+## Step 3 — Commit
 
-Wystaw commit z konkretnym opisem (co zmieniono i dlaczego). Dodawaj tylko pliki powiązane z bieżącą zmianą — nigdy `git add .` ani `git add -A`.
+Create a commit with a specific description (what changed and why). Stage only files related to the current change — never `git add .` or `git add -A`.
 
-**BEZWZGLĘDNY ZAKAZ:** Żadnego `Co-Authored-By:` ani żadnego innego trailera. Commit message kończy się po opisie, bez dodatkowych linii.
+**ABSOLUTE PROHIBITION:** No `Co-Authored-By:` or any other trailer. The commit message ends after the description, with no additional lines.
 
 ```bash
-git add <konkretne pliki>
+git add <specific files>
 git commit -m "$(cat <<'EOF'
-<tytuł commitu — co i dlaczego>
+<commit title — what and why>
 EOF
 )"
 ```
 
-## Krok 3 — Push
+## Step 4 — Push
 
 ```bash
 git push -u origin HEAD
 ```
 
-## Krok 4 — Utwórz PR (jeśli nie istnieje)
+## Step 5 — Create PR (if it doesn't exist)
 
-Sprawdź czy PR już istnieje:
+Check whether a PR already exists:
 ```bash
 gh pr view 2>/dev/null && echo "PR EXISTS" || echo "NO PR"
 ```
 
-Jeśli PR nie istnieje, utwórz go. Tytuł ≤70 znaków. BEZ Co-Authored-By w treści:
+If no PR exists, create one. Title ≤70 characters. NO Co-Authored-By in the body:
 
 ```bash
-gh pr create --title "<tytuł>" --body "$(cat <<'EOF'
+gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
-- <co zostało zmienione>
-- <dlaczego / jaki problem rozwiązuje>
+- <what was changed>
+- <why / what problem it solves>
 
 ## Test plan
-- [ ] Lint i testy przechodzą
-- [ ] <specyficzne kroki do sprawdzenia zmiany>
+- [ ] Lint and tests pass
+- [ ] <specific steps to verify the change>
 EOF
 )"
 ```
 
-Zanotuj numer PR — będzie potrzebny do pobierania komentarzy.
+Note the PR number — it will be needed to fetch comments.
 
-## Krok 5 — Monitoruj pipeline
+## Step 6 — Monitor the pipeline
 
-Czekaj na zakończenie wszystkich checks. Joby wykonują się sekwencyjnie: `lint → test → claude-review`.
+Wait for all checks to finish. Jobs run sequentially: `lint → test → claude-review`.
 
 ```bash
 gh pr checks --watch
 ```
 
-Jeśli `--watch` nie kończy działania normalnie, polluj co ~30 sekund:
+If `--watch` doesn't terminate normally, poll every ~30 seconds:
 ```bash
 gh pr checks
 ```
 
-### Krok 5a — Błąd lint
+### Step 6a — Lint failure
 
-Gdy job `lint` failuje:
+When the `lint` job fails:
 
-1. Pobierz szczegóły błędu:
+1. Fetch the error details:
    ```bash
    gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId' | xargs gh run view --log-failed
    ```
 
-2. Auto-napraw lokalnie:
+2. Auto-fix locally:
    ```bash
    ruff check --fix
    ruff format
    ```
 
-3. Commit poprawek i push, następnie wróć do kroku 5:
+3. Commit the fixes and push, then go back to step 6:
    ```bash
-   git add <naprawione pliki>
+   git add <fixed files>
    git commit -m "Fix lint errors"
    git push
    ```
 
-### Krok 5b — Błąd testów
+### Step 6b — Test failure
 
-Gdy job `test` failuje:
+When the `test` job fails:
 
-1. Pobierz logi:
+1. Fetch the logs:
    ```bash
    gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId' | xargs gh run view --log-failed
    ```
 
-2. Odtwórz błąd lokalnie:
+2. Reproduce the failure locally:
    ```bash
    coverage run -m unittest discover
    coverage report -m
    ```
 
-3. Zidentyfikuj i napraw przyczyny błędów. Commit poprawek i push, następnie wróć do kroku 5.
+3. Identify and fix the root causes. Commit the fixes and push, then go back to step 6.
 
-## Krok 6 — Pobierz i podsumuj code review od Claude
+## Step 7 — Fetch and summarize Claude's code review
 
-Gdy `claude-review` zakończy się sukcesem, pobierz komentarze:
+Once `claude-review` succeeds, fetch the comments:
 
 ```bash
-# Ogólne komentarze do PR (tutaj Claude wstawia Summary)
+# General PR comments (this is where Claude posts the Summary)
 gh pr view --json comments --jq '.comments[] | "=== [\(.author.login)] ===\n\(.body)\n"'
 
-# Komentarze inline do linii kodu
+# Inline comments on code lines
 PR_NUM=$(gh pr view --json number --jq .number)
 REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 gh api "repos/$REPO/pulls/$PR_NUM/comments" --jq '.[] | "[\(.path):\(.line // .original_line)] \(.body)"'
 ```
 
-Na podstawie zebranych danych wyprowadź zwięzłe podsumowanie po polsku:
+Based on the gathered data, produce a concise summary:
 
 ```
-## Wynik code review
+## Code review result
 
-**Status:** Zatwierdzone / Zmiany wymagane
+**Status:** Approved / Changes requested
 
-**Co jest OK:**
-- <lista zaakceptowanych rzeczy lub "Brak uwag do bieżących zmian">
+**What's OK:**
+- <list of accepted items or "No comments on the current changes">
 
-**Issues do rozważenia:**
-1. [plik:linia] (bug|security|performance) — opis — proponowana poprawka
+**Issues to consider:**
+1. [file:line] (bug|security|performance) — description — suggested fix
 2. ...
 
-**Maintenance notes (opcjonalne):**
+**Maintenance notes (optional):**
 - ...
 ```
 
-Następnie **zapytaj użytkownika**, które issues naprawić. Poczekaj na odpowiedź przed kontynuowaniem.
+Then **ask the user** which issues to fix. Wait for a response before continuing.
 
-## Krok 7 — Wdróż zatwierdzone poprawki
+## Step 8 — Apply approved fixes
 
-Na podstawie decyzji użytkownika napraw **tylko** to, co zostało zatwierdzone. Commit i push:
+Based on the user's decision, fix **only** what was approved. Commit and push:
 
 ```bash
-git add <zmienione pliki>
-git commit -m "Address code review: <co poprawiono>"
+git add <changed files>
+git commit -m "Address code review: <what was fixed>"
 git push
 ```
 
-Wróć do **kroku 5** — monitoruj nowy run pipeline'a.
+Go back to **step 6** — monitor the new pipeline run.
 
-## Krok 8 — Zakończenie
+## Step 9 — Completion
 
-Gdy pipeline przejdzie w całości i review jest pozytywny (lub "No issues found"):
+Once the pipeline passes entirely and the review is positive (or "No issues found"):
 
-Poinformuj użytkownika: PR jest merge-ready. Podaj link do PR:
+Inform the user: the PR is merge-ready. Provide the PR link:
 ```bash
 gh pr view --json url --jq .url
 ```
 
-**Nie merguj samodzielnie.** Czekaj na decyzję użytkownika.
+**Do not merge on your own.** Wait for the user's decision.
