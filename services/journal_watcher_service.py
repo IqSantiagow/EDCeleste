@@ -32,6 +32,9 @@ class JournalWatcherService:
     def stop_watcher_service(self) -> None:
         self.exit_signal = True
 
+    def get_journal_healthcheck(self):
+        return not self.exit_signal
+
     def __generate_journal_events(self) -> Generator[GameEvent]:
         raw_journal_event = self.__fetch_raw_journal_line()
 

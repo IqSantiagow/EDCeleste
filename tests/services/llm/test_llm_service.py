@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+import anthropic
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from services.llm_service import LLMService
@@ -58,3 +60,29 @@ class LLMServiceTest(unittest.TestCase):
             SystemMessage(content=self.test_game_state, role="system"), all_messages
         )
         self.assertIn(SystemMessage(content=SYSTEM_PROMPT, role="system"), all_messages)
+
+    def test_should_return_true_when_token_count_succeeds(self):
+        with patch(
+            "langchain_anthropic.ChatAnthropic.get_num_tokens_from_messages"
+        ) as mock_get_num_tokens:
+            mock_get_num_tokens.return_value = 42
+
+            result = self.llm_service.get_llm_healthcheck()
+
+            self.assertTrue(result)
+
+    def test_should_return_false_when_anthropic_api_error_is_raised(self):
+        api_error = anthropic.APIError(
+            "boom",
+            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            body=None,
+        )
+
+        with patch(
+            "langchain_anthropic.ChatAnthropic.get_num_tokens_from_messages"
+        ) as mock_get_num_tokens:
+            mock_get_num_tokens.side_effect = api_error
+
+            result = self.llm_service.get_llm_healthcheck()
+
+            self.assertFalse(result)
