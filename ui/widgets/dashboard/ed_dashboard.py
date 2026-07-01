@@ -12,15 +12,21 @@ from ui.widgets.dashboard.comms.widget_comms_col import WidgetCommsCol
 from ui.widgets.dashboard.dashboard_headers.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
-from ui.widgets.dashboard.view_models.dashboard_view_model import (
+from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
     DashboardStatsViewModel,
 )
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from ui.widgets.dashboard.ship_log.widget_ship_log_col import WidgetShipLogCol
+from ui.widgets.dashboard.view_models.llm_jrnl_healthcheck_view_model import (
+    LlmJrnlHealthCheckViewModel,
+)
 
 
 class EdDashboard(Widget):
     state: reactive[DashboardStatsViewModel] = reactive(DashboardStatsViewModel.empty())
+    healthcheck_state: reactive[LlmJrnlHealthCheckViewModel] = reactive(
+        LlmJrnlHealthCheckViewModel.empty()
+    )
 
     @inject
     def __init__(
@@ -39,8 +45,18 @@ class EdDashboard(Widget):
         self.query_one("#stat-ship", WidgetCommonStatLabel).update_value(new_state.ship)
         self.query_one("#stat-fuel", WidgetCommonStatLabel).update_value(new_state.fuel)
 
+    def watch_healthcheck_state(self, new_state: LlmJrnlHealthCheckViewModel) -> None:
+        self.query_one("#stat-llm", WidgetCommonStatLabel).update_value(
+            "OK" if new_state.llm_healthcheck else "FAIL"
+        )
+
+        self.query_one("#stat-jrnl", WidgetCommonStatLabel).update_value(
+            "OK" if new_state.journal_healthcheck else "FAIL"
+        )
+
     def on_mount(self) -> None:
         self.set_up_stream_worker()
+        self.set_up_healthcheck_stream_worker()
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="dashboard-main"):
@@ -66,10 +82,16 @@ class EdDashboard(Widget):
                 ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col"
             )
 
-    @work(exclusive=True)
+    @work
     async def set_up_stream_worker(self) -> None:
         async for (
             dashboard_state
         ) in self.ed_dashboard_presenter.stream_dashboard_stats():
             self.state = dashboard_state
             log.info(f"Updated dashboard state: {self.state}")
+
+    @work
+    async def set_up_healthcheck_stream_worker(self) -> None:
+        async for healthcheck_state in self.ed_dashboard_presenter.stream_healthcheck():
+            self.healthcheck_state = healthcheck_state
+            log.info(f"Updated healthcheck state: {self.healthcheck_state}")

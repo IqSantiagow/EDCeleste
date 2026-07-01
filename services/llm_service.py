@@ -1,5 +1,6 @@
 import logging
 
+import anthropic
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from pydantic import SecretStr
@@ -32,6 +33,16 @@ class LLMService:
         response = self.__model.invoke(conv_history_with_sys_prompt)
         self.conversation.append(AIMessage(content=response.content))
         return str(response.content)
+
+    def get_llm_healthcheck(self) -> bool:
+        try:
+            self.__model.get_num_tokens_from_messages(
+                [HumanMessage(content=SYSTEM_PROMPT)]
+            )
+            return True
+        except anthropic.APIError as e:
+            logger.error("LLM health check failed: %s", e)
+            return False
 
     def __get_conv_history_with_system_prompt_and_state(
         self, game_state: str
