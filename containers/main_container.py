@@ -7,6 +7,10 @@ from services.journal_watcher_service import JournalWatcherService
 from services.llm_service import LLMService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from use_cases.dashboard.journal_get_healtcheck_usecase import (
+    JournalGetHealthCheckUseCase,
+)
+from use_cases.dashboard.llm_get_healthcheck_usecase import LlmGetHealthCheckUseCase
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
@@ -34,6 +38,14 @@ class Container(containers.DeclarativeContainer):
         StreamDashboardStatsUseCase, game_state_reader=game_state_service
     )
 
+    journal_get_healthcheck_use_case = providers.Factory(
+        JournalGetHealthCheckUseCase, journal_watcher_reader=journal_watcher_service
+    )
+
+    llm_get_healthcheck_use_case = providers.Factory(
+        LlmGetHealthCheckUseCase, llm_protocol=llm_service
+    )
+
     stream_journal_events_use_case = providers.Factory(
         StreamJournalEventsUseCase, game_state_reader=game_state_service
     )
@@ -42,4 +54,6 @@ class Container(containers.DeclarativeContainer):
         EdDashboardPresenter,
         stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
         stream_journal_events_usecase=stream_journal_events_use_case,
+        journal_get_healthcheck_usecase=journal_get_healthcheck_use_case,
+        llm_get_healthcheck_usecase=llm_get_healthcheck_use_case,
     )

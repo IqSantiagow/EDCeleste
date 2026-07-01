@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 
 from protocols.game_state_reader import GameStateReader
-from ui.widgets.dashboard.view_models.dashboard_view_model import (
+from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
     DashboardStatsViewModel,
 )
 
