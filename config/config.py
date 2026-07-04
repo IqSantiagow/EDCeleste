@@ -17,9 +17,17 @@ class LLMConfig(BaseModel):
     anthropic_api_key: str
 
 
+class LangSmithConfig(BaseModel):
+    tracing: bool = False
+    api_key: str = ""
+    project: str = "EDCeleste"
+    endpoint: str = "https://api.smith.langchain.com"
+
+
 class AppConfig(BaseSettings):
     ed: EDConfig
     llm: LLMConfig
+    langsmith: LangSmithConfig = LangSmithConfig()
 
     model_config = SettingsConfigDict(
         env_file=".env",

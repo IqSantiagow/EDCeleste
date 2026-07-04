@@ -10,6 +10,7 @@ from projection.event_projections.location_projection import LocationProjection
 from projection.event_projections.player_projection import PlayerProjection
 from projection.event_projections.projection import Projection
 from services.event_bus import EventBus
+from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from services.models.game_events import GameEvent
 
 logger = logging.getLogger(__name__)
@@ -66,15 +67,16 @@ class GameStateService:
             "Game state projection refreshed: %s", self.__game_state_projection
         )
 
-    def get_dashboard_stats(self) -> dict[str, str]:
-        return {
-            "player": self.__player_projection.player_name or "",
-            "fuel": str(self.__fuel_projection.fuel_level),
-            "location": self.__location_projection.current_star_system or "",
-            "ship": self.__player_projection.player_ship or "",
-        }
+    def get_dashboard_stats(self) -> DashboardStatsSnapshot:
+        return DashboardStatsSnapshot(
+            location=self.__location_projection.current_star_system or "",
+            fuel=str(self.__fuel_projection.fuel_level),
+            ship=self.__player_projection.player_ship or "",
+        )
 
-    async def stream_dashboard_stats(self) -> AsyncGenerator[dict[str, str], None]:
+    async def stream_dashboard_stats(
+        self,
+    ) -> AsyncGenerator[DashboardStatsSnapshot, None]:
         queue: asyncio.Queue = asyncio.Queue()
         self.__event_loop = asyncio.get_running_loop()
         with self.__queue_watchers_lock:
