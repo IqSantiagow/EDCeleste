@@ -34,7 +34,7 @@ class EdDashboardPresenter:
         stream_journal_events_usecase: StreamJournalEventsUseCase,
         stream_llm_state_usecase: StreamLLMStateUseCase,
         llm_send_message_usecase: LLMSendMessageUseCase,
-        stream_llm_reponses_usecase: StreamLLMResponsesUseCase,
+        stream_llm_responses_usecase: StreamLLMResponsesUseCase,
     ) -> None:
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
         self.stream_journal_events_usecase = stream_journal_events_usecase
@@ -42,7 +42,7 @@ class EdDashboardPresenter:
         self.llm_get_healthcheck_usecase = llm_get_healthcheck_usecase
         self.stream_llm_state_usecase = stream_llm_state_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
-        self.stream_llm_reponses_usecase = stream_llm_reponses_usecase
+        self.stream_llm_responses_usecase = stream_llm_responses_usecase
 
     def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         return self.stream_dashboard_stats_usecase()
@@ -101,4 +101,4 @@ class EdDashboardPresenter:
         await self.llm_send_message_usecase(message)
 
     def stream_llm_responses(self) -> AsyncGenerator[CommsMessageViewModel, None]:
-        return self.stream_llm_reponses_usecase()
+        return self.stream_llm_responses_usecase()

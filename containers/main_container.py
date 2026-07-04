@@ -59,7 +59,7 @@ class Container(containers.DeclarativeContainer):
         game_state_reader=game_state_service,
     )
 
-    stream_llm_reponses_use_case = providers.Factory(
+    stream_llm_responses_use_case = providers.Factory(
         StreamLLMResponsesUseCase, llm_protocol=llm_service
     )
 
@@ -74,6 +74,6 @@ class Container(containers.DeclarativeContainer):
         journal_get_healthcheck_usecase=journal_get_healthcheck_use_case,
         llm_get_healthcheck_usecase=llm_get_healthcheck_use_case,
         llm_send_message_usecase=llm_send_message_use_case,
-        stream_llm_reponses_usecase=stream_llm_reponses_use_case,
+        stream_llm_responses_usecase=stream_llm_responses_use_case,
         stream_llm_state_usecase=stream_llm_state_use_case,
     )

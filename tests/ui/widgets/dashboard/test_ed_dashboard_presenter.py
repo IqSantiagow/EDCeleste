@@ -32,7 +32,7 @@ class TestEdDashboardPresenterStreamHealthcheck(unittest.IsolatedAsyncioTestCase
             stream_journal_events_usecase=None,  # type: ignore
             stream_llm_state_usecase=None,  # type: ignore
             llm_send_message_usecase=None,  # type: ignore
-            stream_llm_reponses_usecase=None,  # type: ignore
+            stream_llm_responses_usecase=None,  # type: ignore
         )
 
     async def _next(self, gen):

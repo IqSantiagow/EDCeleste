@@ -41,6 +41,9 @@ class WidgetCommsInput(VerticalGroup):
     @on(Input.Submitted)
     @work
     async def handle_input_submitted(self, event: Input.Submitted) -> None:
+        if not event.value.strip():
+            log.debug("Ignoring empty command submission")
+            return
         if self.llm_state == LLMStatus.IDLE:
             log.debug("Sending message to LLM: %s", event.value)
             self.post_message(self.UserCommandSubmitted(event.value))

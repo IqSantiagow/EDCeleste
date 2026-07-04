@@ -15,7 +15,9 @@ from ui.widgets.dashboard.view_models.comms_message_view_model import (
 class WidgetCommsCol(Vertical):
     DEFAULT_CLASSES = "col"
 
-    response_state: reactive[CommsMessageViewModel | None] = reactive(None)
+    response_state: reactive[CommsMessageViewModel | None] = reactive(
+        None, always_update=True
+    )
 
     def __init__(self, ed_dashboard_presenter: EdDashboardPresenter, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -56,6 +58,4 @@ class WidgetCommsCol(Vertical):
         self, event: WidgetCommsInput.UserCommandSubmitted
     ) -> None:
         log.debug("User command submitted: %s", event.command)
-        self.response_state = CommsMessageViewModel(
-            content=event.command, is_user_message=True, is_action=False
-        )
+        self.response_state = CommsMessageViewModel.from_user_message(event.command)
