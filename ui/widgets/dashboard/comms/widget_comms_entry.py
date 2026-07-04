@@ -1,10 +1,9 @@
 from textual.app import ComposeResult
-from textual.containers import Horizontal
-from textual.widget import Widget
+from textual.containers import HorizontalGroup
 from textual.widgets import Label
 
 
-class WidgetCommsEntry(Widget):
+class WidgetCommsEntry(HorizontalGroup):
     def __init__(self, entry_type: str, content: str):
         super().__init__()
         self.entry_type = entry_type
@@ -12,6 +11,11 @@ class WidgetCommsEntry(Widget):
 
     def compose(self) -> ComposeResult:
         if self.entry_type == "user-command":
-            with Horizontal():
-                yield Label(id="you-title", classes="human-command", content="YOU: ")
-                yield Label(classes="human-command", content=self.content)
+            yield Label(id="you-title", classes="human-command", content="YOU: ")
+            yield Label(classes="human-command", content=self.content)
+        elif self.entry_type == "llm-response":
+            yield Label(id="celeste-title", classes="llm-response", content="CELESTE: ")
+            yield Label(classes="llm-response", content=self.content)
+        elif self.entry_type == "system-message":
+            yield Label(id="system-title", classes="system-message", content="SYSTEM: ")
+            yield Label(classes="system-message", content=self.content)

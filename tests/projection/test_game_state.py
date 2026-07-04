@@ -2,7 +2,7 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
-from projection.game_state_service import GameStateService
+from services.game_state_service import GameStateService
 from services.models.game_events import LoadedGameEvent, FuelScoopEvent
 
 

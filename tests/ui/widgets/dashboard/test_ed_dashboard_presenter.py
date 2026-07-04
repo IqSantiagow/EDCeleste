@@ -30,6 +30,9 @@ class TestEdDashboardPresenterStreamHealthcheck(unittest.IsolatedAsyncioTestCase
             journal_get_healthcheck_usecase=FakeHealthcheckUseCase(journal_values),  # type: ignore
             llm_get_healthcheck_usecase=FakeHealthcheckUseCase(llm_values),  # type: ignore
             stream_journal_events_usecase=None,  # type: ignore
+            stream_llm_state_usecase=None,  # type: ignore
+            llm_send_message_usecase=None,  # type: ignore
+            stream_llm_responses_usecase=None,  # type: ignore
         )
 
     async def _next(self, gen):

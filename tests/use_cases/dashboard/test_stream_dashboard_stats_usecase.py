@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 import unittest
 
+from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
@@ -27,7 +28,7 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
     async def test_should_map_snapshot_to_view_model(self):
         reader = FakeGameStateReader(
             snapshots=[
-                {"player": "X", "location": "Sol", "ship": "Sidewinder", "fuel": "5.0"}
+                DashboardStatsSnapshot(location="Sol", ship="Sidewinder", fuel="5.0")
             ]
         )
         use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
@@ -39,8 +40,10 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].ship, "Sidewinder")
         self.assertEqual(results[0].fuel, "5.0")
 
-    async def test_should_default_missing_keys_to_empty_string(self):
-        reader = FakeGameStateReader(snapshots=[{}])
+    async def test_should_map_empty_snapshot(self):
+        reader = FakeGameStateReader(
+            snapshots=[DashboardStatsSnapshot(location="", ship="", fuel="")]
+        )
         use_case = StreamDashboardStatsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -51,9 +54,9 @@ class TestStreamDashboardStatsUseCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_should_yield_multiple_view_models_in_order(self):
         snapshots = [
-            {"location": "Sol"},
-            {"location": "Alpha Centauri"},
-            {"location": "Sirius"},
+            DashboardStatsSnapshot(location="Sol", ship="", fuel=""),
+            DashboardStatsSnapshot(location="Alpha Centauri", ship="", fuel=""),
+            DashboardStatsSnapshot(location="Sirius", ship="", fuel=""),
         ]
         reader = FakeGameStateReader(snapshots=snapshots)
         use_case = StreamDashboardStatsUseCase(reader)  # type: ignore

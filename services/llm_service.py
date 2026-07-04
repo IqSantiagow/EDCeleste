@@ -1,9 +1,14 @@
+import asyncio
+from collections.abc import AsyncGenerator
 import logging
 
 import anthropic
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from pydantic import SecretStr
+
+from services.models.llm_response import LLMResponse, LLMStatus
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +25,38 @@ class LLMService:
             api_key=SecretStr(api_key),
         )
 
-    def send_and_receive_message(self, message: str, game_state: str) -> str:
-        logger.debug("Got an LLM request: %s", message)
-        self.conversation.append(HumanMessage(content=message))
-
-        conv_history_with_sys_prompt = (
-            self.__get_conv_history_with_system_prompt_and_state(game_state)
+        self.__agent = create_agent(
+            model=self.__model, system_prompt=SYSTEM_PROMPT, response_format=LLMResponse
         )
 
-        logger.debug("Built a conv history : %s", conv_history_with_sys_prompt)
+        self.__response_queue_watchers: list[asyncio.Queue[LLMResponse]] = []
+        self.__status_queue_watchers: list[asyncio.Queue[LLMStatus]] = []
 
-        response = self.__model.invoke(conv_history_with_sys_prompt)
-        self.conversation.append(AIMessage(content=response.content))
-        return str(response.content)
+    async def send_message(self, message: str, game_state: str):
+        logger.info("Got an LLM request: %s", message)
+        self.conversation.append(HumanMessage(content=message))
+
+        conv_history_with_state = self.__get_conv_history_with_state(game_state)
+
+        logger.info("Built a conv history : %s", conv_history_with_state)
+
+        for watcher in self.__status_queue_watchers:
+            await watcher.put(LLMStatus.THINKING)
+
+        try:
+            response = await self.__agent.ainvoke({"messages": conv_history_with_state})  # type: ignore
+        finally:
+            for watcher in self.__status_queue_watchers:
+                await watcher.put(LLMStatus.IDLE)
+
+        validated_response = LLMResponse.model_validate(response["structured_response"])  # type: ignore
+
+        ai_message = validated_response.message.message
+
+        self.conversation.append(AIMessage(content=ai_message))
+
+        for watcher in self.__response_queue_watchers:
+            await watcher.put(validated_response)
 
     def get_llm_healthcheck(self) -> bool:
         try:
@@ -44,14 +68,44 @@ class LLMService:
             logger.error("LLM health check failed: %s", e)
             return False
 
-    def __get_conv_history_with_system_prompt_and_state(
-        self, game_state: str
-    ) -> list[BaseMessage]:
-        # Append sys prompt and state at the beginning of the conv each request
-        conv_copy = self.conversation.copy()
+    async def stream_responses(self) -> AsyncGenerator[LLMResponse, None]:
+        logger.debug("Starting to stream LLM responses")
+        watcher_queue: asyncio.Queue[LLMResponse] = asyncio.Queue()
+        self.__response_queue_watchers.append(watcher_queue)
+        try:
+            while True:
+                response = await watcher_queue.get()
+                yield response
+        finally:
+            self.__response_queue_watchers.remove(watcher_queue)
 
-        conv_copy.insert(0, SystemMessage(content=SYSTEM_PROMPT, role="system"))
+    async def stream_llm_status(self) -> AsyncGenerator[LLMStatus, None]:
+        logger.debug("Starting to stream LLM status")
+        watcher_queue: asyncio.Queue[LLMStatus] = asyncio.Queue()
+        self.__status_queue_watchers.append(watcher_queue)
+        try:
+            while True:
+                status = await watcher_queue.get()
+                yield status
+        finally:
+            self.__status_queue_watchers.remove(watcher_queue)
 
-        conv_copy.insert(1, SystemMessage(content=game_state, role="system"))
+    def __get_conv_history_with_state(self, game_state: str) -> list[BaseMessage]:
+        message_history_prompt = self.__merge_conversation_history()
 
-        return conv_copy
+        combined = f"Current game state is: {game_state}\n{message_history_prompt}"
+
+        return [HumanMessage(content=combined)]
+
+    def __merge_conversation_history(self) -> str:
+        merged_history = "\n".join(
+            [
+                f"{'Celeste' if isinstance(msg, AIMessage) else 'Human'}: {msg.content}"
+                for msg in self.conversation
+            ]
+        )
+        message_history_prompt = f"""
+    This is the conversation history between the pilot and Celeste
+                                {merged_history}"""
+
+        return message_history_prompt

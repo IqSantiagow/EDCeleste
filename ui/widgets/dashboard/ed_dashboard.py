@@ -77,7 +77,9 @@ class EdDashboard(Widget):
                     text="JRNL", stat_value="OK", id="stat-jrnl"
                 )
         with Horizontal(id="dashboard-body"):
-            yield WidgetCommsCol()
+            yield WidgetCommsCol(
+                ed_dashboard_presenter=self.ed_dashboard_presenter, id="comms-col"
+            )
             yield WidgetShipLogCol(
                 ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col"
             )

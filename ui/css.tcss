@@ -67,3 +67,12 @@ WidgetShipLogCol{
     width: 0.3fr;
 }
 
+#comms-scroll {
+    height: 1fr;
+    border: heavy $primary;
+}
+
+WidgetCommsEntry{
+    height: auto;
+}
+

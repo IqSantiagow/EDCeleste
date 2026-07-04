@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
+
 
 @dataclass(slots=True)
 class DashboardStatsViewModel:
@@ -8,11 +10,13 @@ class DashboardStatsViewModel:
     fuel: str
 
     @classmethod
-    def from_snapshot(cls, snapshot: dict[str, str]) -> "DashboardStatsViewModel":
+    def from_snapshot(
+        cls, snapshot: DashboardStatsSnapshot
+    ) -> "DashboardStatsViewModel":
         return cls(
-            location=snapshot.get("location", ""),
-            ship=snapshot.get("ship", ""),
-            fuel=snapshot.get("fuel", ""),
+            location=snapshot.location,
+            ship=snapshot.ship,
+            fuel=snapshot.fuel,
         )
 
     @classmethod
