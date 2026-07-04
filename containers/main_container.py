@@ -1,7 +1,7 @@
 from dependency_injector import containers, providers
 
 from config.config import AppConfig
-from projection.game_state_service import GameStateService
+from services.game_state_service import GameStateService
 from services.event_bus import EventBus
 from services.journal_watcher_service import JournalWatcherService
 from services.llm_service import LLMService
@@ -11,10 +11,13 @@ from use_cases.dashboard.journal_get_healtcheck_usecase import (
     JournalGetHealthCheckUseCase,
 )
 from use_cases.dashboard.llm_get_healthcheck_usecase import LlmGetHealthCheckUseCase
+from use_cases.dashboard.llm_send_message_use_case import LLMSendMessageUseCase
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
+from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
+from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 
 
 class Container(containers.DeclarativeContainer):
@@ -50,10 +53,27 @@ class Container(containers.DeclarativeContainer):
         StreamJournalEventsUseCase, game_state_reader=game_state_service
     )
 
+    llm_send_message_use_case = providers.Factory(
+        LLMSendMessageUseCase,
+        llm_protocol=llm_service,
+        game_state_reader=game_state_service,
+    )
+
+    stream_llm_reponses_use_case = providers.Factory(
+        StreamLLMResponsesUseCase, llm_protocol=llm_service
+    )
+
+    stream_llm_state_use_case = providers.Factory(
+        StreamLLMStateUseCase, llm_protocol=llm_service
+    )
+
     ed_dashboard_presenter = providers.Singleton(
         EdDashboardPresenter,
         stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
         stream_journal_events_usecase=stream_journal_events_use_case,
         journal_get_healthcheck_usecase=journal_get_healthcheck_use_case,
         llm_get_healthcheck_usecase=llm_get_healthcheck_use_case,
+        llm_send_message_usecase=llm_send_message_use_case,
+        stream_llm_reponses_usecase=stream_llm_reponses_use_case,
+        stream_llm_state_usecase=stream_llm_state_use_case,
     )

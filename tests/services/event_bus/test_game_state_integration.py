@@ -1,7 +1,7 @@
 from datetime import datetime
 import unittest
 
-from projection.game_state_service import GameStateService
+from services.game_state_service import GameStateService
 from services.event_bus import EventBus
 from services.models.game_events import LoadedGameEvent
 

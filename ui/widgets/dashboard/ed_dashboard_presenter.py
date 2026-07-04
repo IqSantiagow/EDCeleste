@@ -1,6 +1,10 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+from services.models.llm_response import LLMStatus
+from ui.widgets.dashboard.view_models.comms_message_view_model import (
+    CommsMessageViewModel,
+)
 from ui.widgets.dashboard.view_models.journal_log_view_model import JournalLogViewModel
 from ui.widgets.dashboard.view_models.llm_jrnl_healthcheck_view_model import (
     LlmJrnlHealthCheckViewModel,
@@ -9,6 +13,7 @@ from use_cases.dashboard.journal_get_healtcheck_usecase import (
     JournalGetHealthCheckUseCase,
 )
 from use_cases.dashboard.llm_get_healthcheck_usecase import LlmGetHealthCheckUseCase
+from use_cases.dashboard.llm_send_message_use_case import LLMSendMessageUseCase
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
@@ -16,6 +21,8 @@ from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
     DashboardStatsViewModel,
 )
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
+from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
+from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 
 
 class EdDashboardPresenter:
@@ -25,11 +32,17 @@ class EdDashboardPresenter:
         journal_get_healthcheck_usecase: JournalGetHealthCheckUseCase,
         llm_get_healthcheck_usecase: LlmGetHealthCheckUseCase,
         stream_journal_events_usecase: StreamJournalEventsUseCase,
+        stream_llm_state_usecase: StreamLLMStateUseCase,
+        llm_send_message_usecase: LLMSendMessageUseCase,
+        stream_llm_reponses_usecase: StreamLLMResponsesUseCase,
     ) -> None:
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
         self.stream_journal_events_usecase = stream_journal_events_usecase
         self.journal_get_healthcheck_usecase = journal_get_healthcheck_usecase
         self.llm_get_healthcheck_usecase = llm_get_healthcheck_usecase
+        self.stream_llm_state_usecase = stream_llm_state_usecase
+        self.llm_send_message_usecase = llm_send_message_usecase
+        self.stream_llm_reponses_usecase = stream_llm_reponses_usecase
 
     def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         return self.stream_dashboard_stats_usecase()
@@ -80,3 +93,12 @@ class EdDashboardPresenter:
 
     def stream_journal_events(self) -> AsyncGenerator[JournalLogViewModel, None]:
         return self.stream_journal_events_usecase()
+
+    def stream_llm_state(self) -> AsyncGenerator[LLMStatus, None]:
+        return self.stream_llm_state_usecase()
+
+    async def send_message_to_llm(self, message: str) -> None:
+        await self.llm_send_message_usecase(message)
+
+    def stream_llm_responses(self) -> AsyncGenerator[CommsMessageViewModel, None]:
+        return self.stream_llm_reponses_usecase()
