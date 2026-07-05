@@ -2,7 +2,13 @@ from datetime import datetime
 import unittest
 
 from projection.event_projections.fuel_projection import FuelProjection
-from services.models.game_events import FuelScoopEvent, LoadedGameEvent, FSDJumpEvent
+from services.models.game_events import (
+    FuelScoopEvent,
+    LoadedGameEvent,
+    FSDJumpEvent,
+    ReservoirReplenishedEvent,
+    RefuelAllEvent,
+)
 
 
 class FuelProjectionTest(unittest.TestCase):
@@ -49,6 +55,18 @@ class FuelProjectionTest(unittest.TestCase):
             Factions=[],
             SystemFaction=None,
         )
+        cls.reservoir_replenished_event = ReservoirReplenishedEvent(
+            event="ReservoirReplenished",
+            timestamp=datetime.now(),
+            FuelMain=15.5,
+            FuelReservoir=0.5,
+        )
+        cls.refuel_all_event = RefuelAllEvent(
+            event="RefuelAll",
+            timestamp=datetime.now(),
+            Cost=50,
+            Amount=1.5,
+        )
 
     def test_should_process_to_event_and_set_fuel_level(self):
         fuel_projection = FuelProjection()
@@ -61,6 +79,39 @@ class FuelProjectionTest(unittest.TestCase):
 
         fuel_projection.process_event(self.fsd_jump_event)
         self.assertEqual(fuel_projection.fuel_level, self.fsd_jump_event.FuelLevel)
+
+    def test_should_set_fuel_level_from_reservoir_replenished_event(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.reservoir_replenished_event)
+
+        self.assertEqual(
+            fuel_projection.fuel_level, self.reservoir_replenished_event.FuelMain
+        )
+
+    def test_should_clamp_to_capacity_on_refuel_all_when_capacity_known(self):
+        fuel_projection = FuelProjection()
+
+        overshooting_refuel = RefuelAllEvent(
+            event="RefuelAll",
+            timestamp=datetime.now(),
+            Cost=200,
+            Amount=10.0,
+        )
+
+        fuel_projection.process_event(self.loaded_game_event)
+        fuel_projection.process_event(overshooting_refuel)
+
+        self.assertEqual(
+            fuel_projection.fuel_level, self.loaded_game_event.FuelCapacity
+        )
+
+    def test_should_add_amount_on_refuel_all_when_capacity_unknown(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.refuel_all_event)
+
+        self.assertEqual(fuel_projection.fuel_level, self.refuel_all_event.Amount)
 
     def test_should_create_projection(self):
         fuel_projection = FuelProjection()
