@@ -2,7 +2,14 @@ from datetime import datetime
 import unittest
 
 from projection.event_projections.player_projection import PlayerProjection
-from services.models.game_events import LoadedGameEvent
+from services.models.game_events import (
+    LoadedGameEvent,
+    CommanderEvent,
+    RankEvent,
+    ReputationEvent,
+    DiedEvent,
+    ResurrectEvent,
+)
 
 
 class PlayerProjectionTest(unittest.TestCase):
@@ -27,6 +34,35 @@ class PlayerProjectionTest(unittest.TestCase):
             Loan=0,
             FuelLevel=1.0,
             FuelCapacity=4.0,
+        )
+        cls.commander_event = CommanderEvent(
+            event="Commander",
+            timestamp=datetime.now(),
+            FID="F123456",
+            Name="SANTIAGOW",
+        )
+        cls.rank_event = RankEvent(
+            event="Rank",
+            timestamp=datetime.now(),
+            Combat=5,
+            Trade=3,
+            Explore=1,
+        )
+        cls.reputation_event = ReputationEvent(
+            event="Reputation",
+            timestamp=datetime.now(),
+            Empire=6.7,
+            Federation=0.2,
+            Independent=0.0,
+            Alliance=1.5,
+        )
+        cls.died_event = DiedEvent(event="Died", timestamp=datetime.now())
+        cls.resurrect_event = ResurrectEvent(
+            event="Resurrect",
+            timestamp=datetime.now(),
+            Option="rebuy",
+            Cost=26799,
+            Bankrupt=False,
         )
 
     def test_should_process_event_and_set_player_state_data(self):
@@ -56,3 +92,52 @@ class PlayerProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(expected_projection, player_projection.create_projection())
+
+    def test_should_set_player_name_from_commander_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.commander_event)
+
+        self.assertEqual(player_projection.player_name, self.commander_event.Name)
+
+    def test_should_process_rank_event_and_map_rank_names(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.rank_event)
+
+        expected_ranks = PlayerProjection.RANK_PROJECTION.format(
+            "Master", "Dealer", "Mostly Aimless"
+        )
+
+        self.assertIn(expected_ranks, player_projection.create_projection())
+
+    def test_should_process_reputation_event_and_create_projection(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.reputation_event)
+
+        expected_reputation = PlayerProjection.REPUTATION_PROJECTION.format(
+            6.7, 0.2, 1.5
+        )
+
+        self.assertIn(expected_reputation, player_projection.create_projection())
+
+    def test_should_mark_commander_dead_on_died_and_alive_on_resurrect(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.died_event)
+
+        self.assertFalse(player_projection.is_alive)
+        self.assertIn(
+            PlayerProjection.DEAD_PROJECTION, player_projection.create_projection()
+        )
+
+        player_projection.process_event(self.resurrect_event)
+
+        self.assertTrue(player_projection.is_alive)
+        self.assertNotIn(
+            PlayerProjection.DEAD_PROJECTION, player_projection.create_projection()
+        )

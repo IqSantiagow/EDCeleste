@@ -3,7 +3,13 @@ import logging
 from pydantic import BaseModel
 
 from projection.event_projections.projection import Projection
-from services.models.game_events import FSDJumpEvent, LoadedGameEvent, FuelScoopEvent
+from services.models.game_events import (
+    FSDJumpEvent,
+    LoadedGameEvent,
+    FuelScoopEvent,
+    ReservoirReplenishedEvent,
+    RefuelAllEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +19,7 @@ class FuelProjection(Projection):
 
     def __init__(self):
         self.fuel_level = 0.0
+        self.fuel_capacity = 0.0
 
     def process_event(self, event: BaseModel):
         if isinstance(event, FSDJumpEvent):
@@ -23,6 +30,7 @@ class FuelProjection(Projection):
         if isinstance(event, LoadedGameEvent):
             logger.debug("Received fuel event: %s", event)
             self.fuel_level = event.FuelLevel
+            self.fuel_capacity = event.FuelCapacity
             return
 
         if isinstance(event, FuelScoopEvent):
@@ -31,6 +39,21 @@ class FuelProjection(Projection):
             # amount or the resulting tank total.
             # Currently assumed to be the tank total.
             self.fuel_level = event.Total
+            return
+
+        if isinstance(event, ReservoirReplenishedEvent):
+            logger.debug("Received fuel event: %s", event)
+            self.fuel_level = event.FuelMain
+            return
+
+        if isinstance(event, RefuelAllEvent):
+            logger.debug("Received fuel event: %s", event)
+            # RefuelAll tops the main tank off completely; when the capacity is
+            # known we can set the absolute level, otherwise add the amount.
+            if self.fuel_capacity:
+                self.fuel_level = self.fuel_capacity
+            else:
+                self.fuel_level += event.Amount
             return
 
         logger.debug("Received event but not withing allowed events. Skipping...")
