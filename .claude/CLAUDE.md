@@ -18,6 +18,8 @@ coverage report -m
 python -m pytest tests/services/journal/test_journal_watcher.py
 ```
 
+## Disclaimer - always activate venv, there is nothing installed globally
+
 ## Configuration
 
 Copy `.env-example` to `.env`. Required variables (double-underscore = nested):

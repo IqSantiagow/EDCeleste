@@ -2,10 +2,11 @@ from textual import work
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widget import Widget
-from textual.widgets import Label, Static
+from textual.widgets import Label
 from textual.reactive import reactive
 
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ship_log.widget_ship_log_entry import WidgetShipLogEntry
 from ui.widgets.dashboard.view_models.journal_log_view_model import JournalLogViewModel
 
 
@@ -22,7 +23,6 @@ class WidgetShipLogCol(Widget):
     DEFAULT_CLASSES = "col"
 
     def compose(self) -> ComposeResult:
-        yield Static(content="Ship log")
         with VerticalScroll(id="ship-log-scroll"):
             for event in self.state:
                 yield Label(
@@ -33,10 +33,19 @@ class WidgetShipLogCol(Widget):
         self.set_up_stream_journal_worker()
 
     def watch_state(self, new_state: list[JournalLogViewModel]) -> None:
+
+        def format_timestamp(timestamp: str) -> str:
+            """return only hours, minutes from timestamp"""
+            return timestamp.split(" ")[1][:5]
+
         new_events = [event for event in new_state if event not in self.old_state]
         for event in new_events:
             self.query_one("#ship-log-scroll", VerticalScroll).mount(
-                Label(content=f"{event.timestamp} - {event.event} - {event.details}")
+                WidgetShipLogEntry(
+                    timestamp=format_timestamp(event.timestamp),
+                    event=event.event,
+                    details=event.details,
+                )
             )
         self.old_state = list(new_state)
 

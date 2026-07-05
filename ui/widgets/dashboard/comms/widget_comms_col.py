@@ -1,11 +1,9 @@
-from textual import log, on, work
+from textual import log, work
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Label
 from textual.reactive import reactive
 
 from ui.widgets.dashboard.comms.widget_comms_entry import WidgetCommsEntry
-from ui.widgets.dashboard.comms.widget_comms_input import WidgetCommsInput
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
@@ -27,15 +25,27 @@ class WidgetCommsCol(Vertical):
         self.set_up_stream_llm_responses_worker()
 
     def compose(self) -> ComposeResult:
-        yield Label(content="COMMS")
         with VerticalScroll(id="comms-scroll"):
             yield WidgetCommsEntry(
                 "system-message",
                 "Welcome to EDCeleste! Type your command below to "
                 "communicate with Celeste.",
             )
-
-        yield WidgetCommsInput(self.ed_dashboard_presenter)
+            yield WidgetCommsEntry(
+                "system-message",
+                "Telemetry uplink established. All channels are ready.",
+            )
+            yield WidgetCommsEntry("user-command", "Plot a route to Jameson Memorial.")
+            yield WidgetCommsEntry(
+                "llm-response",
+                "Route computed. Suggested jump sequence uploaded to your nav panel.",
+            )
+            yield WidgetCommsEntry("user-command", "Any nearby high-paying missions?")
+            yield WidgetCommsEntry(
+                "llm-response",
+                "Two contracts detected in Shinrarta Dezhra: cargo escort "
+                "and data courier.",
+            )
 
     def watch_response_state(self, new_state: CommsMessageViewModel | None) -> None:
         if new_state is not None:
@@ -52,10 +62,3 @@ class WidgetCommsCol(Vertical):
         log.debug("Starting to stream LLM responses")
         async for response in self.ed_dashboard_presenter.stream_llm_responses():
             self.response_state = response
-
-    @on(WidgetCommsInput.UserCommandSubmitted)
-    def handle_user_command_submitted(
-        self, event: WidgetCommsInput.UserCommandSubmitted
-    ) -> None:
-        log.debug("User command submitted: %s", event.command)
-        self.response_state = CommsMessageViewModel.from_user_message(event.command)

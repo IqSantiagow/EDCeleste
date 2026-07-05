@@ -1,78 +1,103 @@
 Screen {
-    border: heavy $primary;
-    background: $background;
-}
-
-Header {
-    layout: horizontal;
-}
-
-Dashboard {
-    layout: horizontal;
-}
-
-.col {
-    height: 100%;
-}
-
-EdDashboard {
-    height: 100%;
-    layout: vertical;
     background: $surface;
 }
 
-#dashboard-main {
-    height: auto;
-    padding: 1 1 1 1;
-    border-bottom: heavy $primary;
+#app-container {
+    grid-size: 2 4;
+    grid-columns: 2fr 1fr;
+    grid-rows: auto auto 1fr auto;
+    grid-gutter: 1;
+    keyline: thin $primary;
 }
 
-#dashboard-header {
-    height: auto;
+#app-header {
+    column-span: 2;
+    padding: 0 1 0 1;
+}
+
+#comms-title{
+    width: 1fr;
+    padding-left: 1;
+}
+
+#ship-log-title{
+    width: 1fr;
+    padding-left: 1;
+}
+
+#dashboard-stats-content {
     width: 0.8fr;
-    border: heavy red
 }
 
-#dashboard-header Rule{
+#dashboard-stats-content Rule{
     height:1;
 }
 
-#dashboard-body {
-    height: 1fr;
+#dashboard-jrnl-llm-status Rule{
+    height:1;
 }
 
-#dashboard-status {
+#dashboard-title{
+    color: $primary;
+}
+
+#dashboard-jrnl-llm-status {
     height: auto;
     align: right middle;
-    border: heavy red;
     width: 0.2fr;
-
-}
-
-#dashboard-status Rule{
-    height:1;
 }
 
 WidgetCommonStatLabel {
-    width: 15;
-    padding: 0 1 0 1
+    width: 20;
 }
 
-WidgetCommsCol{
-    width: 0.7fr;
+WidgetShipLogCol {
+    row-span: 2;
+    padding: 0 1 0 1;
 }
 
+WidgetShipLogEntry{
+    padding: 0 0 1 0;
+}
 
-WidgetShipLogCol{
-    width: 0.3fr;
+WidgetShipLogEntry > Label {
+    padding: 0 1 0 0;
+}
+
+WidgetCommsCol {
+    padding: 0 1 0 1;
 }
 
 #comms-scroll {
     height: 1fr;
-    border: heavy $primary;
 }
 
 WidgetCommsEntry{
     height: auto;
+    padding: 0 0 1 0;
 }
 
+
+WidgetCommsEntry > .llm-response{
+    color: $primary;
+}
+
+WidgetCommsEntry > .human-command{
+    color: #2518d4;
+}
+
+Footer {
+    background: $surface;
+}
+
+.text-bold {
+    text-style: bold;
+}
+
+.shady {
+    color: #6F4A24
+}
+
+.light {
+    color: $secondary
+}
