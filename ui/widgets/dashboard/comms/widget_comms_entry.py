@@ -11,11 +11,21 @@ class WidgetCommsEntry(HorizontalGroup):
 
     def compose(self) -> ComposeResult:
         if self.entry_type == "user-command":
-            yield Label(id="you-title", classes="human-command", content="YOU: ")
+            yield Label(
+                id="you-title", classes="human-command text-bold", content="YOU: "
+            )
             yield Label(classes="human-command", content=self.content)
         elif self.entry_type == "llm-response":
-            yield Label(id="celeste-title", classes="llm-response", content="CELESTE: ")
+            yield Label(
+                id="celeste-title",
+                classes="llm-response text-bold",
+                content="CELESTE: ",
+            )
             yield Label(classes="llm-response", content=self.content)
         elif self.entry_type == "system-message":
-            yield Label(id="system-title", classes="system-message", content="SYSTEM: ")
-            yield Label(classes="system-message", content=self.content)
+            yield Label(
+                id="system-title",
+                classes="system-message shady text-bold",
+                content="SYSTEM: ",
+            )
+            yield Label(classes="system-message shady", content=self.content)
