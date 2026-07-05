@@ -6,6 +6,7 @@ from services.models.game_events import (
     LoadedGameEvent,
     CommanderEvent,
     RankEvent,
+    PromotionEvent,
     ReputationEvent,
     DiedEvent,
     ResurrectEvent,
@@ -55,6 +56,11 @@ class PlayerProjectionTest(unittest.TestCase):
             Federation=0.2,
             Independent=0.0,
             Alliance=1.5,
+        )
+        cls.combat_promotion_event = PromotionEvent(
+            event="Promotion",
+            timestamp=datetime.now(),
+            Combat=6,
         )
         cls.died_event = DiedEvent(event="Died", timestamp=datetime.now())
         cls.resurrect_event = ResurrectEvent(
@@ -111,6 +117,17 @@ class PlayerProjectionTest(unittest.TestCase):
         )
 
         self.assertIn(expected_ranks, player_projection.create_projection())
+
+    def test_should_omit_rank_line_when_ranks_partially_known(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.combat_promotion_event)
+
+        projection = player_projection.create_projection()
+
+        self.assertNotIn("Commander ranks are", projection)
+        self.assertNotIn("None", projection)
 
     def test_should_process_reputation_event_and_create_projection(self):
         player_projection = PlayerProjection()

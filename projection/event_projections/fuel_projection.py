@@ -48,12 +48,12 @@ class FuelProjection(Projection):
 
         if isinstance(event, RefuelAllEvent):
             logger.debug("Received fuel event: %s", event)
-            # RefuelAll tops the main tank off completely; when the capacity is
-            # known we can set the absolute level, otherwise add the amount.
+            # RefuelAll tops the main tank off. Add the purchased amount and, when
+            # the capacity is known, clamp to it so a missed LoadGame or drifted
+            # level can never push the tracked value past the real tank size.
+            self.fuel_level += event.Amount
             if self.fuel_capacity:
-                self.fuel_level = self.fuel_capacity
-            else:
-                self.fuel_level += event.Amount
+                self.fuel_level = min(self.fuel_level, self.fuel_capacity)
             return
 
         logger.debug("Received event but not withing allowed events. Skipping...")

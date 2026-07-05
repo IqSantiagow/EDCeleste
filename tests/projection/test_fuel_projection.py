@@ -89,11 +89,18 @@ class FuelProjectionTest(unittest.TestCase):
             fuel_projection.fuel_level, self.reservoir_replenished_event.FuelMain
         )
 
-    def test_should_fill_to_capacity_on_refuel_all_when_capacity_known(self):
+    def test_should_clamp_to_capacity_on_refuel_all_when_capacity_known(self):
         fuel_projection = FuelProjection()
 
+        overshooting_refuel = RefuelAllEvent(
+            event="RefuelAll",
+            timestamp=datetime.now(),
+            Cost=200,
+            Amount=10.0,
+        )
+
         fuel_projection.process_event(self.loaded_game_event)
-        fuel_projection.process_event(self.refuel_all_event)
+        fuel_projection.process_event(overshooting_refuel)
 
         self.assertEqual(
             fuel_projection.fuel_level, self.loaded_game_event.FuelCapacity

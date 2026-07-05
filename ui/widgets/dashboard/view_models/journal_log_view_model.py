@@ -41,11 +41,17 @@ class JournalLogViewModel:
     @from_event.register(StartJumpEvent)
     @classmethod
     def _2(cls, event: StartJumpEvent) -> "JournalLogViewModel":
+        # StarSystem/SystemAddress are only present for the "Hyperspace"
+        # variant; the "Supercruise" variant omits them, so skip missing fields.
+        parts = [f"JumpType: {event.JumpType}"]
+        if event.StarSystem is not None:
+            parts.append(f"StarSystem: {event.StarSystem}")
+        if event.SystemAddress is not None:
+            parts.append(f"SystemAddress: {event.SystemAddress}")
         return cls(
             timestamp=str(event.timestamp),
             event=event.event,
-            details=f"JumpType: {event.JumpType}, StarSystem: {event.StarSystem}, "
-            f"SystemAddress: {event.SystemAddress}",
+            details=", ".join(parts),
         )
 
     @from_event.register(DockedEvent)

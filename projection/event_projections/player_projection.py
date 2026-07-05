@@ -30,6 +30,8 @@ class PlayerProjection(Projection):
 
     DEAD_PROJECTION = "Commander has been destroyed and is awaiting rebuy."
 
+    UNKNOWN_RANK = "Unranked"
+
     COMBAT_RANKS = (
         "Harmless",
         "Mostly Harmless",
@@ -136,7 +138,10 @@ class PlayerProjection(Projection):
             self.player_name, self.player_credits, self.player_ship
         )
 
-        if self.combat_rank is not None:
+        # Only emit the rank line once every rank is known; PromotionEvent can
+        # set ranks independently, so a partially populated state would
+        # otherwise leak literal "None" values into the LLM projection.
+        if None not in (self.combat_rank, self.trade_rank, self.exploration_rank):
             projection_string += self.RANK_PROJECTION.format(
                 self.__rank_name(self.COMBAT_RANKS, self.combat_rank),
                 self.__rank_name(self.TRADE_RANKS, self.trade_rank),
@@ -159,4 +164,4 @@ class PlayerProjection(Projection):
     def __rank_name(ladder: tuple[str, ...], value) -> str:
         if value is not None and 0 <= value < len(ladder):
             return ladder[value]
-        return str(value)
+        return PlayerProjection.UNKNOWN_RANK
