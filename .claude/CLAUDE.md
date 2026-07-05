@@ -18,6 +18,8 @@ coverage report -m
 python -m pytest tests/services/journal/test_journal_watcher.py
 ```
 
+> **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
+
 ## Configuration
 
 Copy `.env-example` to `.env`. Required variables (double-underscore = nested):

@@ -10,7 +10,12 @@ from textual.logging import TextualHandler
 
 if __name__ == "__main__":
     container = Container()
-    container.wire(modules=["ui.ui_app", "ui.widgets.dashboard.ed_dashboard"])
+    container.wire(
+        modules=[
+            "ui.ui_app",
+            "ui.widgets.dashboard.dashboard_headers.dashboard_stats_content",
+        ]
+    )
 
     log_level = container.config.ed.logging.level()
 
