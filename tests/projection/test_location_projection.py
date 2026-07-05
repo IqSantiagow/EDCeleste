@@ -7,6 +7,11 @@ from services.models.game_events import (
     UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
+    SupercruiseEntryEvent,
+    SupercruiseExitEvent,
+    ApproachBodyEvent,
+    LeaveBodyEvent,
+    ApproachSettlementEvent,
 )
 from services.models.game_models import BaseFactionModel, StationEconomyModel
 
@@ -71,6 +76,49 @@ class TestLocationProjection(unittest.TestCase):
             FuelLevel=45.0,
         )
 
+        cls.supercruise_entry_event = SupercruiseEntryEvent(
+            event="SupercruiseEntry",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            SystemAddress=123456789,
+        )
+
+        cls.supercruise_exit_event = SupercruiseExitEvent(
+            event="SupercruiseExit",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            SystemAddress=123456789,
+            Body="Sol 3 c",
+            BodyID=9,
+            BodyType="Planet",
+        )
+
+        cls.approach_body_event = ApproachBodyEvent(
+            event="ApproachBody",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            SystemAddress=123456789,
+            Body="Sol 3 c",
+            BodyID=9,
+        )
+
+        cls.leave_body_event = LeaveBodyEvent(
+            event="LeaveBody",
+            timestamp=datetime.now(),
+            StarSystem="Sol",
+            SystemAddress=123456789,
+            Body="Sol 3 c",
+            BodyID=9,
+        )
+
+        cls.approach_settlement_event = ApproachSettlementEvent(
+            event="ApproachSettlement",
+            timestamp=datetime.now(),
+            Name="Jameson Memorial",
+            SystemAddress=123456789,
+            BodyName="Sol 3 c",
+        )
+
     def test_should_process_docked_event_and_create_projection(self):
         location_projection = LocationProjection()
 
@@ -128,6 +176,58 @@ class TestLocationProjection(unittest.TestCase):
         expected_projection = (
             "Player is currently in the Sol system."
             "Player is currently docked at station: Galileo."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_process_supercruise_entry_event_and_create_projection(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_entry_event)
+
+        expected_projection = (
+            "Player is currently in the Sol system.Player is currently in supercruise."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_clear_supercruise_and_track_body_on_supercruise_exit(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_entry_event)
+        location_projection.process_event(self.supercruise_exit_event)
+
+        expected_projection = (
+            "Player is currently in the Sol system.Player is currently near Sol 3 c."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_track_body_on_approach_and_clear_it_on_leave(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.approach_body_event)
+
+        expected_projection = (
+            "Player is currently in the Sol system.Player is currently near Sol 3 c."
+        )
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+        location_projection.process_event(self.leave_body_event)
+
+        self.assertEqual(
+            "Player is currently in the Sol system.",
+            location_projection.create_projection(),
+        )
+
+    def test_should_track_nearest_settlement_on_approach(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.approach_settlement_event)
+
+        expected_projection = (
+            "Player is currently near Sol 3 c."
+            "Player is close to the settlement: Jameson Memorial."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
