@@ -31,21 +31,6 @@ class WidgetCommsCol(Vertical):
                 "Welcome to EDCeleste! Type your command below to "
                 "communicate with Celeste.",
             )
-            yield WidgetCommsEntry(
-                "system-message",
-                "Telemetry uplink established. All channels are ready.",
-            )
-            yield WidgetCommsEntry("user-command", "Plot a route to Jameson Memorial.")
-            yield WidgetCommsEntry(
-                "llm-response",
-                "Route computed. Suggested jump sequence uploaded to your nav panel.",
-            )
-            yield WidgetCommsEntry("user-command", "Any nearby high-paying missions?")
-            yield WidgetCommsEntry(
-                "llm-response",
-                "Two contracts detected in Shinrarta Dezhra: cargo escort "
-                "and data courier.",
-            )
 
     def watch_response_state(self, new_state: CommsMessageViewModel | None) -> None:
         if new_state is not None:

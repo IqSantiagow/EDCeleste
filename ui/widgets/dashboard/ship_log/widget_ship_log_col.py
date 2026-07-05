@@ -10,6 +10,11 @@ from ui.widgets.dashboard.ship_log.widget_ship_log_entry import WidgetShipLogEnt
 from ui.widgets.dashboard.view_models.journal_log_view_model import JournalLogViewModel
 
 
+def format_timestamp(timestamp: str) -> str:
+    """return only hours, minutes from timestamp"""
+    return timestamp.split(" ")[1][:5]
+
+
 class WidgetShipLogCol(Widget):
     old_state: list[JournalLogViewModel] = []
     state: reactive[list[JournalLogViewModel]] = reactive([])
@@ -33,11 +38,6 @@ class WidgetShipLogCol(Widget):
         self.set_up_stream_journal_worker()
 
     def watch_state(self, new_state: list[JournalLogViewModel]) -> None:
-
-        def format_timestamp(timestamp: str) -> str:
-            """return only hours, minutes from timestamp"""
-            return timestamp.split(" ")[1][:5]
-
         new_events = [event for event in new_state if event not in self.old_state]
         for event in new_events:
             self.query_one("#ship-log-scroll", VerticalScroll).mount(

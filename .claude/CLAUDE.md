@@ -18,7 +18,7 @@ coverage report -m
 python -m pytest tests/services/journal/test_journal_watcher.py
 ```
 
-## Disclaimer - always activate venv, there is nothing installed globally
+> **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
 
 ## Configuration
 
