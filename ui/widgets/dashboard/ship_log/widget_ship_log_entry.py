@@ -4,6 +4,8 @@ from textual.widgets import Label
 
 
 class WidgetShipLogEntry(HorizontalGroup):
+    DEFAULT_CLASSES = "p-b-1"
+
     def __init__(self, timestamp: str, event: str, details: str, **kwargs) -> None:
         super().__init__(**kwargs)
         self.timestamp = timestamp

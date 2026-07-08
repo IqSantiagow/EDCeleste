@@ -25,6 +25,7 @@ python -m pytest tests/services/journal/test_journal_watcher.py
 Copy `.env-example` to `.env`. Required variables (double-underscore = nested):
 
 - `ED__MAIN_PATH` — path to `Saved Games\Frontier Developments\Elite Dangerous`
+- `ED__KEYBINDS_PATH` — path to the folder containing your `.binds` keybindings file(s)
 - `LLM__ANTHROPIC_API_KEY` — Anthropic API key
 - `ED__LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
 
@@ -47,7 +48,7 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 - `services/journal_watcher_service.py` — polls latest `Journal*.log` from the ED directory, parses lines with Pydantic, publishes to `EventBus`
 - `services/models/journal_event.py` — Pydantic discriminated union (`_JournalEvent`) that maps raw JSON `event` field to typed models; unknown events become `UnknownCheckedEvent`
 - `projection/` — each `Projection` (protocol in `projection/event_projections/projection.py`) processes events and returns a text snippet for the LLM; `GameStateService` orchestrates all projections
-- `ui/protocols/game_state_reader.py` — `GameStateReader` is a structural Protocol that `GameStateService` implements; the UI depends only on this protocol, not the concrete class
+- `protocols/game_state_protocol.py` — `GameStateProtocol` is a structural Protocol that `GameStateService` implements; the UI depends only on this protocol, not the concrete class
 - `use_cases/` — thin callable classes that bridge `GameStateReader` → `DashboardViewModel`
 - `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`
 - `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` in a daemon thread on mount

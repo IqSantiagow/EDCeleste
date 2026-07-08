@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 
@@ -7,6 +8,8 @@ from textual.containers import Grid
 from textual.widgets import Footer, Label
 
 from services.journal_watcher_service import JournalWatcherService
+from ui.screens.settings.settings_repository import SettingsRepository
+from ui.screens.settings.settings_screen import SettingsScreen
 from ui.themes.themes import amber_theme
 from ui.widgets.app_header import AppHeader
 from ui.widgets.dashboard.comms.widget_comms_col import WidgetCommsCol
@@ -30,6 +33,7 @@ class UIApp(App):
 
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
+        ("ctrl+s", "push_settings", "Settings"),
     ]
 
     @inject
@@ -41,10 +45,14 @@ class UIApp(App):
         ed_dashboard_presenter: EdDashboardPresenter = Provide[
             Container.ed_dashboard_presenter
         ],
+        settings_repository: SettingsRepository = Provide[
+            Container.settings_repository
+        ],
     ) -> None:
         super().__init__()
         self.journal_watcher_service = journal_watcher_service
         self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
         self.register_theme(amber_theme)
@@ -54,19 +62,19 @@ class UIApp(App):
             daemon=True,
         )
         self.watcher_thread.start()
-        logger.info(
-            "UIApp mounted. JournalWatcherService started in a separate thread."
-        )
+        asyncio.create_task(self.__load_keybinds())
 
     def on_unmount(self) -> None:
         logger.info("UIApp unmounted. Stopping JournalWatcherService.")
         self.journal_watcher_service.stop_watcher_service()
 
     def compose(self) -> ComposeResult:
-        with Grid(id="app-container"):
+        with Grid(id="app-container", classes="screen-grid"):
             yield AppHeader(content=DashboardStatsContent())
-            yield Label(id="comms-title", classes="shady", content="COMMS")
-            yield Label(id="ship-log-title", classes="shady", content="SHIP LOG")
+            yield Label(id="comms-title", classes="shady header-title", content="COMMS")
+            yield Label(
+                id="ship-log-title", classes="shady header-title", content="SHIP LOG"
+            )
             yield WidgetCommsCol(
                 ed_dashboard_presenter=self.ed_dashboard_presenter, id="comms-col"
             )
@@ -86,3 +94,13 @@ class UIApp(App):
         self.query_one(
             "#comms-col", WidgetCommsCol
         ).response_state = CommsMessageViewModel.from_user_message(event.command)
+
+    def action_push_settings(self) -> None:
+        self.push_screen(SettingsScreen(settings_repository=self.settings_repository))
+
+    async def __load_keybinds(self):
+        # Will be as separate method, maybe in future will be used to retry
+        try:
+            await self.settings_repository.load_keybinds()
+        except FileNotFoundError as e:
+            logger.warning("Could not load keybinds: %s", e)

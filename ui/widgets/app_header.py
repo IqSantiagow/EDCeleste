@@ -5,8 +5,8 @@ from textual.widgets import Label
 
 
 class AppHeader(HorizontalGroup):
-    def __init__(self, content: Widget, **kwargs) -> None:
-        super().__init__(id="app-header", **kwargs)
+    def __init__(self, content: Widget) -> None:
+        super().__init__(id="app-header", classes="p-x-1")
         self.content = content
 
     def compose(self) -> ComposeResult:

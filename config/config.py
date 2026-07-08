@@ -10,6 +10,7 @@ class Logging(BaseModel):
 
 class EDConfig(BaseModel):
     main_path: str
+    keybinds_path: str
     logging: Logging
 
 
