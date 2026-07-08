@@ -2,7 +2,7 @@ from protocols.keybinds_protocol import KeybindsProtocol
 
 
 class SettingsLoadKeybindsUseCase:
-    """Used only to get loaded keybinds, not for refetching them"""
+    """Parses the .binds file fresh, populating the keybinds cache"""
 
     def __init__(self, keybinds_protocol: KeybindsProtocol):
         self.keybinds_protocol = keybinds_protocol
