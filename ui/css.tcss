@@ -1,44 +1,44 @@
+/* Tokens: colors */
+$font-muted-color: #6F4A24;
+$human-command-color: #2518d4;
+
+/* App shell */
 Screen {
     background: $surface;
 }
 
-#app-container {
+.screen-grid {
     grid-size: 2 4;
-    grid-columns: 2fr 1fr;
     grid-rows: auto auto 1fr auto;
     grid-gutter: 1;
     keyline: thin $primary;
 }
 
+#app-container {
+    grid-columns: 2fr 1fr;
+}
+
+#settings-grid {
+    grid-columns: 1fr 2fr;
+}
+
+Footer {
+    background: $surface;
+}
+
+/* Shared header */
 #app-header {
     column-span: 2;
-    padding: 0 1 0 1;
 }
 
-#comms-title{
+.header-title {
     width: 1fr;
     padding-left: 1;
 }
 
-#ship-log-title{
-    width: 1fr;
-    padding-left: 1;
-}
-
+/* Dashboard stats header */
 #dashboard-stats-content {
     width: 0.8fr;
-}
-
-#dashboard-stats-content Rule{
-    height:1;
-}
-
-#dashboard-jrnl-llm-status Rule{
-    height:1;
-}
-
-#dashboard-title{
-    color: $primary;
 }
 
 #dashboard-jrnl-llm-status {
@@ -47,57 +47,97 @@ Screen {
     width: 0.2fr;
 }
 
+#dashboard-title {
+    color: $primary;
+}
+
+Rule {
+    height: 1;
+}
+
 WidgetCommonStatLabel {
     width: 20;
 }
 
-WidgetShipLogCol {
-    row-span: 2;
-    padding: 0 1 0 1;
+/* Dashboard comms */
+.llm-response {
+    color: $primary;
 }
 
-WidgetShipLogEntry{
-    padding: 0 0 1 0;
+.human-command {
+    color: $human-command-color;
+}
+
+/* Dashboard ship log */
+WidgetShipLogCol {
+    row-span: 2;
 }
 
 WidgetShipLogEntry > Label {
     padding: 0 1 0 0;
 }
 
-WidgetCommsCol {
-    padding: 0 1 0 1;
-}
-
-#comms-scroll {
-    height: 1fr;
-}
-
-WidgetCommsEntry{
-    height: auto;
-    padding: 0 0 1 0;
-}
-
-
-WidgetCommsEntry > .llm-response{
-    color: $primary;
-}
-
-WidgetCommsEntry > .human-command{
-    color: #2518d4;
-}
-
-Footer {
-    background: $surface;
-}
-
+/* Utility classes */
 .text-bold {
     text-style: bold;
 }
 
 .shady {
-    color: #6F4A24
+    color: $font-muted-color;
 }
 
 .light {
-    color: $secondary
+    color: $secondary;
+}
+
+.p-x-1 {
+    padding: 0 1;
+}
+
+.p-b-1 {
+    padding: 0 0 1 0;
+}
+
+.p-l-1 {
+    padding: 0 0 0 1;
+}
+
+.h-fill {
+    height: 1fr;
+}
+
+.h-auto {
+    height: auto;
+}
+
+.text-color-primary {
+    color: $primary;
+}
+
+.w-fill {
+    width: 1fr;
+}
+
+.w-80 {
+    width: 0.8fr;
+}
+
+.w-50 {
+    width: 0.5fr;
+}
+
+.align-right {
+    align: right middle;
+}
+
+.content-align-right {
+    content-align: right middle;
+}
+
+.border-debug{
+    border: solid red;
+}
+
+.keybinds-entry{
+    padding-top: 1;
 }

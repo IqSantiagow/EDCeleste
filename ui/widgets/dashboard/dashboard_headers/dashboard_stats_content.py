@@ -77,7 +77,6 @@ class DashboardStatsContent(HorizontalGroup):
             dashboard_state
         ) in self.ed_dashboard_presenter.stream_dashboard_stats():
             self.state = dashboard_state
-            log.info(f"Updated dashboard state: {self.state}")
 
     @work
     async def set_up_healthcheck_stream_worker(self) -> None:

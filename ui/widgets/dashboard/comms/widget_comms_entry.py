@@ -4,6 +4,8 @@ from textual.widgets import Label
 
 
 class WidgetCommsEntry(HorizontalGroup):
+    DEFAULT_CLASSES = "h-auto p-b-1"
+
     def __init__(self, entry_type: str, content: str):
         super().__init__()
         self.entry_type = entry_type

@@ -1,15 +1,15 @@
 from typing import AsyncGenerator
 
-from protocols.game_state_reader import GameStateReader
+from protocols.game_state_protocol import GameStateProtocol
 from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
     DashboardStatsViewModel,
 )
 
 
 class StreamDashboardStatsUseCase:
-    game_state_reader: GameStateReader
+    game_state_reader: GameStateProtocol
 
-    def __init__(self, game_state_reader: GameStateReader) -> None:
+    def __init__(self, game_state_reader: GameStateProtocol) -> None:
         self.game_state_reader = game_state_reader
 
     async def __call__(self) -> AsyncGenerator[DashboardStatsViewModel, None]:

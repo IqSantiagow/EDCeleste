@@ -1,11 +1,13 @@
 from dependency_injector import containers, providers
 
 from config.config import AppConfig
-from services.game_state_service import GameStateService
 from services.event_bus import EventBus
+from services.game_state_service import GameStateService
 from services.journal_watcher_service import JournalWatcherService
+from services.keybinds_service import KeybindService
 from services.llm_service import LLMService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
+from ui.screens.settings.settings_repository import SettingsRepository
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from use_cases.dashboard.journal_get_healtcheck_usecase import (
     JournalGetHealthCheckUseCase,
@@ -18,11 +20,17 @@ from use_cases.dashboard.stream_dashboard_stats_usecase import (
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
+from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
+from use_cases.settings.settings_load_keybinds_use_case import (
+    SettingsLoadKeybindsUseCase,
+)
 
 
 class Container(containers.DeclarativeContainer):
+    # -----CONFIG-----
     config = providers.Configuration(pydantic_settings=[AppConfig()])  # type: ignore
 
+    # -----SERVICES-----
     llm_service = providers.Singleton(LLMService, api_key=config.llm.anthropic_api_key)
 
     event_bus = providers.Singleton(EventBus)
@@ -37,6 +45,11 @@ class Container(containers.DeclarativeContainer):
 
     game_state_service = providers.Singleton(GameStateService, event_bus=event_bus)
 
+    keybinds_service = providers.Singleton(
+        KeybindService, keybinds_path=config.ed.keybinds_path
+    )
+
+    # -----USE CASES-----
     stream_dashboard_stats_use_case = providers.Factory(
         StreamDashboardStatsUseCase, game_state_reader=game_state_service
     )
@@ -67,6 +80,15 @@ class Container(containers.DeclarativeContainer):
         StreamLLMStateUseCase, llm_protocol=llm_service
     )
 
+    settings_load_keybinds_use_case = providers.Factory(
+        SettingsLoadKeybindsUseCase, keybinds_protocol=keybinds_service
+    )
+
+    settings_get_keybinds_use_case = providers.Factory(
+        SettingsGetKeybindsUseCase, keybinds_protocol=keybinds_service
+    )
+
+    # -----PRESENTERS-----
     ed_dashboard_presenter = providers.Singleton(
         EdDashboardPresenter,
         stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
@@ -76,4 +98,10 @@ class Container(containers.DeclarativeContainer):
         llm_send_message_usecase=llm_send_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
         stream_llm_state_usecase=stream_llm_state_use_case,
+    )
+
+    settings_repository = providers.Singleton(
+        SettingsRepository,
+        settings_load_keybinds_use_case=settings_load_keybinds_use_case,
+        settings_get_keybinds_use_case=settings_get_keybinds_use_case,
     )

@@ -4,7 +4,7 @@ from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from services.models.game_events import GameEvent
 
 
-class GameStateReader(Protocol):
+class GameStateProtocol(Protocol):
     def get_dashboard_stats(self) -> DashboardStatsSnapshot: ...
 
     def stream_dashboard_stats(
