@@ -63,7 +63,7 @@ class EdAction(StrEnum):
 
 
 class MissingKeybindsError(Exception):
-    """Raised when a loaded ``.binds`` file does not cover every ``EdAction``.`."""
+    """Raised when a loaded ``.binds`` file does not cover every ``EdAction``."""
 
     def __init__(self, missing: set[EdAction]) -> None:
         self.missing = missing

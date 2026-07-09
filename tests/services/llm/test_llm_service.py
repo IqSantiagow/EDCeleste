@@ -129,14 +129,14 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         await status_stream.aclose()
 
     def test_get_tools_returns_perform_game_action_tool(self):
-        tools = self.llm_service.getTools()
+        tools = self.llm_service.get_tools()
 
         self.assertEqual(len(tools), 1)
         self.assertEqual(tools[0].name, "perform_game_action")
 
     def test_perform_game_action_tool_publishes_resolved_action_to_event_bus(self):
         self.event_bus.publish = MagicMock()
-        tool = self.llm_service.getTools()[0]
+        tool = self.llm_service.get_tools()[0]
 
         result = tool.invoke({"action": "ToggleFlightAssist"})
 
@@ -144,7 +144,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, "Action performed: ToggleFlightAssist")
 
     def test_perform_game_action_tool_rejects_unknown_action_value(self):
-        tool = self.llm_service.getTools()[0]
+        tool = self.llm_service.get_tools()[0]
 
         with self.assertRaises(ValidationError):
             tool.invoke({"action": "NotARealAction"})

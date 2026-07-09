@@ -39,7 +39,7 @@ class LLMService:
             model=self.__model,
             system_prompt=SYSTEM_PROMPT,
             response_format=LLMResponse,
-            tools=self.getTools(),
+            tools=self.get_tools(),
         )
 
         self.__response_queue_watchers: list[asyncio.Queue[LLMResponse]] = []
@@ -127,7 +127,7 @@ class LLMService:
 
     # https://github.com/langchain-ai/langchain/pull/35043
     # https://github.com/LennyMalcolm0/langchain/pull/39
-    def getTools(self):
+    def get_tools(self):
         @tool("perform_game_action")
         def perform_action(action: EdAction) -> str:
             """Perform a game action by pressing a key"""
