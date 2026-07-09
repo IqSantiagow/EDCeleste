@@ -20,7 +20,6 @@ class LLMResponse(BaseModel):
     """Represents a response from the LLM"""
 
     message: LLMMessage
-    # actions: list[LLMAction]
 
 
 class LLMStatus(Enum):

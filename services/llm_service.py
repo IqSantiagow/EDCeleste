@@ -3,20 +3,30 @@ from collections.abc import AsyncGenerator
 import logging
 
 import anthropic
-from langchain_anthropic import ChatAnthropic
 from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain.tools import tool
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langsmith import traceable
 from pydantic import SecretStr
 
+from services.event_bus import EventBus
+from services.models.keybinds_model import EdAction
 from services.models.llm_response import LLMResponse, LLMStatus
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = "You are the intelligent space ship pilot assistant called Celeste."
+SYSTEM_PROMPT = """
+You are the intelligent space ship pilot assistant called Celeste.
+Your job is to assist the human pilot in piloting the ship and managing the
+ship's systems. You have access to current state of the game and the
+conversation history between you and the human pilot. You have access to
+ship systems and you can operate them by performing actions in the game.
+"""
 
 
 class LLMService:
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, event_bus: EventBus) -> None:
         self.conversation: list[BaseMessage] = []
         self.__model = ChatAnthropic(
             model="claude-haiku-4-5-20251001",  # type: ignore
@@ -26,12 +36,17 @@ class LLMService:
         )
 
         self.__agent = create_agent(
-            model=self.__model, system_prompt=SYSTEM_PROMPT, response_format=LLMResponse
+            model=self.__model,
+            system_prompt=SYSTEM_PROMPT,
+            response_format=LLMResponse,
+            tools=self.get_tools(),
         )
 
         self.__response_queue_watchers: list[asyncio.Queue[LLMResponse]] = []
         self.__status_queue_watchers: list[asyncio.Queue[LLMStatus]] = []
+        self.__event_bus = event_bus
 
+    @traceable
     async def send_message(self, message: str, game_state: str):
         logger.info("Got an LLM request: %s", message)
         self.conversation.append(HumanMessage(content=message))
@@ -109,3 +124,15 @@ class LLMService:
                                 {merged_history}"""
 
         return message_history_prompt
+
+    # https://github.com/langchain-ai/langchain/pull/35043
+    # https://github.com/LennyMalcolm0/langchain/pull/39
+    def get_tools(self):
+        @tool("perform_game_action")
+        def perform_action(action: EdAction) -> str:
+            """Perform a game action by pressing a key"""
+            self.__event_bus.publish(action)
+            logger.info(f"Published action '{action.value}' to event bus")
+            return f"Action performed: {action.value}"
+
+        return [perform_action]
