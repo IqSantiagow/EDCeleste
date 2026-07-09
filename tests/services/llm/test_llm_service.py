@@ -1,12 +1,15 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import anthropic
 import httpx
 from langchain_core.messages import AIMessage, HumanMessage
+from pydantic import ValidationError
 
+from services.event_bus import EventBus
 from services.llm_service import SYSTEM_PROMPT, LLMService
+from services.models.keybinds_model import EdAction
 from services.models.llm_response import LLMStatus
 
 
@@ -27,7 +30,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.test_game_state = "Test game state"
-        self.llm_service = LLMService(api_key="")
+        self.event_bus = EventBus()
+        self.llm_service = LLMService(api_key="", event_bus=self.event_bus)
 
     async def test_should_stream_the_received_message_to_subscribers(self):
         stream = self.llm_service.stream_responses()
@@ -123,3 +127,24 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await thinking, LLMStatus.THINKING)
         self.assertEqual(await status_stream.__anext__(), LLMStatus.IDLE)
         await status_stream.aclose()
+
+    def test_get_tools_returns_perform_game_action_tool(self):
+        tools = self.llm_service.getTools()
+
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0].name, "perform_game_action")
+
+    def test_perform_game_action_tool_publishes_resolved_action_to_event_bus(self):
+        self.event_bus.publish = MagicMock()
+        tool = self.llm_service.getTools()[0]
+
+        result = tool.invoke({"action": "ToggleFlightAssist"})
+
+        self.event_bus.publish.assert_called_once_with(EdAction.TOGGLE_FLIGHT_ASSIST)
+        self.assertEqual(result, "Action performed: ToggleFlightAssist")
+
+    def test_perform_game_action_tool_rejects_unknown_action_value(self):
+        tool = self.llm_service.getTools()[0]
+
+        with self.assertRaises(ValidationError):
+            tool.invoke({"action": "NotARealAction"})
