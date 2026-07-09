@@ -2,13 +2,23 @@ import asyncio
 import glob
 import logging
 import os
-import pydirectinput
 
 from services.event_bus import EventBus
 from services.models.keybinds_model import EdAction, Keybind, MissingKeybindsError
 from lxml import etree  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+try:
+    import pydirectinput
+except ImportError:  # pydirectinput needs ctypes.WinDLL, so it only imports on Windows
+
+    class _PydirectinputStub:
+        @staticmethod
+        def press(key: str) -> None:
+            raise RuntimeError("pydirectinput is only available on Windows")
+
+    pydirectinput = _PydirectinputStub()  # type: ignore[assignment]
 
 
 class KeybindService:
