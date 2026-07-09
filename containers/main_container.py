@@ -31,9 +31,12 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration(pydantic_settings=[AppConfig()])  # type: ignore
 
     # -----SERVICES-----
-    llm_service = providers.Singleton(LLMService, api_key=config.llm.anthropic_api_key)
 
     event_bus = providers.Singleton(EventBus)
+
+    llm_service = providers.Singleton(
+        LLMService, api_key=config.llm.anthropic_api_key, event_bus=event_bus
+    )
 
     journal_watcher_service = providers.Singleton(
         JournalWatcherService, journal_path=config.ed.main_path, event_bus=event_bus
@@ -46,7 +49,7 @@ class Container(containers.DeclarativeContainer):
     game_state_service = providers.Singleton(GameStateService, event_bus=event_bus)
 
     keybinds_service = providers.Singleton(
-        KeybindService, keybinds_path=config.ed.keybinds_path
+        KeybindService, keybinds_path=config.ed.keybinds_path, event_bus=event_bus
     )
 
     # -----USE CASES-----

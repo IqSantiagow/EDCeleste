@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 
 def configure_langsmith(config: LangSmithConfig) -> None:
     if not config.tracing:
-        logger.debug("LangSmith tracing disabled")
+        logger.info("LangSmith tracing disabled")
         return
 
-    logger.debug("LangSmith tracing enabled for project %s", config.project)
+    logger.info("LangSmith tracing enabled for project %s", config.project)
 
     os.environ["LANGSMITH_TRACING"] = str(config.tracing)
     os.environ["LANGSMITH_API_KEY"] = config.api_key
