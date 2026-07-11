@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import AsyncGenerator, Generator, override
+from typing import AsyncGenerator, override
 
 from services.event_bus import EventBus
 from services.journal_watcher_service import JournalWatcherService

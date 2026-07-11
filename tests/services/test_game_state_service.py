@@ -33,11 +33,11 @@ def _loaded_game_event(**overrides) -> LoadedGameEvent:
     return LoadedGameEvent(**defaults)
 
 
-class TestGameStateServiceDashboardStats(unittest.TestCase):
-    def test_get_dashboard_stats_returns_snapshot_from_projections(self):
+class TestGameStateServiceDashboardStats(unittest.IsolatedAsyncioTestCase):
+    async def test_get_dashboard_stats_returns_snapshot_from_projections(self):
         service = GameStateService(Mock())
 
-        service.process_event(_loaded_game_event())
+        await service.process_event(_loaded_game_event())
 
         snapshot = service.get_dashboard_stats()
         self.assertEqual(snapshot.ship, "Sidewinder")
@@ -64,7 +64,7 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         pending = asyncio.ensure_future(stream.__anext__())
         await asyncio.sleep(0)
 
-        service.process_event(_loaded_game_event())
+        await service.process_event(_loaded_game_event())
 
         snapshot = await pending
         self.assertEqual(snapshot.ship, "Sidewinder")
@@ -78,7 +78,7 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
 
         event = _loaded_game_event()
-        service.process_event(event)
+        await service.process_event(event)
 
         received = await pending
         self.assertIs(received, event)

@@ -6,7 +6,7 @@ from services.event_bus import EventBus
 from services.models.game_events import LoadedGameEvent
 
 
-class GameStateIntegration(unittest.TestCase):
+class GameStateIntegration(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         cls.loaded_game_event = LoadedGameEvent(
@@ -30,12 +30,12 @@ class GameStateIntegration(unittest.TestCase):
             FuelCapacity=4.0,
         )
 
-    def test_should_receive_event_from_bus(self):
+    async def test_should_receive_event_from_bus(self):
         event_bus = EventBus()
 
         game_state = GameStateService(event_bus)
 
-        event_bus.publish(self.loaded_game_event)
+        await event_bus.publish(self.loaded_game_event)
 
         self.assertIn(
             "Commander name is {0}".format(self.loaded_game_event.Commander),
