@@ -2,7 +2,7 @@ import glob
 import logging
 import os
 import time
-from typing import Generator
+from typing import AsyncGenerator, Generator
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -20,14 +20,10 @@ class JournalWatcherService:
         self.adapter: TypeAdapter = TypeAdapter(_JournalEvent)
         self.exit_signal: bool = False
 
-    def start_watcher_service(self) -> None:
+    async def start_watcher_service(self) -> None:
         self.exit_signal = False
-        for event in self.__generate_journal_events():
-            self.event_bus.publish(event)
-
-    def start_watcher_service_and_generate_events(self) -> Generator[GameEvent]:
-        self.exit_signal = False
-        return self.__generate_journal_events()
+        async for event in self.__generate_journal_events():
+            await self.event_bus.publish(event)
 
     def stop_watcher_service(self) -> None:
         self.exit_signal = True
@@ -35,7 +31,7 @@ class JournalWatcherService:
     def get_journal_healthcheck(self):
         return not self.exit_signal
 
-    def __generate_journal_events(self) -> Generator[GameEvent]:
+    async def __generate_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         raw_journal_event = self.__fetch_raw_journal_line()
 
         for event in raw_journal_event:

@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from config.config import AppConfig, LangSmithConfig
+from config.config import AppConfig, LangSmithConfig, TTSConfig
 
 BASE_ENV = {
     "ED__MAIN_PATH": "C:/ed",
@@ -48,6 +48,21 @@ class TestAppConfig(unittest.TestCase):
         self.assertEqual(config.langsmith.api_key, "")
         self.assertEqual(config.langsmith.project, "EDCeleste")
         self.assertEqual(config.langsmith.endpoint, "https://api.smith.langchain.com")
+
+    def test_app_config_uses_default_tts_config_when_env_vars_absent(self):
+        with patch.dict(os.environ, BASE_ENV, clear=True):
+            config = AppConfig(_env_file=None)  # type: ignore[call-arg]
+
+        self.assertEqual(config.tts, TTSConfig())
+        self.assertEqual(config.tts.voice, "en-GB-SoniaNeural")
+
+    def test_app_config_builds_tts_config_from_env_var(self):
+        env = {**BASE_ENV, "TTS__VOICE": "en-US-AriaNeural"}
+
+        with patch.dict(os.environ, env, clear=True):
+            config = AppConfig(_env_file=None)  # type: ignore[call-arg]
+
+        self.assertEqual(config.tts.voice, "en-US-AriaNeural")
 
 
 if __name__ == "__main__":

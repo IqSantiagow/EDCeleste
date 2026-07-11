@@ -25,10 +25,15 @@ class LangSmithConfig(BaseModel):
     endpoint: str = "https://api.smith.langchain.com"
 
 
+class TTSConfig(BaseModel):
+    voice: str = "en-GB-SoniaNeural"
+
+
 class AppConfig(BaseSettings):
     ed: EDConfig
     llm: LLMConfig
     langsmith: LangSmithConfig = LangSmithConfig()
+    tts: TTSConfig = TTSConfig()
 
     model_config = SettingsConfigDict(
         env_file=".env",

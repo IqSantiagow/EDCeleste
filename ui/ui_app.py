@@ -8,6 +8,7 @@ from textual.containers import Grid
 from textual.widgets import Footer, Label
 
 from services.journal_watcher_service import JournalWatcherService
+from services.tts_service import TTSService
 from ui.screens.settings.settings_repository import SettingsRepository
 from ui.screens.settings.settings_screen import SettingsScreen
 from ui.themes.themes import amber_theme
@@ -48,17 +49,21 @@ class UIApp(App):
         settings_repository: SettingsRepository = Provide[
             Container.settings_repository
         ],
+        tts_service: TTSService = Provide[Container.tts_service],
     ) -> None:
         super().__init__()
         self.journal_watcher_service = journal_watcher_service
         self.ed_dashboard_presenter = ed_dashboard_presenter
         self.settings_repository = settings_repository
+        self.tts_service = tts_service
 
     def on_mount(self) -> None:
         self.register_theme(amber_theme)
         self.theme = "amber"
         self.watcher_thread = threading.Thread(
-            target=self.journal_watcher_service.start_watcher_service,
+            target=lambda: asyncio.run(
+                self.journal_watcher_service.start_watcher_service()
+            ),
             daemon=True,
         )
         self.watcher_thread.start()

@@ -1,5 +1,6 @@
+import asyncio
 from datetime import datetime
-from typing import Generator, override
+from typing import AsyncGenerator, override
 
 from services.event_bus import EventBus
 from services.journal_watcher_service import JournalWatcherService
@@ -8,6 +9,7 @@ from services.models.game_events import (
     DockingGrantedEvent,
     FSDJumpEvent,
     FuelScoopEvent,
+    GameEvent,
     LoadedGameEvent,
     LocationEvent,
     StartJumpEvent,
@@ -25,11 +27,11 @@ class JournalWatcherServiceStub(JournalWatcherService):
         super().__init__(journal_path="", event_bus=event_bus)
 
     @override
-    def start_watcher_service(self):
-        for event in self.__generate_journal_events():
-            self.event_bus.publish(event)
+    async def start_watcher_service(self):
+        async for event in self.__generate_journal_events():
+            await self.event_bus.publish(event)
 
-    def __generate_journal_events(self) -> Generator:
+    async def __generate_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         list_of_events = [
             LoadedGameEvent(
                 event="LoadGame",
@@ -158,4 +160,6 @@ class JournalWatcherServiceStub(JournalWatcherService):
             ),
         ]
 
-        yield from list_of_events
+        for event in list_of_events:
+            await asyncio.sleep(0.1)  # Simulate a delay between events
+            yield event

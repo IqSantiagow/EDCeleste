@@ -8,7 +8,7 @@ from services.models.game_events import UnknownCheckedEvent
 JOURNAL_PATH = "C:/journals"
 
 
-class JournalWatcherTest(unittest.TestCase):
+class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         glob_patcher = patch("services.journal_watcher_service.glob.glob")
         getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
@@ -50,7 +50,7 @@ class JournalWatcherTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             watcher._JournalWatcherService__get_latest_journal_filepath()  # type: ignore
 
-    def test_follow_journal_lines(self):
+    async def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
 
@@ -66,10 +66,10 @@ class JournalWatcherTest(unittest.TestCase):
 
             gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
-            self.assertEqual(next(gen), event1)
-            self.assertEqual(next(gen), event2)
+            self.assertEqual(await gen.__anext__(), event1)
+            self.assertEqual(await gen.__anext__(), event2)
 
-    def test_should_stop_emitting_events_on_stop_signal(self):
+    async def test_should_stop_emitting_events_on_stop_signal(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
 
@@ -85,12 +85,12 @@ class JournalWatcherTest(unittest.TestCase):
 
             gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
-            self.assertEqual(next(gen), event1)
+            self.assertEqual(await gen.__anext__(), event1)
 
             watcher.stop_watcher_service()
 
-            with self.assertRaises(StopIteration):
-                next(gen)
+            with self.assertRaises(StopAsyncIteration):
+                await gen.__anext__()
 
     def test_should_return_true_when_watcher_is_running(self):
         watcher = self._make_watcher()
@@ -104,7 +104,7 @@ class JournalWatcherTest(unittest.TestCase):
 
         self.assertFalse(watcher.get_journal_healthcheck())
 
-    def test_should_start_emitting_events(self):
+    async def test_should_start_emitting_events(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
         event3 = self._make_event("SomeEvent3")
@@ -122,17 +122,17 @@ class JournalWatcherTest(unittest.TestCase):
 
             gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
-            self.assertEqual(next(gen), event1)
+            self.assertEqual(await gen.__anext__(), event1)
 
             watcher.stop_watcher_service()
 
-            with self.assertRaises(StopIteration):
-                next(gen)
+            with self.assertRaises(StopAsyncIteration):
+                await gen.__anext__()
 
             watcher.exit_signal = False
             gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
-            self.assertEqual(next(gen), event2)
+            self.assertEqual(await gen.__anext__(), event2)
 
 
 if __name__ == "__main__":

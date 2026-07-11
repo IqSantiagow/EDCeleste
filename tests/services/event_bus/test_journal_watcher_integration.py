@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from unittest.mock import patch, mock_open, Mock, call
+from unittest.mock import patch, mock_open, AsyncMock, Mock, call
 
 from services.journal_watcher_service import JournalWatcherService
 from services.models.game_events import UnknownCheckedEvent
@@ -8,7 +8,13 @@ from services.models.game_events import UnknownCheckedEvent
 JOURNAL_PATH = "C:/journals"
 
 
-class JournalWatcherEventBusTest(unittest.TestCase):
+def _make_mock_event_bus() -> Mock:
+    mock_event_bus = Mock()
+    mock_event_bus.publish = AsyncMock()
+    return mock_event_bus
+
+
+class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         glob_patcher = patch("services.journal_watcher_service.glob.glob")
         getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
@@ -25,7 +31,7 @@ class JournalWatcherEventBusTest(unittest.TestCase):
     def _make_event(self, event_name="SomeEvent"):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
 
-    def test_follow_journal_lines(self):
+    async def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
 
@@ -40,23 +46,23 @@ class JournalWatcherEventBusTest(unittest.TestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            mock_event_bus = Mock()
+            mock_event_bus = _make_mock_event_bus()
 
             watcher = JournalWatcherService(
                 journal_path=JOURNAL_PATH, event_bus=mock_event_bus
             )
 
-            watcher.start_watcher_service()
+            await watcher.start_watcher_service()
 
             mock_event_bus.publish.assert_has_calls(
                 [call(event1), call(event2)], any_order=True
             )
 
-    def test_should_stop_emitting_events_on_stop_signal(self):
+    async def test_should_stop_emitting_events_on_stop_signal(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
 
-        mock_event_bus = Mock()
+        mock_event_bus = _make_mock_event_bus()
 
         watcher = JournalWatcherService(
             journal_path=JOURNAL_PATH, event_bus=mock_event_bus
@@ -73,19 +79,19 @@ class JournalWatcherEventBusTest(unittest.TestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            watcher.start_watcher_service()
+            await watcher.start_watcher_service()
 
             mock_event_bus.publish.assert_called_once_with(event1)
 
             with self.assertRaises(AssertionError):
                 mock_event_bus.publish.assert_called_once_with(event2)
 
-    def test_should_start_emitting_events(self):
+    async def test_should_start_emitting_events(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
         event3 = self._make_event("SomeEvent3")
 
-        mock_event_bus = Mock()
+        mock_event_bus = _make_mock_event_bus()
 
         watcher = JournalWatcherService(
             journal_path=JOURNAL_PATH, event_bus=mock_event_bus
@@ -105,7 +111,7 @@ class JournalWatcherEventBusTest(unittest.TestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            watcher.start_watcher_service()
+            await watcher.start_watcher_service()
 
             mock_event_bus.publish.assert_has_calls(
                 [call(event1), call(event2)], any_order=True
@@ -114,7 +120,7 @@ class JournalWatcherEventBusTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 mock_event_bus.publish.assert_called_once_with(event3)
 
-            watcher.start_watcher_service()
+            await watcher.start_watcher_service()
 
             mock_event_bus.publish.assert_has_calls([call(event3)])
 

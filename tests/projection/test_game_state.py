@@ -6,7 +6,7 @@ from services.game_state_service import GameStateService
 from services.models.game_events import LoadedGameEvent, FuelScoopEvent
 
 
-class TestGameState(unittest.TestCase):
+class TestGameState(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         cls.loaded_game_event = LoadedGameEvent(
@@ -34,12 +34,12 @@ class TestGameState(unittest.TestCase):
             event="FuelScoop", timestamp=datetime.now(), Scooped=1.0, Total=1.0
         )
 
-    def test_should_process_event_and_refresh_state_soft_assert(self):
+    async def test_should_process_event_and_refresh_state_soft_assert(self):
         mock_event_bus = Mock()
 
         game_state = GameStateService(mock_event_bus)
 
-        game_state.process_event(self.loaded_game_event)
+        await game_state.process_event(self.loaded_game_event)
 
         self.assertIn(
             "Commander name is {0}".format(self.loaded_game_event.Commander),
@@ -58,34 +58,34 @@ class TestGameState(unittest.TestCase):
             game_state.get_game_state_projection(),
         )
 
-    def test_should_refresh_state_with_new_event(self):
+    async def test_should_refresh_state_with_new_event(self):
         mock_event_bus = Mock()
 
         game_state = GameStateService(mock_event_bus)
 
-        game_state.process_event(self.loaded_game_event)
+        await game_state.process_event(self.loaded_game_event)
 
         new_loaded_event = self.loaded_game_event.model_copy()
 
         new_loaded_event.Commander = "NewCommander"
 
-        game_state.process_event(new_loaded_event)
+        await game_state.process_event(new_loaded_event)
 
         self.assertIn(
             "Commander name is {0}".format(new_loaded_event.Commander),
             game_state.get_game_state_projection(),
         )
 
-    def test_should_refresh_state_with_new_event_and_keep_old_data_if_not_in_event(
+    async def test_should_refresh_state_with_new_event_and_keep_old_data_not_in_event(
         self,
     ):
         mock_event_bus = Mock()
 
         game_state = GameStateService(mock_event_bus)
 
-        game_state.process_event(self.loaded_game_event)
+        await game_state.process_event(self.loaded_game_event)
 
-        game_state.process_event(self.fuel_scoop_event)
+        await game_state.process_event(self.fuel_scoop_event)
 
         self.assertIn(
             "Commander name is {0}".format(self.loaded_game_event.Commander),

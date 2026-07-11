@@ -68,7 +68,7 @@ class KeybindService:
     def resolve(self, action: EdAction) -> Keybind:
         return self._keybinds_by_action[action]
 
-    def perform_action(self, action: EdAction) -> None:
+    async def perform_action(self, action: EdAction) -> None:
         keybind = self.resolve(action)
         normalized_key = self._normalize_key(keybind.key)
         pydirectinput.press(normalized_key)
