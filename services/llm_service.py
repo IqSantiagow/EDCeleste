@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from services.event_bus import EventBus
 from services.models.keybinds_model import EdAction
 from services.models.llm_response import LLMResponse, LLMStatus
+from services.tts_service import TTSEvent
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ class LLMService:
         for watcher in self.__response_queue_watchers:
             await watcher.put(validated_response)
 
+        await self.__event_bus.publish(TTSEvent(ai_message))
+
     def get_llm_healthcheck(self) -> bool:
         try:
             self.__model.get_num_tokens_from_messages(
@@ -129,9 +132,9 @@ class LLMService:
     # https://github.com/LennyMalcolm0/langchain/pull/39
     def get_tools(self):
         @tool("perform_game_action")
-        def perform_action(action: EdAction) -> str:
+        async def perform_action(action: EdAction) -> str:
             """Perform a game action by pressing a key"""
-            self.__event_bus.publish(action)
+            await self.__event_bus.publish(action)
             logger.info(f"Published action '{action.value}' to event bus")
             return f"Action performed: {action.value}"
 

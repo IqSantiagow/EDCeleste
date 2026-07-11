@@ -12,3 +12,4 @@ LOG.md
 /.venv
 .env
 *.pyc
+.claude/skills/rubber-duck/SKILL.md

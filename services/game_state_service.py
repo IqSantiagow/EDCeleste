@@ -3,8 +3,6 @@ from collections.abc import AsyncGenerator
 import logging
 import threading
 
-from pydantic import BaseModel
-
 from projection.event_projections.fuel_projection import FuelProjection
 from projection.event_projections.location_projection import LocationProjection
 from projection.event_projections.player_projection import PlayerProjection
@@ -32,13 +30,13 @@ class GameStateService:
                 self.__location_projection,
             ]
         )
-        self.__queue_watchers: list[asyncio.Queue] = []
+        self.__queue_watchers: list[asyncio.Queue[GameEvent]] = []
         self.__queue_watchers_lock = threading.Lock()
         self.__event_loop: asyncio.AbstractEventLoop | None = None
 
         event_bus.subscribe(GameEvent, self.process_event)
 
-    def process_event(self, event: BaseModel):
+    async def process_event(self, event: GameEvent):
         for projection in self.__projections:
             projection.process_event(event)
 
