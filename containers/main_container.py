@@ -7,6 +7,7 @@ from services.journal_watcher_service import JournalWatcherService
 from services.keybinds_service import KeybindService
 from services.llm_service import LLMService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
+from services.tts_service import TTSService
 from ui.screens.settings.settings_repository import SettingsRepository
 from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
 from use_cases.dashboard.journal_get_healtcheck_usecase import (
@@ -50,6 +51,10 @@ class Container(containers.DeclarativeContainer):
 
     keybinds_service = providers.Singleton(
         KeybindService, keybinds_path=config.ed.keybinds_path, event_bus=event_bus
+    )
+
+    tts_service = providers.Singleton(
+        TTSService, voice=config.tts.voice, event_bus=event_bus
     )
 
     # -----USE CASES-----

@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import anthropic
 import httpx
@@ -134,11 +134,13 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(tools), 1)
         self.assertEqual(tools[0].name, "perform_game_action")
 
-    def test_perform_game_action_tool_publishes_resolved_action_to_event_bus(self):
-        self.event_bus.publish = MagicMock()
+    async def test_perform_game_action_tool_publishes_resolved_action_to_event_bus(
+        self,
+    ):
+        self.event_bus.publish = AsyncMock()
         tool = self.llm_service.get_tools()[0]
 
-        result = tool.invoke({"action": "ToggleFlightAssist"})
+        result = await tool.ainvoke({"action": "ToggleFlightAssist"})
 
         self.event_bus.publish.assert_called_once_with(EdAction.TOGGLE_FLIGHT_ASSIST)
         self.assertEqual(result, "Action performed: ToggleFlightAssist")

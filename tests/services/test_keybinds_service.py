@@ -174,15 +174,15 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         await service.load_keybinds()
 
         with patch("services.keybinds_service.pydirectinput.press") as mock_press:
-            service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+            await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         mock_press.assert_called_once_with("z")
 
-    def test_perform_action_raises_key_error_when_action_not_loaded(self):
+    async def test_perform_action_raises_key_error_when_action_not_loaded(self):
         service = self._make_service()
 
         with self.assertRaises(KeyError):
-            service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+            await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
     async def test_event_bus_publish_of_ed_action_triggers_perform_action(self):
         event_bus = EventBus()
@@ -190,7 +190,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         await service.load_keybinds()
 
         with patch("services.keybinds_service.pydirectinput.press") as mock_press:
-            event_bus.publish(EdAction.TOGGLE_FLIGHT_ASSIST)
+            await event_bus.publish(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         mock_press.assert_called_once_with("z")
 
