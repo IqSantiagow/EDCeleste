@@ -25,7 +25,7 @@ jobs:
 
             Perform weekly repository maintenance:
 
-            1. Check for outdated dependencies in requirements.txt
+            1. Check for outdated dependencies in pyproject.toml
             2. Review open issues older than 90 days
             3. Check for TODO comments in recent commits
             4. Verify README.md examples still work

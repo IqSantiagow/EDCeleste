@@ -10,6 +10,7 @@ LOG.md
 /.vscode
 /.htmlcov
 /.venv
+*.egg-info/
 .env
 *.pyc
 .claude/skills/rubber-duck/SKILL.md
