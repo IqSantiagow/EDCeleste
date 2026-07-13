@@ -41,7 +41,7 @@ class JournalWatcherService:
                 logger.error("Error during validation for event: %s", event)
                 continue
 
-    def __fetch_raw_journal_line(self) -> Generator[str]:
+    def __fetch_raw_journal_line(self) -> Generator[str, None, None]:
         latest_file_path = self.__get_latest_journal_filepath()
 
         with open(latest_file_path, "r") as f:
