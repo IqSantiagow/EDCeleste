@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 ANEXT_TIMEOUT_SECONDS = 1
 
@@ -23,9 +23,9 @@ class FakeHealthcheckUseCase:
         await asyncio.Event().wait()
 
 
-class TestEdDashboardPresenterStreamHealthcheck(unittest.IsolatedAsyncioTestCase):
-    def _make_presenter(self, journal_values=None, llm_values=None):
-        return EdDashboardPresenter(
+class TestEdDashboardRepositoryStreamHealthcheck(unittest.IsolatedAsyncioTestCase):
+    def _make_repository(self, journal_values=None, llm_values=None):
+        return EdDashboardRepository(
             stream_dashboard_stats_usecase=None,  # type: ignore
             journal_get_healthcheck_usecase=FakeHealthcheckUseCase(journal_values),  # type: ignore
             llm_get_healthcheck_usecase=FakeHealthcheckUseCase(llm_values),  # type: ignore
@@ -39,25 +39,25 @@ class TestEdDashboardPresenterStreamHealthcheck(unittest.IsolatedAsyncioTestCase
         return await asyncio.wait_for(gen.__anext__(), timeout=ANEXT_TIMEOUT_SECONDS)
 
     async def test_should_yield_update_when_only_journal_source_emits(self):
-        presenter = self._make_presenter(journal_values=[True], llm_values=None)
+        repository = self._make_repository(journal_values=[True], llm_values=None)
 
-        result = await self._next(presenter.stream_healthcheck())
+        result = await self._next(repository.stream_healthcheck())
 
         self.assertTrue(result.journal_healthcheck)
         self.assertFalse(result.llm_healthcheck)
 
     async def test_should_yield_update_when_only_llm_source_emits(self):
-        presenter = self._make_presenter(journal_values=None, llm_values=[True])
+        repository = self._make_repository(journal_values=None, llm_values=[True])
 
-        result = await self._next(presenter.stream_healthcheck())
+        result = await self._next(repository.stream_healthcheck())
 
         self.assertTrue(result.llm_healthcheck)
         self.assertFalse(result.journal_healthcheck)
 
     async def test_should_combine_updates_from_both_sources(self):
-        presenter = self._make_presenter(journal_values=[True], llm_values=[True])
+        repository = self._make_repository(journal_values=[True], llm_values=[True])
 
-        gen = presenter.stream_healthcheck()
+        gen = repository.stream_healthcheck()
         await self._next(gen)
         second_result = await self._next(gen)
 
@@ -65,9 +65,11 @@ class TestEdDashboardPresenterStreamHealthcheck(unittest.IsolatedAsyncioTestCase
         self.assertTrue(second_result.llm_healthcheck)
 
     async def test_should_preserve_last_known_value_from_other_source(self):
-        presenter = self._make_presenter(journal_values=[True, False], llm_values=None)
+        repository = self._make_repository(
+            journal_values=[True, False], llm_values=None
+        )
 
-        gen = presenter.stream_healthcheck()
+        gen = repository.stream_healthcheck()
         first_result = await self._next(gen)
         second_result = await self._next(gen)
 
