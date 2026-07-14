@@ -25,7 +25,7 @@ from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponses
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 
 
-class EdDashboardPresenter:
+class EdDashboardRepository:
     def __init__(
         self,
         stream_dashboard_stats_usecase: StreamDashboardStatsUseCase,

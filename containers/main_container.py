@@ -9,7 +9,7 @@ from services.llm_service import LLMService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
 from services.tts_service import TTSService
 from ui.screens.settings.settings_repository import SettingsRepository
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from use_cases.dashboard.journal_get_healtcheck_usecase import (
     JournalGetHealthCheckUseCase,
 )
@@ -96,9 +96,9 @@ class Container(containers.DeclarativeContainer):
         SettingsGetKeybindsUseCase, keybinds_protocol=keybinds_service
     )
 
-    # -----PRESENTERS-----
-    ed_dashboard_presenter = providers.Singleton(
-        EdDashboardPresenter,
+    # -----REPOSITORIES-----
+    ed_dashboard_repository = providers.Singleton(
+        EdDashboardRepository,
         stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
         stream_journal_events_usecase=stream_journal_events_use_case,
         journal_get_healthcheck_usecase=journal_get_healthcheck_use_case,

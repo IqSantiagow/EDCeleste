@@ -5,7 +5,7 @@ from textual.widget import Widget
 from textual.widgets import Label
 from textual.reactive import reactive
 
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from ui.widgets.dashboard.ship_log.widget_ship_log_entry import WidgetShipLogEntry
 from ui.widgets.dashboard.view_models.journal_log_view_model import JournalLogViewModel
 
@@ -19,11 +19,13 @@ class WidgetShipLogCol(Widget):
     old_state: list[JournalLogViewModel] = []
     state: reactive[list[JournalLogViewModel]] = reactive([])
 
-    def __init__(self, ed_dashboard_presenter: EdDashboardPresenter, **kwargs) -> None:
+    def __init__(
+        self, ed_dashboard_repository: EdDashboardRepository, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.state = []
         self.old_state = []
-        self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.ed_dashboard_repository = ed_dashboard_repository
 
     DEFAULT_CLASSES = "p-x-1"
 
@@ -51,6 +53,6 @@ class WidgetShipLogCol(Widget):
 
     @work(exclusive=True)
     async def set_up_stream_journal_worker(self) -> None:
-        async for event in self.ed_dashboard_presenter.stream_journal_events():
+        async for event in self.ed_dashboard_repository.stream_journal_events():
             self.state.append(event)
             self.mutate_reactive(WidgetShipLogCol.state)

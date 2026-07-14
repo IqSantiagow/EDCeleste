@@ -7,7 +7,7 @@ from textual import on
 from textual.containers import VerticalGroup
 
 from services.models.llm_response import LLMStatus
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 
 class WidgetCommsInput(VerticalGroup):
@@ -18,9 +18,11 @@ class WidgetCommsInput(VerticalGroup):
             self.command = command
             super().__init__()
 
-    def __init__(self, ed_dashboard_presenter: EdDashboardPresenter, **kwargs) -> None:
+    def __init__(
+        self, ed_dashboard_repository: EdDashboardRepository, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
-        self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.ed_dashboard_repository = ed_dashboard_repository
 
     def on_mount(self) -> None:
         self.set_up_stream_llm_state_worker()
@@ -34,7 +36,7 @@ class WidgetCommsInput(VerticalGroup):
     @work
     async def set_up_stream_llm_state_worker(self) -> None:
         log.debug("Starting to stream LLM state")
-        async for state in self.ed_dashboard_presenter.stream_llm_state():
+        async for state in self.ed_dashboard_repository.stream_llm_state():
             log.debug("LLM state: %s", state)
             self.llm_state = state
 
@@ -48,6 +50,6 @@ class WidgetCommsInput(VerticalGroup):
             log.debug("Sending message to LLM: %s", event.value)
             self.post_message(self.UserCommandSubmitted(event.value))
             self.query_one("#comms-input", Input).value = ""
-            await self.ed_dashboard_presenter.send_message_to_llm(event.value)
+            await self.ed_dashboard_repository.send_message_to_llm(event.value)
         else:
             log.debug("LLM is busy, cannot send message: %s", event.value)

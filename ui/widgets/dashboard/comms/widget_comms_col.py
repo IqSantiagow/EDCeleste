@@ -4,7 +4,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.reactive import reactive
 
 from ui.widgets.dashboard.comms.widget_comms_entry import WidgetCommsEntry
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
@@ -17,9 +17,11 @@ class WidgetCommsCol(Vertical):
         None, always_update=True
     )
 
-    def __init__(self, ed_dashboard_presenter: EdDashboardPresenter, **kwargs) -> None:
+    def __init__(
+        self, ed_dashboard_repository: EdDashboardRepository, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
-        self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.ed_dashboard_repository = ed_dashboard_repository
 
     def on_mount(self) -> None:
         self.set_up_stream_llm_responses_worker()
@@ -45,5 +47,5 @@ class WidgetCommsCol(Vertical):
     @work
     async def set_up_stream_llm_responses_worker(self) -> None:
         log.debug("Starting to stream LLM responses")
-        async for response in self.ed_dashboard_presenter.stream_llm_responses():
+        async for response in self.ed_dashboard_repository.stream_llm_responses():
             self.response_state = response
