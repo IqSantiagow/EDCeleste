@@ -18,7 +18,7 @@ from ui.widgets.dashboard.comms.widget_comms_input import WidgetCommsInput
 from ui.widgets.dashboard.dashboard_headers.dashboard_stats_content import (
     DashboardStatsContent,
 )
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from ui.widgets.dashboard.ship_log.widget_ship_log_col import WidgetShipLogCol
 from ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
@@ -43,8 +43,8 @@ class UIApp(App):
         journal_watcher_service: JournalWatcherService = Provide[
             Container.journal_watcher_service_stub
         ],
-        ed_dashboard_presenter: EdDashboardPresenter = Provide[
-            Container.ed_dashboard_presenter
+        ed_dashboard_repository: EdDashboardRepository = Provide[
+            Container.ed_dashboard_repository
         ],
         settings_repository: SettingsRepository = Provide[
             Container.settings_repository
@@ -53,7 +53,7 @@ class UIApp(App):
     ) -> None:
         super().__init__()
         self.journal_watcher_service = journal_watcher_service
-        self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.ed_dashboard_repository = ed_dashboard_repository
         self.settings_repository = settings_repository
         self.tts_service = tts_service
 
@@ -81,13 +81,13 @@ class UIApp(App):
                 id="ship-log-title", classes="shady header-title", content="SHIP LOG"
             )
             yield WidgetCommsCol(
-                ed_dashboard_presenter=self.ed_dashboard_presenter, id="comms-col"
+                ed_dashboard_repository=self.ed_dashboard_repository, id="comms-col"
             )
             yield WidgetShipLogCol(
-                ed_dashboard_presenter=self.ed_dashboard_presenter, id="ship-log-col"
+                ed_dashboard_repository=self.ed_dashboard_repository, id="ship-log-col"
             )
             yield WidgetCommsInput(
-                ed_dashboard_presenter=self.ed_dashboard_presenter, id="input-row"
+                ed_dashboard_repository=self.ed_dashboard_repository, id="input-row"
             )
             yield Footer(id="app-footer")
 

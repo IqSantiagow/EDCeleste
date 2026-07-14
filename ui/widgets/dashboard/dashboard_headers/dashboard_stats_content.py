@@ -9,7 +9,7 @@ from containers.main_container import Container
 from ui.widgets.dashboard.dashboard_headers.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
-from ui.widgets.dashboard.ed_dashboard_presenter import EdDashboardPresenter
+from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
     DashboardStatsViewModel,
 )
@@ -29,13 +29,13 @@ class DashboardStatsContent(HorizontalGroup):
     @inject
     def __init__(
         self,
-        ed_dashboard_presenter: EdDashboardPresenter = Provide[
-            Container.ed_dashboard_presenter
+        ed_dashboard_repository: EdDashboardRepository = Provide[
+            Container.ed_dashboard_repository
         ],
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-        self.ed_dashboard_presenter = ed_dashboard_presenter
+        self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
         with HorizontalGroup(id="dashboard-stats-content"):
@@ -75,11 +75,13 @@ class DashboardStatsContent(HorizontalGroup):
     async def set_up_stream_worker(self) -> None:
         async for (
             dashboard_state
-        ) in self.ed_dashboard_presenter.stream_dashboard_stats():
+        ) in self.ed_dashboard_repository.stream_dashboard_stats():
             self.state = dashboard_state
 
     @work
     async def set_up_healthcheck_stream_worker(self) -> None:
-        async for healthcheck_state in self.ed_dashboard_presenter.stream_healthcheck():
+        async for (
+            healthcheck_state
+        ) in self.ed_dashboard_repository.stream_healthcheck():
             self.healthcheck_state = healthcheck_state
             log.info(f"Updated healthcheck state: {self.healthcheck_state}")
