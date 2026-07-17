@@ -10,6 +10,9 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         return SettingsRepository(
             settings_load_keybinds_use_case=load_keybinds_use_case or AsyncMock(),
             settings_get_keybinds_use_case=get_keybinds_use_case or Mock(),
+            load_settings_use_case=Mock(),
+            update_settings_use_case=Mock(),
+            get_settings_use_case=Mock(),
         )
 
     def test_should_delegate_get_keybinds_to_use_case(self):

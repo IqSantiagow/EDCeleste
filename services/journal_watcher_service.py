@@ -61,6 +61,7 @@ class JournalWatcherService:
         journal_files = [f for f in all_files if "Journal" in f]
 
         if not journal_files:
+            self.exit_signal = True
             raise FileNotFoundError(
                 "No journal files found in the specified directory."
             )
