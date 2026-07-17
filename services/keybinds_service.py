@@ -5,7 +5,9 @@ import os
 
 from services.event_bus import EventBus
 from services.models.keybinds_model import EdAction, Keybind, MissingKeybindsError
-from lxml import etree  # type: ignore
+from lxml import etree
+
+from services.models.settings_model import NewServiceEvent, SettingsChangedEvent  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,22 @@ class KeybindService:
         self._keybinds_by_action: dict[EdAction, Keybind] = {}
         self._event_bus = event_bus
         self._event_bus.subscribe(EdAction, self.perform_action)
+
+    async def handle_settings_changed(self, event: SettingsChangedEvent):
+        logger.info("Keybinds Service received settings changed event.")
+        self.is_initialized = True
+        if event.settings.paths.keybindings_path != self.keybinds_path:
+            logger.info(
+                "Keybinds Service path changed from %s to %s. Updating...",
+                self.keybinds_path,
+                event.settings.paths.keybindings_path,
+            )
+            self.keybinds_path = event.settings.paths.keybindings_path
+            await self.load_keybinds()
+
+    async def announce_service_ready_to_start(self) -> None:
+        await self._event_bus.publish(NewServiceEvent())
+        logger.info("Keybinds Service ready to start.")
 
     async def load_keybinds(self):
         found_binds_files = glob.glob(self.keybinds_path + "/*.binds")

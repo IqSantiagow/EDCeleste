@@ -1,0 +1,9 @@
+from services.models.settings_model import SettingsModel
+
+
+class SettingsProtocol:
+    def get_settings(self) -> SettingsModel: ...
+
+    def update_settings(self, settings: SettingsModel) -> None: ...
+
+    def load_settings(self) -> None: ...

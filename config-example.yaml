@@ -1,0 +1,11 @@
+paths:
+  journal_path: "C:\\Users\\YourUsername\\Saved Games\\Frontier Developments\\Elite Dangerous"
+  keybindings_path: "C:\\Users\\YourUsername\\AppData\\Local\\Frontier Developments\\Elite Dangerous\\Options\\Bindings"
+
+prompts:
+  system_prompt: "You are a helpful assistant for Elite Dangerous."
+  user_prompt: "Summarize the current game state."
+
+tts:
+  voice: "en-GB-SoniaNeural"
+  volume: 1.0
