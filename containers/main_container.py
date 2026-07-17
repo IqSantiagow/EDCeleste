@@ -6,6 +6,7 @@ from services.game_state_service import GameStateService
 from services.journal_watcher_service import JournalWatcherService
 from services.keybinds_service import KeybindService
 from services.llm_service import LLMService
+from services.settings_service import SettingsService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
 from services.tts_service import TTSService
 from ui.screens.settings.settings_repository import SettingsRepository
@@ -21,10 +22,13 @@ from use_cases.dashboard.stream_dashboard_stats_usecase import (
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
+from use_cases.settings.get_settings_use_case import GetSettingsUseCase
+from use_cases.settings.load_settings_use_case import LoadSettingsUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
+from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
 class Container(containers.DeclarativeContainer):
@@ -56,6 +60,8 @@ class Container(containers.DeclarativeContainer):
     tts_service = providers.Singleton(
         TTSService, voice=config.tts.voice, event_bus=event_bus
     )
+
+    settings_service = providers.Singleton(SettingsService)
 
     # -----USE CASES-----
     stream_dashboard_stats_use_case = providers.Factory(
@@ -96,6 +102,18 @@ class Container(containers.DeclarativeContainer):
         SettingsGetKeybindsUseCase, keybinds_protocol=keybinds_service
     )
 
+    load_settings_use_case = providers.Factory(
+        LoadSettingsUseCase, settings_repository=settings_service
+    )
+
+    update_settings_use_case = providers.Factory(
+        UpdateSettingsUseCase, settings_repository=settings_service
+    )
+
+    get_settings_use_case = providers.Factory(
+        GetSettingsUseCase, settings_repository=settings_service
+    )
+
     # -----REPOSITORIES-----
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
@@ -112,4 +130,7 @@ class Container(containers.DeclarativeContainer):
         SettingsRepository,
         settings_load_keybinds_use_case=settings_load_keybinds_use_case,
         settings_get_keybinds_use_case=settings_get_keybinds_use_case,
+        load_settings_use_case=load_settings_use_case,
+        update_settings_use_case=update_settings_use_case,
+        get_settings_use_case=get_settings_use_case,
     )
