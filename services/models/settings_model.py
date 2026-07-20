@@ -10,7 +10,22 @@ class PathModel(BaseModel):
     )
 
 
-class PromptModel(BaseModel):
+class TTSModel(BaseModel):
+    voice: str = Field(
+        description="The voice to use for text-to-speech",
+    )
+    volume: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="The volume of speech for text-to-speech",
+    )
+
+
+class LLMModel(BaseModel):
+    api_key: str = Field(
+        description="The Anthropic API key for the LLM",
+    )
+
     system_prompt: str = Field(
         description="The system prompt for the LLM",
     )
@@ -19,30 +34,27 @@ class PromptModel(BaseModel):
     )
 
 
-class TTSModel(BaseModel):
-    voice: str = Field(
-        description="The voice to use for text-to-speech",
-    )
-    volume: float = Field(
-        description="The volume of speech for text-to-speech",
-    )
-
-
 class SettingsModel(BaseModel):
     paths: PathModel = Field(
         description="The paths to the journal and keybindings files",
     )
-    prompts: PromptModel = Field(
-        description="The system and user prompts for the LLM",
-    )
     tts: TTSModel = Field(
         description="The text-to-speech settings for the LLM",
     )
+    llm: LLMModel = Field(
+        description="The LLM connection settings",
+    )
 
 
-class SettingsChangedEvent:
-    def __init__(self, settings: SettingsModel):
-        self.settings = settings
+class SettingsIssueModel(BaseModel):
+    section: str = Field(
+        description="The section of the settings that has an issue",
+    )
 
+    field: str = Field(
+        description="The field of the settings that has an issue",
+    )
 
-class NewServiceEvent: ...
+    message: str = Field(
+        description="The message describing the issue with the settings",
+    )

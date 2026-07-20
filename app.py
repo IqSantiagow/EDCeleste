@@ -1,11 +1,12 @@
 import logging
-from langchain_core.exceptions import LangChainException
 
-from config.config import load_config
-from config.tracing import configure_langsmith
-from ui.ui_app import UIApp
-from containers.main_container import Container
+from langchain_core.exceptions import LangChainException
 from textual.logging import TextualHandler
+
+from config.config import LangSmithConfig
+from config.tracing import configure_langsmith
+from containers.main_container import Container
+from ui.ui_app import UIApp
 
 
 if __name__ == "__main__":
@@ -17,13 +18,13 @@ if __name__ == "__main__":
         ]
     )
 
-    log_level = container.config.ed.logging.level()
+    log_level = container.config.logging.level()
 
     logging.basicConfig(level=getattr(logging, log_level), handlers=[TextualHandler()])
 
     logger = logging.getLogger(__name__)
 
-    configure_langsmith(load_config().langsmith)
+    configure_langsmith(LangSmithConfig(**container.config.langsmith()))
 
     try:
         UIApp().run()

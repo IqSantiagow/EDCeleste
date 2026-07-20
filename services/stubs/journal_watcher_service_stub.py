@@ -20,16 +20,22 @@ from services.models.game_models import (
     FactionModel,
     StationEconomyModel,
 )
+from services.settings_service import SettingsService
 
 
 class JournalWatcherServiceStub(JournalWatcherService):
-    def __init__(self, event_bus: EventBus):
-        super().__init__(journal_path="", event_bus=event_bus)
+    def __init__(self, event_bus: EventBus, settings_handler: SettingsService):
+        super().__init__(
+            journal_path="", event_bus=event_bus, settings_handler=settings_handler
+        )
 
     @override
-    async def start_watcher_service(self):
-        async for event in self.__generate_journal_events():
-            await self.event_bus.publish(event)
+    def start_watcher_service(self):
+        async def watch_journal_task():
+            async for event in self.__generate_journal_events():
+                await self.event_bus.publish(event)
+
+        self._journal_watcher_task = asyncio.create_task(watch_journal_task())
 
     async def __generate_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         list_of_events = [

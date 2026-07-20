@@ -1,6 +1,4 @@
-import asyncio
 import logging
-import threading
 
 from textual import on
 from textual.app import App, ComposeResult
@@ -60,14 +58,8 @@ class UIApp(App):
     def on_mount(self) -> None:
         self.register_theme(amber_theme)
         self.theme = "amber"
-        self.watcher_thread = threading.Thread(
-            target=lambda: asyncio.run(
-                self.journal_watcher_service.start_watcher_service()
-            ),
-            daemon=True,
-        )
-        self.watcher_thread.start()
-        asyncio.create_task(self.__load_keybinds())
+        self.journal_watcher_service.start_watcher_service()
+        self.__load_keybinds()
 
     def on_unmount(self) -> None:
         logger.info("UIApp unmounted. Stopping JournalWatcherService.")
@@ -103,9 +95,9 @@ class UIApp(App):
     def action_push_settings(self) -> None:
         self.push_screen(SettingsScreen(settings_repository=self.settings_repository))
 
-    async def __load_keybinds(self):
+    def __load_keybinds(self):
         # Will be as separate method, maybe in future will be used to retry
         try:
-            await self.settings_repository.load_keybinds()
+            self.settings_repository.load_keybinds()
         except FileNotFoundError as e:
             logger.warning("Could not load keybinds: %s", e)

@@ -1,10 +1,27 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+from services.llm_service import SYSTEM_PROMPT
+from services.models.settings_model import (
+    PathModel,
+    SettingsModel,
+    TTSModel,
+    LLMModel,
+)
+from services.settings_service import SettingsService
 
 from services.event_bus import EventBus
 from services.tts_service import TTSEvent, TTSService
 
 VOICE = "en-US-AriaNeural"
+
+
+def _make_settings(api_key: str) -> SettingsModel:
+    return SettingsModel(
+        paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
+        tts=TTSModel(voice=VOICE, volume=1.0),
+        llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
+    )
 
 
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
@@ -31,11 +48,21 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.samplerate = 24000
         self.mock_sf_read.return_value = (self.audio_data, self.samplerate)
 
-        self.service = TTSService(voice=VOICE, event_bus=EventBus())
+        self.settings_handler = Mock(spec=SettingsService)
+
+        self.settings_handler.get_settings.return_value = _make_settings(
+            api_key="sk-ant-test"
+        )
+
+        self.service = TTSService(
+            voice=VOICE, event_bus=EventBus(), settings_handler=self.settings_handler
+        )
 
     async def test_event_bus_publish_of_tts_event_triggers_synthesize(self):
         event_bus = EventBus()
-        service = TTSService(voice=VOICE, event_bus=event_bus)
+        service = TTSService(
+            voice=VOICE, event_bus=event_bus, settings_handler=self.settings_handler
+        )
         service.synthesize = AsyncMock()
 
         await event_bus.publish(TTSEvent("Hello Commander"))
@@ -76,6 +103,31 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_sd_play.assert_not_called()
         self.mock_os_remove.assert_not_called()
+
+    def test_validate_settings_reports_issue_when_voice_missing(self):
+        new_settings = _make_settings(api_key="sk-ant-test")
+        new_settings.tts.voice = ""
+
+        issues = self.service.validate_settings(new_settings)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].field, "voice")
+
+    def test_validate_settings_returns_no_issues_when_voice_present(self):
+        new_settings = _make_settings(api_key="sk-ant-test")
+
+        issues = self.service.validate_settings(new_settings)
+
+        self.assertEqual(issues, [])
+
+    def test_reload_service_changes_voice_from_settings_handler(self):
+        new_settings = _make_settings(api_key="sk-ant-test")
+        new_settings.tts.voice = "en-US-GuyNeural"
+        self.settings_handler.get_settings.return_value = new_settings
+
+        self.service.reload_service()
+
+        self.assertEqual(self.service.voice, "en-US-GuyNeural")
 
 
 if __name__ == "__main__":

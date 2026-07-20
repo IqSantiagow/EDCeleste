@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, AsyncMock, Mock, call
@@ -31,6 +32,16 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
     def _make_event(self, event_name="SomeEvent"):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
 
+    async def _run_watcher_task(self, watcher):
+        # start_watcher_service() fires a background task and returns
+        # immediately; awaiting it here lets the task run until it stops
+        # itself (via stop_watcher_service(), which cancels the task).
+        watcher.start_watcher_service()
+        try:
+            await watcher._journal_watcher_task
+        except asyncio.CancelledError:
+            pass
+
     async def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
@@ -49,10 +60,12 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
             mock_event_bus = _make_mock_event_bus()
 
             watcher = JournalWatcherService(
-                journal_path=JOURNAL_PATH, event_bus=mock_event_bus
+                journal_path=JOURNAL_PATH,
+                event_bus=mock_event_bus,
+                settings_handler=Mock(),
             )
 
-            await watcher.start_watcher_service()
+            await self._run_watcher_task(watcher)
 
             mock_event_bus.publish.assert_has_calls(
                 [call(event1), call(event2)], any_order=True
@@ -65,7 +78,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         mock_event_bus = _make_mock_event_bus()
 
         watcher = JournalWatcherService(
-            journal_path=JOURNAL_PATH, event_bus=mock_event_bus
+            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
         )
 
         def readline_side_effect():
@@ -79,7 +92,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher.start_watcher_service()
+            await self._run_watcher_task(watcher)
 
             mock_event_bus.publish.assert_called_once_with(event1)
 
@@ -94,7 +107,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         mock_event_bus = _make_mock_event_bus()
 
         watcher = JournalWatcherService(
-            journal_path=JOURNAL_PATH, event_bus=mock_event_bus
+            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
         )
 
         def readline_side_effect():
@@ -111,7 +124,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher.start_watcher_service()
+            await self._run_watcher_task(watcher)
 
             mock_event_bus.publish.assert_has_calls(
                 [call(event1), call(event2)], any_order=True
@@ -120,7 +133,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(AssertionError):
                 mock_event_bus.publish.assert_called_once_with(event3)
 
-            await watcher.start_watcher_service()
+            await self._run_watcher_task(watcher)
 
             mock_event_bus.publish.assert_has_calls([call(event3)])
 
