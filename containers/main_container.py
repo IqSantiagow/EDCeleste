@@ -6,9 +6,9 @@ from services.game_state_service import GameStateService
 from services.journal_watcher_service import JournalWatcherService
 from services.keybinds_service import KeybindService
 from services.llm_service import LLMService
-from services.settings_service import SettingsService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
 from services.tts_service import TTSService
+from services.settings_service import SettingsService
 from ui.screens.settings.settings_repository import SettingsRepository
 from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from use_cases.dashboard.journal_get_healtcheck_usecase import (
@@ -23,7 +23,6 @@ from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEvent
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
-from use_cases.settings.load_settings_use_case import LoadSettingsUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
@@ -31,37 +30,59 @@ from use_cases.settings.settings_load_keybinds_use_case import (
 from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
+def _build_loaded_settings_service() -> SettingsService:
+    # TODO: Add initial setting to further load it during the app settings screen
+    handler = SettingsService()
+    handler.load_settings()
+    return handler
+
+
 class Container(containers.DeclarativeContainer):
     # -----CONFIG-----
     config = providers.Configuration(pydantic_settings=[AppConfig()])  # type: ignore
 
-    # -----SERVICES-----
+    # -----TOOLS-----
+
+    settings_service = providers.Singleton(_build_loaded_settings_service)
 
     event_bus = providers.Singleton(EventBus)
 
     llm_service = providers.Singleton(
-        LLMService, api_key=config.llm.anthropic_api_key, event_bus=event_bus
+        LLMService,
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
 
     journal_watcher_service = providers.Singleton(
-        JournalWatcherService, journal_path=config.ed.main_path, event_bus=event_bus
+        JournalWatcherService,
+        journal_path=settings_service.provided.get_settings.call().paths.journal_path,
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
 
     journal_watcher_service_stub = providers.Singleton(
-        JournalWatcherServiceStub, event_bus=event_bus
+        JournalWatcherServiceStub,
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
 
     game_state_service = providers.Singleton(GameStateService, event_bus=event_bus)
 
     keybinds_service = providers.Singleton(
-        KeybindService, keybinds_path=config.ed.keybinds_path, event_bus=event_bus
+        KeybindService,
+        keybinds_path=(
+            settings_service.provided.get_settings.call().paths.keybindings_path
+        ),
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
 
     tts_service = providers.Singleton(
-        TTSService, voice=config.tts.voice, event_bus=event_bus
+        TTSService,
+        voice=settings_service.provided.get_settings.call().tts.voice,
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
-
-    settings_service = providers.Singleton(SettingsService)
 
     # -----USE CASES-----
     stream_dashboard_stats_use_case = providers.Factory(
@@ -102,16 +123,17 @@ class Container(containers.DeclarativeContainer):
         SettingsGetKeybindsUseCase, keybinds_protocol=keybinds_service
     )
 
-    load_settings_use_case = providers.Factory(
-        LoadSettingsUseCase, settings_repository=settings_service
-    )
-
     update_settings_use_case = providers.Factory(
-        UpdateSettingsUseCase, settings_repository=settings_service
+        UpdateSettingsUseCase,
+        tts_service=tts_service,
+        journal_watcher_service=journal_watcher_service,
+        keybinds_service=keybinds_service,
+        llm_service=llm_service,
+        settings_service=settings_service,
     )
 
     get_settings_use_case = providers.Factory(
-        GetSettingsUseCase, settings_repository=settings_service
+        GetSettingsUseCase, settings_protocol=settings_service
     )
 
     # -----REPOSITORIES-----
@@ -130,7 +152,6 @@ class Container(containers.DeclarativeContainer):
         SettingsRepository,
         settings_load_keybinds_use_case=settings_load_keybinds_use_case,
         settings_get_keybinds_use_case=settings_get_keybinds_use_case,
-        load_settings_use_case=load_settings_use_case,
         update_settings_use_case=update_settings_use_case,
         get_settings_use_case=get_settings_use_case,
     )

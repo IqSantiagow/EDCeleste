@@ -42,19 +42,25 @@ pip install .
 
 ## Configuration
 
-Copy and edit the env file:
+Copy and edit the env file (process bootstrap — logging and LangSmith tracing only):
 
 ```bash
 cp .env-example .env
 ```
 
-Required variables (double-underscore denotes nesting, parsed by pydantic-settings):
+- `LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
+- Optional LangSmith tracing: set `LANGSMITH__TRACING=true` and provide `LANGSMITH__API_KEY`.
 
-- `ED__MAIN_PATH` — your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`)
-- `LLM__ANTHROPIC_API_KEY` — your Anthropic API key
-- `ED__LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
+Copy and edit the app settings file (journal/keybinds paths, Anthropic API key, TTS voice):
 
-Optional LangSmith tracing: set `LANGSMITH__TRACING=true` and provide `LANGSMITH__API_KEY`.
+```bash
+cp config-example.yaml config.yaml
+```
+
+- `paths.journal_path` — your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`)
+- `paths.keybindings_path` — the folder containing your `.binds` keybindings file(s)
+- `llm.api_key` — your Anthropic API key
+- `tts.voice` / `tts.volume` — text-to-speech settings
 
 ## Usage
 
@@ -106,7 +112,8 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 - `use_cases/` — thin callables bridging the game/LLM state to UI view models.
 - `containers/` — a single `dependency-injector` container wiring everything together.
 - `ui/` — the Textual TUI (dashboard widgets, screens, themes, CSS).
-- `config/` — pydantic-settings config loading and LangSmith setup.
+- `config/` — pydantic-settings config loading (logging, LangSmith) and tracing setup.
+- `services/settings_service.py` — `SettingsService`, loading/persisting `config.yaml` (journal/keybinds paths, LLM API key, TTS voice).
 
 ## Project Structure
 
@@ -123,7 +130,6 @@ EDCeleste/
 │   └── stubs/             # Sample event stream for UI development
 ├── use_cases/             # UI-facing use cases (streaming stats, events, LLM)
 ├── ui/                    # Textual TUI (widgets, screens, themes, css.tcss)
-├── tools/                 # Tool integrations (planned)
 └── tests/                 # Tests
 ```
 

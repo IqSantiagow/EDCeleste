@@ -67,7 +67,7 @@ def event_discriminator(raw: dict) -> str:
     return "Unknown"
 
 
-_JournalEvent = Annotated[
+JournalEvent = Annotated[
     Union[
         Annotated[LoadedGameEvent, Tag("LoadGame")],
         Annotated[StartJumpEvent, Tag("StartJump")],

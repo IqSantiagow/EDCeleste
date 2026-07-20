@@ -4,8 +4,17 @@ from unittest.mock import patch, mock_open, Mock
 
 from services.journal_watcher_service import JournalWatcherService
 from services.models.game_events import UnknownCheckedEvent
+from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
 
 JOURNAL_PATH = "C:/journals"
+
+
+def _make_settings(journal_path: str) -> SettingsModel:
+    return SettingsModel(
+        paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
+        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        llm=LLMModel(api_key="sk-ant-test", system_prompt="sp", user_prompt=""),
+    )
 
 
 class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +35,9 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
 
     def _make_watcher(self):
-        return JournalWatcherService(journal_path=JOURNAL_PATH, event_bus=Mock())
+        return JournalWatcherService(
+            journal_path=JOURNAL_PATH, event_bus=Mock(), settings_handler=Mock()
+        )
 
     def test_get_latest_journal_filepath(self):
         self.mock_glob.return_value = [
@@ -133,6 +144,41 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
 
             self.assertEqual(await gen.__anext__(), event2)
+
+    def test_validate_settings_reports_issue_when_journal_path_missing(self):
+        watcher = self._make_watcher()
+        new_settings = _make_settings(journal_path="")
+
+        issues = watcher.validate_settings(new_settings)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].field, "journal_path")
+
+    def test_validate_settings_returns_no_issues_when_journal_path_present(self):
+        watcher = self._make_watcher()
+        new_settings = _make_settings(journal_path=JOURNAL_PATH)
+
+        issues = watcher.validate_settings(new_settings)
+
+        self.assertEqual(issues, [])
+
+    async def test_reload_service_restarts_watcher_with_settings_from_handler(self):
+        settings_handler = Mock()
+        new_settings = _make_settings(journal_path="C:/new-journals")
+        settings_handler.get_settings.return_value = new_settings
+        watcher = JournalWatcherService(
+            journal_path=JOURNAL_PATH,
+            event_bus=Mock(),
+            settings_handler=settings_handler,
+        )
+        watcher.stop_watcher_service = Mock()
+        watcher.start_watcher_service = Mock()
+
+        watcher.reload_service()
+
+        self.assertEqual(watcher.journal_path, "C:/new-journals")
+        watcher.stop_watcher_service.assert_called_once()
+        watcher.start_watcher_service.assert_called_once()
 
 
 if __name__ == "__main__":

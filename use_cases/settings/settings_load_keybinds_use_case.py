@@ -7,5 +7,5 @@ class SettingsLoadKeybindsUseCase:
     def __init__(self, keybinds_protocol: KeybindsProtocol):
         self.keybinds_protocol = keybinds_protocol
 
-    async def __call__(self):
-        await self.keybinds_protocol.load_keybinds()
+    def __call__(self):
+        self.keybinds_protocol.load_keybinds()

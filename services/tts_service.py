@@ -7,7 +7,8 @@ import sounddevice as sd
 import soundfile as sf
 
 from services.event_bus import EventBus
-from services.models.settings_model import NewServiceEvent, SettingsChangedEvent
+from services.models.settings_model import SettingsIssueModel, SettingsModel
+from services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -18,28 +19,15 @@ class TTSEvent:
 
 
 class TTSService:
-    is_initialized: bool = False
-
-    def __init__(self, voice, event_bus: EventBus) -> None:
-        self.voice = voice  # TODO: Make this configurable in the future
+    def __init__(
+        self, voice, event_bus: EventBus, settings_handler: SettingsService
+    ) -> None:
+        self.voice = voice
         self.__event_bus = event_bus
+        self.__settings_handler = settings_handler
         self.__event_bus.subscribe(TTSEvent, self.handle_tts_request)
-        self.__event_bus.subscribe(SettingsChangedEvent, self.handle_settings_changed)
 
-    async def handle_settings_changed(self, event: SettingsChangedEvent):
-        logger.info("TTS Service received settings changed event.")
-        self.is_initialized = True
-        if event.settings.tts.voice != self.voice:
-            logger.info(
-                "TTS Service voice changed from %s to %s. Updating...",
-                self.voice,
-                event.settings.tts.voice,
-            )
-            self.voice = event.settings.tts.voice
-
-    async def announce_service_ready_to_start(self) -> None:
-        await self.__event_bus.publish(NewServiceEvent())
-        logger.info("TTS Service ready to start.")
+        self.reload_service()
 
     async def synthesize(self, text):
         audio_output = edge_tts.Communicate(text, voice=self.voice)
@@ -58,3 +46,21 @@ class TTSService:
     async def handle_tts_request(self, event: TTSEvent):
         logger.info("Received TTS request: %s", event.text)
         await self.synthesize(event.text)
+
+    def validate_settings(
+        self, new_settings: SettingsModel
+    ) -> list[SettingsIssueModel]:
+        issues = []
+        if not new_settings.tts.voice:
+            issues.append(
+                SettingsIssueModel(
+                    section=str(self.__class__),
+                    field="voice",
+                    message="Voice is not set.",
+                )
+            )
+        return issues
+
+    def reload_service(self):
+        new_settings = self.__settings_handler.get_settings()
+        self.voice = new_settings.tts.voice
