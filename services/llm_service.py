@@ -13,8 +13,9 @@ from pydantic import SecretStr
 from services.event_bus import EventBus
 from services.models.keybinds_model import EdAction
 from services.models.llm_response import LLMResponse, LLMStatus
-from services.models.settings_model import NewServiceEvent, SettingsChangedEvent
+from services.models.settings_model import SettingsIssueModel, SettingsModel
 from services.tts_service import TTSEvent
+from services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -28,38 +29,15 @@ ship systems and you can operate them by performing actions in the game.
 
 
 class LLMService:
-    is_initialized: bool = False
-
-    def __init__(self, api_key: str, event_bus: EventBus) -> None:
-        # TODO: Make this service configurable in the future
+    def __init__(self, event_bus: EventBus, settings_handler: SettingsService) -> None:
         self.conversation: list[BaseMessage] = []
-        self.__model = ChatAnthropic(
-            model="claude-haiku-4-5-20251001",  # type: ignore
-            temperature=0.9,
-            max_retries=2,
-            api_key=SecretStr(api_key),
-        )
-
-        self.__agent = create_agent(
-            model=self.__model,
-            system_prompt=SYSTEM_PROMPT,
-            response_format=LLMResponse,
-            tools=self.get_tools(),
-        )
+        self.__settings_handler = settings_handler
 
         self.__response_queue_watchers: list[asyncio.Queue[LLMResponse]] = []
         self.__status_queue_watchers: list[asyncio.Queue[LLMStatus]] = []
         self.__event_bus = event_bus
-        self.__event_bus.subscribe(SettingsChangedEvent, self.handle_settings_changed)
 
-    async def handle_settings_changed(self, event: SettingsChangedEvent):
-        logger.info("LLM Service received settings changed event. Starting...")
-        self.is_initialized = True
-        # TODO: Handle settings changes in the future if needed
-
-    async def announce_service_ready_to_start(self) -> None:
-        await self.__event_bus.publish(NewServiceEvent())
-        logger.info("LLM Service ready to start.")
+        self.reload_service()
 
     @traceable
     async def send_message(self, message: str, game_state: str):
@@ -92,8 +70,6 @@ class LLMService:
 
     def get_llm_healthcheck(self) -> bool:
         try:
-            if not self.is_initialized:
-                return False
             self.__model.get_num_tokens_from_messages(
                 [HumanMessage(content=SYSTEM_PROMPT)]
             )
@@ -155,3 +131,33 @@ class LLMService:
             return f"Action performed: {action.value}"
 
         return [perform_action]
+
+    def validate_settings(
+        self, new_settings: SettingsModel
+    ) -> list[SettingsIssueModel]:
+        issues = []
+        if not new_settings.llm.api_key:
+            issues.append(
+                SettingsIssueModel(
+                    section=str(self.__class__),
+                    field="api_key",
+                    message="API key is not set.",
+                )
+            )
+        return issues
+
+    def reload_service(self):
+        settings = self.__settings_handler.get_settings()
+        self.__model = ChatAnthropic(
+            model="claude-haiku-4-5-20251001",  # type: ignore
+            temperature=0.9,
+            max_retries=2,
+            api_key=SecretStr(settings.llm.api_key),
+        )
+
+        self.__agent = create_agent(
+            model=self.__model,
+            system_prompt=settings.llm.system_prompt,
+            response_format=LLMResponse,
+            tools=self.get_tools(),
+        )

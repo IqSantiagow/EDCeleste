@@ -22,14 +22,20 @@ python -m pytest tests/services/journal/test_journal_watcher.py
 
 ## Configuration
 
-Copy `.env-example` to `.env`. Required variables (double-underscore = nested):
+Two independent, both-gitignored config sources:
 
-- `ED__MAIN_PATH` — path to `Saved Games\Frontier Developments\Elite Dangerous`
-- `ED__KEYBINDS_PATH` — path to the folder containing your `.binds` keybindings file(s)
-- `LLM__ANTHROPIC_API_KEY` — Anthropic API key
-- `ED__LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
+- **`.env`** (copy from `.env-example`) — process bootstrap, loaded via Pydantic-settings (`AppConfig` in `config/config.py`). Only `logging` and `langsmith`:
+  - `LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL` (required)
+  - `LANGSMITH__TRACING` / `LANGSMITH__API_KEY` / `LANGSMITH__PROJECT` / `LANGSMITH__ENDPOINT` (optional)
 
-Config is loaded via Pydantic-settings (`AppConfig` in `config/config.py`).
+- **`config.yaml`** (copy from `config-example.yaml`) — user/runtime settings, loaded via `services/settings_service.py` (`SettingsService`) into `SettingsModel` (`services/models/settings_model.py`):
+  - `paths.journal_path` / `paths.keybindings_path`
+  - `llm.api_key` — Anthropic API key
+  - `llm.system_prompt` — used to build the LLM agent
+  - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
+  - `tts.voice` / `tts.volume`
+
+  `SettingsService.load_settings()` runs eagerly the first time the DI container resolves it (`containers/main_container.py`), before any service needing a bootstrap value is built. If `config.yaml` is missing, it's auto-created from `config-example.yaml` and startup fails with `FileNotFoundError` asking you to edit it and restart.
 
 ## Architecture
 
@@ -46,12 +52,12 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 
 - `services/event_bus.py` — simple pub/sub by event type; subscribers registered via `subscribe(EventType, callback)`
 - `services/journal_watcher_service.py` — polls latest `Journal*.log` from the ED directory, parses lines with Pydantic, publishes to `EventBus`
-- `services/models/journal_event.py` — Pydantic discriminated union (`_JournalEvent`) that maps raw JSON `event` field to typed models; unknown events become `UnknownCheckedEvent`
+- `services/models/journal_event.py` — Pydantic discriminated union (`JournalEvent`) that maps raw JSON `event` field to typed models; unknown events become `UnknownCheckedEvent`
 - `projection/` — each `Projection` (protocol in `projection/event_projections/projection.py`) processes events and returns a text snippet for the LLM; `GameStateService` orchestrates all projections
 - `protocols/game_state_protocol.py` — `GameStateProtocol` is a structural Protocol that `GameStateService` implements; the UI depends only on this protocol, not the concrete class
 - `use_cases/` — thin callable classes that bridge `GameStateReader` → `DashboardViewModel`
 - `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`
-- `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` in a daemon thread on mount
+- `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` as an `asyncio` task on its own event loop on mount
 
 **Adding a new game event:**
 1. Add a Pydantic model in `services/models/game_events.py`

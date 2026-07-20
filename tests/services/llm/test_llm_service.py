@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import anthropic
 import httpx
@@ -11,6 +11,21 @@ from services.event_bus import EventBus
 from services.llm_service import SYSTEM_PROMPT, LLMService
 from services.models.keybinds_model import EdAction
 from services.models.llm_response import LLMStatus
+from services.models.settings_model import (
+    LLMModel,
+    PathModel,
+    SettingsModel,
+    TTSModel,
+)
+from services.settings_service import SettingsService
+
+
+def _make_settings(api_key: str) -> SettingsModel:
+    return SettingsModel(
+        paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
+        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
+    )
 
 
 class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
@@ -31,7 +46,14 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.test_game_state = "Test game state"
         self.event_bus = EventBus()
-        self.llm_service = LLMService(api_key="", event_bus=self.event_bus)
+        self.settings_handler = Mock(spec=SettingsService)
+        self.settings_handler.get_settings.return_value = _make_settings(
+            api_key="sk-ant-test"
+        )
+        self.llm_service = LLMService(
+            event_bus=self.event_bus,
+            settings_handler=self.settings_handler,
+        )
 
     async def test_should_stream_the_received_message_to_subscribers(self):
         stream = self.llm_service.stream_responses()
@@ -150,3 +172,30 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ValidationError):
             tool.invoke({"action": "NotARealAction"})
+
+    def test_validate_settings_reports_issue_when_api_key_missing(self):
+        settings = _make_settings(api_key="")
+
+        issues = self.llm_service.validate_settings(settings)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].field, "api_key")
+
+    def test_validate_settings_returns_no_issues_when_api_key_present(self):
+        settings = _make_settings(api_key="sk-ant-test")
+
+        issues = self.llm_service.validate_settings(settings)
+
+        self.assertEqual(issues, [])
+
+    def test_reload_service_rebuilds_agent_using_updated_system_prompt(self):
+        new_settings = _make_settings(api_key="sk-ant-new")
+        new_settings.llm.system_prompt = "New system prompt"
+        self.settings_handler.get_settings.return_value = new_settings
+
+        self.llm_service.reload_service()
+
+        self.assertEqual(
+            self.mock_create_agent.call_args.kwargs["system_prompt"],
+            "New system prompt",
+        )

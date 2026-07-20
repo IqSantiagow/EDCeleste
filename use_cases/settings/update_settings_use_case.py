@@ -1,10 +1,42 @@
+from protocols.keybinds_protocol import KeybindsProtocol
+from protocols.journal_watcher_protocol import JournalWatcherProtocol
+from protocols.llm_protocol import LLMProtocol
 from protocols.settings_protocol import SettingsProtocol
+from protocols.tts_protocol import TTSProtocol
 from services.models.settings_model import SettingsModel
+from use_cases.settings.exceptions.settings_validation_exception import (
+    SettingsValidationException,
+)
 
 
 class UpdateSettingsUseCase:
-    def __init__(self, settings_repository: SettingsProtocol):
-        self.settings_repository = settings_repository
+    def __init__(
+        self,
+        tts_service: TTSProtocol,
+        journal_watcher_service: JournalWatcherProtocol,
+        keybinds_service: KeybindsProtocol,
+        llm_service: LLMProtocol,
+        settings_service: SettingsProtocol,
+    ) -> None:
+        self.tts_service = tts_service
+        self.journal_watcher_service = journal_watcher_service
+        self.keybinds_service = keybinds_service
+        self.llm_service = llm_service
+        self.settings_service = settings_service
 
-    def __call__(self, new_settings: SettingsModel):
-        self.settings_repository.update_settings(new_settings)
+    async def __call__(self, new_settings: SettingsModel):
+        tts_issues = self.tts_service.validate_settings(new_settings)
+        journal_issues = self.journal_watcher_service.validate_settings(new_settings)
+        keybinds_issues = self.keybinds_service.validate_settings(new_settings)
+        llm_issues = self.llm_service.validate_settings(new_settings)
+
+        if tts_issues or journal_issues or keybinds_issues or llm_issues:
+            issues = tts_issues + journal_issues + keybinds_issues + llm_issues
+            raise SettingsValidationException(issues)
+
+        self.settings_service.update_settings(new_settings)
+
+        self.tts_service.reload_service()
+        self.journal_watcher_service.reload_service()
+        self.keybinds_service.reload_service()
+        self.llm_service.reload_service()
