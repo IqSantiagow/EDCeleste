@@ -29,14 +29,14 @@ class WidgetPathsContainer(Vertical):
                 "Journal Path:",
                 f"{self.path_model.journal_path}",
                 # TODO: Implement validation logic
-                lambda value: print(f"Journal Path submitted: {value}"),
+                lambda value: self.log(f"Journal Path submitted: {value}"),
                 id=SettingsInputWidgetIds.JOURNAL_PATH_INPUT.value,
             )
             yield WidgetLabeledDynamicInputRow(
                 "Keybinds Path:",
                 f"{self.path_model.keybindings_path}",
                 # TODO: Implement validation logic
-                lambda value: print(f"Keybinds Path submitted: {value}"),
+                lambda value: self.log(f"Keybinds Path submitted: {value}"),
                 id=SettingsInputWidgetIds.KEYBINDS_PATH_INPUT.value,
             )
             yield WidgetSectionHeader("APP SETTINGS")

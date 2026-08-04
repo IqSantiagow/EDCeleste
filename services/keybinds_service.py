@@ -92,7 +92,7 @@ class KeybindService:
     ) -> SettingsIssueModel | None:
         if not new_settings.paths.keybindings_path:
             return SettingsIssueModel(
-                section=str(self.__class__),
+                section="paths",
                 field="keybindings_path",
                 message="Keybindings path is not set.",
             )
@@ -101,7 +101,7 @@ class KeybindService:
             self._get_bind_files_or_throw_if_none(new_settings.paths.keybindings_path)
         except FileNotFoundError as e:
             return SettingsIssueModel(
-                section=str(self.__class__),
+                section="paths",
                 field="keybindings_path",
                 message=str(e),
             )
@@ -116,7 +116,7 @@ class KeybindService:
             )
         except MissingKeybindsError as e:
             return SettingsIssueModel(
-                section=str(self.__class__),
+                section="paths",
                 field="keybindings_path",
                 message=str(e),
             )

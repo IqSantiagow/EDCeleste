@@ -8,11 +8,12 @@ class SectionSettingsChanged(Message):
         super().__init__()
         self.section = section
         self.new_value = new_value
-        assert section is not None, "SectionSettingsChanged message must have a section"
-        assert new_value is not None, (
-            "SectionSettingsChanged message must have a new_value"
-        )
-        assert isinstance(new_value, section.value), (
-            "SectionSettingsChanged message new_value must be an instance of "
-            "the section's model class"
-        )
+        if section is None:
+            raise ValueError("SectionSettingsChanged message must have a section")
+        if new_value is None:
+            raise ValueError("SectionSettingsChanged message must have a new_value")
+        if not isinstance(new_value, section.value):
+            raise TypeError(
+                "SectionSettingsChanged message new_value must be an instance of "
+                "the section's model class"
+            )
