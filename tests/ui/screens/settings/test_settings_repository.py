@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from services.models.keybinds_model import Keybind
 from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
@@ -14,7 +14,7 @@ def _make_settings() -> SettingsModel:
     )
 
 
-class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
+class TestSettingsRepository(unittest.TestCase):
     def _make_repository(
         self,
         get_keybinds_use_case=None,
@@ -25,7 +25,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         return SettingsRepository(
             settings_load_keybinds_use_case=load_keybinds_use_case or Mock(),
             settings_get_keybinds_use_case=get_keybinds_use_case or Mock(),
-            update_settings_use_case=update_settings_use_case or AsyncMock(),
+            update_settings_use_case=update_settings_use_case or Mock(),
             get_settings_use_case=get_settings_use_case or Mock(),
         )
 
@@ -49,16 +49,16 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         load_keybinds_use_case.assert_called_once()
 
-    async def test_should_delegate_update_settings_to_use_case(self):
-        update_settings_use_case = AsyncMock()
+    def test_should_delegate_update_settings_to_use_case(self):
+        update_settings_use_case = Mock()
         repository = self._make_repository(
             update_settings_use_case=update_settings_use_case
         )
         new_settings = _make_settings()
 
-        await repository.update_settings(new_settings)
+        repository.update_settings(new_settings)
 
-        update_settings_use_case.assert_awaited_once_with(new_settings)
+        update_settings_use_case.assert_called_once_with(new_settings)
 
     def test_should_delegate_get_settings_to_use_case(self):
         settings = _make_settings()

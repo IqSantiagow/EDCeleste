@@ -134,17 +134,14 @@ class LLMService:
 
     def validate_settings(
         self, new_settings: SettingsModel
-    ) -> list[SettingsIssueModel]:
-        issues = []
+    ) -> SettingsIssueModel | None:
         if not new_settings.llm.api_key:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="api_key",
-                    message="API key is not set.",
-                )
+            return SettingsIssueModel(
+                section="llm",
+                field="api_key",
+                message="API key is not set.",
             )
-        return issues
+        return None
 
     def reload_service(self):
         settings = self.__settings_handler.get_settings()

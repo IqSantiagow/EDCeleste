@@ -24,14 +24,24 @@ class UpdateSettingsUseCase:
         self.llm_service = llm_service
         self.settings_service = settings_service
 
-    async def __call__(self, new_settings: SettingsModel):
+    def __call__(self, new_settings: SettingsModel):
         tts_issues = self.tts_service.validate_settings(new_settings)
         journal_issues = self.journal_watcher_service.validate_settings(new_settings)
         keybinds_issues = self.keybinds_service.validate_settings(new_settings)
         llm_issues = self.llm_service.validate_settings(new_settings)
 
-        if tts_issues or journal_issues or keybinds_issues or llm_issues:
-            issues = tts_issues + journal_issues + keybinds_issues + llm_issues
+        issues = []
+
+        if tts_issues:
+            issues.append(tts_issues)
+        if journal_issues:
+            issues.append(journal_issues)
+        if keybinds_issues:
+            issues.append(keybinds_issues)
+        if llm_issues:
+            issues.append(llm_issues)
+
+        if issues:
             raise SettingsValidationException(issues)
 
         self.settings_service.update_settings(new_settings)

@@ -1,4 +1,4 @@
-from textual import log, work
+from textual import work
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
 from textual.widgets import Rule
@@ -84,4 +84,3 @@ class DashboardStatsContent(HorizontalGroup):
             healthcheck_state
         ) in self.ed_dashboard_repository.stream_healthcheck():
             self.healthcheck_state = healthcheck_state
-            log.info(f"Updated healthcheck state: {self.healthcheck_state}")

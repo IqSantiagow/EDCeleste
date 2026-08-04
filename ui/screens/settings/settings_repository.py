@@ -1,5 +1,8 @@
 from services.models.keybinds_model import Keybind
-from services.models.settings_model import SettingsModel
+from services.models.settings_model import SettingsIssueModel, SettingsModel
+from use_cases.settings.exceptions.settings_validation_exception import (
+    SettingsValidationException,
+)
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
@@ -27,8 +30,12 @@ class SettingsRepository:
     def load_keybinds(self) -> None:
         self.settings_load_keybinds_use_case()
 
-    async def update_settings(self, new_settings: SettingsModel) -> None:
-        await self.update_settings_use_case(new_settings)
+    def update_settings(self, new_settings: SettingsModel) -> list[SettingsIssueModel]:
+        try:
+            self.update_settings_use_case(new_settings)
+            return []
+        except SettingsValidationException as e:
+            return e.issues
 
     def get_settings(self) -> SettingsModel:
         return self.get_settings_use_case()

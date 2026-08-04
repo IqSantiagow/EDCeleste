@@ -6,9 +6,9 @@ from textual.widgets import Label
 
 class AppHeader(HorizontalGroup):
     def __init__(self, content: Widget) -> None:
-        super().__init__(id="app-header", classes="p-x-1")
+        super().__init__(id="app-header")
         self.content = content
 
     def compose(self) -> ComposeResult:
-        yield Label(content="EDCELESTE", id="dashboard-title", classes="text-bold")
+        yield Label(content="EDCELESTE", id="dashboard-title")
         yield self.content
