@@ -89,29 +89,22 @@ class KeybindService:
 
     def validate_settings(
         self, new_settings: SettingsModel
-    ) -> list[SettingsIssueModel]:
-        issues = []
+    ) -> SettingsIssueModel | None:
         if not new_settings.paths.keybindings_path:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="keybindings_path",
-                    message="Keybindings path is not set.",
-                )
+            return SettingsIssueModel(
+                section=str(self.__class__),
+                field="keybindings_path",
+                message="Keybindings path is not set.",
             )
-            return issues
 
         try:
             self._get_bind_files_or_throw_if_none(new_settings.paths.keybindings_path)
         except FileNotFoundError as e:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="keybindings_path",
-                    message=str(e),
-                )
+            return SettingsIssueModel(
+                section=str(self.__class__),
+                field="keybindings_path",
+                message=str(e),
             )
-            return issues
 
         try:
             self._validate_missing_keybinds(
@@ -122,14 +115,12 @@ class KeybindService:
                 )
             )
         except MissingKeybindsError as e:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="keybindings_path",
-                    message=str(e),
-                )
+            return SettingsIssueModel(
+                section=str(self.__class__),
+                field="keybindings_path",
+                message=str(e),
             )
-        return issues
+        return None
 
     def _get_bind_files_or_throw_if_none(self, path: str) -> list[str]:
         found_binds_files = glob.glob(path + "/*.binds")

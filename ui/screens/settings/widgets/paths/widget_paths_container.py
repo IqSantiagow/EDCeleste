@@ -1,16 +1,52 @@
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import Label
+from ui.screens.settings.events.settings_events import (
+    SectionSettingsChanged,
+)
+from ui.screens.settings.widgets.const_ids import (
+    SettingsInputWidgetIds,
+    SettingsSection,
+)
+from ui.screens.settings.widgets.widget_labeled_dynamic_input_row import (
+    ValueChanged,
+    WidgetLabeledDynamicInputRow,
+)
 
-from ui.screens.settings.settings_repository import SettingsRepository
+from services.models.settings_model import PathModel
+
+from ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 
 class WidgetPathsContainer(Vertical):
-    DEFAULT_CLASSES = "p-x-1"
-
-    def __init__(self, settings_repository: SettingsRepository) -> None:
-        super().__init__()
-        self.settings_repository = settings_repository
+    def __init__(self, path_model: PathModel, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.path_model = path_model
 
     def compose(self) -> ComposeResult:
-        yield Label("PATHS", id="settings-paths-label")
+        with Vertical(id="settings-paths-entry-container"):
+            yield WidgetSectionHeader("GAME DATA")
+            yield WidgetLabeledDynamicInputRow(
+                "Journal Path:",
+                f"{self.path_model.journal_path}",
+                # TODO: Implement validation logic
+                lambda value: print(f"Journal Path submitted: {value}"),
+                id=SettingsInputWidgetIds.JOURNAL_PATH_INPUT.value,
+            )
+            yield WidgetLabeledDynamicInputRow(
+                "Keybinds Path:",
+                f"{self.path_model.keybindings_path}",
+                # TODO: Implement validation logic
+                lambda value: print(f"Keybinds Path submitted: {value}"),
+                id=SettingsInputWidgetIds.KEYBINDS_PATH_INPUT.value,
+            )
+            yield WidgetSectionHeader("APP SETTINGS")
+
+    def on_value_changed(self, message: ValueChanged) -> None:
+        if message.sender_id == SettingsInputWidgetIds.JOURNAL_PATH_INPUT.value:
+            self.path_model.journal_path = message.new_value
+        elif message.sender_id == SettingsInputWidgetIds.KEYBINDS_PATH_INPUT.value:
+            self.path_model.keybindings_path = message.new_value
+
+        self.post_message(
+            SectionSettingsChanged(SettingsSection.PATHS, new_value=self.path_model)
+        )

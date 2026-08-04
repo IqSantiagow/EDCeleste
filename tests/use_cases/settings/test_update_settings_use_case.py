@@ -26,7 +26,7 @@ def _make_issue(section: str) -> SettingsIssueModel:
     return SettingsIssueModel(section=section, field="some_field", message="broken")
 
 
-class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
+class TestUpdateSettingsUseCase(unittest.TestCase):
     def setUp(self):
         self.tts_service = Mock()
         self.journal_watcher_service = Mock()
@@ -40,7 +40,7 @@ class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
             self.keybinds_service,
             self.llm_service,
         ):
-            service.validate_settings.return_value = []
+            service.validate_settings.return_value = None
 
         self.use_case = UpdateSettingsUseCase(
             tts_service=self.tts_service,
@@ -57,12 +57,12 @@ class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
         self.keybinds_service.reload_service.assert_not_called()
         self.llm_service.reload_service.assert_not_called()
 
-    async def test_should_persist_and_reload_all_services_when_no_validation_issues(
+    def test_should_persist_and_reload_all_services_when_no_validation_issues(
         self,
     ):
         new_settings = _make_settings()
 
-        await self.use_case(new_settings)
+        self.use_case(new_settings)
 
         self.settings_service.update_settings.assert_called_once_with(new_settings)
         self.tts_service.reload_service.assert_called_once_with()
@@ -70,48 +70,48 @@ class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
         self.keybinds_service.reload_service.assert_called_once_with()
         self.llm_service.reload_service.assert_called_once_with()
 
-    async def test_should_raise_and_not_persist_when_tts_has_issues(self):
-        self.tts_service.validate_settings.return_value = [_make_issue("tts")]
+    def test_should_raise_and_not_persist_when_tts_has_issues(self):
+        self.tts_service.validate_settings.return_value = _make_issue("tts")
 
         with self.assertRaises(SettingsValidationException):
-            await self.use_case(_make_settings())
+            self.use_case(_make_settings())
 
         self._assert_no_service_reloaded()
 
-    async def test_should_raise_and_not_persist_when_journal_watcher_has_issues(self):
-        self.journal_watcher_service.validate_settings.return_value = [
-            _make_issue("journal_watcher")
-        ]
+    def test_should_raise_and_not_persist_when_journal_watcher_has_issues(self):
+        self.journal_watcher_service.validate_settings.return_value = _make_issue(
+            "journal_watcher"
+        )
 
         with self.assertRaises(SettingsValidationException):
-            await self.use_case(_make_settings())
+            self.use_case(_make_settings())
 
         self._assert_no_service_reloaded()
 
-    async def test_should_raise_and_not_persist_when_keybinds_has_issues(self):
-        self.keybinds_service.validate_settings.return_value = [_make_issue("keybinds")]
+    def test_should_raise_and_not_persist_when_keybinds_has_issues(self):
+        self.keybinds_service.validate_settings.return_value = _make_issue("keybinds")
 
         with self.assertRaises(SettingsValidationException):
-            await self.use_case(_make_settings())
+            self.use_case(_make_settings())
 
         self._assert_no_service_reloaded()
 
-    async def test_should_raise_and_not_persist_when_llm_has_issues(self):
-        self.llm_service.validate_settings.return_value = [_make_issue("llm")]
+    def test_should_raise_and_not_persist_when_llm_has_issues(self):
+        self.llm_service.validate_settings.return_value = _make_issue("llm")
 
         with self.assertRaises(SettingsValidationException):
-            await self.use_case(_make_settings())
+            self.use_case(_make_settings())
 
         self._assert_no_service_reloaded()
 
-    async def test_should_aggregate_issues_from_multiple_services_in_exception(self):
+    def test_should_aggregate_issues_from_multiple_services_in_exception(self):
         tts_issue = _make_issue("tts")
         llm_issue = _make_issue("llm")
-        self.tts_service.validate_settings.return_value = [tts_issue]
-        self.llm_service.validate_settings.return_value = [llm_issue]
+        self.tts_service.validate_settings.return_value = tts_issue
+        self.llm_service.validate_settings.return_value = llm_issue
 
         with self.assertRaises(SettingsValidationException) as ctx:
-            await self.use_case(_make_settings())
+            self.use_case(_make_settings())
 
         self.assertEqual(ctx.exception.issues, [tts_issue, llm_issue])
 
