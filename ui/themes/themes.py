@@ -12,5 +12,6 @@ amber_theme = Theme(
     surface="#1a1a1a",  # Dark background
     panel="#0d0d0d",  # Darker panel background
     boost="#FFFF00",  # Yellow boost#
+    success="#00FF00",  # Green for success
     variables={"font-primary-color": "#AD6F26", "font-muted-color": "#6F4A24"},
 )

@@ -32,7 +32,7 @@ class UIApp(App):
 
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
-        ("ctrl+s", "push_settings", "Settings"),
+        ("ctrl+r", "push_settings", "Settings"),
     ]
 
     @inject
@@ -68,10 +68,8 @@ class UIApp(App):
     def compose(self) -> ComposeResult:
         with Grid(id="app-container", classes="screen-grid"):
             yield AppHeader(content=DashboardStatsContent())
-            yield Label(id="comms-title", classes="shady header-title", content="COMMS")
-            yield Label(
-                id="ship-log-title", classes="shady header-title", content="SHIP LOG"
-            )
+            yield Label(id="comms-title", classes="header-title", content="COMMS")
+            yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
             yield WidgetCommsCol(
                 ed_dashboard_repository=self.ed_dashboard_repository, id="comms-col"
             )

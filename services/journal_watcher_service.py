@@ -82,18 +82,31 @@ class JournalWatcherService:
 
     def validate_settings(
         self, new_settings: SettingsModel
-    ) -> list["SettingsIssueModel"]:
-        issues = []
-        if not new_settings.paths.journal_path:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="journal_path",
-                    message="Journal path is not set.",
-                )
+    ) -> SettingsIssueModel | None:
+        if not new_settings.paths.journal_path or new_settings.paths.journal_path == "":
+            return SettingsIssueModel(
+                section="paths",
+                field="journal_path",
+                message="Journal path is not set.",
             )
-
-        return issues
+        if not os.path.isdir(new_settings.paths.journal_path):
+            return SettingsIssueModel(
+                section="paths",
+                field="journal_path",
+                message=(
+                    f"Journal path '{new_settings.paths.journal_path}' does not exist."
+                ),
+            )
+        if not glob.glob(new_settings.paths.journal_path + "/*.log"):
+            return SettingsIssueModel(
+                section="paths",
+                field="journal_path",
+                message=(
+                    "No journal log files found in "
+                    f"'{new_settings.paths.journal_path}'."
+                ),
+            )
+        return None
 
     def reload_service(self) -> None:
         new_settings = self.__settings_handler.get_settings()

@@ -25,9 +25,9 @@ class WidgetCommonStatLabel(Widget):
     def compose(self):
         if self.color_reactivity:
             self.value_color = self.color_reactivity(self.stat_value)
-        with Horizontal(classes="stat-row"):
-            yield Label(self.text + ": ", classes="stat-key shady")
-            yield Label(self.stat_value, classes="stat-value light text-bold")
+        with Horizontal():
+            yield Label(self.text + ": ", classes="stat-key")
+            yield Label(self.stat_value, classes="stat-value")
 
     def update_value(self, value: str) -> None:
         self.stat_value = value

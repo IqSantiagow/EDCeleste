@@ -21,15 +21,19 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         glob_patcher = patch("services.journal_watcher_service.glob.glob")
         getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
+        isdir_patcher = patch("services.journal_watcher_service.os.path.isdir")
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
+        self.mock_isdir = isdir_patcher.start()
 
         self.addCleanup(glob_patcher.stop)
         self.addCleanup(getmtime_patcher.stop)
+        self.addCleanup(isdir_patcher.stop)
 
         self.mock_glob.return_value = [f"{JOURNAL_PATH}/Journal.log"]
         self.mock_getmtime.return_value = 100
+        self.mock_isdir.return_value = True
 
     def _make_event(self, event_name="SomeEvent"):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
@@ -149,18 +153,18 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         watcher = self._make_watcher()
         new_settings = _make_settings(journal_path="")
 
-        issues = watcher.validate_settings(new_settings)
+        issue = watcher.validate_settings(new_settings)
 
-        self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0].field, "journal_path")
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "journal_path")
 
     def test_validate_settings_returns_no_issues_when_journal_path_present(self):
         watcher = self._make_watcher()
         new_settings = _make_settings(journal_path=JOURNAL_PATH)
 
-        issues = watcher.validate_settings(new_settings)
+        issue = watcher.validate_settings(new_settings)
 
-        self.assertEqual(issues, [])
+        self.assertIsNone(issue)
 
     async def test_reload_service_restarts_watcher_with_settings_from_handler(self):
         settings_handler = Mock()

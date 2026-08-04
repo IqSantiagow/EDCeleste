@@ -108,17 +108,17 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         new_settings = _make_settings(api_key="sk-ant-test")
         new_settings.tts.voice = ""
 
-        issues = self.service.validate_settings(new_settings)
+        issue = self.service.validate_settings(new_settings)
 
-        self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0].field, "voice")
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "voice")
 
     def test_validate_settings_returns_no_issues_when_voice_present(self):
         new_settings = _make_settings(api_key="sk-ant-test")
 
-        issues = self.service.validate_settings(new_settings)
+        issue = self.service.validate_settings(new_settings)
 
-        self.assertEqual(issues, [])
+        self.assertIsNone(issue)
 
     def test_reload_service_changes_voice_from_settings_handler(self):
         new_settings = _make_settings(api_key="sk-ant-test")

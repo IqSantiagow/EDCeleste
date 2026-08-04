@@ -211,29 +211,29 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         new_settings = _make_settings(api_key="sk-ant-test")
         new_settings.paths.keybindings_path = ""
 
-        issues = service.validate_settings(new_settings)
+        issue = service.validate_settings(new_settings)
 
-        self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0].field, "keybindings_path")
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "keybindings_path")
 
     def test_validate_settings_returns_issue_when_no_binds_files_found(self):
         service = self._make_service()
         self.mock_glob.return_value = []
         new_settings = _make_settings(api_key="sk-ant-test")
 
-        issues = service.validate_settings(new_settings)
+        issue = service.validate_settings(new_settings)
 
-        self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0].field, "keybindings_path")
-        self.assertIn("No .binds files found", issues[0].message)
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "keybindings_path")
+        self.assertIn("No .binds files found", issue.message)
 
     def test_validate_settings_returns_no_issues_for_valid_binds_file(self):
         service = self._make_service()
         new_settings = _make_settings(api_key="sk-ant-test")
 
-        issues = service.validate_settings(new_settings)
+        issue = service.validate_settings(new_settings)
 
-        self.assertEqual(issues, [])
+        self.assertIsNone(issue)
 
     def test_reload_service_reloads_keybinds_from_settings_handler(self):
         service = self._make_service()

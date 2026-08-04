@@ -28,7 +28,7 @@ class WidgetCommsInput(VerticalGroup):
         self.set_up_stream_llm_state_worker()
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Input LLM command", id="comms-input", classes="input")
+        yield Input(placeholder="Input LLM command", id="comms-input")
 
     def watch_llm_state(self, new_state: LLMStatus) -> None:
         log.debug("LLM state changed to: %s", new_state)

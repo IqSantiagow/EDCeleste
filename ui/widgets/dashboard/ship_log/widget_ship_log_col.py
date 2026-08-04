@@ -27,10 +27,8 @@ class WidgetShipLogCol(Widget):
         self.old_state = []
         self.ed_dashboard_repository = ed_dashboard_repository
 
-    DEFAULT_CLASSES = "p-x-1"
-
     def compose(self) -> ComposeResult:
-        with VerticalScroll(id="ship-log-scroll", classes="h-fill"):
+        with VerticalScroll(id="ship-log-scroll"):
             for event in self.state:
                 yield Label(
                     content=f"{event.timestamp} - {event.event} - {event.details}"

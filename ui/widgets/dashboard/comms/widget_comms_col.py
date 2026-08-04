@@ -11,8 +11,6 @@ from ui.widgets.dashboard.view_models.comms_message_view_model import (
 
 
 class WidgetCommsCol(Vertical):
-    DEFAULT_CLASSES = "p-x-1"
-
     response_state: reactive[CommsMessageViewModel | None] = reactive(
         None, always_update=True
     )
@@ -27,7 +25,7 @@ class WidgetCommsCol(Vertical):
         self.set_up_stream_llm_responses_worker()
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(id="comms-scroll", classes="h-fill"):
+        with VerticalScroll(id="comms-scroll"):
             yield WidgetCommsEntry(
                 "system-message",
                 "Welcome to EDCeleste! Type your command below to "

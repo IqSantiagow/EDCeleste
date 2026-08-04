@@ -176,17 +176,17 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_validate_settings_reports_issue_when_api_key_missing(self):
         settings = _make_settings(api_key="")
 
-        issues = self.llm_service.validate_settings(settings)
+        issue = self.llm_service.validate_settings(settings)
 
-        self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0].field, "api_key")
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "api_key")
 
     def test_validate_settings_returns_no_issues_when_api_key_present(self):
         settings = _make_settings(api_key="sk-ant-test")
 
-        issues = self.llm_service.validate_settings(settings)
+        issue = self.llm_service.validate_settings(settings)
 
-        self.assertEqual(issues, [])
+        self.assertIsNone(issue)
 
     def test_reload_service_rebuilds_agent_using_updated_system_prompt(self):
         new_settings = _make_settings(api_key="sk-ant-new")

@@ -1,9 +1,17 @@
-/* Tokens: colors */
+/* ============================================================
+   Design tokens
+   Only for colors the amber theme (ui/themes/themes.py) doesn't
+   already provide. $primary / $secondary / $surface come from
+   the active Theme — don't redefine them here.
+   ============================================================ */
 $font-muted-color: #6F4A24;
 $human-command-color: #2518d4;
 
-/* App shell */
-Screen {
+/* ============================================================
+   App shell
+   ============================================================ */
+Screen,
+Footer {
     background: $surface;
 }
 
@@ -22,21 +30,99 @@ Screen {
     grid-columns: 1fr 2fr;
 }
 
-Footer {
-    background: $surface;
+Rule {
+    height: 1;
 }
 
-/* Shared header */
+/* Dev tool: add manually to any widget's classes to see its box
+   during layout debugging. Not applied anywhere by default. */
+.border-debug {
+    border: solid red;
+}
+
+/* ============================================================
+   Shared: outer gutter padding for the app's primary content
+   containers (header bar, dashboard columns, settings columns)
+   ============================================================ */
+AppHeader,
+WidgetShipLogCol,
+WidgetCommsCol,
+WidgetSettingsSectionsColumn,
+WidgetPathsContainer,
+WidgetKeybindsContainer,
+WidgetEventReactionsContainer,
+WidgetSystemPromptsContainer {
+    padding: 0 1;
+}
+
+/* ============================================================
+   Shared: header row + column titles
+   ============================================================ */
 #app-header {
     column-span: 2;
+}
+
+#dashboard-title {
+    color: $primary;
+    text-style: bold;
+}
+
+#settings-header-label {
+    text-style: bold;
+}
+
+WidgetSettingsHeaderContent {
+    width: 1fr;
+}
+
+#settings-header-modified-indicator {
+    width: 1fr;
+    align: right middle;
 }
 
 .header-title {
     width: 1fr;
     padding-left: 1;
+    color: $font-muted-color;
 }
 
-/* Dashboard stats header */
+/* ============================================================
+   Shared components: WidgetSectionHeader, WidgetLabeledValueRow
+   (ui/widgets/common/)
+   ============================================================ */
+.section-header-label {
+    color: $font-muted-color;
+}
+
+.section-divider {
+    margin: 0 0;
+    keyline: thin $primary;
+}
+
+.entry-row {
+    width: 0.7fr;
+}
+
+.entry-row-full {
+    width: 1fr;
+}
+
+.entry-row .entry-label {
+    color: $primary;
+}
+
+.entry-row .entry-value {
+    width: 1fr;
+}
+
+.entry-value{
+    padding: 0 0 0 1;
+}
+
+/* ============================================================
+   Dashboard: stats header
+   (DashboardStatsContent, WidgetCommonStatLabel)
+   ============================================================ */
 #dashboard-stats-content {
     width: 0.8fr;
 }
@@ -47,97 +133,141 @@ Footer {
     width: 0.2fr;
 }
 
-#dashboard-title {
-    color: $primary;
-}
-
-Rule {
-    height: 1;
-}
-
 WidgetCommonStatLabel {
     width: 20;
 }
 
-/* Dashboard comms */
-.llm-response {
-    color: $primary;
+WidgetCommonStatLabel .stat-key {
+    color: $font-muted-color;
 }
 
-.human-command {
+WidgetCommonStatLabel .stat-value {
+    color: $secondary;
+    text-style: bold;
+}
+
+/* ============================================================
+   Dashboard: comms column
+   (WidgetCommsCol, WidgetCommsEntry, WidgetCommsInput)
+   ============================================================ */
+#comms-scroll,
+#ship-log-scroll {
+    height: 1fr;
+}
+
+WidgetCommsEntry {
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+.comms-entry-title {
+    text-style: bold;
+}
+
+WidgetCommsEntry.user-command .comms-entry-title,
+WidgetCommsEntry.user-command .comms-entry-content {
     color: $human-command-color;
 }
 
-/* Dashboard ship log */
+WidgetCommsEntry.llm-response .comms-entry-title,
+WidgetCommsEntry.llm-response .comms-entry-content {
+    color: $primary;
+}
+
+WidgetCommsEntry.system-message .comms-entry-title,
+WidgetCommsEntry.system-message .comms-entry-content {
+    color: $font-muted-color;
+}
+
+/* ============================================================
+   Dashboard: ship log column
+   (WidgetShipLogCol, WidgetShipLogEntry)
+   ============================================================ */
 WidgetShipLogCol {
     row-span: 2;
+}
+
+WidgetShipLogEntry {
+    padding: 0 0 1 0;
 }
 
 WidgetShipLogEntry > Label {
     padding: 0 1 0 0;
 }
 
-/* Utility classes */
-.text-bold {
-    text-style: bold;
-}
-
-.shady {
+WidgetShipLogEntry .log-timestamp {
     color: $font-muted-color;
 }
 
-.light {
-    color: $secondary;
+WidgetShipLogEntry .log-event {
+    text-style: bold;
 }
 
-.p-x-1 {
-    padding: 0 1;
-}
-
-.p-b-1 {
+/* ============================================================
+   Settings: sections sidebar (WidgetSettingsSectionsColumn)
+   ============================================================ */
+.section-nav-item {
+    color: $font-muted-color;
     padding: 0 0 1 0;
 }
 
-.p-l-1 {
-    padding: 0 0 0 1;
-}
-
-.h-fill {
-    height: 1fr;
-}
-
-.h-auto {
-    height: auto;
-}
-
-.text-color-primary {
-    color: $primary;
-}
-
-.w-fill {
+WidgetSettingsSectionListItem {
     width: 1fr;
 }
 
-.w-80 {
-    width: 0.8fr;
+WidgetSettingsSectionListItem .section-label {
+    width: 1fr;
 }
 
-.w-50 {
-    width: 0.5fr;
+/* ============================================================
+   Settings: paths section
+   ============================================================ */
+WidgetPathsContainer .entry-label {
+    width: 20;
 }
 
-.align-right {
-    align: right middle;
+/* ============================================================
+   Settings: keybinds section
+   ============================================================ */
+
+WidgetKeybindsContainer .entry-row {
+    padding: 1 0 0 0;
 }
 
-.content-align-right {
+WidgetKeybindsContainer .entry-value {
+    color: $primary;
     content-align: right middle;
 }
 
-.border-debug{
-    border: solid red;
+WidgetLabeledDynamicInputRow {
+    height: 3;
 }
 
-.keybinds-entry{
-    padding-top: 1;
+#settings-entry-row-container Label {
+    height: 1fr;
+    content-align: left middle;
+}
+
+#settings-entry-row-container .entry-input{
+    padding: 0;
+    height: 1fr;
+    border: solid $primary;
+}
+
+.warning-label {
+    color: $warning;
+}
+
+.warning-label.error {
+    color: $error;
+    background: transparent;
+}
+
+.warning-label.success {
+    color: $success;
+    background: transparent;
+}
+
+.hidden{
+    display: none;
 }

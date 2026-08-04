@@ -49,17 +49,14 @@ class TTSService:
 
     def validate_settings(
         self, new_settings: SettingsModel
-    ) -> list[SettingsIssueModel]:
-        issues = []
+    ) -> SettingsIssueModel | None:
         if not new_settings.tts.voice:
-            issues.append(
-                SettingsIssueModel(
-                    section=str(self.__class__),
-                    field="voice",
-                    message="Voice is not set.",
-                )
+            return SettingsIssueModel(
+                section="tts",
+                field="voice",
+                message="Voice is not set.",
             )
-        return issues
+        return None
 
     def reload_service(self):
         new_settings = self.__settings_handler.get_settings()

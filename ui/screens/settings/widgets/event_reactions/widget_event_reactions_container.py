@@ -1,16 +1,14 @@
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import Label
 
-from ui.screens.settings.settings_repository import SettingsRepository
+from services.models.settings_model import SettingsModel
+from ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 
 class WidgetEventReactionsContainer(Vertical):
-    DEFAULT_CLASSES = "p-x-1"
-
-    def __init__(self, settings_repository: SettingsRepository) -> None:
-        super().__init__()
-        self.settings_repository = settings_repository
+    def __init__(self, settings_model: SettingsModel, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.settings_model = settings_model
 
     def compose(self) -> ComposeResult:
-        yield Label("EVENT REACTIONS", id="settings-event-reactions-label")
+        yield WidgetSectionHeader("EVENT REACTIONS")
