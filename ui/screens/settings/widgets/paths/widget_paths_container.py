@@ -7,7 +7,7 @@ from ui.screens.settings.widgets.const_ids import (
     SettingsInputWidgetIds,
     SettingsSection,
 )
-from ui.screens.settings.widgets.widget_labeled_dynamic_input_row import (
+from ui.screens.settings.widgets.inputs.widget_labeled_dynamic_input_row import (
     ValueChanged,
     WidgetLabeledDynamicInputRow,
 )
@@ -23,13 +23,14 @@ class WidgetPathsContainer(Vertical):
         self.path_model = path_model
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="settings-paths-entry-container"):
+        with Vertical():
             yield WidgetSectionHeader("GAME DATA")
             yield WidgetLabeledDynamicInputRow(
                 "Journal Path:",
                 f"{self.path_model.journal_path}",
                 # TODO: Implement validation logic
                 lambda value: self.log(f"Journal Path submitted: {value}"),
+                type="text",
                 id=SettingsInputWidgetIds.JOURNAL_PATH_INPUT.value,
             )
             yield WidgetLabeledDynamicInputRow(
@@ -37,6 +38,7 @@ class WidgetPathsContainer(Vertical):
                 f"{self.path_model.keybindings_path}",
                 # TODO: Implement validation logic
                 lambda value: self.log(f"Keybinds Path submitted: {value}"),
+                type="text",
                 id=SettingsInputWidgetIds.KEYBINDS_PATH_INPUT.value,
             )
             yield WidgetSectionHeader("APP SETTINGS")

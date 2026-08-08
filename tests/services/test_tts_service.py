@@ -129,6 +129,38 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.service.voice, "en-US-GuyNeural")
 
+    async def test_get_tts_voices_returns_short_names_from_edge_tts_list_voices(self):
+        available_voices = [
+            {"ShortName": "en-US-AriaNeural", "Locale": "en-US"},
+            {"ShortName": "en-GB-SoniaNeural", "Locale": "en-GB"},
+        ]
+        with patch(
+            "services.tts_service.edge_tts.list_voices",
+            new=AsyncMock(return_value=available_voices),
+        ):
+            result = await self.service.get_tts_voices()
+
+        self.assertEqual(result, ["en-US-AriaNeural", "en-GB-SoniaNeural"])
+
+    async def test_get_tts_voices_returns_empty_list_when_no_voices_available(self):
+        with patch(
+            "services.tts_service.edge_tts.list_voices",
+            new=AsyncMock(return_value=[]),
+        ):
+            result = await self.service.get_tts_voices()
+
+        self.assertEqual(result, [])
+
+    async def test_get_tts_voices_propagates_error_when_edge_tts_list_voices_fails(
+        self,
+    ):
+        with patch(
+            "services.tts_service.edge_tts.list_voices",
+            new=AsyncMock(side_effect=RuntimeError("network down")),
+        ):
+            with self.assertRaises(RuntimeError):
+                await self.service.get_tts_voices()
+
 
 if __name__ == "__main__":
     unittest.main()

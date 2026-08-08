@@ -61,3 +61,6 @@ class TTSService:
     def reload_service(self):
         new_settings = self.__settings_handler.get_settings()
         self.voice = new_settings.tts.voice
+
+    async def get_tts_voices(self) -> list[str]:
+        return [voice["ShortName"] for voice in await edge_tts.list_voices()]

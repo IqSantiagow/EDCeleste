@@ -10,6 +10,7 @@ _SECTIONS_LABELS_WITH_ID: dict[str, str] = {
     "settings-paths": "PATHS",
     "settings-event-reactions": "EVENT REACTIONS",
     "settings-llm": "LLM",
+    "settings-tts": "TTS",
 }
 
 
