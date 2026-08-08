@@ -1,6 +1,6 @@
 from enum import Enum
 
-from services.models.settings_model import LLMModel, PathModel
+from services.models.settings_model import LLMModel, PathModel, TTSModel
 
 
 class SettingsSection(Enum):
@@ -9,11 +9,14 @@ class SettingsSection(Enum):
     # so PATHS is paths, LLM is llm.
     PATHS = PathModel
     LLM = LLMModel
+    TTS = TTSModel
 
 
 class SettingsInputWidgetIds(Enum):
     JOURNAL_PATH_INPUT = "journal-path-input"
     KEYBINDS_PATH_INPUT = "keybinds-path-input"
+    VOICE_INPUT = "voice-input"
+    VOLUME_INPUT = "volume-input"
 
 
 SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
@@ -26,4 +29,6 @@ SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
         SettingsSection.PATHS,
         SettingsInputWidgetIds.KEYBINDS_PATH_INPUT.value,
     ),
+    "voice": (SettingsSection.TTS, SettingsInputWidgetIds.VOICE_INPUT.value),
+    "volume": (SettingsSection.TTS, SettingsInputWidgetIds.VOLUME_INPUT.value),
 }

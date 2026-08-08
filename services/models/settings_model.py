@@ -10,7 +10,7 @@ class PathModel(BaseModel):
     )
 
 
-class TTSModel(BaseModel):
+class TTSModel(BaseModel, validate_assignment=True):
     voice: str = Field(
         description="The voice to use for text-to-speech",
     )
