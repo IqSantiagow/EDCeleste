@@ -7,6 +7,7 @@ from ui.screens.settings.widgets.event_reactions import widget_event_reactions_c
 from ui.screens.settings.widgets.keybinds import widget_keybinds_container
 from ui.screens.settings.widgets.paths import widget_paths_container
 from ui.screens.settings.widgets.system_prompts import widget_system_prompts_container
+from ui.screens.settings.widgets.tts import widget_tts_container
 
 
 class WidgetSettingsSectionContentColumn(Vertical):
@@ -38,4 +39,8 @@ class WidgetSettingsSectionContentColumn(Vertical):
             yield widget_system_prompts_container.WidgetSystemPromptsContainer(
                 llm_model=self.settings.llm,
                 id="settings-llm",
+            )
+            yield widget_tts_container.WidgetTTSContainer(
+                tts_model=self.settings.tts,
+                id="settings-tts",
             )

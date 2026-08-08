@@ -3,9 +3,7 @@ from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
 from textual.widgets import Rule
 from textual.reactive import reactive
-from dependency_injector.wiring import Provide, inject
 
-from containers.main_container import Container
 from ui.widgets.dashboard.dashboard_headers.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
@@ -26,12 +24,9 @@ class DashboardStatsContent(HorizontalGroup):
         LlmJrnlHealthCheckViewModel.empty()
     )
 
-    @inject
     def __init__(
         self,
-        ed_dashboard_repository: EdDashboardRepository = Provide[
-            Container.ed_dashboard_repository
-        ],
+        ed_dashboard_repository: EdDashboardRepository,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)

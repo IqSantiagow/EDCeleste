@@ -5,9 +5,7 @@ from textual import on
 from textual.containers import Grid
 from textual.screen import Screen
 from textual.widgets import ContentSwitcher, Footer, Label, LoadingIndicator
-from ui.screens.settings.widgets.widget_labeled_dynamic_input_row import (
-    WidgetLabeledDynamicInputRow,
-)
+from ui.screens.settings.widgets.inputs.widget_settings_row import WidgetSettingsRow
 from textual.reactive import reactive
 from services.models.settings_model import SettingsIssueModel, SettingsModel
 
@@ -170,15 +168,11 @@ class SettingsScreen(Screen):
                     f"'{failure_field_id}'. The fuck happened here?"
                 )
                 continue
-            input_widget = self.query_one(
-                f"#{input_id}", expect_type=WidgetLabeledDynamicInputRow
-            )
+            input_widget = self.query_one(f"#{input_id}", expect_type=WidgetSettingsRow)
             input_widget.notify_about_validation_failure(error_message)
 
     def reset_all_validation_states(self) -> None:
         for _, input_id in SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID.values():
-            input_widget = self.query_one(
-                f"#{input_id}", expect_type=WidgetLabeledDynamicInputRow
-            )
+            input_widget = self.query_one(f"#{input_id}", expect_type=WidgetSettingsRow)
             input_widget.reset_validation_state()
         self.query_one(WidgetSettingsSectionsColumn).reset_all_modified_indicators()

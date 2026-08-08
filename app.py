@@ -14,7 +14,7 @@ if __name__ == "__main__":
     container.wire(
         modules=[
             "ui.ui_app",
-            "ui.widgets.dashboard.dashboard_headers.dashboard_stats_content",
+            "ui.screens.settings.widgets.tts.widget_tts_container",
         ]
     )
 

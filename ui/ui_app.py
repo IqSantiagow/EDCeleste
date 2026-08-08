@@ -67,7 +67,11 @@ class UIApp(App):
 
     def compose(self) -> ComposeResult:
         with Grid(id="app-container", classes="screen-grid"):
-            yield AppHeader(content=DashboardStatsContent())
+            yield AppHeader(
+                content=DashboardStatsContent(
+                    ed_dashboard_repository=self.ed_dashboard_repository
+                )
+            )
             yield Label(id="comms-title", classes="header-title", content="COMMS")
             yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
             yield WidgetCommsCol(

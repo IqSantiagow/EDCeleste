@@ -51,7 +51,8 @@ WidgetSettingsSectionsColumn,
 WidgetPathsContainer,
 WidgetKeybindsContainer,
 WidgetEventReactionsContainer,
-WidgetSystemPromptsContainer {
+WidgetSystemPromptsContainer,
+WidgetTTSContainer {
     padding: 0 1;
 }
 
@@ -243,6 +244,10 @@ WidgetLabeledDynamicInputRow {
     height: 3;
 }
 
+WidgetLabeledSelectRow {
+    height: 1;
+}
+
 #settings-entry-row-container Label {
     height: 1fr;
     content-align: left middle;
@@ -253,6 +258,12 @@ WidgetLabeledDynamicInputRow {
     height: 1fr;
     border: solid $primary;
 }
+
+#settings-entry-row-container .entry-select{
+    padding: 0;
+    height: 1;
+}
+
 
 .warning-label {
     color: $warning;

@@ -1,45 +1,58 @@
 from collections.abc import Callable
 import logging
-from textual.message import Message
-from textual.widget import Widget
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Container, HorizontalGroup
+from textual.validation import Validator
 from textual.widgets import Label
 from textual.widgets import Input
 from textual.reactive import reactive
 
+from ui.screens.settings.widgets.inputs.widget_settings_row import WidgetSettingsRow
+from ui.screens.settings.widgets.inputs.input_value_changed_event import ValueChanged
+
 logger = logging.getLogger(__name__)
 
 
-class ValueChanged(Message):
-    def __init__(self, sender_id: str, new_value: str) -> None:
-        super().__init__()
-        self.new_value = new_value
-        self.sender_id = sender_id
-
-
-class WidgetLabeledDynamicInputRow(Widget):
+class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
     DEFAULT_CLASSES = "entry-row-full"
 
     is_being_edited: reactive[bool] = reactive(False, recompose=True)
 
     _initial_value: str
 
-    def __init__(self, label: str, value: str, on_submit: Callable, **kwargs) -> None:
+    def __init__(
+        self,
+        label: str,
+        value: str,
+        on_submit: Callable,
+        type: str,
+        validators: list[Validator] | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.label = label
         self.value = value
         self._initial_value = value
         self.on_submit = on_submit
+        self.type = type
+        self.validators = validators if validators is not None else []
         assert self.id is not None, "WidgetLabeledDynamicInputRow must have an id"
+        assert self.type in ["integer", "text", "number"], (
+            "Invalid input type. Must be 'integer', 'text', or 'number'."
+        )
 
     def compose(self) -> ComposeResult:
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             with Container(id="settings-entry-value-container"):
                 if self.is_being_edited:
-                    yield Input(self.value, classes="entry-input").focus()
+                    yield Input(
+                        self.value,
+                        classes="entry-input",
+                        type=self.type,  # type: ignore
+                        validators=self.validators,
+                    ).focus()
                 if not self.is_being_edited:
                     yield Label(
                         self.value,
@@ -67,6 +80,13 @@ class WidgetLabeledDynamicInputRow(Widget):
 
     @on(Input.Submitted)
     def handle_input_submitted(self, event: Input.Submitted) -> None:
+        if event.validation_result is not None and not event.validation_result.is_valid:
+            failure_descriptions = " ".join(
+                event.validation_result.failure_descriptions
+            )
+            self.notify(f"Invalid input: {failure_descriptions}")
+            self.is_being_edited = False
+            return
         if self.is_being_edited:
             self._submit_value(event.input)
 

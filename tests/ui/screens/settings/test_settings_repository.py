@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from services.models.keybinds_model import Keybind
 from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
@@ -14,19 +14,21 @@ def _make_settings() -> SettingsModel:
     )
 
 
-class TestSettingsRepository(unittest.TestCase):
+class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
     def _make_repository(
         self,
         get_keybinds_use_case=None,
         load_keybinds_use_case=None,
         update_settings_use_case=None,
         get_settings_use_case=None,
+        get_tts_voices_use_case=None,
     ):
         return SettingsRepository(
             settings_load_keybinds_use_case=load_keybinds_use_case or Mock(),
             settings_get_keybinds_use_case=get_keybinds_use_case or Mock(),
             update_settings_use_case=update_settings_use_case or Mock(),
             get_settings_use_case=get_settings_use_case or Mock(),
+            get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
         )
 
     def test_should_delegate_get_keybinds_to_use_case(self):
@@ -69,6 +71,18 @@ class TestSettingsRepository(unittest.TestCase):
 
         self.assertEqual(result, settings)
         get_settings_use_case.assert_called_once()
+
+    async def test_should_delegate_get_voices_to_use_case(self):
+        voices = ["en-US-AriaNeural", "en-GB-SoniaNeural"]
+        get_tts_voices_use_case = AsyncMock(return_value=voices)
+        repository = self._make_repository(
+            get_tts_voices_use_case=get_tts_voices_use_case
+        )
+
+        result = await repository.get_voices()
+
+        self.assertEqual(result, voices)
+        get_tts_voices_use_case.assert_awaited_once()
 
 
 if __name__ == "__main__":
