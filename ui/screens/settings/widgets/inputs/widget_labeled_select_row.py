@@ -30,9 +30,17 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
     def compose(self) -> ComposeResult:
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
+            # The persisted value may not be among the live-fetched options
+            # (stale/renamed/removed voice, typo, ...); Select raises if its
+            # initial value isn't one of its options, so fall back to blank.
+            select_value = (
+                self._initial_value
+                if self._initial_value in self.options
+                else Select.NULL
+            )
             yield Select.from_values(
                 self.options,
-                value=self._initial_value,
+                value=select_value,
                 classes="entry-select",
                 compact=True,
             )
