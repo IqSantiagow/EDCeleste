@@ -11,8 +11,10 @@ from langsmith import traceable
 from pydantic import SecretStr
 
 from services.event_bus import EventBus
+from services.models.event_reaction_event import EventReactionEvent
+from services.models.game_state_changed_event import GameStateChangedEvent
 from services.models.keybinds_model import EdAction
-from services.models.llm_response import LLMResponse, LLMStatus
+from services.models.llm_response import LLMResponse, LLMResponseSource, LLMStatus
 from services.models.settings_model import SettingsIssueModel, SettingsModel
 from services.tts_service import TTSEvent
 from services.settings_service import SettingsService
@@ -27,24 +29,43 @@ conversation history between you and the human pilot. You have access to
 ship systems and you can operate them by performing actions in the game.
 """
 
+EVENT_REACTION_PROMPT = """
+The game has generated an event that you need to react to. The event is described below.
+{event_description}
+"""
+
 
 class LLMService:
     def __init__(self, event_bus: EventBus, settings_handler: SettingsService) -> None:
         self.conversation: list[BaseMessage] = []
-        self.__settings_handler = settings_handler
+        self.game_state: str | None = None
 
+        self.__settings_handler = settings_handler
         self.__response_queue_watchers: list[asyncio.Queue[LLMResponse]] = []
         self.__status_queue_watchers: list[asyncio.Queue[LLMStatus]] = []
         self.__event_bus = event_bus
 
+        self.__event_bus.subscribe(EventReactionEvent, self.process_event_reaction)
+        self.__event_bus.subscribe(
+            GameStateChangedEvent, self.process_game_state_change
+        )
+
         self.reload_service()
 
     @traceable
-    async def send_message(self, message: str, game_state: str):
+    async def send_message(self, message: str):
         logger.info("Got an LLM request: %s", message)
+
+        if self.game_state is None:
+            logger.warning("Game state is not set. Cannot send message to LLM.")
+            await self.respond_with_system_message(
+                "Game state is not set. Cannot send message to LLM."
+            )
+            return
+
         self.conversation.append(HumanMessage(content=message))
 
-        conv_history_with_state = self.__get_conv_history_with_state(game_state)
+        conv_history_with_state = self.__get_conv_history_with_state(self.game_state)
 
         logger.info("Built a conv history : %s", conv_history_with_state)
 
@@ -59,7 +80,7 @@ class LLMService:
 
         validated_response = LLMResponse.model_validate(response["structured_response"])  # type: ignore
 
-        ai_message = validated_response.message.message
+        ai_message = validated_response.message
 
         self.conversation.append(AIMessage(content=ai_message))
 
@@ -78,7 +99,9 @@ class LLMService:
             logger.error("LLM health check failed: %s", e)
             return False
 
-    async def stream_responses(self) -> AsyncGenerator[LLMResponse, None]:
+    async def stream_responses(
+        self,
+    ) -> AsyncGenerator[LLMResponse, None]:
         logger.debug("Starting to stream LLM responses")
         watcher_queue: asyncio.Queue[LLMResponse] = asyncio.Queue()
         self.__response_queue_watchers.append(watcher_queue)
@@ -158,3 +181,22 @@ class LLMService:
             response_format=LLMResponse,
             tools=self.get_tools(),
         )
+
+    async def process_event_reaction(self, event: EventReactionEvent) -> None:
+        await self.send_message(
+            message=EVENT_REACTION_PROMPT.format(event_description=event.event)
+        )
+
+    async def respond_with_system_message(self, message: str) -> None:
+
+        validated_response = LLMResponse.model_validate({"message": message})
+
+        validated_response.source = LLMResponseSource.SYSTEM
+
+        for watcher in self.__response_queue_watchers:
+            await watcher.put(validated_response)
+
+    async def process_game_state_change(
+        self, game_state: GameStateChangedEvent
+    ) -> None:
+        self.game_state = game_state.game_state

@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 
 from config.config import AppConfig
 from services.event_bus import EventBus
+from services.event_reactions_service import EventReactionsService
 from services.game_state_service import GameStateService
 from services.journal_watcher_service import JournalWatcherService
 from services.keybinds_service import KeybindService
@@ -85,6 +86,12 @@ class Container(containers.DeclarativeContainer):
         settings_handler=settings_service,
     )
 
+    event_reactions_service = providers.Singleton(
+        EventReactionsService,
+        event_bus=event_bus,
+        settings_service=settings_service,
+    )
+
     # -----USE CASES-----
     stream_dashboard_stats_use_case = providers.Factory(
         StreamDashboardStatsUseCase, game_state_reader=game_state_service
@@ -130,6 +137,7 @@ class Container(containers.DeclarativeContainer):
         journal_watcher_service=journal_watcher_service,
         keybinds_service=keybinds_service,
         llm_service=llm_service,
+        event_reactions_service=event_reactions_service,
         settings_service=settings_service,
     )
 

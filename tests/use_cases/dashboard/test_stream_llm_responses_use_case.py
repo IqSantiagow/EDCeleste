@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 import unittest
 
-from services.models.llm_response import LLMMessage, LLMResponse
+from services.models.llm_response import LLMResponse
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 
 
@@ -23,7 +23,7 @@ class FakeLLMProtocol:
 
 
 def _response(text: str) -> LLMResponse:
-    return LLMResponse(message=LLMMessage(message=text))
+    return LLMResponse(message=text)
 
 
 class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
