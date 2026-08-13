@@ -255,7 +255,9 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         await self.llm_service.process_event_reaction(reaction_event)
 
         self.llm_service.send_message.assert_called_once_with(
-            message=EVENT_REACTION_PROMPT.format(event_description=loaded_game_event)
+            message=EVENT_REACTION_PROMPT.format(
+                event_description=loaded_game_event.model_dump_json()
+            )
         )
 
     def test_get_tools_returns_perform_game_action_tool(self):

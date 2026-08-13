@@ -112,7 +112,6 @@ class Container(containers.DeclarativeContainer):
     llm_send_message_use_case = providers.Factory(
         LLMSendMessageUseCase,
         llm_protocol=llm_service,
-        game_state_reader=game_state_service,
     )
 
     stream_llm_responses_use_case = providers.Factory(

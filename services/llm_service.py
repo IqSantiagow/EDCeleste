@@ -30,7 +30,8 @@ ship systems and you can operate them by performing actions in the game.
 """
 
 EVENT_REACTION_PROMPT = """
-The game has generated an event that you need to react to. The event is described below.
+The game has generated an event that you need to react to. The event is
+described below as JSON.
 {event_description}
 """
 
@@ -184,7 +185,9 @@ class LLMService:
 
     async def process_event_reaction(self, event: EventReactionEvent) -> None:
         await self.send_message(
-            message=EVENT_REACTION_PROMPT.format(event_description=event.event)
+            message=EVENT_REACTION_PROMPT.format(
+                event_description=event.event.model_dump_json()
+            )
         )
 
     async def respond_with_system_message(self, message: str) -> None:
