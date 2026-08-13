@@ -1,9 +1,11 @@
 from datetime import datetime
 import unittest
+from unittest.mock import AsyncMock
 
 from services.game_state_service import GameStateService
 from services.event_bus import EventBus
 from services.models.game_events import LoadedGameEvent
+from services.models.game_state_changed_event import GameStateChangedEvent
 
 
 class GameStateIntegration(unittest.IsolatedAsyncioTestCase):
@@ -52,4 +54,21 @@ class GameStateIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertIn(
             "Current fuel level is: {0}".format(self.loaded_game_event.FuelLevel),
             game_state.get_game_state_projection(),
+        )
+
+    async def test_should_publish_game_state_changed_event_after_processing_event(
+        self,
+    ):
+        event_bus = EventBus()
+        game_state = GameStateService(event_bus)
+        subscriber = AsyncMock()
+        event_bus.subscribe(GameStateChangedEvent, subscriber)
+
+        await event_bus.publish(self.loaded_game_event)
+
+        subscriber.assert_called_once()
+        published_event = subscriber.call_args.args[0]
+        self.assertIsInstance(published_event, GameStateChangedEvent)
+        self.assertEqual(
+            published_event.game_state, game_state.get_game_state_projection()
         )

@@ -1,25 +1,28 @@
 from enum import Enum
 
-from pydantic import Field, BaseModel
+from pydantic import BaseModel, Field, PrivateAttr
 
 
-class LLMMessage(BaseModel):
-    """Represents a message from the LLM"""
+class LLMResponseSource(Enum):
+    """Represents the source of the LLM response"""
 
-    message: str = Field(description="The message content from the LLM")
-
-
-class LLMAction(BaseModel):
-    """Represents an action from the LLM"""
-
-    # TODO: Implement action types and their parameters
-    action: str
+    SYSTEM = "system"
+    LLM = "llm"
 
 
 class LLMResponse(BaseModel):
     """Represents a response from the LLM"""
 
-    message: LLMMessage
+    message: str = Field(description="The message content from the LLM")
+    _source: LLMResponseSource = PrivateAttr(default=LLMResponseSource.LLM)
+
+    @property
+    def source(self) -> LLMResponseSource:
+        return self._source
+
+    @source.setter
+    def source(self, value: LLMResponseSource) -> None:
+        self._source = value
 
 
 class LLMStatus(Enum):

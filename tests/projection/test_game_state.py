@@ -2,6 +2,7 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
+from services.event_bus import EventBus
 from services.game_state_service import GameStateService
 from services.models.game_events import LoadedGameEvent, FuelScoopEvent
 
@@ -35,7 +36,10 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_process_event_and_refresh_state_soft_assert(self):
-        mock_event_bus = Mock()
+        # spec=EventBus makes `publish` an AsyncMock automatically (it's an
+        # `async def` on the real class), so `await event_bus.publish(...)`
+        # in process_event doesn't blow up on a plain Mock.
+        mock_event_bus = Mock(spec=EventBus)
 
         game_state = GameStateService(mock_event_bus)
 
@@ -59,7 +63,7 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_refresh_state_with_new_event(self):
-        mock_event_bus = Mock()
+        mock_event_bus = Mock(spec=EventBus)
 
         game_state = GameStateService(mock_event_bus)
 
@@ -79,7 +83,7 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
     async def test_should_refresh_state_with_new_event_and_keep_old_data_not_in_event(
         self,
     ):
-        mock_event_bus = Mock()
+        mock_event_bus = Mock(spec=EventBus)
 
         game_state = GameStateService(mock_event_bus)
 

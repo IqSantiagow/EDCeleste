@@ -3,6 +3,7 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
+from services.event_bus import EventBus
 from services.game_state_service import GameStateService
 from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from services.models.game_events import LoadedGameEvent
@@ -35,7 +36,10 @@ def _loaded_game_event(**overrides) -> LoadedGameEvent:
 
 class TestGameStateServiceDashboardStats(unittest.IsolatedAsyncioTestCase):
     async def test_get_dashboard_stats_returns_snapshot_from_projections(self):
-        service = GameStateService(Mock())
+        # spec=EventBus makes `publish` an AsyncMock automatically (it's an
+        # `async def` on the real class), so `await event_bus.publish(...)`
+        # in process_event doesn't blow up on a plain Mock.
+        service = GameStateService(Mock(spec=EventBus))
 
         await service.process_event(_loaded_game_event())
 
@@ -57,7 +61,7 @@ class TestGameStateServiceDashboardStats(unittest.IsolatedAsyncioTestCase):
 
 class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
     async def test_stream_dashboard_stats_yields_snapshot_after_event(self):
-        service = GameStateService(Mock())
+        service = GameStateService(Mock(spec=EventBus))
         stream = service.stream_dashboard_stats()
         # Prime the subscriber so its queue is registered and the running loop is
         # captured before we publish; otherwise the event would not be dispatched.
@@ -72,7 +76,7 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         await stream.aclose()
 
     async def test_stream_journal_events_yields_processed_event(self):
-        service = GameStateService(Mock())
+        service = GameStateService(Mock(spec=EventBus))
         stream = service.stream_journal_events()
         pending = asyncio.ensure_future(stream.__anext__())
         await asyncio.sleep(0)

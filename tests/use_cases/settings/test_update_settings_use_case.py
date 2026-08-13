@@ -32,6 +32,7 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
         self.journal_watcher_service = Mock()
         self.keybinds_service = Mock()
         self.llm_service = Mock()
+        self.event_reactions_service = Mock()
         self.settings_service = Mock()
 
         for service in (
@@ -39,6 +40,7 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
             self.journal_watcher_service,
             self.keybinds_service,
             self.llm_service,
+            self.event_reactions_service,
         ):
             service.validate_settings.return_value = None
 
@@ -47,6 +49,7 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
             journal_watcher_service=self.journal_watcher_service,
             keybinds_service=self.keybinds_service,
             llm_service=self.llm_service,
+            event_reactions_service=self.event_reactions_service,
             settings_service=self.settings_service,
         )
 
@@ -56,6 +59,7 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
         self.journal_watcher_service.reload_service.assert_not_called()
         self.keybinds_service.reload_service.assert_not_called()
         self.llm_service.reload_service.assert_not_called()
+        self.event_reactions_service.reload_service.assert_not_called()
 
     def test_should_persist_and_reload_all_services_when_no_validation_issues(
         self,
@@ -69,6 +73,7 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
         self.journal_watcher_service.reload_service.assert_called_once_with()
         self.keybinds_service.reload_service.assert_called_once_with()
         self.llm_service.reload_service.assert_called_once_with()
+        self.event_reactions_service.reload_service.assert_called_once_with()
 
     def test_should_raise_and_not_persist_when_tts_has_issues(self):
         self.tts_service.validate_settings.return_value = _make_issue("tts")
@@ -98,6 +103,16 @@ class TestUpdateSettingsUseCase(unittest.TestCase):
 
     def test_should_raise_and_not_persist_when_llm_has_issues(self):
         self.llm_service.validate_settings.return_value = _make_issue("llm")
+
+        with self.assertRaises(SettingsValidationException):
+            self.use_case(_make_settings())
+
+        self._assert_no_service_reloaded()
+
+    def test_should_raise_and_not_persist_when_event_reactions_has_issues(self):
+        self.event_reactions_service.validate_settings.return_value = _make_issue(
+            "event_reaction"
+        )
 
         with self.assertRaises(SettingsValidationException):
             self.use_case(_make_settings())

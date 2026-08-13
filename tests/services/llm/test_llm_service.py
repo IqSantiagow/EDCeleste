@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -8,9 +9,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import ValidationError
 
 from services.event_bus import EventBus
-from services.llm_service import SYSTEM_PROMPT, LLMService
+from services.llm_service import EVENT_REACTION_PROMPT, SYSTEM_PROMPT, LLMService
+from services.models.event_reaction_event import EventReactionEvent
+from services.models.game_events import LoadedGameEvent
+from services.models.game_state_changed_event import GameStateChangedEvent
 from services.models.keybinds_model import EdAction
-from services.models.llm_response import LLMStatus
+from services.models.llm_response import LLMResponseSource, LLMStatus
 from services.models.settings_model import (
     LLMModel,
     PathModel,
@@ -39,8 +43,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_agent = self.mock_create_agent.return_value
         self.mock_agent.ainvoke = AsyncMock(
             side_effect=[
-                {"structured_response": {"message": {"message": "Test output 1"}}},
-                {"structured_response": {"message": {"message": "Test output 2"}}},
+                {"structured_response": {"message": "Test output 1"}},
+                {"structured_response": {"message": "Test output 2"}},
             ]
         )
 
@@ -54,6 +58,11 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             event_bus=self.event_bus,
             settings_handler=self.settings_handler,
         )
+        # Game state is no longer passed into send_message(); it's cached from
+        # the last GameStateChangedEvent seen on the bus (see
+        # process_game_state_change). Set it directly here so existing
+        # send_message tests keep exercising the "state known" path.
+        self.llm_service.game_state = self.test_game_state
 
     async def test_should_stream_the_received_message_to_subscribers(self):
         stream = self.llm_service.stream_responses()
@@ -62,18 +71,18 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         next_response = asyncio.ensure_future(stream.__anext__())
         await asyncio.sleep(0)
 
-        await self.llm_service.send_message("Test message", self.test_game_state)
+        await self.llm_service.send_message("Test message")
 
         response = await next_response
-        self.assertEqual(response.message.message, "Test output 1")
+        self.assertEqual(response.message, "Test output 1")
         await stream.aclose()
 
     async def test_should_add_message_to_conv_history(self):
         message1 = "Test message 1"
         message2 = "Test message 2"
 
-        await self.llm_service.send_message(message1, self.test_game_state)
-        await self.llm_service.send_message(message2, self.test_game_state)
+        await self.llm_service.send_message(message1)
+        await self.llm_service.send_message(message2)
 
         conversation = self.llm_service.conversation
         self.assertIn(HumanMessage(content=message1), conversation)
@@ -82,7 +91,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(AIMessage(content="Test output 2"), conversation)
 
     async def test_should_pass_system_prompt_and_game_state_to_the_agent(self):
-        await self.llm_service.send_message("Test message 1", self.test_game_state)
+        await self.llm_service.send_message("Test message 1")
 
         self.assertEqual(
             self.mock_create_agent.call_args.kwargs["system_prompt"], SYSTEM_PROMPT
@@ -126,7 +135,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.sleep(0)  # Let the status stream yield IDLE.
 
-        await self.llm_service.send_message("Test message", self.test_game_state)
+        await self.llm_service.send_message("Test message")
 
         self.assertEqual(await thinking, LLMStatus.THINKING)
 
@@ -144,11 +153,112 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
 
         with self.assertRaises(RuntimeError):
-            await self.llm_service.send_message("Test message", self.test_game_state)
+            await self.llm_service.send_message("Test message")
 
         self.assertEqual(await thinking, LLMStatus.THINKING)
         self.assertEqual(await status_stream.__anext__(), LLMStatus.IDLE)
         await status_stream.aclose()
+
+    async def test_process_game_state_change_updates_cached_game_state(self):
+        await self.llm_service.process_game_state_change(
+            GameStateChangedEvent(game_state="Docked at Jameson Memorial")
+        )
+
+        self.assertEqual(self.llm_service.game_state, "Docked at Jameson Memorial")
+
+    async def test_game_state_changed_event_on_bus_updates_llm_service_game_state(
+        self,
+    ):
+        # Confirms the subscription wired up in __init__: LLMService should
+        # pick up a GameStateChangedEvent published by anyone on the bus, not
+        # just via a direct call to process_game_state_change.
+        await self.event_bus.publish(GameStateChangedEvent(game_state="In supercruise"))
+
+        self.assertEqual(self.llm_service.game_state, "In supercruise")
+
+    async def test_send_message_responds_with_system_message_when_game_state_not_set(
+        self,
+    ):
+        # Before any GameStateChangedEvent has arrived, send_message must not
+        # call the agent at all - it should short-circuit with an LLMResponse
+        # sourced as SYSTEM instead of building a prompt around a missing game
+        # state.
+        self.llm_service.game_state = None
+        stream = self.llm_service.stream_responses()
+        next_response = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await self.llm_service.send_message("Test message")
+
+        response = await next_response
+        self.assertEqual(response.source, LLMResponseSource.SYSTEM)
+        self.assertEqual(
+            response.message,
+            "Game state is not set. Cannot send message to LLM.",
+        )
+        self.mock_agent.ainvoke.assert_not_called()
+        # send_message returns before appending anything when game_state is
+        # None, so the message never reaches conversation history - only a
+        # real (agent-processed) turn does.
+        self.assertNotIn(
+            HumanMessage(content="Test message"), self.llm_service.conversation
+        )
+        self.assertNotIn(
+            AIMessage(content="Test output 1"), self.llm_service.conversation
+        )
+        await stream.aclose()
+
+    async def test_respond_with_system_message_pushes_to_all_subscribers(self):
+        stream1 = self.llm_service.stream_responses()
+        stream2 = self.llm_service.stream_responses()
+        next1 = asyncio.ensure_future(stream1.__anext__())
+        next2 = asyncio.ensure_future(stream2.__anext__())
+        await asyncio.sleep(0)
+
+        await self.llm_service.respond_with_system_message("custom system message")
+
+        for pending in (next1, next2):
+            response = await pending
+            self.assertEqual(response.source, LLMResponseSource.SYSTEM)
+            self.assertEqual(response.message, "custom system message")
+        await stream1.aclose()
+        await stream2.aclose()
+
+    async def test_process_event_reaction_sends_event_description_to_llm(self):
+        # Target behavior for the event-reactions feature: LLMService should
+        # react to an EventReactionEvent by asking the agent to comment on it,
+        # reusing the already-cached game state (send_message no longer takes
+        # a game_state argument).
+        loaded_game_event = LoadedGameEvent(
+            event="LoadGame",
+            timestamp=datetime.now(),
+            Commander="TestCommander",
+            FID="F123456",
+            Horizons=True,
+            Odyssey=False,
+            Ship="Sidewinder",
+            ShipID=1,
+            ShipIdent="TS-001",
+            ShipName="Test Ship",
+            StartLanded=False,
+            StartDead=False,
+            GameMode="Solo",
+            Group="",
+            Credits=1000000,
+            Loan=0,
+            FuelLevel=1.0,
+            FuelCapacity=4.0,
+        )
+        reaction_event = EventReactionEvent(event=loaded_game_event)
+        self.llm_service.send_message = AsyncMock()
+
+        await self.llm_service.process_event_reaction(reaction_event)
+
+        self.llm_service.send_message.assert_called_once_with(
+            message=EVENT_REACTION_PROMPT.format(
+                event_description=loaded_game_event.model_dump_json()
+            )
+        )
 
     def test_get_tools_returns_perform_game_action_tool(self):
         tools = self.llm_service.get_tools()

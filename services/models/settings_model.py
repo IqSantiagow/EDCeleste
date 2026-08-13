@@ -1,4 +1,15 @@
-from pydantic import BaseModel, Field
+import logging
+from typing import Any
+
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+)
+
+from services.models.journal_event import KNOWN_EVENTS, JournalEventType
+
+logger = logging.getLogger(__name__)
 
 
 class PathModel(BaseModel):
@@ -34,6 +45,9 @@ class LLMModel(BaseModel):
     )
 
 
+DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
+
+
 class SettingsModel(BaseModel):
     paths: PathModel = Field(
         description="The paths to the journal and keybindings files",
@@ -44,6 +58,39 @@ class SettingsModel(BaseModel):
     llm: LLMModel = Field(
         description="The LLM connection settings",
     )
+    event_reaction: dict[str, bool] = Field(
+        description="The event reaction settings",
+        default_factory=lambda: DEFAULT_EVENT_REACTION_SETTINGS.copy(),
+        validate_default=True,
+    )
+
+    @field_validator("event_reaction", mode="after")
+    @classmethod
+    def prepare_potentially_malformed_events_and_validate(
+        cls,
+        events: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(events, dict):
+            raise ValueError("Event reaction settings must be a dictionary")
+        for event in list(events):
+            if event not in [e.value for e in KNOWN_EVENTS]:
+                events.pop(event)
+                logger.warning(
+                    f"Event reaction settings contains unknown event: {event}. "
+                    "Skipping..."
+                )
+        for event in KNOWN_EVENTS:
+            if event.value not in events:
+                events[event.value] = False
+
+        if len(events) != len(KNOWN_EVENTS):
+            # Probably dead code but just to be sure, validate that all known
+            # events are present in the event_reaction mapping
+            raise ValueError(
+                f"Event reaction settings must contain all known events: {KNOWN_EVENTS}"
+            )
+
+        return events
 
 
 class SettingsIssueModel(BaseModel):
