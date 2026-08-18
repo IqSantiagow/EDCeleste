@@ -18,7 +18,7 @@ class EventReactionsService:
         self.reload_service()
 
     async def process_event(self, event: JournalEvent) -> None:
-        if self.settings.event_reaction.event_reaction.get(event.event, False):
+        if self.settings.event_reaction.reactions.get(event.event, False):
             await self.event_bus.publish(EventReactionEvent(event=event))
 
     def validate_settings(

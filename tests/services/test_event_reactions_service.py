@@ -23,7 +23,7 @@ def _make_settings(event_reaction: dict[str, bool] | None = None) -> SettingsMod
         llm=LLMModel(api_key="sk-ant-test", system_prompt="prompt", user_prompt=""),
     )
     if event_reaction is not None:
-        settings.event_reaction = EventReactionModel(event_reaction=event_reaction)
+        settings.event_reaction = EventReactionModel(reactions=event_reaction)
     return settings
 
 

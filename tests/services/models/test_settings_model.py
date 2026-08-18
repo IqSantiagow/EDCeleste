@@ -42,7 +42,7 @@ def _base_settings_kwargs() -> dict:
 class TestSettingsModelEventReaction(unittest.TestCase):
     def test_default_event_reaction_only_load_game_enabled(self):
         settings = SettingsModel(**_base_settings_kwargs())
-        event_reaction = settings.event_reaction.event_reaction
+        event_reaction = settings.event_reaction.reactions
 
         self.assertTrue(event_reaction["LoadGame"])
         self.assertEqual(set(event_reaction), {event.value for event in KNOWN_EVENTS})
@@ -56,17 +56,17 @@ class TestSettingsModelEventReaction(unittest.TestCase):
 
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"event_reaction": full_mapping},
+            event_reaction={"reactions": full_mapping},
         )
 
-        self.assertEqual(settings.event_reaction.event_reaction, full_mapping)
+        self.assertEqual(settings.event_reaction.reactions, full_mapping)
 
     def test_partial_mapping_fills_missing_known_events_with_false(self):
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"event_reaction": {"FSDJump": True}},
+            event_reaction={"reactions": {"FSDJump": True}},
         )
-        event_reaction = settings.event_reaction.event_reaction
+        event_reaction = settings.event_reaction.reactions
 
         self.assertTrue(event_reaction["FSDJump"])
         self.assertFalse(event_reaction["LoadGame"])
@@ -75,9 +75,9 @@ class TestSettingsModelEventReaction(unittest.TestCase):
     def test_unknown_event_key_is_stripped_from_event_reaction_mapping(self):
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"event_reaction": {"NotARealEvent": True, "FSDJump": True}},
+            event_reaction={"reactions": {"NotARealEvent": True, "FSDJump": True}},
         )
-        event_reaction = settings.event_reaction.event_reaction
+        event_reaction = settings.event_reaction.reactions
 
         self.assertNotIn("NotARealEvent", event_reaction)
         self.assertTrue(event_reaction["FSDJump"])

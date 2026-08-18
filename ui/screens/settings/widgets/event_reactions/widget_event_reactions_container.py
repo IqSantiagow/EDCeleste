@@ -43,58 +43,57 @@ class WidgetEventReactionsContainer(Vertical):
             for event in _CRITICAL_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
             yield WidgetSectionHeader("NAVIGATION")
             for event in _NAVIGATION_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
             yield WidgetSectionHeader("DOCKING")
             for event in _DOCKING_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
             yield WidgetSectionHeader("FUEL")
             for event in _FUEL_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
             yield WidgetSectionHeader("PROGRESSION")
             for event in _PROGRESSION_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
             yield WidgetSectionHeader("SESSION")
             for event in _SESSION_EVENTS:
                 yield WidgetLabeledSwitchRow(
                     event,
-                    self.settings_model.event_reaction.event_reaction[event],
+                    self.settings_model.event_reaction.reactions[event],
                     id=event,
                 )
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if message.sender_id not in self.settings_model.event_reaction.event_reaction:
+        if message.sender_id not in self.settings_model.event_reaction.reactions:
             logger.warning(
                 f"Received ValueChanged for unknown event: {message.sender_id}"
             )
             return
-        if message.sender_id in self.settings_model.event_reaction.event_reaction:
-            self.settings_model.event_reaction.event_reaction[message.sender_id] = (
-                message.new_value
+        self.settings_model.event_reaction.reactions[message.sender_id] = (
+            message.new_value
+        )
+        self.post_message(
+            SectionSettingsChanged(
+                SettingsSection.EVENT_REACTION,
+                new_value=self.settings_model.event_reaction,
             )
-            self.post_message(
-                SectionSettingsChanged(
-                    SettingsSection.EVENT_REACTION,
-                    new_value=self.settings_model.event_reaction,
-                )
-            )
+        )

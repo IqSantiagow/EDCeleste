@@ -49,13 +49,13 @@ DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
 
 
 class EventReactionModel(BaseModel):
-    event_reaction: dict[str, bool] = Field(
+    reactions: dict[str, bool] = Field(
         description="The event reaction settings",
         default_factory=lambda: DEFAULT_EVENT_REACTION_SETTINGS.copy(),
         validate_default=True,
     )
 
-    @field_validator("event_reaction", mode="after")
+    @field_validator("reactions", mode="after")
     @classmethod
     def prepare_potentially_malformed_events_and_validate(
         cls,
