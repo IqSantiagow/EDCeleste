@@ -48,16 +48,7 @@ class LLMModel(BaseModel):
 DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
 
 
-class SettingsModel(BaseModel):
-    paths: PathModel = Field(
-        description="The paths to the journal and keybindings files",
-    )
-    tts: TTSModel = Field(
-        description="The text-to-speech settings for the LLM",
-    )
-    llm: LLMModel = Field(
-        description="The LLM connection settings",
-    )
+class EventReactionModel(BaseModel):
     event_reaction: dict[str, bool] = Field(
         description="The event reaction settings",
         default_factory=lambda: DEFAULT_EVENT_REACTION_SETTINGS.copy(),
@@ -91,6 +82,22 @@ class SettingsModel(BaseModel):
             )
 
         return events
+
+
+class SettingsModel(BaseModel):
+    paths: PathModel = Field(
+        description="The paths to the journal and keybindings files",
+    )
+    tts: TTSModel = Field(
+        description="The text-to-speech settings for the LLM",
+    )
+    llm: LLMModel = Field(
+        description="The LLM connection settings",
+    )
+    event_reaction: EventReactionModel = Field(
+        description="The event reaction settings",
+        default_factory=EventReactionModel,
+    )
 
 
 class SettingsIssueModel(BaseModel):

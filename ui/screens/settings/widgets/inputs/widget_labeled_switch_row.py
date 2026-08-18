@@ -1,7 +1,8 @@
 import logging
-
 from textual.app import ComposeResult
+from ui.screens.settings.widgets.inputs.input_value_changed_event import ValueChanged
 from textual.containers import Horizontal, HorizontalGroup
+
 from textual.widgets import Label, Switch
 
 from ui.screens.settings.widgets.inputs.widget_settings_row import WidgetSettingsRow
@@ -39,6 +40,7 @@ class WidgetLabeledSwitchRow(WidgetSettingsRow):
             self.query_one("#unsaved-changes-label", Label).remove_class("hidden")
         else:
             self.query_one("#unsaved-changes-label", Label).add_class("hidden")
+        self.post_message(ValueChanged(self.id, self.value))  # type: ignore
 
     def notify_about_validation_failure(self, error_message: str) -> None:
         # Validation will be handled by the parent container
@@ -48,7 +50,5 @@ class WidgetLabeledSwitchRow(WidgetSettingsRow):
         # This method should be called when the settings are saved successfully
         self.query_one(".unsaved-changes-label", Label).update("◉ changed")
         self.query_one(".unsaved-changes-label", Label).remove_class("error")
-        self.query_one(".unsaved-changes-label", Label).add_class(
-            "hidden"
-        ).with_tooltip(None)
+        self.query_one(".unsaved-changes-label", Label).add_class("hidden")
         self._initial_value = self.value
