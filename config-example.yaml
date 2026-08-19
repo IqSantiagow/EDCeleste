@@ -1,3 +1,27 @@
+event_reaction:
+  reactions:
+    ApproachBody: false
+    ApproachSettlement: false
+    Commander: false
+    Died: false
+    Docked: false
+    DockingGranted: false
+    FSDJump: false
+    FuelScoop: false
+    LeaveBody: false
+    LoadGame: true
+    Location: false
+    Promotion: false
+    Rank: false
+    RefuelAll: false
+    Reputation: false
+    ReservoirReplenished: false
+    Resurrect: false
+    StartJump: false
+    SupercruiseDestinationDrop: false
+    SupercruiseEntry: false
+    SupercruiseExit: false
+    Undocked: false
 paths:
   journal_path: "C:\\Users\\YourUsername\\Saved Games\\Frontier Developments\\Elite Dangerous"
   keybindings_path: "C:\\Users\\YourUsername\\AppData\\Local\\Frontier Developments\\Elite Dangerous\\Options\\Bindings"

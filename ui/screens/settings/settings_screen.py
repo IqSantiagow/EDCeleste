@@ -172,7 +172,6 @@ class SettingsScreen(Screen):
             input_widget.notify_about_validation_failure(error_message)
 
     def reset_all_validation_states(self) -> None:
-        for _, input_id in SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID.values():
-            input_widget = self.query_one(f"#{input_id}", expect_type=WidgetSettingsRow)
+        for input_widget in self.query(WidgetSettingsRow):
             input_widget.reset_validation_state()
         self.query_one(WidgetSettingsSectionsColumn).reset_all_modified_indicators()

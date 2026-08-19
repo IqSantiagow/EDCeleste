@@ -1,6 +1,11 @@
 from enum import Enum
 
-from services.models.settings_model import LLMModel, PathModel, TTSModel
+from services.models.settings_model import (
+    EventReactionModel,
+    LLMModel,
+    PathModel,
+    TTSModel,
+)
 
 
 class SettingsSection(Enum):
@@ -10,6 +15,7 @@ class SettingsSection(Enum):
     PATHS = PathModel
     LLM = LLMModel
     TTS = TTSModel
+    EVENT_REACTION = EventReactionModel
 
 
 class SettingsInputWidgetIds(Enum):
