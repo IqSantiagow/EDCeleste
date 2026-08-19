@@ -48,23 +48,14 @@ class LLMModel(BaseModel):
 DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
 
 
-class SettingsModel(BaseModel):
-    paths: PathModel = Field(
-        description="The paths to the journal and keybindings files",
-    )
-    tts: TTSModel = Field(
-        description="The text-to-speech settings for the LLM",
-    )
-    llm: LLMModel = Field(
-        description="The LLM connection settings",
-    )
-    event_reaction: dict[str, bool] = Field(
+class EventReactionModel(BaseModel):
+    reactions: dict[str, bool] = Field(
         description="The event reaction settings",
         default_factory=lambda: DEFAULT_EVENT_REACTION_SETTINGS.copy(),
         validate_default=True,
     )
 
-    @field_validator("event_reaction", mode="after")
+    @field_validator("reactions", mode="after")
     @classmethod
     def prepare_potentially_malformed_events_and_validate(
         cls,
@@ -91,6 +82,22 @@ class SettingsModel(BaseModel):
             )
 
         return events
+
+
+class SettingsModel(BaseModel):
+    paths: PathModel = Field(
+        description="The paths to the journal and keybindings files",
+    )
+    tts: TTSModel = Field(
+        description="The text-to-speech settings for the LLM",
+    )
+    llm: LLMModel = Field(
+        description="The LLM connection settings",
+    )
+    event_reaction: EventReactionModel = Field(
+        description="The event reaction settings",
+        default_factory=EventReactionModel,
+    )
 
 
 class SettingsIssueModel(BaseModel):

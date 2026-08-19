@@ -6,7 +6,13 @@ from services.event_bus import EventBus
 from services.event_reactions_service import EventReactionsService
 from services.models.event_reaction_event import EventReactionEvent
 from services.models.game_events import LoadedGameEvent
-from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
+from services.models.settings_model import (
+    EventReactionModel,
+    LLMModel,
+    PathModel,
+    SettingsModel,
+    TTSModel,
+)
 from services.settings_service import SettingsService
 
 
@@ -17,7 +23,7 @@ def _make_settings(event_reaction: dict[str, bool] | None = None) -> SettingsMod
         llm=LLMModel(api_key="sk-ant-test", system_prompt="prompt", user_prompt=""),
     )
     if event_reaction is not None:
-        settings.event_reaction = event_reaction
+        settings.event_reaction = EventReactionModel(reactions=event_reaction)
     return settings
 
 

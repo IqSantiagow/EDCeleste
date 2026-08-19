@@ -248,6 +248,24 @@ WidgetLabeledSelectRow {
     height: 1;
 }
 
+WidgetLabeledSwitchRow {
+    height: 2;
+}
+
+WidgetLabeledSwitchRow .entry-label {
+    width: 30;
+}
+
+WidgetLabeledSwitchRow Switch {
+    padding: 0 2;
+    border: none !important;
+}
+
+WidgetLabeledSwitchRow #settings-entry-value-container {
+    width: 1fr;
+    align: right middle;
+}
+
 #settings-entry-row-container Label {
     height: 1fr;
     content-align: left middle;
@@ -264,7 +282,6 @@ WidgetLabeledSelectRow {
     height: 1;
 }
 
-
 .warning-label {
     color: $warning;
 }
@@ -280,5 +297,5 @@ WidgetLabeledSelectRow {
 }
 
 .hidden{
-    display: none;
+    visibility: hidden;
 }
