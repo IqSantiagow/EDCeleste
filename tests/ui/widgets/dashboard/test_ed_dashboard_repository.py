@@ -33,6 +33,7 @@ class TestEdDashboardRepositoryStreamHealthcheck(unittest.IsolatedAsyncioTestCas
             stream_llm_state_usecase=None,  # type: ignore
             llm_send_message_usecase=None,  # type: ignore
             stream_llm_responses_usecase=None,  # type: ignore
+            stt_transcribe_audio_usecase=None,  # type: ignore
         )
 
     async def _next(self, gen):

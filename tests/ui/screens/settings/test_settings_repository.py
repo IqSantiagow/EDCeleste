@@ -2,7 +2,13 @@ import unittest
 from unittest.mock import AsyncMock, Mock
 
 from services.models.keybinds_model import Keybind
-from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
+from services.models.settings_model import (
+    LLMModel,
+    PathModel,
+    SettingsModel,
+    SttModel,
+    TTSModel,
+)
 from ui.screens.settings.settings_repository import SettingsRepository
 
 
@@ -11,6 +17,7 @@ def _make_settings() -> SettingsModel:
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="sp", user_prompt=""),
+        stt=SttModel(model="tiny.en"),
     )
 
 

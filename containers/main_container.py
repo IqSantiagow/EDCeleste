@@ -7,6 +7,7 @@ from services.game_state_service import GameStateService
 from services.journal_watcher_service import JournalWatcherService
 from services.keybinds_service import KeybindService
 from services.llm_service import LLMService
+from services.stt_service import SttService
 from services.stubs.journal_watcher_service_stub import JournalWatcherServiceStub
 from services.tts_service import TTSService
 from services.settings_service import SettingsService
@@ -29,6 +30,7 @@ from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybind
 from use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
+from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
 from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
@@ -86,6 +88,12 @@ class Container(containers.DeclarativeContainer):
         settings_handler=settings_service,
     )
 
+    stt_service = providers.Singleton(
+        SttService,
+        event_bus=event_bus,
+        settings_handler=settings_service,
+    )
+
     event_reactions_service = providers.Singleton(
         EventReactionsService,
         event_bus=event_bus,
@@ -122,6 +130,10 @@ class Container(containers.DeclarativeContainer):
         StreamLLMStateUseCase, llm_protocol=llm_service
     )
 
+    stt_transcribe_audio_use_case = providers.Factory(
+        SttTranscribeAudioUseCase, stt_protocol=stt_service
+    )
+
     settings_load_keybinds_use_case = providers.Factory(
         SettingsLoadKeybindsUseCase, keybinds_protocol=keybinds_service
     )
@@ -133,6 +145,7 @@ class Container(containers.DeclarativeContainer):
     update_settings_use_case = providers.Factory(
         UpdateSettingsUseCase,
         tts_service=tts_service,
+        stt_service=stt_service,
         journal_watcher_service=journal_watcher_service,
         keybinds_service=keybinds_service,
         llm_service=llm_service,
@@ -158,6 +171,7 @@ class Container(containers.DeclarativeContainer):
         llm_send_message_usecase=llm_send_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
         stream_llm_state_usecase=stream_llm_state_use_case,
+        stt_transcribe_audio_usecase=stt_transcribe_audio_use_case,
     )
 
     settings_repository = providers.Singleton(

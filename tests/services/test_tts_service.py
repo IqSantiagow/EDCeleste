@@ -5,6 +5,7 @@ from services.llm_service import SYSTEM_PROMPT
 from services.models.settings_model import (
     PathModel,
     SettingsModel,
+    SttModel,
     TTSModel,
     LLMModel,
 )
@@ -21,6 +22,7 @@ def _make_settings(api_key: str) -> SettingsModel:
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(voice=VOICE, volume=1.0),
         llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
+        stt=SttModel(model="tiny.en"),
     )
 
 

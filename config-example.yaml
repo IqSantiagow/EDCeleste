@@ -1,3 +1,5 @@
+stt:
+  model: "tiny.en"
 event_reaction:
   reactions:
     ApproachBody: false

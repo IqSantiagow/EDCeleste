@@ -7,7 +7,13 @@ from services.event_bus import EventBus
 from services.keybinds_service import KeybindService
 from services.llm_service import SYSTEM_PROMPT
 from services.models.keybinds_model import EdAction, Keybind, MissingKeybindsError
-from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
+from services.models.settings_model import (
+    LLMModel,
+    PathModel,
+    SettingsModel,
+    SttModel,
+    TTSModel,
+)
 from tests import TEST_BINDS_FILE_LOCATION
 from services.settings_service import SettingsService
 
@@ -20,6 +26,7 @@ def _make_settings(api_key: str) -> SettingsModel:
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
         llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
+        stt=SttModel(model="tiny.en"),
     )
 
 

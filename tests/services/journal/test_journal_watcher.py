@@ -4,7 +4,13 @@ from unittest.mock import patch, mock_open, Mock
 
 from services.journal_watcher_service import JournalWatcherService
 from services.models.game_events import UnknownCheckedEvent
-from services.models.settings_model import LLMModel, PathModel, SettingsModel, TTSModel
+from services.models.settings_model import (
+    LLMModel,
+    PathModel,
+    SettingsModel,
+    SttModel,
+    TTSModel,
+)
 
 JOURNAL_PATH = "C:/journals"
 
@@ -14,6 +20,7 @@ def _make_settings(journal_path: str) -> SettingsModel:
         paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="sp", user_prompt=""),
+        stt=SttModel(model="tiny.en"),
     )
 
 
