@@ -5,6 +5,7 @@ from services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
+    SttModel,
     TTSModel,
 )
 from services.settings_service import SettingsService
@@ -15,6 +16,7 @@ def _make_settings(api_key: str = "sk-ant-test", journal_path: str = "C:/j"):
         paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
         llm=LLMModel(api_key=api_key, system_prompt="sp", user_prompt="up"),
+        stt=SttModel(model="tiny.en"),
     )
 
 
@@ -39,6 +41,8 @@ llm:
   api_key: sk-ant-test
   system_prompt: sp
   user_prompt: up
+stt:
+  model: tiny.en
 """
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             service.load_settings()

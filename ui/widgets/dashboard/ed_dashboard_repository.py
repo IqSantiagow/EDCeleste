@@ -23,6 +23,7 @@ from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
+from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
 
 
 class EdDashboardRepository:
@@ -35,6 +36,7 @@ class EdDashboardRepository:
         stream_llm_state_usecase: StreamLLMStateUseCase,
         llm_send_message_usecase: LLMSendMessageUseCase,
         stream_llm_responses_usecase: StreamLLMResponsesUseCase,
+        stt_transcribe_audio_usecase: SttTranscribeAudioUseCase,
     ) -> None:
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
         self.stream_journal_events_usecase = stream_journal_events_usecase
@@ -43,6 +45,7 @@ class EdDashboardRepository:
         self.stream_llm_state_usecase = stream_llm_state_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
         self.stream_llm_responses_usecase = stream_llm_responses_usecase
+        self.stt_transcribe_audio_usecase = stt_transcribe_audio_usecase
 
     def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         return self.stream_dashboard_stats_usecase()
@@ -102,3 +105,6 @@ class EdDashboardRepository:
 
     def stream_llm_responses(self) -> AsyncGenerator[CommsMessageViewModel, None]:
         return self.stream_llm_responses_usecase()
+
+    def transcribe_audio(self, audio_path: str) -> str | None:
+        return self.stt_transcribe_audio_usecase(audio_path)

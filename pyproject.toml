@@ -75,6 +75,7 @@ dependencies = [
     "edge-tts==7.2.8",
     "soundfile==0.14.0",
     "sounddevice==0.5.5",
+    "openai-whisper==20250625",
 ]
 
 [project.optional-dependencies]

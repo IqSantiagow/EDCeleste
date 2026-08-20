@@ -21,6 +21,12 @@ class PathModel(BaseModel):
     )
 
 
+class SttModel(BaseModel):
+    model: str = Field(
+        description="The model to use for speech-to-text",
+    )
+
+
 class TTSModel(BaseModel, validate_assignment=True):
     voice: str = Field(
         description="The voice to use for text-to-speech",
@@ -97,6 +103,9 @@ class SettingsModel(BaseModel):
     event_reaction: EventReactionModel = Field(
         description="The event reaction settings",
         default_factory=EventReactionModel,
+    )
+    stt: SttModel = Field(
+        description="The speech-to-text settings",
     )
 
 
