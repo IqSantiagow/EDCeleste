@@ -50,7 +50,7 @@ class WidgetSttContainer(Vertical):
                     "Model: ",
                     options=self.models,
                     value=self.stt_model.model,
-                    id=SettingsInputWidgetIds.MODEL_INPUT.value,
+                    id=SettingsInputWidgetIds.STT_MODEL_INPUT.value,
                 )
 
     @work
@@ -60,9 +60,10 @@ class WidgetSttContainer(Vertical):
         except Exception as e:
             self.log(f"Error fetching STT models: {e}")
             self.notify("Error fetching STT models. Please check your STT service.")
+            self.models = [self.stt_model.model]
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if message.sender_id == SettingsInputWidgetIds.MODEL_INPUT.value:
+        if message.sender_id == SettingsInputWidgetIds.STT_MODEL_INPUT.value:
             self.stt_model.model = message.new_value
 
         self.post_message(

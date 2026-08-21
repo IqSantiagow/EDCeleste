@@ -25,7 +25,7 @@ class SettingsInputWidgetIds(Enum):
     KEYBINDS_PATH_INPUT = "keybinds-path-input"
     VOICE_INPUT = "voice-input"
     VOLUME_INPUT = "volume-input"
-    MODEL_INPUT = "stt-model-input"
+    STT_MODEL_INPUT = "stt-model-input"
 
 
 SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
