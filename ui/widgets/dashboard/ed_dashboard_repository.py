@@ -24,6 +24,7 @@ from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEvent
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
+from use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 
 
 class EdDashboardRepository:
@@ -37,6 +38,7 @@ class EdDashboardRepository:
         llm_send_message_usecase: LLMSendMessageUseCase,
         stream_llm_responses_usecase: StreamLLMResponsesUseCase,
         stt_transcribe_audio_usecase: SttTranscribeAudioUseCase,
+        get_stt_enabled_usecase: GetSttEnabledUseCase,
     ) -> None:
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
         self.stream_journal_events_usecase = stream_journal_events_usecase
@@ -46,6 +48,7 @@ class EdDashboardRepository:
         self.llm_send_message_usecase = llm_send_message_usecase
         self.stream_llm_responses_usecase = stream_llm_responses_usecase
         self.stt_transcribe_audio_usecase = stt_transcribe_audio_usecase
+        self.get_stt_enabled_usecase = get_stt_enabled_usecase
 
     def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
         return self.stream_dashboard_stats_usecase()
@@ -108,3 +111,6 @@ class EdDashboardRepository:
 
     def transcribe_audio(self, audio_path: str) -> str | None:
         return self.stt_transcribe_audio_usecase(audio_path)
+
+    def is_stt_enabled(self) -> bool:
+        return self.get_stt_enabled_usecase()

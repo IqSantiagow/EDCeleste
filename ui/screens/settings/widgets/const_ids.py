@@ -25,6 +25,7 @@ class SettingsInputWidgetIds(Enum):
     KEYBINDS_PATH_INPUT = "keybinds-path-input"
     VOICE_INPUT = "voice-input"
     VOLUME_INPUT = "volume-input"
+    STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
 
 
@@ -40,5 +41,5 @@ SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
     ),
     "voice": (SettingsSection.TTS, SettingsInputWidgetIds.VOICE_INPUT.value),
     "volume": (SettingsSection.TTS, SettingsInputWidgetIds.VOLUME_INPUT.value),
-    "model": (SettingsSection.STT, SettingsInputWidgetIds.MODEL_INPUT.value),
+    "model": (SettingsSection.STT, SettingsInputWidgetIds.STT_MODEL_INPUT.value),
 }

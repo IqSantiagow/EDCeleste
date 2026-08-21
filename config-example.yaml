@@ -1,4 +1,5 @@
 stt:
+  enabled: true
   model: "tiny.en"
 event_reaction:
   reactions:
