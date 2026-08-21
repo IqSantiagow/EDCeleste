@@ -34,11 +34,12 @@ class SttService:
                 f"Audio path is invalid or does not exist: {audio_path!r}"
             )
 
-        result = (
-            self.whisper_model.transcribe(audio_path) if self.whisper_model else None
-        )
+        if self.whisper_model is None:
+            logger.info("Loading Whisper model '%s' (lazy)...", self.model)
+            self.whisper_model = whisper.load_model(self.model)
 
-        text: str = result.get("text", "")  # type: ignore
+        result = self.whisper_model.transcribe(audio_path)
+        text: str = result.get("text", "")
         return text or None
 
     def validate_settings(
@@ -54,11 +55,12 @@ class SttService:
 
     def reload_service(self):
         new_settings = self.__settings_handler.get_settings()
-        self.enabled = new_settings.stt.enabled
-        self.model = new_settings.stt.model
-        self.whisper_model = (
-            whisper.load_model(self.model) if self.model and self.enabled else None
-        )
+        new_model = new_settings.stt.model
+        new_enabled = new_settings.stt.enabled
+        if new_model != self.model or new_enabled != self.enabled:
+            self.whisper_model = None
+        self.enabled = new_enabled
+        self.model = new_model
 
     def is_stt_enabled(self) -> bool:
         return self.enabled

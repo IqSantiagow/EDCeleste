@@ -135,7 +135,52 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.enabled = False
         self.assertFalse(self.service.is_stt_enabled())
 
-    def test_reload_service_loads_whisper_model_when_model_present(self):
+    def test_handle_stt_request_loads_model_lazily_on_first_call(self):
+        self.mock_load_model.assert_not_called()  # not loaded during __init__
+
+        self.service.handle_stt_request("audio.mp3")
+
+        self.mock_load_model.assert_called_once_with(MODEL)
+
+    def test_handle_stt_request_caches_model_across_calls(self):
+        self.service.handle_stt_request("audio.mp3")
+        self.mock_load_model.reset_mock()
+
+        self.service.handle_stt_request("audio.mp3")
+
+        self.mock_load_model.assert_not_called()
+
+    def test_reload_service_invalidates_cache_when_model_changes(self):
+        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        self.assertIsNotNone(self.service.whisper_model)
+
+        self.settings_handler.get_settings.return_value = _make_settings(
+            model="base.en"
+        )
+        self.service.reload_service()
+
+        self.assertIsNone(self.service.whisper_model)
+
+    def test_reload_service_invalidates_cache_when_enabled_changes(self):
+        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        self.assertIsNotNone(self.service.whisper_model)
+
+        self.settings_handler.get_settings.return_value = _make_settings(
+            model=MODEL, enabled=False
+        )
+        self.service.reload_service()
+
+        self.assertIsNone(self.service.whisper_model)
+
+    def test_reload_service_keeps_cache_when_settings_unchanged(self):
+        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        cached = self.service.whisper_model
+
+        self.service.reload_service()  # same settings
+
+        self.assertIs(self.service.whisper_model, cached)
+
+    def test_reload_service_does_not_load_model_eagerly(self):
         self.settings_handler.get_settings.return_value = _make_settings(
             model="base.en"
         )
@@ -143,8 +188,8 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.service.reload_service()
 
-        self.mock_load_model.assert_called_once_with("base.en")
-        self.assertIs(self.service.whisper_model, self.mock_whisper_model)
+        self.mock_load_model.assert_not_called()
+        self.assertIsNone(self.service.whisper_model)
 
     def test_reload_service_sets_whisper_model_none_when_model_absent(self):
         self.settings_handler.get_settings.return_value = _make_settings(model="")
