@@ -21,7 +21,7 @@ class PathModel(BaseModel):
     )
 
 
-class SttModel(BaseModel):
+class SttModel(BaseModel, validate_assignment=True):
     model: str = Field(
         description="The model to use for speech-to-text",
     )
