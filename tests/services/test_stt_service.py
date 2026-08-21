@@ -11,7 +11,6 @@ from services.models.settings_model import (
 )
 from services.settings_service import SettingsService
 
-from services.event_bus import EventBus
 from services.stt_service import SttService
 
 MODEL = "tiny.en"
@@ -28,7 +27,7 @@ def _make_settings(model: str) -> SettingsModel:
     )
 
 
-class SttServiceTest(unittest.TestCase):
+class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         load_model_patcher = patch("services.stt_service.whisper.load_model")
         exists_patcher = patch("services.stt_service.os.path.exists")
@@ -48,9 +47,7 @@ class SttServiceTest(unittest.TestCase):
         self.settings_handler = Mock(spec=SettingsService)
         self.settings_handler.get_settings.return_value = _make_settings(model=MODEL)
 
-        self.service = SttService(
-            event_bus=EventBus(), settings_handler=self.settings_handler
-        )
+        self.service = SttService(settings_handler=self.settings_handler)
 
     def test_handle_stt_request_returns_none_when_model_not_set(self):
         self.service.model = None
@@ -113,6 +110,15 @@ class SttServiceTest(unittest.TestCase):
         self.service.reload_service()
 
         self.assertEqual(self.service.model, "base.en")
+
+    async def test_get_stt_models_returns_available_whisper_models(self):
+        with patch(
+            "services.stt_service.whisper.available_models",
+            return_value=["tiny.en", "base.en"],
+        ):
+            result = await self.service.get_stt_models()
+
+        self.assertEqual(result, ["tiny.en", "base.en"])
 
 
 if __name__ == "__main__":

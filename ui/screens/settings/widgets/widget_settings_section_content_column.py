@@ -6,6 +6,7 @@ from services.models.settings_model import SettingsModel
 from ui.screens.settings.widgets.event_reactions import widget_event_reactions_container
 from ui.screens.settings.widgets.keybinds import widget_keybinds_container
 from ui.screens.settings.widgets.paths import widget_paths_container
+from ui.screens.settings.widgets.stt import widget_stt_container
 from ui.screens.settings.widgets.system_prompts import widget_system_prompts_container
 from ui.screens.settings.widgets.tts import widget_tts_container
 
@@ -43,4 +44,8 @@ class WidgetSettingsSectionContentColumn(Vertical):
             yield widget_tts_container.WidgetTTSContainer(
                 tts_model=self.settings.tts,
                 id="settings-tts",
+            )
+            yield widget_stt_container.WidgetSttContainer(
+                stt_model=self.settings.stt,
+                id="settings-stt",
             )

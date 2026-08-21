@@ -2,7 +2,6 @@ import os
 import whisper
 
 from services.models.settings_model import SettingsIssueModel, SettingsModel
-from services.event_bus import EventBus
 from services.settings_service import SettingsService
 
 import logging
@@ -10,16 +9,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SttEvent:
-    def __init__(self, text: str):
-        self.text = text
-
-
 class SttService:
     model: str | None = None
 
-    def __init__(self, event_bus: EventBus, settings_handler: SettingsService) -> None:
-        self.__event_bus = event_bus
+    def __init__(self, settings_handler: SettingsService) -> None:
         self.__settings_handler = settings_handler
         self.reload_service()
 
@@ -54,3 +47,6 @@ class SttService:
     def reload_service(self):
         new_settings = self.__settings_handler.get_settings()
         self.model = new_settings.stt.model
+
+    async def get_stt_models(self) -> list[str]:
+        return whisper.available_models()

@@ -25,6 +25,7 @@ from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEvent
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
+from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
@@ -90,7 +91,6 @@ class Container(containers.DeclarativeContainer):
 
     stt_service = providers.Singleton(
         SttService,
-        event_bus=event_bus,
         settings_handler=settings_service,
     )
 
@@ -161,6 +161,10 @@ class Container(containers.DeclarativeContainer):
         GetTTSVoicesUseCase, tts_protocol=tts_service
     )
 
+    get_stt_models_use_case = providers.Factory(
+        GetSttModelsUseCase, stt_protocol=stt_service
+    )
+
     # -----REPOSITORIES-----
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
@@ -181,4 +185,5 @@ class Container(containers.DeclarativeContainer):
         update_settings_use_case=update_settings_use_case,
         get_settings_use_case=get_settings_use_case,
         get_tts_voices_use_case=get_tts_voices_use_case,
+        get_stt_models_use_case=get_stt_models_use_case,
     )

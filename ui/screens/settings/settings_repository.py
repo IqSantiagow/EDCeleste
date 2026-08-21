@@ -4,6 +4,7 @@ from use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
 )
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
+from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
@@ -20,12 +21,14 @@ class SettingsRepository:
         update_settings_use_case: UpdateSettingsUseCase,
         get_settings_use_case: GetSettingsUseCase,
         get_tts_voices_use_case: GetTTSVoicesUseCase,
+        get_stt_models_use_case: GetSttModelsUseCase,
     ) -> None:
         self.settings_load_keybinds_use_case = settings_load_keybinds_use_case
         self.settings_get_keybinds_use_case = settings_get_keybinds_use_case
         self.update_settings_use_case = update_settings_use_case
         self.get_settings_use_case = get_settings_use_case
         self.get_tts_voices_use_case = get_tts_voices_use_case
+        self.get_stt_models_use_case = get_stt_models_use_case
 
     def get_keybinds(self) -> list[Keybind]:
         return self.settings_get_keybinds_use_case()
@@ -45,3 +48,6 @@ class SettingsRepository:
 
     async def get_voices(self) -> list[str]:
         return await self.get_tts_voices_use_case()
+
+    async def get_stt_models(self) -> list[str]:
+        return await self.get_stt_models_use_case()

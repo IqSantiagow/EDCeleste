@@ -4,6 +4,7 @@ from services.models.settings_model import (
     EventReactionModel,
     LLMModel,
     PathModel,
+    SttModel,
     TTSModel,
 )
 
@@ -15,6 +16,7 @@ class SettingsSection(Enum):
     PATHS = PathModel
     LLM = LLMModel
     TTS = TTSModel
+    STT = SttModel
     EVENT_REACTION = EventReactionModel
 
 
@@ -23,6 +25,7 @@ class SettingsInputWidgetIds(Enum):
     KEYBINDS_PATH_INPUT = "keybinds-path-input"
     VOICE_INPUT = "voice-input"
     VOLUME_INPUT = "volume-input"
+    STT_MODEL_INPUT = "stt-model-input"
 
 
 SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
@@ -37,4 +40,5 @@ SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
     ),
     "voice": (SettingsSection.TTS, SettingsInputWidgetIds.VOICE_INPUT.value),
     "volume": (SettingsSection.TTS, SettingsInputWidgetIds.VOLUME_INPUT.value),
+    "model": (SettingsSection.STT, SettingsInputWidgetIds.MODEL_INPUT.value),
 }
