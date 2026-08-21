@@ -22,6 +22,10 @@ class PathModel(BaseModel):
 
 
 class SttModel(BaseModel, validate_assignment=True):
+    enabled: bool = Field(
+        default=True,
+        description="Whether speech-to-text is enabled",
+    )
     model: str = Field(
         description="The model to use for speech-to-text",
     )
