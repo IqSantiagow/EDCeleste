@@ -49,5 +49,5 @@ class SettingsRepository:
     async def get_voices(self) -> list[str]:
         return await self.get_tts_voices_use_case()
 
-    async def get_stt_models(self) -> list[str]:
-        return await self.get_stt_models_use_case()
+    def get_stt_models(self) -> list[str]:
+        return self.get_stt_models_use_case()

@@ -32,6 +32,7 @@ from use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
 from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
+from use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
@@ -134,6 +135,10 @@ class Container(containers.DeclarativeContainer):
         SttTranscribeAudioUseCase, stt_protocol=stt_service
     )
 
+    get_stt_enabled_use_case = providers.Factory(
+        GetSttEnabledUseCase, stt_protocol=stt_service
+    )
+
     settings_load_keybinds_use_case = providers.Factory(
         SettingsLoadKeybindsUseCase, keybinds_protocol=keybinds_service
     )
@@ -176,6 +181,7 @@ class Container(containers.DeclarativeContainer):
         stream_llm_responses_usecase=stream_llm_responses_use_case,
         stream_llm_state_usecase=stream_llm_state_use_case,
         stt_transcribe_audio_usecase=stt_transcribe_audio_use_case,
+        get_stt_enabled_usecase=get_stt_enabled_use_case,
     )
 
     settings_repository = providers.Singleton(

@@ -93,17 +93,17 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, voices)
         get_tts_voices_use_case.assert_awaited_once()
 
-    async def test_should_delegate_get_stt_models_to_use_case(self):
+    def test_should_delegate_get_stt_models_to_use_case(self):
         models = ["tiny.en", "base.en"]
-        get_stt_models_use_case = AsyncMock(return_value=models)
+        get_stt_models_use_case = Mock(return_value=models)
         repository = self._make_repository(
             get_stt_models_use_case=get_stt_models_use_case
         )
 
-        result = await repository.get_stt_models()
+        result = repository.get_stt_models()
 
         self.assertEqual(result, models)
-        get_stt_models_use_case.assert_awaited_once()
+        get_stt_models_use_case.assert_called_once()
 
 
 if __name__ == "__main__":

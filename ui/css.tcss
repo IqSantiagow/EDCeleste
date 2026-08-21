@@ -161,6 +161,13 @@ WidgetCommsEntry {
     padding: 0 0 1 0;
 }
 
+#comms-thinking-indicator {
+    height: 1;
+    padding: 0 1;
+    color: $secondary;
+    text-style: italic;
+}
+
 .comms-entry-title {
     text-style: bold;
 }

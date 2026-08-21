@@ -17,6 +17,9 @@ from ui.screens.settings.widgets.inputs.widget_labeled_select_row import (
     ValueChanged,
     WidgetLabeledSelectRow,
 )
+from ui.screens.settings.widgets.inputs.widget_labeled_switch_row import (
+    WidgetLabeledSwitchRow,
+)
 from ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 
@@ -46,6 +49,11 @@ class WidgetSttContainer(Vertical):
         else:
             with Vertical():
                 yield WidgetSectionHeader("STT SETTINGS")
+                yield WidgetLabeledSwitchRow(
+                    "Enabled: ",
+                    value=self.stt_model.enabled,
+                    id=SettingsInputWidgetIds.STT_ENABLED_INPUT.value,
+                )
                 yield WidgetLabeledSelectRow(
                     "Model: ",
                     options=self.models,
@@ -56,14 +64,16 @@ class WidgetSttContainer(Vertical):
     @work
     async def fetch_models(self) -> None:
         try:
-            self.models = await self.settings_repository.get_stt_models()
+            self.models = self.settings_repository.get_stt_models()
         except Exception as e:
             self.log(f"Error fetching STT models: {e}")
             self.notify("Error fetching STT models. Please check your STT service.")
             self.models = [self.stt_model.model]
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if message.sender_id == SettingsInputWidgetIds.STT_MODEL_INPUT.value:
+        if message.sender_id == SettingsInputWidgetIds.STT_ENABLED_INPUT.value:
+            self.stt_model.enabled = message.new_value
+        elif message.sender_id == SettingsInputWidgetIds.STT_MODEL_INPUT.value:
             self.stt_model.model = message.new_value
 
         self.post_message(

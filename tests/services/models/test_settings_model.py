@@ -32,6 +32,21 @@ class TestTTSModel(unittest.TestCase):
             tts_model.volume = 1.5
 
 
+class TestSttModel(unittest.TestCase):
+    def test_enabled_defaults_to_true_when_key_absent(self):
+        stt_model = SttModel(model="tiny.en")
+
+        self.assertTrue(stt_model.enabled)
+
+    def test_enabled_round_trips_through_model_dump(self):
+        stt_model = SttModel(model="tiny.en", enabled=False)
+
+        dumped = stt_model.model_dump()
+
+        self.assertEqual(dumped, {"enabled": False, "model": "tiny.en"})
+        self.assertEqual(SttModel.model_validate(dumped), stt_model)
+
+
 def _base_settings_kwargs() -> dict:
     return dict(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
