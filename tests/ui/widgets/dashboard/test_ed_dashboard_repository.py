@@ -33,7 +33,8 @@ class TestEdDashboardRepositoryStreamHealthcheck(unittest.IsolatedAsyncioTestCas
             stream_llm_state_usecase=None,  # type: ignore
             llm_send_message_usecase=None,  # type: ignore
             stream_llm_responses_usecase=None,  # type: ignore
-            stt_transcribe_audio_usecase=None,  # type: ignore
+            stt_start_recording_usecase=None,  # type: ignore
+            stt_stop_recording_usecase=None,  # type: ignore
             get_stt_enabled_usecase=None,  # type: ignore
         )
 
@@ -101,7 +102,8 @@ class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
             stream_llm_state_usecase=None,  # type: ignore
             llm_send_message_usecase=None,  # type: ignore
             stream_llm_responses_usecase=None,  # type: ignore
-            stt_transcribe_audio_usecase=None,  # type: ignore
+            stt_start_recording_usecase=None,  # type: ignore
+            stt_stop_recording_usecase=None,  # type: ignore
             get_stt_enabled_usecase=FakeGetSttEnabledUseCase(enabled),  # type: ignore
         )
 

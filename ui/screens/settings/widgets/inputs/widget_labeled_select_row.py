@@ -17,12 +17,31 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
         label: str,
         options: list[str],
         value: str,
+        values: list[str] | None = None,
         *args,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        label:
+            Row label shown on the left.
+        options:
+            Human-readable display strings shown in the dropdown.
+        value:
+            The currently selected *stored* value (matched against `values` when
+            provided, or against `options` when `values` is None).
+        values:
+            Optional list of stored values that correspond 1-to-1 with
+            `options`.  When given, the dropdown shows `options` labels but
+            emits and receives items from `values`.  Useful when you want to
+            display a friendly name but store a compact key (e.g. a device
+            index as a string).
+        """
         super().__init__(*args, **kwargs)
         self.label = label
         self.options = options
+        self.values = values
         self._initial_value = value
         self.value = value
         assert self.id is not None, "WidgetLabeledSelectRow must have an id"
@@ -31,19 +50,28 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             # The persisted value may not be among the live-fetched options
-            # (stale/renamed/removed voice, typo, ...); Select raises if its
-            # initial value isn't one of its options, so fall back to blank.
+            # (stale/renamed/removed voice, device removed, ...); Select raises
+            # if its initial value isn't one of its options, so fall back to blank.
+            effective_values = self.values if self.values is not None else self.options
             select_value = (
                 self._initial_value
-                if self._initial_value in self.options
+                if self._initial_value in effective_values
                 else Select.NULL
             )
-            yield Select.from_values(
-                self.options,
-                value=select_value,
-                classes="entry-select",
-                compact=True,
-            )
+            if self.values is not None:
+                yield Select(
+                    list(zip(self.options, self.values)),
+                    value=select_value,
+                    classes="entry-select",
+                    compact=True,
+                )
+            else:
+                yield Select.from_values(
+                    self.options,
+                    value=select_value,
+                    classes="entry-select",
+                    compact=True,
+                )
             yield Label(
                 "◉ changed",
                 classes="unsaved-changes-label warning-label {}".format(

@@ -1,6 +1,9 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
+
+from services.exceptions.stt_exception import SttException
 from services.llm_service import SYSTEM_PROMPT
 from services.models.settings_model import (
     LLMModel,
@@ -10,83 +13,157 @@ from services.models.settings_model import (
     TTSModel,
 )
 from services.settings_service import SettingsService
-
-from services.exceptions.stt_exception import SttException
 from services.stt_service import SttService
 
 MODEL = "tiny.en"
 
 
-def _make_settings(model: str, enabled: bool = True) -> SettingsModel:
+def _make_settings(
+    model: str, enabled: bool = True, input_device: int | None = None
+) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
         llm=LLMModel(
             api_key="sk-ant-test", system_prompt=SYSTEM_PROMPT, user_prompt=""
         ),
-        stt=SttModel(model=model, enabled=enabled),
+        stt=SttModel(model=model, enabled=enabled, input_device=input_device),
     )
 
 
 class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         load_model_patcher = patch("services.stt_service.whisper.load_model")
-        exists_patcher = patch("services.stt_service.os.path.exists")
+        input_stream_patcher = patch("services.stt_service.sd.InputStream")
 
         self.mock_load_model = load_model_patcher.start()
-        self.mock_exists = exists_patcher.start()
+        self.mock_input_stream_cls = input_stream_patcher.start()
 
         self.addCleanup(load_model_patcher.stop)
-        self.addCleanup(exists_patcher.stop)
+        self.addCleanup(input_stream_patcher.stop)
 
-        self.mock_exists.return_value = True
         self.mock_whisper_model = self.mock_load_model.return_value
-        self.mock_whisper_model.transcribe.return_value = {
-            "text": "Turn on the engines"
-        }
+        self.mock_whisper_model.transcribe.return_value = {"text": "Turn on the engines"}
+
+        self.mock_stream = MagicMock()
+        self.mock_input_stream_cls.return_value = self.mock_stream
 
         self.settings_handler = Mock(spec=SettingsService)
         self.settings_handler.get_settings.return_value = _make_settings(model=MODEL)
 
         self.service = SttService(settings_handler=self.settings_handler)
 
-    def test_handle_stt_request_raises_when_model_not_set(self):
-        self.service.model = None
+    # --- start_recording ---
+
+    def test_start_recording_raises_when_disabled(self):
+        self.service.enabled = False
 
         with self.assertRaises(SttException):
-            self.service.handle_stt_request("turn_on_the_engines_sample.mp3")
+            self.service.start_recording()
 
-        self.mock_whisper_model.transcribe.assert_not_called()
+        self.mock_input_stream_cls.assert_not_called()
 
-    def test_handle_stt_request_raises_when_audio_path_is_empty(self):
-        with self.assertRaises(SttException):
-            self.service.handle_stt_request("")
-
-        self.mock_whisper_model.transcribe.assert_not_called()
-
-    def test_handle_stt_request_raises_when_audio_path_does_not_exist(self):
-        self.mock_exists.return_value = False
+    def test_start_recording_raises_when_already_recording(self):
+        self.service.start_recording()
 
         with self.assertRaises(SttException):
-            self.service.handle_stt_request("missing.mp3")
+            self.service.start_recording()
 
-        self.mock_whisper_model.transcribe.assert_not_called()
+    def test_start_recording_opens_and_starts_stream(self):
+        self.service.start_recording()
 
-    def test_handle_stt_request_returns_transcribed_text_when_audio_exists(self):
-        result = self.service.handle_stt_request("turn_on_the_engines_sample.mp3")
+        self.mock_input_stream_cls.assert_called_once()
+        self.mock_stream.start.assert_called_once()
 
-        self.assertEqual(result, "Turn on the engines")
-        self.mock_load_model.assert_called_once_with(MODEL)
-        self.mock_whisper_model.transcribe.assert_called_once_with(
-            "turn_on_the_engines_sample.mp3"
-        )
+    def test_start_recording_resets_recorded_frames(self):
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-    def test_handle_stt_request_returns_none_when_transcription_text_is_empty(self):
-        self.mock_whisper_model.transcribe.return_value = {"text": ""}
+        self.service.start_recording()
 
-        result = self.service.handle_stt_request("turn_on_the_engines_sample.mp3")
+        self.assertEqual(self.service._recorded_frames, [])
+
+    # --- stop_recording ---
+
+    def test_stop_recording_raises_when_no_recording_in_progress(self):
+        with self.assertRaises(SttException):
+            self.service.stop_recording()
+
+    def test_stop_recording_stops_and_closes_stream(self):
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        self.service.stop_recording()
+
+        self.mock_stream.stop.assert_called_once()
+        self.mock_stream.close.assert_called_once()
+
+    def test_stop_recording_clears_stream_reference(self):
+        self.service.start_recording()
+
+        self.service.stop_recording()
+
+        self.assertIsNone(self.service._recording_stream)
+
+    def test_stop_recording_returns_none_when_no_frames_captured(self):
+        self.service.start_recording()
+        # _recorded_frames already empty after start_recording
+
+        result = self.service.stop_recording()
 
         self.assertIsNone(result)
+        self.mock_whisper_model.transcribe.assert_not_called()
+
+    def test_stop_recording_raises_when_model_not_set(self):
+        self.service.model = None
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        with self.assertRaises(SttException):
+            self.service.stop_recording()
+
+        self.mock_whisper_model.transcribe.assert_not_called()
+
+    def test_stop_recording_returns_transcribed_text(self):
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        result = self.service.stop_recording()
+
+        self.assertEqual(result, "Turn on the engines")
+        self.mock_whisper_model.transcribe.assert_called_once()
+
+    def test_stop_recording_returns_none_when_transcription_empty(self):
+        self.mock_whisper_model.transcribe.return_value = {"text": ""}
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        result = self.service.stop_recording()
+
+        self.assertIsNone(result)
+
+    def test_stop_recording_loads_whisper_model_lazily_on_first_call(self):
+        self.mock_load_model.assert_not_called()  # not loaded during __init__
+
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
+
+        self.mock_load_model.assert_called_once_with(MODEL)
+
+    def test_stop_recording_caches_whisper_model_across_calls(self):
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
+        self.mock_load_model.reset_mock()
+
+        self.mock_input_stream_cls.return_value = MagicMock()
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
+
+        self.mock_load_model.assert_not_called()
+
+    # --- validate_settings ---
 
     def test_validate_settings_reports_issue_when_model_missing(self):
         new_settings = _make_settings(model="")
@@ -104,6 +181,8 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(issue)
 
+    # --- reload_service ---
+
     def test_reload_service_updates_model_from_settings_handler(self):
         new_settings = _make_settings(model="base.en")
         self.settings_handler.get_settings.return_value = new_settings
@@ -111,14 +190,6 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.reload_service()
 
         self.assertEqual(self.service.model, "base.en")
-
-    def test_handle_stt_request_raises_when_disabled(self):
-        self.service.enabled = False
-
-        with self.assertRaises(SttException):
-            self.service.handle_stt_request("turn_on_the_engines_sample.mp3")
-
-        self.mock_whisper_model.transcribe.assert_not_called()
 
     def test_reload_service_updates_enabled_from_settings_handler(self):
         new_settings = _make_settings(model=MODEL, enabled=False)
@@ -128,41 +199,21 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(self.service.enabled)
 
-    def test_is_stt_enabled_reflects_state(self):
-        self.service.enabled = True
-        self.assertTrue(self.service.is_stt_enabled())
-
-        self.service.enabled = False
-        self.assertFalse(self.service.is_stt_enabled())
-
-    def test_handle_stt_request_loads_model_lazily_on_first_call(self):
-        self.mock_load_model.assert_not_called()  # not loaded during __init__
-
-        self.service.handle_stt_request("audio.mp3")
-
-        self.mock_load_model.assert_called_once_with(MODEL)
-
-    def test_handle_stt_request_caches_model_across_calls(self):
-        self.service.handle_stt_request("audio.mp3")
-        self.mock_load_model.reset_mock()
-
-        self.service.handle_stt_request("audio.mp3")
-
-        self.mock_load_model.assert_not_called()
-
     def test_reload_service_invalidates_cache_when_model_changes(self):
-        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
         self.assertIsNotNone(self.service.whisper_model)
 
-        self.settings_handler.get_settings.return_value = _make_settings(
-            model="base.en"
-        )
+        self.settings_handler.get_settings.return_value = _make_settings(model="base.en")
         self.service.reload_service()
 
         self.assertIsNone(self.service.whisper_model)
 
     def test_reload_service_invalidates_cache_when_enabled_changes(self):
-        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
         self.assertIsNotNone(self.service.whisper_model)
 
         self.settings_handler.get_settings.return_value = _make_settings(
@@ -173,7 +224,9 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.service.whisper_model)
 
     def test_reload_service_keeps_cache_when_settings_unchanged(self):
-        self.service.handle_stt_request("audio.mp3")  # warms up cache
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording()
         cached = self.service.whisper_model
 
         self.service.reload_service()  # same settings
@@ -181,9 +234,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.service.whisper_model, cached)
 
     def test_reload_service_does_not_load_model_eagerly(self):
-        self.settings_handler.get_settings.return_value = _make_settings(
-            model="base.en"
-        )
+        self.settings_handler.get_settings.return_value = _make_settings(model="base.en")
         self.mock_load_model.reset_mock()
 
         self.service.reload_service()
@@ -199,6 +250,17 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_load_model.assert_not_called()
         self.assertIsNone(self.service.whisper_model)
+
+    # --- is_stt_enabled ---
+
+    def test_is_stt_enabled_reflects_state(self):
+        self.service.enabled = True
+        self.assertTrue(self.service.is_stt_enabled())
+
+        self.service.enabled = False
+        self.assertFalse(self.service.is_stt_enabled())
+
+    # --- get_stt_models ---
 
     def test_get_stt_models_returns_available_whisper_models(self):
         with patch(
