@@ -23,7 +23,8 @@ from ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
-from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
+from use_cases.dashboard.stt_start_recording_use_case import SttStartRecordingUseCase
+from use_cases.dashboard.stt_stop_recording_use_case import SttStopRecordingUseCase
 from use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 
 
@@ -37,7 +38,8 @@ class EdDashboardRepository:
         stream_llm_state_usecase: StreamLLMStateUseCase,
         llm_send_message_usecase: LLMSendMessageUseCase,
         stream_llm_responses_usecase: StreamLLMResponsesUseCase,
-        stt_transcribe_audio_usecase: SttTranscribeAudioUseCase,
+        stt_start_recording_usecase: SttStartRecordingUseCase,
+        stt_stop_recording_usecase: SttStopRecordingUseCase,
         get_stt_enabled_usecase: GetSttEnabledUseCase,
     ) -> None:
         self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
@@ -47,7 +49,8 @@ class EdDashboardRepository:
         self.stream_llm_state_usecase = stream_llm_state_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
         self.stream_llm_responses_usecase = stream_llm_responses_usecase
-        self.stt_transcribe_audio_usecase = stt_transcribe_audio_usecase
+        self.stt_start_recording_usecase = stt_start_recording_usecase
+        self.stt_stop_recording_usecase = stt_stop_recording_usecase
         self.get_stt_enabled_usecase = get_stt_enabled_usecase
 
     def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
@@ -109,8 +112,11 @@ class EdDashboardRepository:
     def stream_llm_responses(self) -> AsyncGenerator[CommsMessageViewModel, None]:
         return self.stream_llm_responses_usecase()
 
-    def transcribe_audio(self, audio_path: str) -> str | None:
-        return self.stt_transcribe_audio_usecase(audio_path)
+    def start_recording(self) -> None:
+        self.stt_start_recording_usecase()
+
+    def stop_recording(self) -> str | None:
+        return self.stt_stop_recording_usecase()
 
     def is_stt_enabled(self) -> bool:
         return self.get_stt_enabled_usecase()

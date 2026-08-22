@@ -1,11 +1,14 @@
+import asyncio
+
 from textual import work, log
 from textual.app import ComposeResult
+from textual.events import MouseDown, MouseEvent
 from textual.timer import Timer
-from textual.widgets import Input, Static
+from textual.widgets import Button, Input, Static
 from textual.reactive import reactive
 from textual.message import Message
 from textual import on
-from textual.containers import VerticalGroup
+from textual.containers import HorizontalGroup, VerticalGroup
 
 from services.models.llm_response import LLMStatus
 from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
@@ -13,6 +16,8 @@ from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 class WidgetCommsInput(VerticalGroup):
     llm_state: reactive[LLMStatus] = reactive(LLMStatus.IDLE)
+
+    stt_state: reactive[bool] = reactive(False)
 
     SPINNER_FRAMES = [
         "\u280b",
@@ -26,6 +31,25 @@ class WidgetCommsInput(VerticalGroup):
         "\u2807",
         "\u280f",
     ]
+
+    class CommsSttButtonAction(Message):
+        def __init__(self, is_up: bool) -> None:
+            self.is_up = is_up
+            super().__init__()
+
+    class CommsSttButton(Button):
+        def __init__(self, **kwargs) -> None:
+            super().__init__("[🎤]", id="comms-stt-button", flat=True, **kwargs)
+
+        def on_mouse_down(self, event: MouseDown) -> None:
+            self.capture_mouse(capture=True)
+            log.debug("STT button pressed, starting STT capture")
+            self.post_message(WidgetCommsInput.CommsSttButtonAction(is_up=False))
+
+        def on_mouse_up(self, event: MouseEvent) -> None:
+            self.release_mouse()
+            log.debug("STT button released, stopping STT capture")
+            self.post_message(WidgetCommsInput.CommsSttButtonAction(is_up=True))
 
     class UserCommandSubmitted(Message):
         def __init__(self, command: str) -> None:
@@ -44,7 +68,9 @@ class WidgetCommsInput(VerticalGroup):
         self.set_up_stream_llm_state_worker()
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Input LLM command", id="comms-input")
+        with HorizontalGroup(classes="comms-input-container"):
+            yield Input(placeholder="Input LLM command", id="comms-input")
+            yield WidgetCommsInput.CommsSttButton()
         yield Static("", id="comms-thinking-indicator", classes="hidden")
 
     def watch_llm_state(self, new_state: LLMStatus) -> None:
@@ -77,6 +103,33 @@ class WidgetCommsInput(VerticalGroup):
             f"{frame} Celeste is thinking..."
         )
 
+    @on(CommsSttButtonAction)
+    @work
+    async def on_comms_stt_button_action(self, message: CommsSttButtonAction) -> None:
+        if message.is_up:
+            log.debug("STT button released, stopping STT capture")
+            result = None
+            try:
+                result = await asyncio.to_thread(
+                    self.ed_dashboard_repository.stop_recording
+                )
+            except Exception as e:
+                log.error("STT stop_recording failed: %s", e)
+                self.notify(f"STT error: {e}", severity="error")
+            finally:
+                self.stt_state = False
+            if result:
+                self.query_one("#comms-input", Input).value = result
+                await self.query_one("#comms-input", Input).action_submit()
+        else:
+            log.debug("STT button pressed, starting STT capture")
+            try:
+                self.ed_dashboard_repository.start_recording()
+                self.stt_state = True
+            except Exception as e:
+                log.error("STT start_recording failed: %s", e)
+                self.notify(f"STT error: {e}", severity="error")
+
     @work
     async def set_up_stream_llm_state_worker(self) -> None:
         log.debug("Starting to stream LLM state")
@@ -97,3 +150,11 @@ class WidgetCommsInput(VerticalGroup):
             await self.ed_dashboard_repository.send_message_to_llm(event.value)
         else:
             log.debug("LLM is busy, cannot send message: %s", event.value)
+
+    def watch_stt_state(self, new_state: bool) -> None:
+        if new_state:
+            self.query_one("#comms-input", Input).disabled = True
+            self.query_one("#comms-input", Input).placeholder = "Listening..."
+        else:
+            self.query_one("#comms-input", Input).disabled = False
+            self.query_one("#comms-input", Input).placeholder = "Input LLM command"

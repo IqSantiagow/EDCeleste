@@ -27,6 +27,7 @@ class SettingsInputWidgetIds(Enum):
     VOLUME_INPUT = "volume-input"
     STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
+    STT_INPUT_DEVICE_INPUT = "stt-input-device-input"
 
 
 SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {

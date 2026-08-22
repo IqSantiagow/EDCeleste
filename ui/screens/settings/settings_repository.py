@@ -5,6 +5,7 @@ from use_cases.settings.exceptions.settings_validation_exception import (
 )
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
+from use_cases.settings.get_stt_input_devices_use_case import GetSttInputDevicesUseCase
 from use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
@@ -22,6 +23,7 @@ class SettingsRepository:
         get_settings_use_case: GetSettingsUseCase,
         get_tts_voices_use_case: GetTTSVoicesUseCase,
         get_stt_models_use_case: GetSttModelsUseCase,
+        get_stt_input_devices_use_case: GetSttInputDevicesUseCase,
     ) -> None:
         self.settings_load_keybinds_use_case = settings_load_keybinds_use_case
         self.settings_get_keybinds_use_case = settings_get_keybinds_use_case
@@ -29,6 +31,7 @@ class SettingsRepository:
         self.get_settings_use_case = get_settings_use_case
         self.get_tts_voices_use_case = get_tts_voices_use_case
         self.get_stt_models_use_case = get_stt_models_use_case
+        self.get_stt_input_devices_use_case = get_stt_input_devices_use_case
 
     def get_keybinds(self) -> list[Keybind]:
         return self.settings_get_keybinds_use_case()
@@ -51,3 +54,6 @@ class SettingsRepository:
 
     def get_stt_models(self) -> list[str]:
         return self.get_stt_models_use_case()
+
+    def get_stt_input_devices(self) -> list[tuple[str, int]]:
+        return self.get_stt_input_devices_use_case()

@@ -29,6 +29,31 @@ class SttModel(BaseModel, validate_assignment=True):
     model: str = Field(
         description="The model to use for speech-to-text",
     )
+    input_device: int | None = Field(
+        default=None,
+        description="The sounddevice index of the audio input device (None means system default)",  # noqa: E501
+    )
+
+    @field_validator("input_device", mode="before")
+    @classmethod
+    def migrate_string_device_to_none(cls, value: object) -> int | None:
+        """
+        Older settings files stored the device as a human-readable string name.
+        We can't reliably map that back to an index (the index depends on the
+        current machine and driver state), so we drop legacy string values and
+        fall back to the system default (None).  Numeric values pass through.
+        """
+        if value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        logger.warning(
+            "input_device value %r is not an integer index; resetting to None (system default).",  # noqa: E501
+            value,
+        )
+        return None
 
 
 class TTSModel(BaseModel, validate_assignment=True):

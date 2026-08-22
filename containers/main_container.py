@@ -26,12 +26,14 @@ from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponses
 from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
+from use_cases.settings.get_stt_input_devices_use_case import GetSttInputDevicesUseCase
 from use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
 from use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
-from use_cases.dashboard.stt_transcribe_audio_use_case import SttTranscribeAudioUseCase
+from use_cases.dashboard.stt_start_recording_use_case import SttStartRecordingUseCase
+from use_cases.dashboard.stt_stop_recording_use_case import SttStopRecordingUseCase
 from use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
@@ -131,8 +133,12 @@ class Container(containers.DeclarativeContainer):
         StreamLLMStateUseCase, llm_protocol=llm_service
     )
 
-    stt_transcribe_audio_use_case = providers.Factory(
-        SttTranscribeAudioUseCase, stt_protocol=stt_service
+    stt_start_recording_use_case = providers.Factory(
+        SttStartRecordingUseCase, stt_protocol=stt_service
+    )
+
+    stt_stop_recording_use_case = providers.Factory(
+        SttStopRecordingUseCase, stt_protocol=stt_service
     )
 
     get_stt_enabled_use_case = providers.Factory(
@@ -170,6 +176,10 @@ class Container(containers.DeclarativeContainer):
         GetSttModelsUseCase, stt_protocol=stt_service
     )
 
+    get_stt_input_devices_use_case = providers.Factory(
+        GetSttInputDevicesUseCase, stt_protocol=stt_service
+    )
+
     # -----REPOSITORIES-----
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
@@ -180,7 +190,8 @@ class Container(containers.DeclarativeContainer):
         llm_send_message_usecase=llm_send_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
         stream_llm_state_usecase=stream_llm_state_use_case,
-        stt_transcribe_audio_usecase=stt_transcribe_audio_use_case,
+        stt_start_recording_usecase=stt_start_recording_use_case,
+        stt_stop_recording_usecase=stt_stop_recording_use_case,
         get_stt_enabled_usecase=get_stt_enabled_use_case,
     )
 
@@ -192,4 +203,5 @@ class Container(containers.DeclarativeContainer):
         get_settings_use_case=get_settings_use_case,
         get_tts_voices_use_case=get_tts_voices_use_case,
         get_stt_models_use_case=get_stt_models_use_case,
+        get_stt_input_devices_use_case=get_stt_input_devices_use_case,
     )
