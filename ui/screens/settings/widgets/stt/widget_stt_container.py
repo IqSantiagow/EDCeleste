@@ -25,6 +25,9 @@ from ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 class WidgetSttContainer(Vertical):
     models: reactive[list[str] | None] = reactive(None, recompose=True)
+    input_devices: reactive[list[tuple[str, int]] | None] = reactive(
+        None, recompose=True
+    )
 
     @inject
     def __init__(
@@ -41,10 +44,10 @@ class WidgetSttContainer(Vertical):
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
-        self.call_later(self.fetch_models)
+        self.call_later(self.fetch_data)
 
     def compose(self) -> ComposeResult:
-        if self.models is None:
+        if self.models is None or self.input_devices is None:
             yield LoadingIndicator(id="loading-models-indicator")
         else:
             with Vertical():
@@ -60,21 +63,43 @@ class WidgetSttContainer(Vertical):
                     value=self.stt_model.model,
                     id=SettingsInputWidgetIds.STT_MODEL_INPUT.value,
                 )
+                device_labels = [name for name, _ in self.input_devices]
+                device_values = [str(index) for _, index in self.input_devices]
+                yield WidgetLabeledSelectRow(
+                    "Input device: ",
+                    options=device_labels,
+                    values=device_values,
+                    value=str(self.stt_model.input_device)
+                    if self.stt_model.input_device is not None
+                    else "",
+                    id=SettingsInputWidgetIds.STT_INPUT_DEVICE_INPUT.value,
+                )
 
     @work
-    async def fetch_models(self) -> None:
+    async def fetch_data(self) -> None:
         try:
             self.models = self.settings_repository.get_stt_models()
         except Exception as e:
             self.log(f"Error fetching STT models: {e}")
             self.notify("Error fetching STT models. Please check your STT service.")
             self.models = [self.stt_model.model]
+        try:
+            self.input_devices = self.settings_repository.get_stt_input_devices()
+        except Exception as e:
+            self.log(f"Error fetching STT input devices: {e}")
+            self.notify(
+                "Error fetching STT input devices. Please check your audio setup."
+            )
+            self.input_devices = []
 
     def on_value_changed(self, message: ValueChanged) -> None:
         if message.sender_id == SettingsInputWidgetIds.STT_ENABLED_INPUT.value:
             self.stt_model.enabled = message.new_value
         elif message.sender_id == SettingsInputWidgetIds.STT_MODEL_INPUT.value:
             self.stt_model.model = message.new_value
+        elif message.sender_id == SettingsInputWidgetIds.STT_INPUT_DEVICE_INPUT.value:
+            raw = message.new_value
+            self.stt_model.input_device = int(raw) if raw and raw.isdigit() else None
 
         self.post_message(
             SectionSettingsChanged(

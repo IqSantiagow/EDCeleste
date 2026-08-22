@@ -43,7 +43,9 @@ class TestSttModel(unittest.TestCase):
 
         dumped = stt_model.model_dump()
 
-        self.assertEqual(dumped, {"enabled": False, "model": "tiny.en"})
+        self.assertEqual(
+            dumped, {"enabled": False, "model": "tiny.en", "input_device": None}
+        )
         self.assertEqual(SttModel.model_validate(dumped), stt_model)
 
 

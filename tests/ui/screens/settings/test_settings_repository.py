@@ -30,6 +30,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_settings_use_case=None,
         get_tts_voices_use_case=None,
         get_stt_models_use_case=None,
+        get_stt_input_devices_use_case=None,
     ):
         return SettingsRepository(
             settings_load_keybinds_use_case=load_keybinds_use_case or Mock(),
@@ -38,6 +39,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             get_settings_use_case=get_settings_use_case or Mock(),
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
             get_stt_models_use_case=get_stt_models_use_case or Mock(),
+            get_stt_input_devices_use_case=get_stt_input_devices_use_case or Mock(),
         )
 
     def test_should_delegate_get_keybinds_to_use_case(self):
