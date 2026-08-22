@@ -43,7 +43,9 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(input_stream_patcher.stop)
 
         self.mock_whisper_model = self.mock_load_model.return_value
-        self.mock_whisper_model.transcribe.return_value = {"text": "Turn on the engines"}
+        self.mock_whisper_model.transcribe.return_value = {
+            "text": "Turn on the engines"
+        }
 
         self.mock_stream = MagicMock()
         self.mock_input_stream_cls.return_value = self.mock_stream
@@ -205,7 +207,9 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.stop_recording()
         self.assertIsNotNone(self.service.whisper_model)
 
-        self.settings_handler.get_settings.return_value = _make_settings(model="base.en")
+        self.settings_handler.get_settings.return_value = _make_settings(
+            model="base.en"
+        )
         self.service.reload_service()
 
         self.assertIsNone(self.service.whisper_model)
@@ -234,7 +238,9 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.service.whisper_model, cached)
 
     def test_reload_service_does_not_load_model_eagerly(self):
-        self.settings_handler.get_settings.return_value = _make_settings(model="base.en")
+        self.settings_handler.get_settings.return_value = _make_settings(
+            model="base.en"
+        )
         self.mock_load_model.reset_mock()
 
         self.service.reload_service()
