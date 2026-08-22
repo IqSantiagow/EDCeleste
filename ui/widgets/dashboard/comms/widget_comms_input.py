@@ -1,3 +1,5 @@
+import asyncio
+
 from textual import work, log
 from textual.app import ComposeResult
 from textual.events import MouseDown, MouseEvent
@@ -106,15 +108,27 @@ class WidgetCommsInput(VerticalGroup):
     async def on_comms_stt_button_action(self, message: CommsSttButtonAction) -> None:
         if message.is_up:
             log.debug("STT button released, stopping STT capture")
-            result = self.ed_dashboard_repository.stop_recording()
-            self.stt_state = False
+            result = None
+            try:
+                result = await asyncio.to_thread(
+                    self.ed_dashboard_repository.stop_recording
+                )
+            except Exception as e:
+                log.error("STT stop_recording failed: %s", e)
+                self.notify(f"STT error: {e}", severity="error")
+            finally:
+                self.stt_state = False
             if result:
                 self.query_one("#comms-input", Input).value = result
                 await self.query_one("#comms-input", Input).action_submit()
         else:
             log.debug("STT button pressed, starting STT capture")
-            self.ed_dashboard_repository.start_recording()
-            self.stt_state = True
+            try:
+                self.ed_dashboard_repository.start_recording()
+                self.stt_state = True
+            except Exception as e:
+                log.error("STT start_recording failed: %s", e)
+                self.notify(f"STT error: {e}", severity="error")
 
     @work
     async def set_up_stream_llm_state_worker(self) -> None:
