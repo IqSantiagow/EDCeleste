@@ -13,6 +13,7 @@ if __name__ == "__main__":
     container = Container()
     container.wire(
         modules=[
+            "adapters.tools.perform_game_action",
             "ui.ui_app",
             "ui.screens.settings.widgets.tts.widget_tts_container",
             "ui.screens.settings.widgets.stt.widget_stt_container",

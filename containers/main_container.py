@@ -1,5 +1,6 @@
 from dependency_injector import containers, providers
 
+from adapters.tools.perform_game_action import PerformGameAction
 from config.config import AppConfig
 from services.event_bus import EventBus
 from services.event_reactions_service import EventReactionsService
@@ -13,17 +14,12 @@ from services.tts_service import TTSService
 from services.settings_service import SettingsService
 from ui.screens.settings.settings_repository import SettingsRepository
 from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
-from use_cases.dashboard.journal_get_healtcheck_usecase import (
-    JournalGetHealthCheckUseCase,
-)
-from use_cases.dashboard.llm_get_healthcheck_usecase import LlmGetHealthCheckUseCase
 from use_cases.dashboard.llm_send_message_use_case import LLMSendMessageUseCase
 from use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
 from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
-from use_cases.dashboard.stream_llm_state_use_case import StreamLLMStateUseCase
 from use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from use_cases.settings.get_stt_input_devices_use_case import GetSttInputDevicesUseCase
@@ -58,7 +54,7 @@ class Container(containers.DeclarativeContainer):
     llm_service = providers.Singleton(
         LLMService,
         event_bus=event_bus,
-        settings_handler=settings_service,
+        settings_service=settings_service,
     )
 
     journal_watcher_service = providers.Singleton(
@@ -85,6 +81,11 @@ class Container(containers.DeclarativeContainer):
         settings_handler=settings_service,
     )
 
+    perform_game_action = providers.Factory(
+        PerformGameAction,
+        keybind_service=keybinds_service,
+    )
+
     tts_service = providers.Singleton(
         TTSService,
         voice=settings_service.provided.get_settings.call().tts.voice,
@@ -108,14 +109,6 @@ class Container(containers.DeclarativeContainer):
         StreamDashboardStatsUseCase, game_state_reader=game_state_service
     )
 
-    journal_get_healthcheck_use_case = providers.Factory(
-        JournalGetHealthCheckUseCase, journal_watcher_reader=journal_watcher_service
-    )
-
-    llm_get_healthcheck_use_case = providers.Factory(
-        LlmGetHealthCheckUseCase, llm_protocol=llm_service
-    )
-
     stream_journal_events_use_case = providers.Factory(
         StreamJournalEventsUseCase, game_state_reader=game_state_service
     )
@@ -127,10 +120,6 @@ class Container(containers.DeclarativeContainer):
 
     stream_llm_responses_use_case = providers.Factory(
         StreamLLMResponsesUseCase, llm_protocol=llm_service
-    )
-
-    stream_llm_state_use_case = providers.Factory(
-        StreamLLMStateUseCase, llm_protocol=llm_service
     )
 
     stt_start_recording_use_case = providers.Factory(
@@ -185,11 +174,8 @@ class Container(containers.DeclarativeContainer):
         EdDashboardRepository,
         stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
         stream_journal_events_usecase=stream_journal_events_use_case,
-        journal_get_healthcheck_usecase=journal_get_healthcheck_use_case,
-        llm_get_healthcheck_usecase=llm_get_healthcheck_use_case,
         llm_send_message_usecase=llm_send_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
-        stream_llm_state_usecase=stream_llm_state_use_case,
         stt_start_recording_usecase=stt_start_recording_use_case,
         stt_stop_recording_usecase=stt_stop_recording_use_case,
         get_stt_enabled_usecase=get_stt_enabled_use_case,

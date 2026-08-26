@@ -40,9 +40,6 @@ class JournalWatcherService:
         if self._journal_watcher_task:
             self._journal_watcher_task.cancel()
 
-    def get_journal_healthcheck(self):
-        return not self.exit_signal
-
     async def __generate_journal_events(self) -> AsyncGenerator[GameEvent, None]:
         async for event in self.__fetch_raw_journal_line():
             try:
