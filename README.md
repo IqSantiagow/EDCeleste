@@ -51,16 +51,29 @@ cp .env-example .env
 - `LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
 - Optional LangSmith tracing: set `LANGSMITH__TRACING=true` and provide `LANGSMITH__API_KEY`.
 
-Copy and edit the app settings file (journal/keybinds paths, Anthropic API key, TTS voice):
+Copy and edit the app settings file (journal/keybinds paths, LLM, speech, and event reactions):
 
 ```bash
 cp config-example.yaml config.yaml
 ```
 
-- `paths.journal_path` — your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`)
-- `paths.keybindings_path` — the folder containing your `.binds` keybindings file(s)
-- `llm.api_key` — your Anthropic API key
-- `tts.voice` / `tts.volume` — text-to-speech settings
+- `paths.journal_path` — your Elite Dangerous journal directory (typically `C:\Users\<you>\Saved Games\Frontier Developments\Elite Dangerous`).
+- `paths.keybindings_path` — the folder containing your `.binds` keybindings file(s).
+- `llm.provider` — LLM backend configuration. The default is:
+
+  ```yaml
+  provider:
+    type: claude_agent_sdk
+    model: claude-haiku-4-5-20251001
+  ```
+
+  To use a compatible chat-completions endpoint instead, configure `type: chat_completions` together with `model`, `base_url`, and `bearer_token`.
+- `llm.system_prompt` — instructions given to Celeste. `llm.user_prompt` is a saved prompt reserved for future use and is not sent by the current LLM service.
+- `tts.voice` / `tts.volume` — text-to-speech voice and volume. Volume must be between `0.0` and `1.0`.
+- `stt.enabled` / `stt.model` / `stt.input_device` — speech-to-text toggle, Whisper model, and optional audio input-device index. Omit `input_device` or set it to `null` to use the system default device.
+- `event_reaction.reactions` — map of journal event names to booleans. Set an event to `true` when Celeste should react to it automatically; set it to `false` to suppress the automatic reaction. Keep the event list from `config-example.yaml`; unknown names are ignored and missing supported events default to `false`.
+
+The Claude Agent SDK uses its own Anthropic authentication setup. When using `chat_completions`, put the endpoint token in `llm.provider.bearer_token`.
 
 ## Usage
 

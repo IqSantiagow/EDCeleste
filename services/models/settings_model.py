@@ -1,11 +1,12 @@
 import logging
-from typing import Any
+from typing import Any, Union
 
 from pydantic import (
     BaseModel,
     Field,
     field_validator,
 )
+from typing import Literal
 
 from services.models.journal_event import KNOWN_EVENTS, JournalEventType
 
@@ -67,9 +68,41 @@ class TTSModel(BaseModel, validate_assignment=True):
     )
 
 
+class ChatCompletionsModel(BaseModel):
+    type: Literal["chat_completions"] = Field(
+        description="The type of LLM model",
+    )
+
+    model: str = Field(
+        description="The model to use for chat completions",
+    )
+
+    base_url: str = Field(description="The base URL for the chat completions API")
+
+    bearer_token: str = Field(
+        description="The bearer token for the chat completions API"
+    )
+
+
+class ClaudeAgentSdkModel(BaseModel):
+    type: Literal["claude_agent_sdk"] = Field(
+        description="The type of LLM model",
+    )
+    model: str = Field(
+        description="The model to use for the Claude Agent SDK",
+    )
+
+
+DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+
+
 class LLMModel(BaseModel):
-    api_key: str = Field(
-        description="The Anthropic API key for the LLM",
+    provider: Union[ChatCompletionsModel, ClaudeAgentSdkModel] = Field(
+        default_factory=lambda: ClaudeAgentSdkModel(
+            type="claude_agent_sdk", model=DEFAULT_CLAUDE_MODEL
+        ),
+        description="The LLM provider",
+        discriminator="type",
     )
 
     system_prompt: str = Field(

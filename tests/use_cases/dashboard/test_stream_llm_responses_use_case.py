@@ -1,65 +1,88 @@
-from collections.abc import AsyncGenerator
 import unittest
 
-from services.models.llm_response import LLMResponse
+from services.models.message_block import AgentText, Thinking, ToolCall, ToolResult
+from services.models.llm_status import LLMStatus
+from ui.widgets.dashboard.view_models.comms_message_view_model import (
+    CommsMessageViewModel,
+)
 from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
 
 
-async def _async_gen(items) -> AsyncGenerator:
-    for item in items:
-        yield item
-
-
 class FakeLLMProtocol:
-    def __init__(self, responses=None, error=None):
-        self._responses = responses or []
+    def __init__(self, items=None, error=None):
+        self._items = items or []
         self._error = error
 
-    async def stream_responses(self):
-        async for response in _async_gen(self._responses):
-            yield response
+    async def consume_llm_queue(self):
+        for item in self._items:
+            yield item
         if self._error is not None:
             raise self._error
 
 
-def _response(text: str) -> LLMResponse:
-    return LLMResponse(message=text)
-
-
 class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
-    async def test_should_map_llm_response_to_view_model(self):
-        llm = FakeLLMProtocol(responses=[_response("Hello pilot")])
-        use_case = StreamLLMResponsesUseCase(llm)  # type: ignore
-
-        results = [view_model async for view_model in use_case()]
-
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].content, "Hello pilot")
-        self.assertFalse(results[0].is_user_message)
-        self.assertFalse(results[0].is_action)
-
-    async def test_should_yield_multiple_responses_in_order(self):
+    async def test_should_pass_status_through_and_map_only_visible_blocks(self):
         llm = FakeLLMProtocol(
-            responses=[_response("one"), _response("two"), _response("three")]
+            items=[
+                LLMStatus.THINKING,
+                AgentText(content="Hello pilot"),
+                Thinking(content="hmm"),
+                ToolResult(content="ok", is_error=False),
+                LLMStatus.IDLE,
+            ]
         )
         use_case = StreamLLMResponsesUseCase(llm)  # type: ignore
 
-        results = [view_model async for view_model in use_case()]
+        results = [item async for item in use_case()]
 
         self.assertEqual(
-            [view_model.content for view_model in results], ["one", "two", "three"]
+            results,
+            [
+                LLMStatus.THINKING,
+                CommsMessageViewModel(content="Hello pilot", entry_type="llm-response"),
+                LLMStatus.IDLE,
+            ],
+        )
+
+    async def test_should_map_tool_call_and_failed_tool_result(self):
+        llm = FakeLLMProtocol(
+            items=[
+                ToolCall(
+                    tool_readable_name="Perform game action",
+                    tool_name="perform_game_action",
+                    param_name="action",
+                    input={"action": "Boost"},
+                ),
+                ToolResult(content="keybind missing", is_error=True),
+            ]
+        )
+        use_case = StreamLLMResponsesUseCase(llm)  # type: ignore
+
+        results = [item async for item in use_case()]
+
+        self.assertEqual(
+            results,
+            [
+                CommsMessageViewModel(
+                    content="Perform game action -> Boost",
+                    entry_type="llm-action",
+                ),
+                CommsMessageViewModel(
+                    content="keybind missing", entry_type="llm-error"
+                ),
+            ],
         )
 
     async def test_should_complete_when_stream_is_empty(self):
-        llm = FakeLLMProtocol(responses=[])
+        llm = FakeLLMProtocol(items=[])
         use_case = StreamLLMResponsesUseCase(llm)  # type: ignore
 
-        results = [view_model async for view_model in use_case()]
+        results = [item async for item in use_case()]
 
         self.assertEqual(results, [])
 
     async def test_should_propagate_exception_from_stream(self):
-        llm = FakeLLMProtocol(responses=[], error=RuntimeError("boom"))
+        llm = FakeLLMProtocol(items=[], error=RuntimeError("boom"))
         use_case = StreamLLMResponsesUseCase(llm)  # type: ignore
 
         with self.assertRaises(RuntimeError):

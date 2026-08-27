@@ -11,11 +11,11 @@ from services.models.settings_model import (
 from services.settings_service import SettingsService
 
 
-def _make_settings(api_key: str = "sk-ant-test", journal_path: str = "C:/j"):
+def _make_settings(system_prompt: str = "sp", journal_path: str = "C:/j"):
     return SettingsModel(
         paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
-        llm=LLMModel(api_key=api_key, system_prompt="sp", user_prompt="up"),
+        llm=LLMModel(system_prompt=system_prompt, user_prompt="up"),
         stt=SttModel(model="tiny.en"),
     )
 
@@ -38,7 +38,6 @@ tts:
   voice: en-GB-SoniaNeural
   volume: 1.0
 llm:
-  api_key: sk-ant-test
   system_prompt: sp
   user_prompt: up
 stt:
@@ -47,7 +46,7 @@ stt:
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             service.load_settings()
 
-        self.assertEqual(service.get_settings().llm.api_key, "sk-ant-test")
+        self.assertEqual(service.get_settings().llm.system_prompt, "sp")
 
     @patch("services.settings_service.os.path.exists", return_value=True)
     @patch("services.settings_service.shutil.copyfile")
@@ -96,15 +95,15 @@ tts:
     @patch("services.settings_service.glob", return_value=["config.yaml"])
     def test_update_settings_writes_yaml_when_one_section_changed(self, _mock_glob):
         service = SettingsService()
-        service.settings = _make_settings(api_key="old")
-        new_settings = _make_settings(api_key="new")
+        service.settings = _make_settings(system_prompt="old")
+        new_settings = _make_settings(system_prompt="new")
 
         with patch("builtins.open", mock_open()):
             with patch("services.settings_service.yaml.safe_dump") as mock_dump:
                 service.update_settings(new_settings)
 
         mock_dump.assert_called_once()
-        self.assertEqual(service.get_settings().llm.api_key, "new")
+        self.assertEqual(service.get_settings().llm.system_prompt, "new")
 
     @patch("services.settings_service.glob", side_effect=[[], ["config.yaml"]])
     @patch("services.settings_service.shutil.copyfile")
@@ -112,8 +111,8 @@ tts:
         self, mock_copy, mock_glob
     ):
         service = SettingsService()
-        service.settings = _make_settings(api_key="old")
-        new_settings = _make_settings(api_key="new")
+        service.settings = _make_settings(system_prompt="old")
+        new_settings = _make_settings(system_prompt="new")
 
         with patch("builtins.open", mock_open()):
             service.update_settings(new_settings)

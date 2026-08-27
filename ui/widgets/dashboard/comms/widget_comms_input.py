@@ -10,7 +10,7 @@ from textual.message import Message
 from textual import on
 from textual.containers import HorizontalGroup, VerticalGroup
 
-from services.models.llm_response import LLMStatus
+from services.models.llm_status import LLMStatus
 from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 
@@ -63,9 +63,6 @@ class WidgetCommsInput(VerticalGroup):
         self.ed_dashboard_repository = ed_dashboard_repository
         self._spinner_index = 0
         self._spinner_timer: Timer | None = None
-
-    def on_mount(self) -> None:
-        self.set_up_stream_llm_state_worker()
 
     def compose(self) -> ComposeResult:
         with HorizontalGroup(classes="comms-input-container"):
@@ -130,26 +127,16 @@ class WidgetCommsInput(VerticalGroup):
                 log.error("STT start_recording failed: %s", e)
                 self.notify(f"STT error: {e}", severity="error")
 
-    @work
-    async def set_up_stream_llm_state_worker(self) -> None:
-        log.debug("Starting to stream LLM state")
-        async for state in self.ed_dashboard_repository.stream_llm_state():
-            log.debug("LLM state: %s", state)
-            self.llm_state = state
-
     @on(Input.Submitted)
-    @work
-    async def handle_input_submitted(self, event: Input.Submitted) -> None:
+    def handle_input_submitted(self, event: Input.Submitted) -> None:
         if not event.value.strip():
             log.debug("Ignoring empty command submission")
             return
-        if self.llm_state == LLMStatus.IDLE:
-            log.debug("Sending message to LLM: %s", event.value)
-            self.post_message(self.UserCommandSubmitted(event.value))
-            self.query_one("#comms-input", Input).value = ""
-            await self.ed_dashboard_repository.send_message_to_llm(event.value)
-        else:
-            log.debug("LLM is busy, cannot send message: %s", event.value)
+
+        log.debug("Queueing message for LLM: %s", event.value)
+        self.post_message(self.UserCommandSubmitted(event.value))
+        self.query_one("#comms-input", Input).value = ""
+        self.ed_dashboard_repository.send_message_to_llm(event.value)
 
     def watch_stt_state(self, new_state: bool) -> None:
         if new_state:
