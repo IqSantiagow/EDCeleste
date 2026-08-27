@@ -1,14 +1,13 @@
 from dataclasses import dataclass
 from typing import Any
 
-"""
-Lets base this on the LLM response structure.
-"""
-
 
 @dataclass
 class AgentText:
-    """Represents a response from the agent. This can be partial text or a complete response."""
+    """Represents a response from the agent.
+
+    This can be partial text or a complete response.
+    """
 
     content: str
 
@@ -17,7 +16,9 @@ class AgentText:
 class ToolCall:
     """Represents a response from a tool call."""
 
+    tool_readable_name: str
     tool_name: str
+    param_name: str | None
     input: dict[str, Any]
 
 
@@ -38,7 +39,10 @@ class Thinking:
 
 @dataclass
 class AgentFullResponse:
-    """Represents a full response from the agent, including text, tool calls, and tool results."""
+    """Represents a full response from the agent.
+
+    It includes text, tool calls, and tool results.
+    """
 
     content: str
     tool_calls: list[ToolCall]

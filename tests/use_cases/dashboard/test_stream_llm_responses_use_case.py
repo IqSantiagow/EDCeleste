@@ -1,6 +1,6 @@
 import unittest
 
-from adapters.message_block import AgentText, Thinking, ToolCall, ToolResult
+from services.models.message_block import AgentText, Thinking, ToolCall, ToolResult
 from services.models.llm_status import LLMStatus
 from ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
@@ -47,7 +47,12 @@ class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
     async def test_should_map_tool_call_and_failed_tool_result(self):
         llm = FakeLLMProtocol(
             items=[
-                ToolCall(tool_name="perform_game_action", input={"action": "Boost"}),
+                ToolCall(
+                    tool_readable_name="Perform game action",
+                    tool_name="perform_game_action",
+                    param_name="action",
+                    input={"action": "Boost"},
+                ),
                 ToolResult(content="keybind missing", is_error=True),
             ]
         )
@@ -59,7 +64,7 @@ class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
             results,
             [
                 CommsMessageViewModel(
-                    content="perform_game_action {'action': 'Boost'}",
+                    content="Perform game action -> Boost",
                     entry_type="llm-action",
                 ),
                 CommsMessageViewModel(

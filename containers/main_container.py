@@ -36,9 +36,9 @@ from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 def _build_loaded_settings_service() -> SettingsService:
     # TODO: Add initial setting to further load it during the app settings screen
-    handler = SettingsService()
-    handler.load_settings()
-    return handler
+    settings_service = SettingsService()
+    settings_service.load_settings()
+    return settings_service
 
 
 class Container(containers.DeclarativeContainer):
@@ -51,21 +51,9 @@ class Container(containers.DeclarativeContainer):
 
     event_bus = providers.Singleton(EventBus)
 
-    llm_service = providers.Singleton(
-        LLMService,
-        event_bus=event_bus,
-        settings_service=settings_service,
-    )
-
     journal_watcher_service = providers.Singleton(
         JournalWatcherService,
         journal_path=settings_service.provided.get_settings.call().paths.journal_path,
-        event_bus=event_bus,
-        settings_handler=settings_service,
-    )
-
-    journal_watcher_service_stub = providers.Singleton(
-        JournalWatcherServiceStub,
         event_bus=event_bus,
         settings_handler=settings_service,
     )
@@ -84,6 +72,21 @@ class Container(containers.DeclarativeContainer):
     perform_game_action = providers.Factory(
         PerformGameAction,
         keybind_service=keybinds_service,
+    )
+
+    # ----- MCP------
+    mcps = providers.List(
+        perform_game_action,
+    )
+
+    llm_service = providers.Singleton(
+        LLMService, event_bus=event_bus, settings_service=settings_service, tools=mcps
+    )
+
+    journal_watcher_service_stub = providers.Singleton(
+        JournalWatcherServiceStub,
+        event_bus=event_bus,
+        settings_handler=settings_service,
     )
 
     tts_service = providers.Singleton(

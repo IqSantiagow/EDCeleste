@@ -1,12 +1,15 @@
-from adapters.tool_protocol import ToolProtocol
+from protocols.tool_protocol import ToolProtocol
 from adapters.tools.tool_result import TextContent, ToolResult
-from dependency_injector.wiring import Provide, inject
 from typing import Any
 from services.keybinds_service import KeybindService
 from services.models.keybinds_model import EdAction
 
 
 class PerformGameAction(ToolProtocol):
+    readable_name = "Perform Game Action"  # Its for UI display
+    # Its for UI display, Will be used to fetch a specific action from the
+    # parameters dictionary, to later display it on UI.
+    param_name = "action"
     name = "perform_game_action"
     description = "Perform a game action based on the provided type of action"
     parameters = {
@@ -20,10 +23,9 @@ class PerformGameAction(ToolProtocol):
         "required": ["action"],
     }
 
-    @inject
     def __init__(
         self,
-        keybind_service: KeybindService = Provide["keybinds_service"],
+        keybind_service: KeybindService,
     ):
         self.keybind_service = keybind_service
 

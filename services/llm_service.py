@@ -4,8 +4,8 @@ import logging
 import asyncio
 
 from adapters.claude_agent_sdk import ClaudeAgentSDK
-from adapters.llm_sdk_protocol import LLMSdkProtocol
-from adapters.message_block import (
+from protocols.llm_sdk_protocol import LLMSdkProtocol
+from services.models.message_block import (
     AgentFullResponse,
     SystemMessage,
     UserMessage,
@@ -13,8 +13,7 @@ from adapters.message_block import (
     ToolCall,
     ToolResult,
 )
-from adapters.tool_protocol import ToolProtocol
-from adapters.tools.perform_game_action import PerformGameAction
+from protocols.tool_protocol import ToolProtocol
 from services.event_bus import EventBus
 from services.models.event_reaction_event import EventReactionEvent
 from services.models.game_state_changed_event import GameStateChangedEvent
@@ -68,7 +67,12 @@ described below as JSON.
 
 
 class LLMService:
-    def __init__(self, event_bus: EventBus, settings_service: SettingsService) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        settings_service: SettingsService,
+        tools: list[ToolProtocol],
+    ) -> None:
         self.conversation: list[Union[UserMessage, AgentFullResponse]] = []
         self.game_state: str | None = None
 
@@ -76,6 +80,8 @@ class LLMService:
         self.__event_bus = event_bus
 
         self.__llm_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        self.__tools = tools
 
         self.__event_bus.subscribe(EventReactionEvent, self.process_event_reaction)
         self.__event_bus.subscribe(
@@ -105,36 +111,41 @@ class LLMService:
         logger.info("Built a conv history : %s", conv_history_with_state)
 
         full_response = AgentFullResponse(content="", tool_calls=[], tool_results=[])
+        try:
+            async for response in self.__agent.execute_query(
+                prompt=conv_history_with_state
+            ):
+                if isinstance(response, AgentText):
+                    full_response.content = full_response.content + response.content
+                if isinstance(response, ToolCall):
+                    full_response.tool_calls.append(response)
+                if isinstance(response, ToolResult):
+                    full_response.tool_results.append(response)
 
-        async for response in self.__agent.execute_query(
-            prompt=str(conv_history_with_state)
-        ):
-            if isinstance(response, AgentText):
-                full_response.content = full_response.content + response.content
-            if isinstance(response, ToolCall):
-                full_response.tool_calls.append(response)
-            if isinstance(response, ToolResult):
-                full_response.tool_results.append(response)
+                yield response
 
-            yield response
+                # Speaking blocks the turn, so the text reaches COMMS first.
+                if isinstance(response, AgentText):
+                    await self.__event_bus.publish(TTSEvent(response.content))
 
-            # Speaking blocks the turn, so the text reaches COMMS first.
-            if isinstance(response, AgentText):
-                await self.__event_bus.publish(TTSEvent(response.content))
+            self.conversation.append(full_response)
 
-        self.conversation.append(full_response)
+        except Exception as e:
+            logger.error("Error while processing LLM response: %s", e)
+            # Remove the last user message from the conversation on error
+            self.conversation.pop()
+            raise e
 
-    def __get_conv_history_with_state(self, game_state: str) -> list[UserMessage]:
+    def __get_conv_history_with_state(self, game_state: str) -> str:
         message_history_prompt = self.__merge_conversation_history()
 
-        combined = f"Current game state is: {game_state}\n{message_history_prompt}"
-
-        return [UserMessage(content=combined)]
+        return f"Current game state is: {game_state}\n{message_history_prompt}"
 
     def __merge_conversation_history(self) -> str:
         merged_history = "\n".join(
             [
-                f"{'Celeste' if isinstance(msg, AgentFullResponse) else 'Human'}: {msg.content}"
+                f"{'Celeste' if isinstance(msg, AgentFullResponse) else 'Human'}: "
+                f"{msg.content}"
                 for msg in self.conversation
             ]
         )
@@ -145,13 +156,22 @@ class LLMService:
         return message_history_prompt
 
     def register_tools(self):
-        # TODO: Need to think about how to register tools dynamically to act as extension
-        tools: list[ToolProtocol] = [PerformGameAction()]
-        self.__agent.register_tools(tools)
+        # TODO: Need to think about how to register tools dynamically
+        # to act as extension
+        self.__agent.register_tools(self.__tools)
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        if new_settings.llm.provider.type not in ["claude_agent_sdk"]:
+            return SettingsIssueModel(
+                section="llm",
+                field="llm.provider.type",
+                message=(
+                    "Unsupported LLM provider. "
+                    "Supported providers are 'claude_agent_sdk'."
+                ),
+            )
         return None
 
     def reload_service(self):
@@ -194,14 +214,13 @@ class LLMService:
         else:
             raise ValueError(
                 f"Unsupported LLM provider: {provider.type}. Supported providers "
-                "are 'chat_completions' and 'claude_agent_sdk'."
+                "are 'claude_agent_sdk'."
             )
 
     def add_llm_request_to_queue(self, message: str) -> None:
         self.__llm_queue.put_nowait(message)
 
     async def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:
-        """The queue has exactly one consumer - every item goes to a single receiver."""
         while True:
             message = await self.__llm_queue.get()
 

@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import Mock, AsyncMock, patch
 
-from adapters.message_block import (
+from services.models.message_block import (
     AgentFullResponse,
     AgentText,
     SystemMessage,
@@ -109,6 +109,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.llm_service = LLMService(
             event_bus=self.event_bus,
             settings_service=self.settings_handler,
+            tools=[],
         )
         # Game state is cached from the last GameStateChangedEvent seen on the bus
         # (see process_game_state_change). Set it directly here so the streaming

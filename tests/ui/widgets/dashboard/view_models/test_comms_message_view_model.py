@@ -1,6 +1,6 @@
 import unittest
 
-from adapters.message_block import (
+from services.models.message_block import (
     AgentText,
     SystemMessage,
     Thinking,
@@ -32,14 +32,16 @@ class TestCommsMessageViewModel(unittest.TestCase):
     def test_from_message_block_maps_tool_call_to_action_entry(self):
         view_model = CommsMessageViewModel.from_message_block(
             ToolCall(
+                tool_readable_name="Perform game action",
                 tool_name="perform_game_action",
+                param_name="action",
                 input={"action": "ToggleFlightAssist"},
             )
         )
 
         self.assertEqual(
             view_model.content,
-            "perform_game_action {'action': 'ToggleFlightAssist'}",
+            "Perform game action -> ToggleFlightAssist",
         )
         self.assertEqual(view_model.entry_type, "llm-action")
 

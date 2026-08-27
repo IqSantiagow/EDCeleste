@@ -1,4 +1,4 @@
-from adapters.message_block import (
+from services.models.message_block import (
     AgentText,
     SystemMessage,
     Thinking,

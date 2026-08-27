@@ -1,12 +1,12 @@
 from typing import AsyncGenerator, Protocol
 
-from adapters.message_block import (
+from services.models.message_block import (
     AgentText,
     Thinking,
     ToolCall,
     ToolResult,
 )
-from adapters.tool_protocol import ToolProtocol
+from protocols.tool_protocol import ToolProtocol
 
 
 class LLMSdkProtocol(Protocol):

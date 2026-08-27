@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from adapters.message_block import AgentText, SystemMessage, ToolCall, ToolResult
+from services.models.message_block import AgentText, SystemMessage, ToolCall, ToolResult
 from services.models.llm_stream_item import LLMStreamItem
 
 # Must match the keys of WidgetCommsEntry._TITLES and the classes in ui/css.tcss.
@@ -22,7 +22,6 @@ class CommsMessageViewModel:
 
     @classmethod
     def from_message_block(cls, block: LLMStreamItem) -> "CommsMessageViewModel | None":
-        """Thinking and successful ToolResult are not shown in COMMS - return None."""
         if isinstance(block, AgentText):
             return cls(content=block.content, entry_type=LLM_RESPONSE_ENTRY)
 
@@ -30,8 +29,12 @@ class CommsMessageViewModel:
             return cls(content=block.content, entry_type=SYSTEM_MESSAGE_ENTRY)
 
         if isinstance(block, ToolCall):
+            action_name = ""
+            if block.param_name:
+                action_name = " -> " + block.input.get(block.param_name, "").strip()
+
             return cls(
-                content=f"{block.tool_name} {block.input}",
+                content=f"{block.tool_readable_name}{action_name}",
                 entry_type=LLM_ACTION_ENTRY,
             )
 
