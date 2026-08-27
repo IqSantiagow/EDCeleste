@@ -1,11 +1,12 @@
 import logging
 
-from textual import on
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Grid
 from textual.widgets import Footer, Label
 
 from services.journal_watcher_service import JournalWatcherService
+from services.models.llm_status import LLMStatus
 from services.tts_service import TTSService
 from ui.screens.settings.settings_repository import SettingsRepository
 from ui.screens.settings.settings_screen import SettingsScreen
@@ -60,6 +61,17 @@ class UIApp(App):
         self.theme = "amber"
         self.journal_watcher_service.start_watcher_service()
         self.__load_keybinds()
+        self.set_up_llm_stream_worker()
+
+    @work
+    async def set_up_llm_stream_worker(self) -> None:
+        """The only consumer of the LLM queue - status to input, entries to COMMS."""
+        logger.debug("Starting to stream LLM items")
+        async for item in self.ed_dashboard_repository.stream_llm_responses():
+            if isinstance(item, LLMStatus):
+                self.query_one("#input-row", WidgetCommsInput).llm_state = item
+            else:
+                self.query_one("#comms-col", WidgetCommsCol).response_state = item
 
     def on_unmount(self) -> None:
         logger.info("UIApp unmounted. Stopping JournalWatcherService.")
@@ -74,9 +86,7 @@ class UIApp(App):
             )
             yield Label(id="comms-title", classes="header-title", content="COMMS")
             yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
-            yield WidgetCommsCol(
-                ed_dashboard_repository=self.ed_dashboard_repository, id="comms-col"
-            )
+            yield WidgetCommsCol(id="comms-col")
             yield WidgetShipLogCol(
                 ed_dashboard_repository=self.ed_dashboard_repository, id="ship-log-col"
             )

@@ -1,21 +1,28 @@
 import asyncio
-from datetime import datetime
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import datetime
+from unittest.mock import Mock, AsyncMock, patch
 
-import anthropic
-import httpx
-from langchain_core.messages import AIMessage, HumanMessage
-from pydantic import ValidationError
-
+from services.models.message_block import (
+    AgentFullResponse,
+    AgentText,
+    SystemMessage,
+    UserMessage,
+)
 from services.event_bus import EventBus
-from services.llm_service import EVENT_REACTION_PROMPT, SYSTEM_PROMPT, LLMService
+from services.llm_service import (
+    EVENT_REACTION_PROMPT,
+    SYSTEM_PROMPT,
+    VOICE_RESPONSE_RULES,
+    LLMService,
+)
 from services.models.event_reaction_event import EventReactionEvent
 from services.models.game_events import LoadedGameEvent
 from services.models.game_state_changed_event import GameStateChangedEvent
-from services.models.keybinds_model import EdAction
-from services.models.llm_response import LLMResponseSource, LLMStatus
+from services.models.llm_status import LLMStatus
 from services.models.settings_model import (
+    ChatCompletionsModel,
+    ClaudeAgentSdkModel,
     LLMModel,
     PathModel,
     SettingsModel,
@@ -25,141 +32,229 @@ from services.models.settings_model import (
 from services.settings_service import SettingsService
 
 
-def _make_settings(api_key: str) -> SettingsModel:
+def _make_settings(system_prompt: str = SYSTEM_PROMPT) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
-        llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
+        llm=LLMModel(system_prompt=system_prompt, user_prompt=""),
         stt=SttModel(model="tiny.en"),
+    )
+
+
+def _make_agent_stream_of(blocks: list):
+    """Build a fake execute_query that yields the given blocks and then finishes."""
+
+    async def execute_query(prompt: str):
+        for block in blocks:
+            yield block
+
+    return execute_query
+
+
+def _make_failing_agent_stream(error: Exception):
+    """Build a fake execute_query that blows up instead of yielding anything."""
+
+    async def execute_query(prompt: str):
+        raise error
+        yield  # pragma: no cover - only here to keep this an async generator
+
+    return execute_query
+
+
+def _make_loaded_game_event() -> LoadedGameEvent:
+    return LoadedGameEvent(
+        event="LoadGame",
+        timestamp=datetime.now(),
+        Commander="TestCommander",
+        FID="F123456",
+        Horizons=True,
+        Odyssey=False,
+        Ship="Sidewinder",
+        ShipID=1,
+        ShipIdent="TS-001",
+        ShipName="Test Ship",
+        StartLanded=False,
+        StartDead=False,
+        GameMode="Solo",
+        Group="",
+        Credits=1000000,
+        Loan=0,
+        FuelLevel=1.0,
+        FuelCapacity=4.0,
     )
 
 
 class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # LLMService builds a LangChain agent in __init__; patch the factory so
-        # no real agent (or network call) is created and we can drive `ainvoke`.
-        agent_patcher = patch("services.llm_service.create_agent")
-        self.mock_create_agent = agent_patcher.start()
+        # LLMService builds the SDK adapter in __init__; patch the class so no
+        # real agent (or network call) is created and we can drive execute_query.
+        agent_patcher = patch("services.llm_service.ClaudeAgentSDK")
+        self.mock_claude_agent_sdk = agent_patcher.start()
         self.addCleanup(agent_patcher.stop)
 
-        self.mock_agent = self.mock_create_agent.return_value
-        self.mock_agent.ainvoke = AsyncMock(
-            side_effect=[
-                {"structured_response": {"message": "Test output 1"}},
-                {"structured_response": {"message": "Test output 2"}},
-            ]
+        # Tool registration reaches for the DI container, which is not wired here.
+        register_tools_patcher = patch.object(LLMService, "register_tools")
+        self.mock_register_tools = register_tools_patcher.start()
+        self.addCleanup(register_tools_patcher.stop)
+
+        self.mock_agent = self.mock_claude_agent_sdk.return_value
+        self.mock_agent.execute_query = Mock(
+            side_effect=_make_agent_stream_of([AgentText(content="Test output 1")])
         )
 
         self.test_game_state = "Test game state"
         self.event_bus = EventBus()
         self.settings_handler = Mock(spec=SettingsService)
-        self.settings_handler.get_settings.return_value = _make_settings(
-            api_key="sk-ant-test"
-        )
+        self.settings_handler.get_settings.return_value = _make_settings()
         self.llm_service = LLMService(
             event_bus=self.event_bus,
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_handler,
+            tools=[],
         )
-        # Game state is no longer passed into send_message(); it's cached from
-        # the last GameStateChangedEvent seen on the bus (see
-        # process_game_state_change). Set it directly here so existing
-        # send_message tests keep exercising the "state known" path.
+        # Game state is cached from the last GameStateChangedEvent seen on the bus
+        # (see process_game_state_change). Set it directly here so the streaming
+        # tests exercise the "state known" path.
         self.llm_service.game_state = self.test_game_state
 
-    async def test_should_stream_the_received_message_to_subscribers(self):
-        stream = self.llm_service.stream_responses()
-        # Prime the subscriber: pulling once registers its queue before we send.
-        # A late subscriber would miss the response (pub/sub, no replay).
-        next_response = asyncio.ensure_future(stream.__anext__())
-        await asyncio.sleep(0)
+        self.llm_stream = self.llm_service.consume_llm_queue()
+        self.addAsyncCleanup(self.llm_stream.aclose)
 
-        await self.llm_service.send_message("Test message")
+    async def _collect_stream_items(self, item_count: int) -> list:
+        collected_items = []
 
-        response = await next_response
-        self.assertEqual(response.message, "Test output 1")
-        await stream.aclose()
+        for _ in range(item_count):
+            collected_items.append(await self.llm_stream.__anext__())
 
-    async def test_should_add_message_to_conv_history(self):
-        message1 = "Test message 1"
-        message2 = "Test message 2"
+        return collected_items
 
-        await self.llm_service.send_message(message1)
-        await self.llm_service.send_message(message2)
+    async def test_should_stream_thinking_then_response_then_idle(self):
+        self.llm_service.add_llm_request_to_queue("Test message")
 
-        conversation = self.llm_service.conversation
-        self.assertIn(HumanMessage(content=message1), conversation)
-        self.assertIn(HumanMessage(content=message2), conversation)
-        self.assertIn(AIMessage(content="Test output 1"), conversation)
-        self.assertIn(AIMessage(content="Test output 2"), conversation)
-
-    async def test_should_pass_system_prompt_and_game_state_to_the_agent(self):
-        await self.llm_service.send_message("Test message 1")
+        items = await self._collect_stream_items(3)
 
         self.assertEqual(
-            self.mock_create_agent.call_args.kwargs["system_prompt"], SYSTEM_PROMPT
+            items,
+            [
+                LLMStatus.THINKING,
+                AgentText(content="Test output 1"),
+                LLMStatus.IDLE,
+            ],
         )
 
+    async def test_should_add_user_message_and_agent_response_to_conversation(self):
+        self.llm_service.add_llm_request_to_queue("Test message")
+
+        await self._collect_stream_items(3)
+
+        conversation = self.llm_service.conversation
+        self.assertIn(UserMessage(content="Test message"), conversation)
+        self.assertIn(
+            AgentFullResponse(content="Test output 1", tool_calls=[], tool_results=[]),
+            conversation,
+        )
+
+    async def test_should_pass_system_prompt_to_agent_and_game_state_in_prompt(self):
+        self.llm_service.add_llm_request_to_queue("Test message")
+
+        await self._collect_stream_items(3)
+
+        self.assertEqual(
+            self.mock_claude_agent_sdk.call_args.kwargs["system_prompt"],
+            f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
+        )
         self.assertIn(
             self.test_game_state,
-            self.mock_agent.ainvoke.call_args.args[0]["messages"][0].content,
+            self.mock_agent.execute_query.call_args.kwargs["prompt"],
         )
 
-    def test_should_return_true_when_token_count_succeeds(self):
-        with patch(
-            "langchain_anthropic.ChatAnthropic.get_num_tokens_from_messages"
-        ) as mock_get_num_tokens:
-            mock_get_num_tokens.return_value = 42
-
-            result = self.llm_service.get_llm_healthcheck()
-
-            self.assertTrue(result)
-
-    def test_should_return_false_when_anthropic_api_error_is_raised(self):
-        api_error = anthropic.APIError(
-            "boom",
-            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
-            body=None,
+    async def test_should_publish_tts_event_for_every_agent_text(self):
+        self.event_bus.publish = AsyncMock()
+        self.mock_agent.execute_query = Mock(
+            side_effect=_make_agent_stream_of(
+                [AgentText(content="First"), AgentText(content="Second")]
+            )
         )
+        self.llm_service.add_llm_request_to_queue("Test message")
 
-        with patch(
-            "langchain_anthropic.ChatAnthropic.get_num_tokens_from_messages"
-        ) as mock_get_num_tokens:
-            mock_get_num_tokens.side_effect = api_error
+        await self._collect_stream_items(4)
 
-            result = self.llm_service.get_llm_healthcheck()
+        published_texts = [
+            call.args[0].text for call in self.event_bus.publish.await_args_list
+        ]
+        self.assertEqual(published_texts, ["First", "Second"])
 
-            self.assertFalse(result)
+    async def test_should_yield_agent_text_before_speaking_it(self):
+        # Speaking blocks the turn, so COMMS has to get the text first - otherwise
+        # the entry shows up only after Celeste stopped talking.
+        speech_finished = False
 
-    async def test_should_stream_thinking_then_idle_during_send_message(self):
-        status_stream = self.llm_service.stream_llm_status()
+        async def speak_slowly(event) -> None:
+            nonlocal speech_finished
+            await asyncio.sleep(0.05)
+            speech_finished = True
 
-        thinking = asyncio.ensure_future(status_stream.__anext__())
+        self.event_bus.publish = speak_slowly
+        self.llm_service.add_llm_request_to_queue("Test message")
 
-        await asyncio.sleep(0)  # Let the status stream yield IDLE.
+        items = await self._collect_stream_items(2)
 
-        await self.llm_service.send_message("Test message")
+        self.assertEqual(items[1], AgentText(content="Test output 1"))
+        self.assertFalse(speech_finished)
 
-        self.assertEqual(await thinking, LLMStatus.THINKING)
+    async def test_should_answer_with_system_message_when_game_state_not_set(self):
+        # Before any GameStateChangedEvent has arrived the agent must not be
+        # called at all - the turn short-circuits with a SystemMessage instead
+        # of building a prompt around a missing game state.
+        self.llm_service.game_state = None
+        self.llm_service.add_llm_request_to_queue("Test message")
 
-        self.assertEqual(await status_stream.__anext__(), LLMStatus.IDLE)
+        items = await self._collect_stream_items(3)
 
-        await status_stream.aclose()
+        self.assertEqual(
+            items,
+            [
+                LLMStatus.THINKING,
+                SystemMessage(
+                    content="Game state is not set. Cannot send message to LLM."
+                ),
+                LLMStatus.IDLE,
+            ],
+        )
+        self.mock_agent.execute_query.assert_not_called()
+        self.assertEqual(self.llm_service.conversation, [])
 
-    async def test_should_emit_idle_status_when_agent_invocation_fails(self):
-        # Even when the agent call blows up, the `finally` block must still emit
-        # IDLE so the UI never gets stuck showing "thinking".
-        self.mock_agent.ainvoke = AsyncMock(side_effect=RuntimeError("agent down"))
+    async def test_should_report_failed_turn_and_keep_serving_next_message(self):
+        # A single broken turn cannot kill the stream - it is the only source of
+        # data for COMMS.
+        self.mock_agent.execute_query = Mock(
+            side_effect=_make_failing_agent_stream(RuntimeError("agent down"))
+        )
+        self.llm_service.add_llm_request_to_queue("Failing message")
 
-        status_stream = self.llm_service.stream_llm_status()
-        thinking = asyncio.ensure_future(status_stream.__anext__())
-        await asyncio.sleep(0)
+        failed_turn_items = await self._collect_stream_items(3)
 
-        with self.assertRaises(RuntimeError):
-            await self.llm_service.send_message("Test message")
+        self.assertEqual(failed_turn_items[0], LLMStatus.THINKING)
+        self.assertEqual(
+            failed_turn_items[1],
+            SystemMessage(content="LLM turn failed: agent down"),
+        )
+        self.assertEqual(failed_turn_items[2], LLMStatus.IDLE)
 
-        self.assertEqual(await thinking, LLMStatus.THINKING)
-        self.assertEqual(await status_stream.__anext__(), LLMStatus.IDLE)
-        await status_stream.aclose()
+        self.mock_agent.execute_query = Mock(
+            side_effect=_make_agent_stream_of([AgentText(content="Test output 2")])
+        )
+        self.llm_service.add_llm_request_to_queue("Next message")
+
+        next_turn_items = await self._collect_stream_items(3)
+
+        self.assertEqual(
+            next_turn_items,
+            [
+                LLMStatus.THINKING,
+                AgentText(content="Test output 2"),
+                LLMStatus.IDLE,
+            ],
+        )
 
     async def test_process_game_state_change_updates_cached_game_state(self):
         await self.llm_service.process_game_state_change(
@@ -178,136 +273,72 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.llm_service.game_state, "In supercruise")
 
-    async def test_send_message_responds_with_system_message_when_game_state_not_set(
-        self,
-    ):
-        # Before any GameStateChangedEvent has arrived, send_message must not
-        # call the agent at all - it should short-circuit with an LLMResponse
-        # sourced as SYSTEM instead of building a prompt around a missing game
-        # state.
-        self.llm_service.game_state = None
-        stream = self.llm_service.stream_responses()
-        next_response = asyncio.ensure_future(stream.__anext__())
-        await asyncio.sleep(0)
+    async def test_process_event_reaction_queues_event_description_prompt(self):
+        loaded_game_event = _make_loaded_game_event()
 
-        await self.llm_service.send_message("Test message")
+        await self.llm_service.process_event_reaction(
+            EventReactionEvent(event=loaded_game_event)
+        )
+        await self._collect_stream_items(3)
 
-        response = await next_response
-        self.assertEqual(response.source, LLMResponseSource.SYSTEM)
+        self.assertIn(
+            UserMessage(
+                content=EVENT_REACTION_PROMPT.format(
+                    event_description=loaded_game_event.model_dump_json()
+                )
+            ),
+            self.llm_service.conversation,
+        )
+
+    def test_determine_provider_builds_claude_agent_sdk_from_settings(self):
+        settings = _make_settings()
+        settings.llm.provider = ClaudeAgentSdkModel(
+            type="claude_agent_sdk", model="claude-haiku-4-5-20251001"
+        )
+
+        provider = self.llm_service.determine_provider(settings)
+
+        self.assertIs(provider, self.mock_claude_agent_sdk.return_value)
         self.assertEqual(
-            response.message,
-            "Game state is not set. Cannot send message to LLM.",
-        )
-        self.mock_agent.ainvoke.assert_not_called()
-        # send_message returns before appending anything when game_state is
-        # None, so the message never reaches conversation history - only a
-        # real (agent-processed) turn does.
-        self.assertNotIn(
-            HumanMessage(content="Test message"), self.llm_service.conversation
-        )
-        self.assertNotIn(
-            AIMessage(content="Test output 1"), self.llm_service.conversation
-        )
-        await stream.aclose()
-
-    async def test_respond_with_system_message_pushes_to_all_subscribers(self):
-        stream1 = self.llm_service.stream_responses()
-        stream2 = self.llm_service.stream_responses()
-        next1 = asyncio.ensure_future(stream1.__anext__())
-        next2 = asyncio.ensure_future(stream2.__anext__())
-        await asyncio.sleep(0)
-
-        await self.llm_service.respond_with_system_message("custom system message")
-
-        for pending in (next1, next2):
-            response = await pending
-            self.assertEqual(response.source, LLMResponseSource.SYSTEM)
-            self.assertEqual(response.message, "custom system message")
-        await stream1.aclose()
-        await stream2.aclose()
-
-    async def test_process_event_reaction_sends_event_description_to_llm(self):
-        # Target behavior for the event-reactions feature: LLMService should
-        # react to an EventReactionEvent by asking the agent to comment on it,
-        # reusing the already-cached game state (send_message no longer takes
-        # a game_state argument).
-        loaded_game_event = LoadedGameEvent(
-            event="LoadGame",
-            timestamp=datetime.now(),
-            Commander="TestCommander",
-            FID="F123456",
-            Horizons=True,
-            Odyssey=False,
-            Ship="Sidewinder",
-            ShipID=1,
-            ShipIdent="TS-001",
-            ShipName="Test Ship",
-            StartLanded=False,
-            StartDead=False,
-            GameMode="Solo",
-            Group="",
-            Credits=1000000,
-            Loan=0,
-            FuelLevel=1.0,
-            FuelCapacity=4.0,
-        )
-        reaction_event = EventReactionEvent(event=loaded_game_event)
-        self.llm_service.send_message = AsyncMock()
-
-        await self.llm_service.process_event_reaction(reaction_event)
-
-        self.llm_service.send_message.assert_called_once_with(
-            message=EVENT_REACTION_PROMPT.format(
-                event_description=loaded_game_event.model_dump_json()
-            )
+            self.mock_claude_agent_sdk.call_args.kwargs,
+            {
+                "model": "claude-haiku-4-5-20251001",
+                "system_prompt": f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
+            },
         )
 
-    def test_get_tools_returns_perform_game_action_tool(self):
-        tools = self.llm_service.get_tools()
+    def test_determine_provider_rejects_chat_completions_provider(self):
+        settings = _make_settings()
+        settings.llm.provider = ChatCompletionsModel(
+            type="chat_completions",
+            model="gpt-4",
+            base_url="https://example.com",
+            bearer_token="token",
+        )
 
-        self.assertEqual(len(tools), 1)
-        self.assertEqual(tools[0].name, "perform_game_action")
+        with self.assertRaises(ValueError):
+            self.llm_service.determine_provider(settings)
 
-    async def test_perform_game_action_tool_publishes_resolved_action_to_event_bus(
-        self,
-    ):
-        self.event_bus.publish = AsyncMock()
-        tool = self.llm_service.get_tools()[0]
-
-        result = await tool.ainvoke({"action": "ToggleFlightAssist"})
-
-        self.event_bus.publish.assert_called_once_with(EdAction.TOGGLE_FLIGHT_ASSIST)
-        self.assertEqual(result, "Action performed: ToggleFlightAssist")
-
-    def test_perform_game_action_tool_rejects_unknown_action_value(self):
-        tool = self.llm_service.get_tools()[0]
-
-        with self.assertRaises(ValidationError):
-            tool.invoke({"action": "NotARealAction"})
-
-    def test_validate_settings_reports_issue_when_api_key_missing(self):
-        settings = _make_settings(api_key="")
-
-        issue = self.llm_service.validate_settings(settings)
-
-        self.assertIsNotNone(issue)
-        self.assertEqual(issue.field, "api_key")
-
-    def test_validate_settings_returns_no_issues_when_api_key_present(self):
-        settings = _make_settings(api_key="sk-ant-test")
+    def test_validate_settings_reports_no_issues(self):
+        # The CLI authenticates on its own, so the api key is no longer required.
+        settings = _make_settings()
 
         issue = self.llm_service.validate_settings(settings)
 
         self.assertIsNone(issue)
 
-    def test_reload_service_rebuilds_agent_using_updated_system_prompt(self):
-        new_settings = _make_settings(api_key="sk-ant-new")
-        new_settings.llm.system_prompt = "New system prompt"
+    def test_reload_service_rebuilds_agent_with_updated_system_prompt_and_tools(self):
+        new_settings = _make_settings(system_prompt="New system prompt")
         self.settings_handler.get_settings.return_value = new_settings
 
         self.llm_service.reload_service()
 
         self.assertEqual(
-            self.mock_create_agent.call_args.kwargs["system_prompt"],
-            "New system prompt",
+            self.mock_claude_agent_sdk.call_args.kwargs["system_prompt"],
+            f"{VOICE_RESPONSE_RULES}\nNew system prompt",
         )
+        self.assertEqual(self.mock_register_tools.call_count, 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

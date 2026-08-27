@@ -125,13 +125,7 @@ WidgetSettingsHeaderContent {
    (DashboardStatsContent, WidgetCommonStatLabel)
    ============================================================ */
 #dashboard-stats-content {
-    width: 0.8fr;
-}
-
-#dashboard-jrnl-llm-status {
-    height: auto;
-    align: right middle;
-    width: 0.2fr;
+    width: 1fr;
 }
 
 WidgetCommonStatLabel {
@@ -161,6 +155,10 @@ WidgetCommsEntry {
     padding: 0 0 1 0;
 }
 
+.comms-input-container {
+    height: 3;
+}
+
 #comms-thinking-indicator {
     height: 1;
     padding: 0 1;
@@ -185,6 +183,16 @@ WidgetCommsEntry.llm-response .comms-entry-content {
 WidgetCommsEntry.system-message .comms-entry-title,
 WidgetCommsEntry.system-message .comms-entry-content {
     color: $font-muted-color;
+}
+
+WidgetCommsEntry.llm-action .comms-entry-title,
+WidgetCommsEntry.llm-action .comms-entry-content {
+    color: $accent;
+}
+
+WidgetCommsEntry.llm-error .comms-entry-title,
+WidgetCommsEntry.llm-error .comms-entry-content {
+    color: $error;
 }
 
 /* ============================================================

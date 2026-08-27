@@ -34,6 +34,8 @@ tts:
   volume: 1.0
 
 llm:
-  api_key: "sk-ant-..."
+  provider:
+    type: "claude_agent_sdk"
+    model: "claude-haiku-4-5-20251001"
   system_prompt: "You are a helpful assistant for Elite Dangerous."
   user_prompt: "Summarize the current game state."

@@ -114,18 +114,6 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(StopAsyncIteration):
                 await gen.__anext__()
 
-    def test_should_return_true_when_watcher_is_running(self):
-        watcher = self._make_watcher()
-
-        self.assertTrue(watcher.get_journal_healthcheck())
-
-    def test_should_return_false_when_watcher_is_stopped(self):
-        watcher = self._make_watcher()
-
-        watcher.stop_watcher_service()
-
-        self.assertFalse(watcher.get_journal_healthcheck())
-
     async def test_should_start_emitting_events(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")

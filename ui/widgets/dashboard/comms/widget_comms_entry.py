@@ -6,6 +6,8 @@ _TITLES = {
     "user-command": "YOU: ",
     "llm-response": "CELESTE: ",
     "system-message": "SYSTEM: ",
+    "llm-action": "ACTION: ",
+    "llm-error": "ERROR: ",
 }
 
 

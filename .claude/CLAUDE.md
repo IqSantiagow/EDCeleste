@@ -69,3 +69,51 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
 - LLM model: `claude-haiku-4-5-20251001` via LangChain Anthropic; configured in `services/llm_service.py`
+
+## Ape style code
+- Write a code so understandable that even an ape can understand it. Use simple names and exhausting function and variable names
+
+<reasoning_example>
+> User ordered to add a new feature to the LLMService that allows it to register tools dynamically. 
+Hmm... Lets write this in that way
+ ```python                                                                                                                                                                                                                                                                                                                                 
+import importlib
+import pkgutil
+from typing import Callable
+
+_TOOL_REGISTRY: dict[str, Callable] = {}
+
+def register(name: str | None = None):
+    def decorator(fn: Callable) -> Callable:
+        _TOOL_REGISTRY[name or fn.__name__] = fn
+        return fn
+    return decorator
+
+def load_all_tools(package: str) -> None:
+    pkg = importlib.import_module(package)
+    for _, mod_name, _ in pkgutil.walk_packages(pkg.__path__, prefix=f"{package}."):
+        importlib.import_module(mod_name)
+
+def get_tool(name: str) -> Callable:
+    if name not in _TOOL_REGISTRY:
+        raise KeyError(f"Tool '{name}' not registered")
+    return _TOOL_REGISTRY[name]
+ ```    
+
+ > But wait, i am an superior AI and i can understand that, but ape wont. I need more concise and simple code without clutter.
+```python
+def register_tool(name: str, func: Callable) -> None:
+    self.tools = [PerformGameAction()]
+    self.__agent.register_tools(self.tools)
+
+def get_tool(name: str) -> Callable:
+    return self.tools[name]
+```
+
+> Now its simple, maybe its not too much but ape can understand it. Good ape.
+
+
+## Code review
+Look for overengineering, overcomplication, and unnecessary abstractions. Keep it simple and direct. Avoid unnecessary classes or methods that don't add value. Use clear and descriptive names for functions and variables.
+
+Ape style coding is there? Good. Good Ape.
