@@ -1,8 +1,8 @@
 from datetime import datetime
 import unittest
 
-from projection.event_projections.fuel_projection import FuelProjection
-from services.models.game_events import (
+from edceleste.projection.event_projections.fuel_projection import FuelProjection
+from edceleste.services.models.game_events import (
     FuelScoopEvent,
     LoadedGameEvent,
     FSDJumpEvent,

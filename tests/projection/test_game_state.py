@@ -2,9 +2,9 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
-from services.event_bus import EventBus
-from services.game_state_service import GameStateService
-from services.models.game_events import LoadedGameEvent, FuelScoopEvent
+from edceleste.services.event_bus import EventBus
+from edceleste.services.game_state_service import GameStateService
+from edceleste.services.models.game_events import LoadedGameEvent, FuelScoopEvent
 
 
 class TestGameState(unittest.IsolatedAsyncioTestCase):

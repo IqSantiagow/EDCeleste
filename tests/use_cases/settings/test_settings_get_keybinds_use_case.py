@@ -1,8 +1,10 @@
 import unittest
 from unittest.mock import Mock
 
-from services.models.keybinds_model import Keybind
-from use_cases.settings.settings_get_keybinds_use_case import SettingsGetKeybindsUseCase
+from edceleste.services.models.keybinds_model import Keybind
+from edceleste.use_cases.settings.settings_get_keybinds_use_case import (
+    SettingsGetKeybindsUseCase,
+)
 
 
 class TestSettingsGetKeybindsUseCase(unittest.TestCase):

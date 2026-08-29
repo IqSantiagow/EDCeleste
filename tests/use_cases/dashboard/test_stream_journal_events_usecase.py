@@ -2,14 +2,16 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 import unittest
 
-from services.models.game_events import (
+from edceleste.services.models.game_events import (
     DockedEvent,
     FuelScoopEvent,
     LoadedGameEvent,
     StartJumpEvent,
 )
-from services.models.game_models import BaseFactionModel
-from use_cases.dashboard.stream_journal_events_usecase import StreamJournalEventsUseCase
+from edceleste.services.models.game_models import BaseFactionModel
+from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
+    StreamJournalEventsUseCase,
+)
 
 
 async def _async_gen(items) -> AsyncGenerator:

@@ -2,11 +2,11 @@ from datetime import datetime
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from services.event_bus import EventBus
-from services.event_reactions_service import EventReactionsService
-from services.models.event_reaction_event import EventReactionEvent
-from services.models.game_events import LoadedGameEvent
-from services.models.settings_model import (
+from edceleste.services.event_bus import EventBus
+from edceleste.services.event_reactions_service import EventReactionsService
+from edceleste.services.models.event_reaction_event import EventReactionEvent
+from edceleste.services.models.game_events import LoadedGameEvent
+from edceleste.services.models.settings_model import (
     EventReactionModel,
     LLMModel,
     PathModel,
@@ -14,7 +14,7 @@ from services.models.settings_model import (
     SttModel,
     TTSModel,
 )
-from services.settings_service import SettingsService
+from edceleste.services.settings_service import SettingsService
 
 
 def _make_settings(event_reaction: dict[str, bool] | None = None) -> SettingsModel:

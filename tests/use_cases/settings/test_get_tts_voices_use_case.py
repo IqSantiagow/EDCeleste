@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
+from edceleste.use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 
 
 class TestGetTTSVoicesUseCase(unittest.IsolatedAsyncioTestCase):

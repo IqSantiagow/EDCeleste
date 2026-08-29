@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from adapters.tools.perform_game_action import PerformGameAction
-from services.keybinds_service import KeybindService
-from services.models.keybinds_model import EdAction
+from edceleste.adapters.tools.perform_game_action import PerformGameAction
+from edceleste.services.keybinds_service import KeybindService
+from edceleste.services.models.keybinds_model import EdAction
 
 
 class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):

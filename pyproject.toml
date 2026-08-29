@@ -101,8 +101,14 @@ dev = [
     "textual-serve==1.1.3",
 ]
 
-[tool.setuptools]
-packages = []
+[project.scripts]
+edceleste = "edceleste.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+edceleste = ["ui/*.tcss"]
 
 [tool.ruff.lint]
 select = ["E", "F", "TID"]
@@ -112,8 +118,14 @@ select = ["E", "F", "TID"]
 "rich".msg = "Nie importuj rich bezpośrednio; używaj Textual/CSS."
 
 [tool.coverage.run]
-source = ["."]
+source = ["src"]
 
 [tool.coverage.report]
-omit = ["*/tests/*", "test_*", "/app.py", "*/projection/exceptions/*", "*/ui/*"]
+omit = [
+    "*/tests/*",
+    "test_*",
+    "*/edceleste/__main__.py",
+    "*/projection/exceptions/*",
+    "*/ui/*",
+]
 skip_empty = true

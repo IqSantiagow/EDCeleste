@@ -1,8 +1,8 @@
 from collections.abc import AsyncGenerator
 import unittest
 
-from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
-from use_cases.dashboard.stream_dashboard_stats_usecase import (
+from edceleste.services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
+from edceleste.use_cases.dashboard.stream_dashboard_stats_usecase import (
     StreamDashboardStatsUseCase,
 )
 

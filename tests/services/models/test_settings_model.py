@@ -2,8 +2,8 @@ import unittest
 
 from pydantic import ValidationError
 
-from services.models.journal_event import KNOWN_EVENTS
-from services.models.settings_model import (
+from edceleste.services.models.journal_event import KNOWN_EVENTS
+from edceleste.services.models.settings_model import (
     EventReactionModel,
     LLMModel,
     PathModel,

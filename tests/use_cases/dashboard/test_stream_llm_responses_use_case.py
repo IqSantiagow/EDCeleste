@@ -1,11 +1,18 @@
 import unittest
 
-from services.models.message_block import AgentText, Thinking, ToolCall, ToolResult
-from services.models.llm_status import LLMStatus
-from ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.services.models.message_block import (
+    AgentText,
+    Thinking,
+    ToolCall,
+    ToolResult,
+)
+from edceleste.services.models.llm_status import LLMStatus
+from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
-from use_cases.dashboard.stream_llm_responses_use_case import StreamLLMResponsesUseCase
+from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
+    StreamLLMResponsesUseCase,
+)
 
 
 class FakeLLMProtocol:

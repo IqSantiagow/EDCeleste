@@ -1,7 +1,7 @@
 import unittest
 
-from services.models.settings_model import SettingsIssueModel
-from use_cases.settings.exceptions.settings_validation_exception import (
+from edceleste.services.models.settings_model import SettingsIssueModel
+from edceleste.use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
 )
 

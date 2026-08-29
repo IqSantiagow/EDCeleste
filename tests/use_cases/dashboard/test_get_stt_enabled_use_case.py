@@ -1,6 +1,6 @@
 import unittest
 
-from use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
+from edceleste.use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 
 
 class FakeSttProtocol:

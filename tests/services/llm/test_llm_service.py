@@ -3,24 +3,24 @@ import unittest
 from datetime import datetime
 from unittest.mock import Mock, AsyncMock, patch
 
-from services.models.message_block import (
+from edceleste.services.models.message_block import (
     AgentFullResponse,
     AgentText,
     SystemMessage,
     UserMessage,
 )
-from services.event_bus import EventBus
-from services.llm_service import (
+from edceleste.services.event_bus import EventBus
+from edceleste.services.llm_service import (
     EVENT_REACTION_PROMPT,
     SYSTEM_PROMPT,
     VOICE_RESPONSE_RULES,
     LLMService,
 )
-from services.models.event_reaction_event import EventReactionEvent
-from services.models.game_events import LoadedGameEvent
-from services.models.game_state_changed_event import GameStateChangedEvent
-from services.models.llm_status import LLMStatus
-from services.models.settings_model import (
+from edceleste.services.models.event_reaction_event import EventReactionEvent
+from edceleste.services.models.game_events import LoadedGameEvent
+from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.llm_status import LLMStatus
+from edceleste.services.models.settings_model import (
     ChatCompletionsModel,
     ClaudeAgentSdkModel,
     LLMModel,
@@ -29,7 +29,7 @@ from services.models.settings_model import (
     SttModel,
     TTSModel,
 )
-from services.settings_service import SettingsService
+from edceleste.services.settings_service import SettingsService
 
 
 def _make_settings(system_prompt: str = SYSTEM_PROMPT) -> SettingsModel:
@@ -88,7 +88,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # LLMService builds the SDK adapter in __init__; patch the class so no
         # real agent (or network call) is created and we can drive execute_query.
-        agent_patcher = patch("services.llm_service.ClaudeAgentSDK")
+        agent_patcher = patch("edceleste.services.llm_service.ClaudeAgentSDK")
         self.mock_claude_agent_sdk = agent_patcher.start()
         self.addCleanup(agent_patcher.stop)
 

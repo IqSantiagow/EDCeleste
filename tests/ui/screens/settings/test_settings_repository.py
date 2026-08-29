@@ -1,15 +1,15 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from services.models.keybinds_model import Keybind
-from services.models.settings_model import (
+from edceleste.services.models.keybinds_model import Keybind
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
     SttModel,
     TTSModel,
 )
-from ui.screens.settings.settings_repository import SettingsRepository
+from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 
 
 def _make_settings() -> SettingsModel:

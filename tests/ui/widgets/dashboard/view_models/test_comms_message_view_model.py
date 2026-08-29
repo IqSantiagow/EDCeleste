@@ -1,13 +1,13 @@
 import unittest
 
-from services.models.message_block import (
+from edceleste.services.models.message_block import (
     AgentText,
     SystemMessage,
     Thinking,
     ToolCall,
     ToolResult,
 )
-from ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
 

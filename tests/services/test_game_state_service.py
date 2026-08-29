@@ -3,10 +3,10 @@ from datetime import datetime
 import unittest
 from unittest.mock import Mock
 
-from services.event_bus import EventBus
-from services.game_state_service import GameStateService
-from services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
-from services.models.game_events import LoadedGameEvent
+from edceleste.services.event_bus import EventBus
+from edceleste.services.game_state_service import GameStateService
+from edceleste.services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
+from edceleste.services.models.game_events import LoadedGameEvent
 
 
 def _loaded_game_event(**overrides) -> LoadedGameEvent:

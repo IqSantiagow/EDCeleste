@@ -1,8 +1,10 @@
 import unittest
 from datetime import datetime
 
-from projection.event_projections.location_projection import LocationProjection
-from services.models.game_events import (
+from edceleste.projection.event_projections.location_projection import (
+    LocationProjection,
+)
+from edceleste.services.models.game_events import (
     DockedEvent,
     UndockedEvent,
     LocationEvent,
@@ -13,7 +15,7 @@ from services.models.game_events import (
     LeaveBodyEvent,
     ApproachSettlementEvent,
 )
-from services.models.game_models import BaseFactionModel, StationEconomyModel
+from edceleste.services.models.game_models import BaseFactionModel, StationEconomyModel
 
 
 class TestLocationProjection(unittest.TestCase):

@@ -1,6 +1,6 @@
 import unittest
 
-from use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
+from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 
 
 class FakeSttProtocol:

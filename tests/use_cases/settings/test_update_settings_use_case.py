@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from services.models.settings_model import (
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsIssueModel,
@@ -9,10 +9,10 @@ from services.models.settings_model import (
     SttModel,
     TTSModel,
 )
-from use_cases.settings.exceptions.settings_validation_exception import (
+from edceleste.use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
 )
-from use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
+from edceleste.use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
 def _make_settings() -> SettingsModel:
