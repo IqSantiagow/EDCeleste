@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from edceleste.projection.event_projections.projection import Projection
 from edceleste.services.models.game_events import (
     FSDJumpEvent,
+    StartJumpEvent,
     DockedEvent,
     UndockedEvent,
     LocationEvent,
@@ -47,8 +48,10 @@ class LocationProjection(Projection):
         self.nearest_settlement = None
 
     def process_event(self, event: BaseModel) -> None:
-        if isinstance(event, FSDJumpEvent):
+        if isinstance(event, StartJumpEvent):
             logger.debug("Received location event: %s", event)
+            if event.JumpType != "Hyperspace":
+                return
             self.target_star_system = event.StarSystem
             self.current_station = None
             self.current_star_system = None
@@ -57,6 +60,13 @@ class LocationProjection(Projection):
             self.is_in_supercruise = False
             self.current_body = None
             self.nearest_settlement = None
+            return
+
+        if isinstance(event, FSDJumpEvent):
+            logger.debug("Received location event: %s", event)
+            self.current_star_system = event.StarSystem
+            self.target_star_system = None
+            self.is_in_fsd_jump = False
             return
 
         if isinstance(event, DockedEvent):
