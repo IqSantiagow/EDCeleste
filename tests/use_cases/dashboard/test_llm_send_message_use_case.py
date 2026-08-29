@@ -1,6 +1,8 @@
 import unittest
 
-from use_cases.dashboard.llm_send_message_use_case import LLMSendMessageUseCase
+from edceleste.use_cases.dashboard.llm_send_message_use_case import (
+    LLMSendMessageUseCase,
+)
 
 
 class FakeLLMProtocol:

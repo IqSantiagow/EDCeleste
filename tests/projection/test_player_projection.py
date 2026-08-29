@@ -1,8 +1,8 @@
 from datetime import datetime
 import unittest
 
-from projection.event_projections.player_projection import PlayerProjection
-from services.models.game_events import (
+from edceleste.projection.event_projections.player_projection import PlayerProjection
+from edceleste.services.models.game_events import (
     LoadedGameEvent,
     CommanderEvent,
     RankEvent,

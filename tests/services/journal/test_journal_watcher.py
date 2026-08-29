@@ -2,9 +2,9 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, Mock
 
-from services.journal_watcher_service import JournalWatcherService
-from services.models.game_events import UnknownCheckedEvent
-from services.models.settings_model import (
+from edceleste.services.journal_watcher_service import JournalWatcherService
+from edceleste.services.models.game_events import UnknownCheckedEvent
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
@@ -26,9 +26,13 @@ def _make_settings(journal_path: str) -> SettingsModel:
 
 class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        glob_patcher = patch("services.journal_watcher_service.glob.glob")
-        getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
-        isdir_patcher = patch("services.journal_watcher_service.os.path.isdir")
+        glob_patcher = patch("edceleste.services.journal_watcher_service.glob.glob")
+        getmtime_patcher = patch(
+            "edceleste.services.journal_watcher_service.os.path.getmtime"
+        )
+        isdir_patcher = patch(
+            "edceleste.services.journal_watcher_service.os.path.isdir"
+        )
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()

@@ -1,6 +1,6 @@
 import unittest
 
-from ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
+from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 
 class FakeGetSttEnabledUseCase:

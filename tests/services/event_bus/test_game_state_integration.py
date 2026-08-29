@@ -2,10 +2,10 @@ from datetime import datetime
 import unittest
 from unittest.mock import AsyncMock
 
-from services.game_state_service import GameStateService
-from services.event_bus import EventBus
-from services.models.game_events import LoadedGameEvent
-from services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.game_state_service import GameStateService
+from edceleste.services.event_bus import EventBus
+from edceleste.services.models.game_events import LoadedGameEvent
+from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 
 
 class GameStateIntegration(unittest.IsolatedAsyncioTestCase):

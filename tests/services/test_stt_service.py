@@ -3,17 +3,17 @@ from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 
-from services.exceptions.stt_exception import SttException
-from services.llm_service import SYSTEM_PROMPT
-from services.models.settings_model import (
+from edceleste.services.exceptions.stt_exception import SttException
+from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
     SttModel,
     TTSModel,
 )
-from services.settings_service import SettingsService
-from services.stt_service import SttService
+from edceleste.services.settings_service import SettingsService
+from edceleste.services.stt_service import SttService
 
 MODEL = "tiny.en"
 
@@ -33,8 +33,8 @@ def _make_settings(
 
 class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        load_model_patcher = patch("services.stt_service.whisper.load_model")
-        input_stream_patcher = patch("services.stt_service.sd.InputStream")
+        load_model_patcher = patch("edceleste.services.stt_service.whisper.load_model")
+        input_stream_patcher = patch("edceleste.services.stt_service.sd.InputStream")
 
         self.mock_load_model = load_model_patcher.start()
         self.mock_input_stream_cls = input_stream_patcher.start()
@@ -270,7 +270,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_get_stt_models_returns_available_whisper_models(self):
         with patch(
-            "services.stt_service.whisper.available_models",
+            "edceleste.services.stt_service.whisper.available_models",
             return_value=["tiny.en", "base.en"],
         ):
             result = self.service.get_stt_models()

@@ -1,6 +1,8 @@
 import unittest
 
-from use_cases.dashboard.stt_start_recording_use_case import SttStartRecordingUseCase
+from edceleste.use_cases.dashboard.stt_start_recording_use_case import (
+    SttStartRecordingUseCase,
+)
 
 
 class FakeSttProtocol:

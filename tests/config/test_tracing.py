@@ -2,8 +2,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from config.config import LangSmithConfig
-from config.tracing import configure_langsmith
+from edceleste.config.config import LangSmithConfig
+from edceleste.config.tracing import configure_langsmith
 
 
 class TestConfigureLangsmith(unittest.TestCase):

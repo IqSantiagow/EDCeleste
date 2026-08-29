@@ -1,18 +1,18 @@
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from services.llm_service import SYSTEM_PROMPT
-from services.models.settings_model import (
+from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.settings_model import (
     PathModel,
     SettingsModel,
     SttModel,
     TTSModel,
     LLMModel,
 )
-from services.settings_service import SettingsService
+from edceleste.services.settings_service import SettingsService
 
-from services.event_bus import EventBus
-from services.tts_service import TTSEvent, TTSService
+from edceleste.services.event_bus import EventBus
+from edceleste.services.tts_service import TTSEvent, TTSService
 
 VOICE = "en-US-AriaNeural"
 
@@ -28,10 +28,12 @@ def _make_settings(api_key: str) -> SettingsModel:
 
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        communicate_patcher = patch("services.tts_service.edge_tts.Communicate")
-        sf_read_patcher = patch("services.tts_service.sf.read")
-        sd_play_patcher = patch("services.tts_service.sd.play")
-        os_remove_patcher = patch("services.tts_service.os.remove")
+        communicate_patcher = patch(
+            "edceleste.services.tts_service.edge_tts.Communicate"
+        )
+        sf_read_patcher = patch("edceleste.services.tts_service.sf.read")
+        sd_play_patcher = patch("edceleste.services.tts_service.sd.play")
+        os_remove_patcher = patch("edceleste.services.tts_service.os.remove")
 
         self.mock_communicate_cls = communicate_patcher.start()
         self.mock_sf_read = sf_read_patcher.start()
@@ -137,7 +139,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             {"ShortName": "en-GB-SoniaNeural", "Locale": "en-GB"},
         ]
         with patch(
-            "services.tts_service.edge_tts.list_voices",
+            "edceleste.services.tts_service.edge_tts.list_voices",
             new=AsyncMock(return_value=available_voices),
         ):
             result = await self.service.get_tts_voices()
@@ -146,7 +148,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_tts_voices_returns_empty_list_when_no_voices_available(self):
         with patch(
-            "services.tts_service.edge_tts.list_voices",
+            "edceleste.services.tts_service.edge_tts.list_voices",
             new=AsyncMock(return_value=[]),
         ):
             result = await self.service.get_tts_voices()
@@ -157,7 +159,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         with patch(
-            "services.tts_service.edge_tts.list_voices",
+            "edceleste.services.tts_service.edge_tts.list_voices",
             new=AsyncMock(side_effect=RuntimeError("network down")),
         ):
             with self.assertRaises(RuntimeError):

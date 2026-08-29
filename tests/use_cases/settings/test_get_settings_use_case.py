@@ -1,14 +1,14 @@
 import unittest
 from unittest.mock import Mock
 
-from services.models.settings_model import (
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
     SttModel,
     TTSModel,
 )
-from use_cases.settings.get_settings_use_case import GetSettingsUseCase
+from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 
 
 def _make_settings() -> SettingsModel:
