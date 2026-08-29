@@ -9,6 +9,7 @@ from edceleste.services.models.game_events import (
     UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
+    StartJumpEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
     ApproachBodyEvent,
@@ -76,6 +77,23 @@ class TestLocationProjection(unittest.TestCase):
             JumpDist=10.5,
             FuelUsed=2.5,
             FuelLevel=45.0,
+        )
+
+        cls.start_jump_hyperspace_event = StartJumpEvent(
+            event="StartJump",
+            timestamp=datetime.now(),
+            JumpType="Hyperspace",
+            Taxi=False,
+            StarSystem="Proxima Centauri",
+            SystemAddress=987654321,
+            StarClass="M",
+        )
+
+        cls.start_jump_supercruise_event = StartJumpEvent(
+            event="StartJump",
+            timestamp=datetime.now(),
+            JumpType="Supercruise",
+            Taxi=False,
         )
 
         cls.supercruise_entry_event = SupercruiseEntryEvent(
@@ -163,9 +181,50 @@ class TestLocationProjection(unittest.TestCase):
 
         location_projection.process_event(self.fsd_jump_event)
 
+        expected_projection = "Player is currently in the Proxima Centauri system."
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_process_start_jump_hyperspace_event_and_create_projection(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.start_jump_hyperspace_event)
+
         expected_projection = (
             "Player is currently during the FSD jump to system Proxima Centauri."
         )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_process_start_jump_then_fsd_jump_and_create_projection(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.start_jump_hyperspace_event)
+        location_projection.process_event(self.fsd_jump_event)
+
+        expected_projection = "Player is currently in the Proxima Centauri system."
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_ignore_start_jump_supercruise_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docked_event)
+        location_projection.process_event(self.start_jump_supercruise_event)
+
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player is currently docked at station: Galileo."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_gracefully_process_fsd_jump_without_prior_start_jump(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.fsd_jump_event)
+
+        expected_projection = "Player is currently in the Proxima Centauri system."
 
         self.assertEqual(expected_projection, location_projection.create_projection())
 
