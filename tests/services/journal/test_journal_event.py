@@ -3,8 +3,8 @@ import unittest
 
 from pydantic import TypeAdapter
 
-from services.models.game_events import UnknownCheckedEvent
-from services.models.journal_event import JournalEvent
+from edceleste.services.models.game_events import UnknownCheckedEvent
+from edceleste.services.models.journal_event import JournalEvent
 
 from tests import TEST_KNOWN_EVENTS_FILE_LOCATION
 

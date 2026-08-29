@@ -3,8 +3,8 @@
 ## Commands
 
 ```bash
-# Run the app
-python app.py
+# Run the app (after `pip install -e .`)
+edceleste
 
 # Lint
 ruff check
@@ -50,6 +50,8 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 
 **Key layers:**
 
+All source lives under `src/edceleste/`; the paths below are relative to that package root.
+
 - `services/event_bus.py` — simple pub/sub by event type; subscribers registered via `subscribe(EventType, callback)`
 - `services/journal_watcher_service.py` — polls latest `Journal*.log` from the ED directory, parses lines with Pydantic, publishes to `EventBus`
 - `services/models/journal_event.py` — Pydantic discriminated union (`JournalEvent`) that maps raw JSON `event` field to typed models; unknown events become `UnknownCheckedEvent`
@@ -58,6 +60,7 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 - `use_cases/` — thin callable classes that bridge `GameStateReader` → `DashboardViewModel`
 - `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`
 - `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` as an `asyncio` task on its own event loop on mount
+- `__main__.py` — `main()`, exposed as the `edceleste` console script in `pyproject.toml`
 
 **Adding a new game event:**
 1. Add a Pydantic model in `services/models/game_events.py`

@@ -17,3 +17,5 @@ LOG.md
 .codex/skills/rubber-duck/SKILL.md
 *.mp3
 .pi
+/dist
+/build

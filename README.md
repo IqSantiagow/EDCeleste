@@ -77,9 +77,14 @@ The Claude Agent SDK uses its own Anthropic authentication setup. When using `ch
 
 ## Usage
 
+Install the package into your virtualenv, then launch it with the console command:
+
 ```bash
-python app.py
+pip install -e .
+edceleste
 ```
+
+`python -m edceleste` works too and does exactly the same thing.
 
 ## Development
 
@@ -107,7 +112,7 @@ textual console -x EVENT --port 5000
 Run the app in dev mode so it connects to that console:
 
 ```bash
-textual run --dev --port 5000 app.py
+textual run --dev --port 5000 src/edceleste/__main__.py
 ```
 
 ## Architecture
@@ -132,17 +137,20 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 
 ```
 EDCeleste/
-├── app.py                 # Entry point
-├── config/                # Config loading (pydantic-settings + .env), tracing
-├── containers/            # dependency-injector wiring
-├── projection/            # Event projections (fuel, location, player)
-├── protocols/             # Structural protocols (game state, journal, LLM)
-├── services/              # Core services (journal watcher, event bus, LLM, game state)
-│   ├── event_bus.py       # Pub/sub event bus
-│   ├── models/            # Pydantic models for journal events
-│   └── stubs/             # Sample event stream for UI development
-├── use_cases/             # UI-facing use cases (streaming stats, events, LLM)
-├── ui/                    # Textual TUI (widgets, screens, themes, css.tcss)
+├── pyproject.toml         # Packaging metadata, `edceleste` console script
+├── src/
+│   └── edceleste/
+│       ├── __main__.py    # Entry point (main())
+│       ├── config/        # Config loading (pydantic-settings + .env), tracing
+│       ├── containers/    # dependency-injector wiring
+│       ├── projection/    # Event projections (fuel, location, player)
+│       ├── protocols/     # Structural protocols (game state, journal, LLM)
+│       ├── services/      # Core services (journal watcher, event bus, LLM, game state)
+│       │   ├── event_bus.py   # Pub/sub event bus
+│       │   ├── models/        # Pydantic models for journal events
+│       │   └── stubs/         # Sample event stream for UI development
+│       ├── use_cases/     # UI-facing use cases (streaming stats, events, LLM)
+│       └── ui/            # Textual TUI (widgets, screens, themes, css.tcss)
 └── tests/                 # Tests
 ```
 

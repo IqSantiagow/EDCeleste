@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from use_cases.settings.settings_load_keybinds_use_case import (
+from edceleste.use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
 

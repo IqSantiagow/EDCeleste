@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from services.event_bus import EventBus
+from edceleste.services.event_bus import EventBus
 
 
 class EventBusTest(unittest.IsolatedAsyncioTestCase):

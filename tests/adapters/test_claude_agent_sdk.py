@@ -12,8 +12,13 @@ from claude_agent_sdk import (
     UserMessage as SdkUserMessage,
 )
 
-from adapters.claude_agent_sdk import ClaudeAgentSDK, NormalizedSdkMcpTool
-from services.models.message_block import AgentText, Thinking, ToolCall, ToolResult
+from edceleste.adapters.claude_agent_sdk import ClaudeAgentSDK, NormalizedSdkMcpTool
+from edceleste.services.models.message_block import (
+    AgentText,
+    Thinking,
+    ToolCall,
+    ToolResult,
+)
 
 TEST_MODEL = "claude-haiku-4-5-20251001"
 TEST_SYSTEM_PROMPT = "You are Celeste."
@@ -88,7 +93,9 @@ class TestClaudeAgentSDKSetup(unittest.TestCase):
         self.tool = FakeTool()
 
         # The real MCP server spawns machinery we do not want in a unit test.
-        server_patcher = patch("adapters.claude_agent_sdk.create_sdk_mcp_server")
+        server_patcher = patch(
+            "edceleste.adapters.claude_agent_sdk.create_sdk_mcp_server"
+        )
         self.mock_create_server = server_patcher.start()
         self.addCleanup(server_patcher.stop)
         self.mock_create_server.return_value = "mcp-server"
@@ -152,7 +159,7 @@ class TestClaudeAgentSDKExecuteQuery(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.sdk = ClaudeAgentSDK(model=TEST_MODEL, system_prompt=TEST_SYSTEM_PROMPT)
 
-        query_patcher = patch("adapters.claude_agent_sdk.query")
+        query_patcher = patch("edceleste.adapters.claude_agent_sdk.query")
         self.mock_query = query_patcher.start()
         self.addCleanup(query_patcher.stop)
 
@@ -303,7 +310,9 @@ class TestClaudeAgentSDKToolNormalization(unittest.TestCase):
     def setUp(self):
         self.sdk = ClaudeAgentSDK(model=TEST_MODEL, system_prompt=TEST_SYSTEM_PROMPT)
 
-        server_patcher = patch("adapters.claude_agent_sdk.create_sdk_mcp_server")
+        server_patcher = patch(
+            "edceleste.adapters.claude_agent_sdk.create_sdk_mcp_server"
+        )
         self.mock_create_server = server_patcher.start()
         self.addCleanup(server_patcher.stop)
 

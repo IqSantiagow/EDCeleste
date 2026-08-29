@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from config.config import AppConfig, LangSmithConfig
+from edceleste.config.config import AppConfig, LangSmithConfig
 
 BASE_ENV = {
     "LOGGING__LEVEL": "INFO",

@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, AsyncMock, Mock, call
 
-from services.journal_watcher_service import JournalWatcherService
-from services.models.game_events import UnknownCheckedEvent
+from edceleste.services.journal_watcher_service import JournalWatcherService
+from edceleste.services.models.game_events import UnknownCheckedEvent
 
 JOURNAL_PATH = "C:/journals"
 
@@ -17,8 +17,10 @@ def _make_mock_event_bus() -> Mock:
 
 class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        glob_patcher = patch("services.journal_watcher_service.glob.glob")
-        getmtime_patcher = patch("services.journal_watcher_service.os.path.getmtime")
+        glob_patcher = patch("edceleste.services.journal_watcher_service.glob.glob")
+        getmtime_patcher = patch(
+            "edceleste.services.journal_watcher_service.os.path.getmtime"
+        )
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()

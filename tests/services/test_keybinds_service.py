@@ -3,11 +3,15 @@ from unittest.mock import Mock, patch
 
 from lxml import etree  # type: ignore
 
-from services.event_bus import EventBus
-from services.keybinds_service import KeybindService
-from services.llm_service import SYSTEM_PROMPT
-from services.models.keybinds_model import EdAction, Keybind, MissingKeybindsError
-from services.models.settings_model import (
+from edceleste.services.event_bus import EventBus
+from edceleste.services.keybinds_service import KeybindService
+from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.keybinds_model import (
+    EdAction,
+    Keybind,
+    MissingKeybindsError,
+)
+from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
     SettingsModel,
@@ -15,7 +19,7 @@ from services.models.settings_model import (
     TTSModel,
 )
 from tests import TEST_BINDS_FILE_LOCATION
-from services.settings_service import SettingsService
+from edceleste.services.settings_service import SettingsService
 
 KEYBINDS_PATH = "C:/keybinds"
 REQUIRED_KEYBINDS_COUNT = len(EdAction)
@@ -32,8 +36,8 @@ def _make_settings(api_key: str) -> SettingsModel:
 
 class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        glob_patcher = patch("services.keybinds_service.glob.glob")
-        getmtime_patcher = patch("services.keybinds_service.os.path.getmtime")
+        glob_patcher = patch("edceleste.services.keybinds_service.glob.glob")
+        getmtime_patcher = patch("edceleste.services.keybinds_service.os.path.getmtime")
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
@@ -72,7 +76,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         ]
         self.mock_getmtime.side_effect = [100, 200]
 
-        with patch("services.keybinds_service.etree.parse") as mock_parse:
+        with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
             mock_parse.return_value.getroot.return_value = []
 
             # An empty root means every required keybind is absent, so
@@ -150,7 +154,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             b"</ToggleFlightAssist></Root>"
         )
 
-        with patch("services.keybinds_service.etree.parse") as mock_parse:
+        with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
             mock_parse.return_value.getroot.return_value = root
 
             # Construction eagerly loads keybinds, so it raises here rather
@@ -194,7 +198,9 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        with patch("services.keybinds_service.pydirectinput.press") as mock_press:
+        with patch(
+            "edceleste.services.keybinds_service.pydirectinput.press"
+        ) as mock_press:
             await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         mock_press.assert_called_once_with("z")
@@ -208,7 +214,9 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         service.load_keybinds()
 
-        with patch("services.keybinds_service.pydirectinput.press") as mock_press:
+        with patch(
+            "edceleste.services.keybinds_service.pydirectinput.press"
+        ) as mock_press:
             await event_bus.publish(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         mock_press.assert_called_once_with("z")
