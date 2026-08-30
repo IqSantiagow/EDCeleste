@@ -132,21 +132,20 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             )
 
         soundfile_name = os.path.basename(path_to_audio_file)
+        trimmed_clip_path = os.path.join(voices_path, soundfile_name)
 
         frames_to_read = int(MINIMUM_REFERENCE_AUDIO_SECONDS * audio_info.samplerate)
         audio_data, samplerate = sf.read(path_to_audio_file, frames=frames_to_read)
 
         try:
             sf.write(
-                os.path.join(voices_path, soundfile_name),
+                trimmed_clip_path,
                 audio_data,
                 samplerate,
                 subtype=audio_info.subtype,
             )
 
-            model.prepare_conditionals(
-                wav_fpath=os.path.join(voices_path, soundfile_name), norm_loudness=False
-            )
+            model.prepare_conditionals(wav_fpath=trimmed_clip_path, norm_loudness=False)
 
             model.conds.save(Path(voices_path) / Path(profile_name).name)
 
@@ -157,7 +156,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             ) from e
 
         finally:
-            os.remove(os.path.join(voices_path, soundfile_name))
+            if os.path.exists(trimmed_clip_path):
+                os.remove(trimmed_clip_path)
 
     def reload_provider(self, new_settings: SettingsModel):
         previous_provider_settings = self.provider_settings

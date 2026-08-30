@@ -276,6 +276,15 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
         trimmed_clip_path = self.provider.VOICES_DIR / "recording.wav"
         self.assertFalse(trimmed_clip_path.exists())
 
+    def test_clone_voice_reports_the_original_error_when_the_trimmed_copy_fails(self):
+        source_clip_path = self._make_source_clip(seconds=12.0)
+
+        with patch.object(
+            chatterbox_tts_provider.sf, "write", side_effect=OSError("disk full")
+        ):
+            with self.assertRaises(RuntimeError):
+                self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+
 
 class ChatterboxTTSProviderValidationTest(unittest.TestCase):
     def setUp(self):
