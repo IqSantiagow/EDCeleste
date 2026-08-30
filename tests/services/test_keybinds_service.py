@@ -28,7 +28,7 @@ REQUIRED_KEYBINDS_COUNT = len(EdAction)
 def _make_settings(api_key: str) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(api_key=api_key, system_prompt=SYSTEM_PROMPT, user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )

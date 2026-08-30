@@ -57,9 +57,56 @@ class SttModel(BaseModel, validate_assignment=True):
         return None
 
 
-class TTSModel(BaseModel, validate_assignment=True):
+DEFAULT_EDGE_VOICE = "en-GB-SoniaNeural"
+
+
+class EdgeTTSProviderModel(BaseModel, validate_assignment=True):
+    type: Literal["edge"] = Field(
+        description="The type of the text-to-speech provider",
+    )
     voice: str = Field(
-        description="The voice to use for text-to-speech",
+        description="The Microsoft Edge voice short name to use for text-to-speech",
+    )
+
+
+class ChatterboxTTSProviderModel(BaseModel, validate_assignment=True):
+    type: Literal["chatterbox"] = Field(
+        description="The type of the text-to-speech provider",
+    )
+    profile: str = Field(
+        description="The name of the voice profile (a reference audio clip stored in "
+        "the voices directory) that Chatterbox clones",
+    )
+    exaggeration: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=2.0,
+        description="How strongly Chatterbox exaggerates the emotion of the speech",
+    )
+    cfg_weight: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="How closely Chatterbox follows the reference clip pacing",
+    )
+    device: Literal["auto", "cuda", "cpu"] = Field(
+        default="auto",
+        description="The device Chatterbox runs on ('auto' picks CUDA when available)",
+    )
+    nano: bool = Field(
+        default=True,
+        description="Whether to use the lighter Nano model. The Nano model loads and "
+        "generates much faster, but it ignores exaggeration and cfg_weight",
+    )
+
+
+class TTSModel(BaseModel, validate_assignment=True):
+    provider: Union[EdgeTTSProviderModel, ChatterboxTTSProviderModel] = Field(
+        default_factory=lambda: EdgeTTSProviderModel(
+            type="edge", voice=DEFAULT_EDGE_VOICE
+        ),
+        description="The text-to-speech provider",
+        discriminator="type",
     )
     volume: float = Field(
         ge=0.0,

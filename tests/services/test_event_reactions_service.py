@@ -20,7 +20,7 @@ from edceleste.services.settings_service import SettingsService
 def _make_settings(event_reaction: dict[str, bool] | None = None) -> SettingsModel:
     settings = SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="prompt", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )

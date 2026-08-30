@@ -15,7 +15,7 @@ from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 def _make_settings() -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="sp", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )
@@ -31,6 +31,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_tts_voices_use_case=None,
         get_stt_models_use_case=None,
         get_stt_input_devices_use_case=None,
+        clone_voice_use_case=None,
     ):
         return SettingsRepository(
             settings_load_keybinds_use_case=load_keybinds_use_case or Mock(),
@@ -40,6 +41,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
             get_stt_models_use_case=get_stt_models_use_case or Mock(),
             get_stt_input_devices_use_case=get_stt_input_devices_use_case or Mock(),
+            clone_voice_use_case=clone_voice_use_case or Mock(),
         )
 
     def test_should_delegate_get_keybinds_to_use_case(self):
@@ -106,6 +108,16 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, models)
         get_stt_models_use_case.assert_called_once()
+
+    async def test_should_delegate_clone_voice_to_use_case(self):
+        clone_voice_use_case = AsyncMock()
+        repository = self._make_repository(
+            clone_voice_use_case=clone_voice_use_case,
+        )
+
+        await repository.clone_voice("C:/audio/celeste.wav", "celeste")
+
+        clone_voice_use_case.assert_awaited_once_with("C:/audio/celeste.wav", "celeste")
 
 
 if __name__ == "__main__":
