@@ -28,6 +28,7 @@ from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
 from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
     StreamLLMResponsesUseCase,
 )
+from edceleste.use_cases.settings.clone_voice_use_case import CloneVoiceUseCase
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
@@ -107,7 +108,6 @@ class Container(containers.DeclarativeContainer):
 
     tts_service = providers.Singleton(
         TTSService,
-        voice=settings_service.provided.get_settings.call().tts.voice,
         event_bus=event_bus,
         settings_handler=settings_service,
     )
@@ -180,6 +180,10 @@ class Container(containers.DeclarativeContainer):
         GetTTSVoicesUseCase, tts_protocol=tts_service
     )
 
+    clone_voice_use_case = providers.Factory(
+        CloneVoiceUseCase, voice_cloning_protocol=tts_service
+    )
+
     get_stt_models_use_case = providers.Factory(
         GetSttModelsUseCase, stt_protocol=stt_service
     )
@@ -209,4 +213,5 @@ class Container(containers.DeclarativeContainer):
         get_tts_voices_use_case=get_tts_voices_use_case,
         get_stt_models_use_case=get_stt_models_use_case,
         get_stt_input_devices_use_case=get_stt_input_devices_use_case,
+        clone_voice_use_case=clone_voice_use_case,
     )

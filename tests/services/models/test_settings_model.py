@@ -4,6 +4,8 @@ from pydantic import ValidationError
 
 from edceleste.services.models.journal_event import KNOWN_EVENTS
 from edceleste.services.models.settings_model import (
+    ChatterboxTTSProviderModel,
+    EdgeTTSProviderModel,
     EventReactionModel,
     LLMModel,
     PathModel,
@@ -14,7 +16,10 @@ from edceleste.services.models.settings_model import (
 
 
 def _make_tts_model() -> TTSModel:
-    return TTSModel(voice="en-GB-SoniaNeural", volume=1.0)
+    return TTSModel(
+        provider=EdgeTTSProviderModel(type="edge", voice="en-GB-SoniaNeural"),
+        volume=1.0,
+    )
 
 
 class TestTTSModel(unittest.TestCase):
@@ -30,6 +35,47 @@ class TestTTSModel(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             tts_model.volume = 1.5
+
+    def test_provider_defaults_to_edge_when_key_absent(self):
+        tts_model = TTSModel(volume=1.0)
+
+        self.assertIsInstance(tts_model.provider, EdgeTTSProviderModel)
+
+    def test_chatterbox_provider_is_picked_by_the_type_discriminator(self):
+        tts_model = TTSModel.model_validate(
+            {
+                "provider": {
+                    "type": "chatterbox",
+                    "profile": "celeste-v3",
+                    "exaggeration": 0.7,
+                    "cfg_weight": 0.5,
+                    "device": "auto",
+                },
+                "volume": 1.0,
+            }
+        )
+
+        self.assertIsInstance(tts_model.provider, ChatterboxTTSProviderModel)
+        self.assertEqual(tts_model.provider.profile, "celeste-v3")
+
+    def test_chatterbox_provider_uses_defaults_for_optional_knobs(self):
+        provider = ChatterboxTTSProviderModel(type="chatterbox", profile="celeste-v3")
+
+        self.assertEqual(provider.exaggeration, 0.5)
+        self.assertEqual(provider.cfg_weight, 0.5)
+        self.assertEqual(provider.device, "auto")
+
+    def test_chatterbox_provider_rejects_unknown_device(self):
+        with self.assertRaises(ValidationError):
+            ChatterboxTTSProviderModel(
+                type="chatterbox", profile="celeste-v3", device="tpu"
+            )
+
+    def test_chatterbox_provider_rejects_out_of_range_cfg_weight(self):
+        with self.assertRaises(ValidationError):
+            ChatterboxTTSProviderModel(
+                type="chatterbox", profile="celeste-v3", cfg_weight=1.5
+            )
 
 
 class TestSttModel(unittest.TestCase):

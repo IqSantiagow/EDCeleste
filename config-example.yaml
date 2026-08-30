@@ -30,7 +30,18 @@ paths:
   keybindings_path: "C:\\Users\\YourUsername\\AppData\\Local\\Frontier Developments\\Elite Dangerous\\Options\\Bindings"
 
 tts:
-  voice: "en-GB-SoniaNeural"
+  provider:
+    type: "edge"
+    voice: "en-GB-SoniaNeural"
+  # Chatterbox clones a voice from the reference profile stored in the voices directory.
+  # The nano model is faster, but it ignores exaggeration and cfg_weight.
+  # provider:
+  #   type: "chatterbox"
+  #   profile: "celeste-v3"
+  #   exaggeration: 0.7
+  #   cfg_weight: 0.5
+  #   device: "auto"
+  #   nano: true
   volume: 1.0
 
 llm:

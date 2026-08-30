@@ -23,7 +23,7 @@ def _make_settings(
 ) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(
             api_key="sk-ant-test", system_prompt=SYSTEM_PROMPT, user_prompt=""
         ),

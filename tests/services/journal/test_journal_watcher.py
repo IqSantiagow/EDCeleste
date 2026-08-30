@@ -18,7 +18,7 @@ JOURNAL_PATH = "C:/journals"
 def _make_settings(journal_path: str) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="sp", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )

@@ -14,7 +14,7 @@ from edceleste.services.settings_service import SettingsService
 def _make_settings(system_prompt: str = "sp", journal_path: str = "C:/j"):
     return SettingsModel(
         paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(system_prompt=system_prompt, user_prompt="up"),
         stt=SttModel(model="tiny.en"),
     )
@@ -35,7 +35,9 @@ paths:
   journal_path: C:/j
   keybindings_path: C:/k
 tts:
-  voice: en-GB-SoniaNeural
+  provider:
+    type: edge
+    voice: en-GB-SoniaNeural
   volume: 1.0
 llm:
   system_prompt: sp
@@ -84,7 +86,9 @@ paths:
   journal_path: C:/j
   keybindings_path: C:/k
 tts:
-  voice: en-GB-SoniaNeural
+  provider:
+    type: edge
+    voice: en-GB-SoniaNeural
   volume: 1.0
 """
 
