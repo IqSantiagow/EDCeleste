@@ -35,7 +35,7 @@ from edceleste.services.settings_service import SettingsService
 def _make_settings(system_prompt: str = SYSTEM_PROMPT) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
-        tts=TTSModel(voice="en-GB-SoniaNeural", volume=1.0),
+        tts=TTSModel(volume=1.0),
         llm=LLMModel(system_prompt=system_prompt, user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )
