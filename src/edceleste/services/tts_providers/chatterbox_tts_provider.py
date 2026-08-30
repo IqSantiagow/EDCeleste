@@ -21,12 +21,21 @@ if TYPE_CHECKING:
 MINIMUM_REFERENCE_AUDIO_SECONDS = 10.0
 
 
+def find_voices_directory(operating_system_name: str = os.name) -> Path:
+    """Voice profiles are stored in the per-user application data directory."""
+    if operating_system_name == "nt":
+        application_data_directory = Path(os.environ["LOCALAPPDATA"])
+    else:
+        application_data_directory = Path.home() / ".local" / "share"
+
+    return application_data_directory / "EDCeleste" / "voices"
+
+
 class ChatterboxTTSProvider(TTSProviderProtocol):
     model: "ChatterboxTurboTTS | None" = None
     is_profile_prepared: bool = False
 
-    # TODO: Add linux support for voices dir
-    VOICES_DIR = Path(os.environ["LOCALAPPDATA"]) / "EDCeleste" / "voices"
+    VOICES_DIR = find_voices_directory()
 
     def __init__(self, config: SettingsModel):
         self.config = config

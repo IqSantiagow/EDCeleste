@@ -325,5 +325,26 @@ class ChatterboxTTSProviderReloadTest(unittest.TestCase):
         self.assertIsNone(self.provider.model)
 
 
+class FindVoicesDirectoryTest(unittest.TestCase):
+    def test_windows_stores_voice_profiles_in_the_local_app_data_directory(self):
+        local_app_data = r"C:\Users\cmdr\AppData\Local"
+
+        with patch.dict(os.environ, {"LOCALAPPDATA": local_app_data}):
+            voices_directory = chatterbox_tts_provider.find_voices_directory("nt")
+
+        self.assertEqual(
+            voices_directory, Path(local_app_data) / "EDCeleste" / "voices"
+        )
+
+    def test_other_systems_store_voice_profiles_in_the_home_directory(self):
+        with patch.object(Path, "home", return_value=Path("/home/cmdr")):
+            voices_directory = chatterbox_tts_provider.find_voices_directory("posix")
+
+        self.assertEqual(
+            voices_directory,
+            Path("/home/cmdr") / ".local" / "share" / "EDCeleste" / "voices",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
