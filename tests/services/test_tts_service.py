@@ -193,6 +193,42 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(FileNotFoundError):
             await self.service.clone_voice("C:/audio/celeste.wav", "celeste")
 
+    def test_get_available_profiles_delegates_to_the_chatterbox_provider(self):
+        self.service.provider = Mock(spec=ChatterboxTTSProvider)
+        self.service.provider.get_available_profiles.return_value = ["celeste.pt"]
+
+        result = self.service.get_available_profiles()
+
+        self.assertEqual(result, ["celeste.pt"])
+        self.service.provider.get_available_profiles.assert_called_once()
+
+    def test_get_available_profiles_returns_empty_list_when_active_provider_is_not_chatterbox(  # noqa: E501
+        self,
+    ):
+        self.service.provider = Mock(spec=EdgeTTSProvider)
+
+        result = self.service.get_available_profiles()
+
+        self.assertEqual(result, [])
+
+    def test_get_available_device_delegates_to_the_chatterbox_provider(self):
+        self.service.provider = Mock(spec=ChatterboxTTSProvider)
+        self.service.provider.get_available_device.return_value = "cuda"
+
+        result = self.service.get_available_device()
+
+        self.assertEqual(result, "cuda")
+        self.service.provider.get_available_device.assert_called_once()
+
+    def test_get_available_device_returns_cpu_when_active_provider_is_not_chatterbox(
+        self,
+    ):
+        self.service.provider = Mock(spec=EdgeTTSProvider)
+
+        result = self.service.get_available_device()
+
+        self.assertEqual(result, "cpu")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 import soundfile as sf
 import sounddevice as sd
 from edceleste.services.models.settings_model import (
@@ -19,6 +19,12 @@ if TYPE_CHECKING:
     from chatterbox.tts_turbo import ChatterboxTurboTTS
 
 MINIMUM_REFERENCE_AUDIO_SECONDS = 10.0
+
+
+def add_pt_file_extension_if_missing(profile_file_name: str) -> str:
+    if profile_file_name.endswith(".pt"):
+        return profile_file_name
+    return profile_file_name + ".pt"
 
 
 def find_voices_directory(operating_system_name: str = os.name) -> Path:
@@ -75,15 +81,19 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             )
         return None
 
-    def __prepare_model(self):
+    def get_available_device(self) -> Literal["cuda", "cpu"]:
         import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+
+    def __prepare_model(self):
         from chatterbox.tts_turbo import ChatterboxTurboTTS
 
         logger.info("Preparing Chatterbox TTS model...")
 
         device = self.provider_settings.device
         if device not in ["cpu", "cuda"]:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = self.get_available_device()
         self.model = ChatterboxTurboTTS.from_pretrained(
             device=device, nano=self.provider_settings.nano
         )
@@ -147,7 +157,10 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
 
             model.prepare_conditionals(wav_fpath=trimmed_clip_path, norm_loudness=False)
 
-            model.conds.save(Path(voices_path) / Path(profile_name).name)
+            profile_file_name = add_pt_file_extension_if_missing(
+                Path(profile_name).name
+            )
+            model.conds.save(Path(voices_path) / profile_file_name)
 
         except Exception as e:
             raise RuntimeError(
@@ -171,3 +184,17 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             or previous_provider_settings.nano != self.provider_settings.nano
         ):
             self.model = None
+
+    def get_available_profiles(self) -> list[str]:
+        voices_path = self.VOICES_DIR
+
+        if not voices_path.exists():
+            return []
+
+        profiles = [
+            f.name
+            for f in voices_path.iterdir()
+            if f.is_file() and f.name.endswith(".pt")
+        ]
+
+        return profiles
