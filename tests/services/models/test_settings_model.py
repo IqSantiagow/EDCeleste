@@ -7,6 +7,7 @@ from edceleste.services.models.settings_model import (
     ChatterboxTTSProviderModel,
     EdgeTTSProviderModel,
     EventReactionModel,
+    GameActionsModel,
     LLMModel,
     PathModel,
     SettingsModel,
@@ -93,6 +94,26 @@ class TestSttModel(unittest.TestCase):
             dumped, {"enabled": False, "model": "tiny.en", "input_device": None}
         )
         self.assertEqual(SttModel.model_validate(dumped), stt_model)
+
+
+class TestGameActionsModel(unittest.TestCase):
+    def test_enabled_defaults_to_false(self):
+        game_actions_model = GameActionsModel()
+
+        self.assertFalse(game_actions_model.enabled)
+
+    def test_enabled_round_trips_through_model_dump(self):
+        game_actions_model = GameActionsModel(enabled=True)
+
+        dumped = game_actions_model.model_dump()
+
+        self.assertEqual(dumped, {"enabled": True})
+        self.assertEqual(GameActionsModel.model_validate(dumped), game_actions_model)
+
+    def test_settings_model_defaults_game_actions_to_disabled_when_key_absent(self):
+        settings = SettingsModel(**_base_settings_kwargs())
+
+        self.assertFalse(settings.game_actions.enabled)
 
 
 def _base_settings_kwargs() -> dict:

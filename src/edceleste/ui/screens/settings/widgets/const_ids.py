@@ -2,6 +2,7 @@ from enum import Enum
 
 from edceleste.services.models.settings_model import (
     EventReactionModel,
+    GameActionsModel,
     LLMModel,
     PathModel,
     SttModel,
@@ -18,6 +19,7 @@ class SettingsSection(Enum):
     TTS = TTSModel
     STT = SttModel
     EVENT_REACTION = EventReactionModel
+    GAME_ACTIONS = GameActionsModel
 
 
 class SettingsInputWidgetIds(Enum):
@@ -34,6 +36,7 @@ class SettingsInputWidgetIds(Enum):
     STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
     STT_INPUT_DEVICE_INPUT = "stt-input-device-input"
+    GAME_ACTIONS_ENABLED_INPUT = "game-actions-enabled-input"
 
 
 SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {

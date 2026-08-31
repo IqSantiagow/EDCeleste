@@ -12,6 +12,7 @@ _SECTIONS_LABELS_WITH_ID: dict[str, str] = {
     "settings-llm": "LLM",
     "settings-tts": "TTS",
     "settings-stt": "STT",
+    "settings-game-actions": "GAME ACTIONS",
 }
 
 

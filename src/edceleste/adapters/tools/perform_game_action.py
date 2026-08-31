@@ -3,6 +3,7 @@ from edceleste.adapters.tools.tool_result import TextContent, ToolResult
 from typing import Any
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.models.keybinds_model import EdAction
+from edceleste.services.settings_service import SettingsService
 
 
 class PerformGameAction(ToolProtocol):
@@ -26,10 +27,15 @@ class PerformGameAction(ToolProtocol):
     def __init__(
         self,
         keybind_service: KeybindService,
+        settings_service: SettingsService,
     ):
         self.keybind_service = keybind_service
+        self.settings_service = settings_service
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        if not self.settings_service.get_settings().game_actions.enabled:
+            return self._error("Game actions are disabled by the user.")
+
         raw_action = arguments.get("action")
 
         if raw_action is None:
