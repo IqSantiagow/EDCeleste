@@ -95,6 +95,7 @@ class Container(containers.DeclarativeContainer):
     perform_game_action = providers.Factory(
         PerformGameAction,
         keybind_service=keybinds_service,
+        settings_service=settings_service,
     )
 
     # ----- MCP------
