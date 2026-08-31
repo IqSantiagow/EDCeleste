@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Literal
 
 import edge_tts
 
@@ -82,3 +83,15 @@ class TTSService:
         await asyncio.to_thread(
             self.provider.clone_voice, path_to_audio_file, profile_name
         )
+
+    def get_available_profiles(self) -> list[str]:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            return []
+
+        return self.provider.get_available_profiles()
+
+    def get_available_device(self) -> Literal["cuda", "cpu"]:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            return "cpu"
+
+        return self.provider.get_available_device()
