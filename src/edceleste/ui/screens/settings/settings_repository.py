@@ -1,9 +1,17 @@
+from typing import Literal
+
 from edceleste.services.models.keybinds_model import Keybind
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
 )
 from edceleste.use_cases.settings.clone_voice_use_case import CloneVoiceUseCase
+from edceleste.use_cases.settings.get_available_device_use_case import (
+    GetAvailableDeviceUseCase,
+)
+from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
+    GetAvailableVoiceProfilesUseCase,
+)
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
@@ -30,6 +38,8 @@ class SettingsRepository:
         get_stt_models_use_case: GetSttModelsUseCase,
         get_stt_input_devices_use_case: GetSttInputDevicesUseCase,
         clone_voice_use_case: CloneVoiceUseCase,
+        get_available_voice_profiles_use_case: GetAvailableVoiceProfilesUseCase,
+        get_available_device_use_case: GetAvailableDeviceUseCase,
     ) -> None:
         self.settings_load_keybinds_use_case = settings_load_keybinds_use_case
         self.settings_get_keybinds_use_case = settings_get_keybinds_use_case
@@ -39,6 +49,10 @@ class SettingsRepository:
         self.get_stt_models_use_case = get_stt_models_use_case
         self.get_stt_input_devices_use_case = get_stt_input_devices_use_case
         self.clone_voice_use_case = clone_voice_use_case
+        self.get_available_voice_profiles_use_case = (
+            get_available_voice_profiles_use_case
+        )
+        self.get_available_device_use_case = get_available_device_use_case
 
     def get_keybinds(self) -> list[Keybind]:
         return self.settings_get_keybinds_use_case()
@@ -61,6 +75,12 @@ class SettingsRepository:
 
     async def clone_voice(self, path_to_audio_file: str, profile_name: str) -> None:
         await self.clone_voice_use_case(path_to_audio_file, profile_name)
+
+    def get_available_voice_profiles(self) -> list[str]:
+        return self.get_available_voice_profiles_use_case()
+
+    def get_available_device(self) -> Literal["cuda", "cpu"]:
+        return self.get_available_device_use_case()
 
     def get_stt_models(self) -> list[str]:
         return self.get_stt_models_use_case()

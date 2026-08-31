@@ -29,6 +29,12 @@ from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
     StreamLLMResponsesUseCase,
 )
 from edceleste.use_cases.settings.clone_voice_use_case import CloneVoiceUseCase
+from edceleste.use_cases.settings.get_available_device_use_case import (
+    GetAvailableDeviceUseCase,
+)
+from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
+    GetAvailableVoiceProfilesUseCase,
+)
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
@@ -184,6 +190,14 @@ class Container(containers.DeclarativeContainer):
         CloneVoiceUseCase, voice_cloning_protocol=tts_service
     )
 
+    get_available_voice_profiles_use_case = providers.Factory(
+        GetAvailableVoiceProfilesUseCase, voice_cloning_protocol=tts_service
+    )
+
+    get_available_device_use_case = providers.Factory(
+        GetAvailableDeviceUseCase, device_detection_protocol=tts_service
+    )
+
     get_stt_models_use_case = providers.Factory(
         GetSttModelsUseCase, stt_protocol=stt_service
     )
@@ -214,4 +228,6 @@ class Container(containers.DeclarativeContainer):
         get_stt_models_use_case=get_stt_models_use_case,
         get_stt_input_devices_use_case=get_stt_input_devices_use_case,
         clone_voice_use_case=clone_voice_use_case,
+        get_available_voice_profiles_use_case=get_available_voice_profiles_use_case,
+        get_available_device_use_case=get_available_device_use_case,
     )

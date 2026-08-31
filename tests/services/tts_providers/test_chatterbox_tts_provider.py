@@ -259,13 +259,22 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
 
         self.assertEqual(trimmed_clip_frames, [10 * CLIP_SAMPLERATE])
 
-    def test_clone_voice_saves_the_profile_under_the_given_name(self):
+    def test_clone_voice_saves_the_profile_with_a_pt_file_extension(self):
         source_clip_path = self._make_source_clip(seconds=12.0)
 
         self.provider.clone_voice(source_clip_path, PROFILE_NAME)
 
         self.model.conds.save.assert_called_once_with(
-            self.provider.VOICES_DIR / PROFILE_NAME
+            self.provider.VOICES_DIR / f"{PROFILE_NAME}.pt"
+        )
+
+    def test_clone_voice_does_not_duplicate_the_pt_file_extension(self):
+        source_clip_path = self._make_source_clip(seconds=12.0)
+
+        self.provider.clone_voice(source_clip_path, f"{PROFILE_NAME}.pt")
+
+        self.model.conds.save.assert_called_once_with(
+            self.provider.VOICES_DIR / f"{PROFILE_NAME}.pt"
         )
 
     def test_clone_voice_removes_the_trimmed_copy_of_the_source_clip(self):
@@ -334,6 +343,52 @@ class ChatterboxTTSProviderReloadTest(unittest.TestCase):
         self.assertIsNone(self.provider.model)
 
 
+class ChatterboxTTSProviderGetAvailableDeviceTest(unittest.TestCase):
+    def setUp(self):
+        self.provider = ChatterboxTTSProvider(_make_settings())
+
+    def test_get_available_device_returns_cuda_when_cuda_is_available(self):
+        with patch("torch.cuda.is_available", return_value=True):
+            device = self.provider.get_available_device()
+
+        self.assertEqual(device, "cuda")
+
+    def test_get_available_device_returns_cpu_when_cuda_is_unavailable(self):
+        with patch("torch.cuda.is_available", return_value=False):
+            device = self.provider.get_available_device()
+
+        self.assertEqual(device, "cpu")
+
+
+class ChatterboxTTSProviderGetAvailableProfilesTest(unittest.TestCase):
+    def setUp(self):
+        self.voices_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.voices_directory.cleanup)
+
+        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider.VOICES_DIR = Path(self.voices_directory.name) / "voices"
+
+    def test_get_available_profiles_returns_empty_list_when_voices_directory_does_not_exist(  # noqa: E501
+        self,
+    ):
+        profiles = self.provider.get_available_profiles()
+
+        self.assertEqual(profiles, [])
+
+    def test_get_available_profiles_returns_only_pt_files_in_the_voices_directory(
+        self,
+    ):
+        self.provider.VOICES_DIR.mkdir(parents=True)
+        (self.provider.VOICES_DIR / "celeste.pt").touch()
+        (self.provider.VOICES_DIR / "aria.pt").touch()
+        (self.provider.VOICES_DIR / "notes.txt").touch()
+        (self.provider.VOICES_DIR / "subdir").mkdir()
+
+        profiles = self.provider.get_available_profiles()
+
+        self.assertCountEqual(profiles, ["celeste.pt", "aria.pt"])
+
+
 class FindVoicesDirectoryTest(unittest.TestCase):
     def test_windows_stores_voice_profiles_in_the_local_app_data_directory(self):
         local_app_data = r"C:\Users\cmdr\AppData\Local"
@@ -353,6 +408,18 @@ class FindVoicesDirectoryTest(unittest.TestCase):
             voices_directory,
             Path("/home/cmdr") / ".local" / "share" / "EDCeleste" / "voices",
         )
+
+
+class AddPtFileExtensionIfMissingTest(unittest.TestCase):
+    def test_appends_pt_extension_when_missing(self):
+        result = chatterbox_tts_provider.add_pt_file_extension_if_missing("celeste")
+
+        self.assertEqual(result, "celeste.pt")
+
+    def test_leaves_the_file_name_unchanged_when_pt_extension_is_already_present(self):
+        result = chatterbox_tts_provider.add_pt_file_extension_if_missing("celeste.pt")
+
+        self.assertEqual(result, "celeste.pt")
 
 
 if __name__ == "__main__":
