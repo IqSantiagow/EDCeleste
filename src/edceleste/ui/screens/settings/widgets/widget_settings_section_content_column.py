@@ -6,6 +6,9 @@ from edceleste.services.models.settings_model import SettingsModel
 from edceleste.ui.screens.settings.widgets.event_reactions import (
     widget_event_reactions_container,
 )
+from edceleste.ui.screens.settings.widgets.game_actions import (
+    widget_game_actions_container,
+)
 from edceleste.ui.screens.settings.widgets.keybinds import widget_keybinds_container
 from edceleste.ui.screens.settings.widgets.paths import widget_paths_container
 from edceleste.ui.screens.settings.widgets.stt import widget_stt_container
@@ -52,4 +55,8 @@ class WidgetSettingsSectionContentColumn(Vertical):
             yield widget_stt_container.WidgetSttContainer(
                 stt_model=self.settings.stt,
                 id="settings-stt",
+            )
+            yield widget_game_actions_container.WidgetGameActionsContainer(
+                game_actions_model=self.settings.game_actions,
+                id="settings-game-actions",
             )

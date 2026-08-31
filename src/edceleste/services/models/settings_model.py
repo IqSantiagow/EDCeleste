@@ -160,6 +160,13 @@ class LLMModel(BaseModel):
     )
 
 
+class GameActionsModel(BaseModel, validate_assignment=True):
+    enabled: bool = Field(
+        default=False,
+        description="Whether the LLM is allowed to perform in-game actions",
+    )
+
+
 DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
 
 
@@ -215,6 +222,10 @@ class SettingsModel(BaseModel):
     )
     stt: SttModel = Field(
         description="The speech-to-text settings",
+    )
+    game_actions: GameActionsModel = Field(
+        description="The game actions settings",
+        default_factory=GameActionsModel,
     )
 
 
