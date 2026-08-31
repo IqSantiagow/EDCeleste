@@ -31,10 +31,7 @@ class WidgetGameActionsContainer(Vertical):
             )
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if (
-            message.sender_id
-            == SettingsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT.value
-        ):
+        if message.sender_id == SettingsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT.value:
             self.game_actions_model.enabled = message.new_value
 
         self.post_message(
