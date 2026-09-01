@@ -255,6 +255,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         sf.write(sample_path, output.squeeze(0).cpu().numpy(), model.sr)
 
     async def play_sample_voice(self, profile_name: str) -> None:
+        import sounddevice as sd
+
         profile_file_name = profile_name + "_sample.wav"
         profile_path = self.__build_profile_path(profile_file_name)
 
