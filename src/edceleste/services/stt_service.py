@@ -1,12 +1,18 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 import whisper
-import sounddevice as sd
 
 from edceleste.services.exceptions.stt_exception import SttException
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
 import logging
+
+if TYPE_CHECKING:
+    import sounddevice as sd
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +44,8 @@ class SttService:
         return None
 
     def start_recording(self) -> None:
+        import sounddevice as sd
+
         if not self.enabled:
             logger.info("STT is disabled. Cannot start recording.")
             raise SttException("STT is disabled. Cannot start recording.")
@@ -107,6 +115,8 @@ class SttService:
         return whisper.available_models()
 
     def get_stt_input_devices(self) -> list[tuple[str, int]]:
+        import sounddevice as sd
+
         all_devices = sd.query_devices()
         seen: dict[str, int] = {}
         for index, device in enumerate(all_devices):
