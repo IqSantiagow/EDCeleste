@@ -15,6 +15,7 @@ def main() -> None:
         modules=[
             "edceleste.ui.ui_app",
             "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
+            "edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical",  # noqa: E501
             "edceleste.ui.screens.settings.widgets.stt.widget_stt_container",
         ]
     )
