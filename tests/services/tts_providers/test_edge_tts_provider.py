@@ -1,5 +1,6 @@
+import sys
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 
@@ -30,14 +31,20 @@ def _make_settings(voice: str = VOICE, volume: float = 1.0) -> SettingsModel:
 
 class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # sounddevice needs a working PortAudio install; fake the module so
+        # tests run on systems (like headless CI) that don't have it.
+        self.fake_sounddevice_module = MagicMock()
+        sounddevice_patcher = patch.dict(
+            sys.modules, {"sounddevice": self.fake_sounddevice_module}
+        )
+        sounddevice_patcher.start()
+        self.addCleanup(sounddevice_patcher.stop)
+
         communicate_patcher = patch(
             "edceleste.services.tts_providers.edge_tts_provider.edge_tts.Communicate"
         )
         sf_read_patcher = patch(
             "edceleste.services.tts_providers.edge_tts_provider.sf.read"
-        )
-        sd_play_patcher = patch(
-            "edceleste.services.tts_providers.edge_tts_provider.sd.play"
         )
         os_remove_patcher = patch(
             "edceleste.services.tts_providers.edge_tts_provider.os.remove"
@@ -45,12 +52,11 @@ class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_communicate_cls = communicate_patcher.start()
         self.mock_sf_read = sf_read_patcher.start()
-        self.mock_sd_play = sd_play_patcher.start()
+        self.mock_sd_play = self.fake_sounddevice_module.play
         self.mock_os_remove = os_remove_patcher.start()
 
         self.addCleanup(communicate_patcher.stop)
         self.addCleanup(sf_read_patcher.stop)
-        self.addCleanup(sd_play_patcher.stop)
         self.addCleanup(os_remove_patcher.stop)
 
         self.mock_communicate = self.mock_communicate_cls.return_value

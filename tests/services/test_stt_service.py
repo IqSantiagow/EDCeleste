@@ -1,3 +1,4 @@
+import sys
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
@@ -33,20 +34,27 @@ def _make_settings(
 
 class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # sounddevice needs a working PortAudio install; fake the module so
+        # tests run on systems (like headless CI) that don't have it.
+        self.fake_sounddevice_module = MagicMock()
+        sounddevice_patcher = patch.dict(
+            sys.modules, {"sounddevice": self.fake_sounddevice_module}
+        )
+        sounddevice_patcher.start()
+        self.addCleanup(sounddevice_patcher.stop)
+
         load_model_patcher = patch("edceleste.services.stt_service.whisper.load_model")
-        input_stream_patcher = patch("edceleste.services.stt_service.sd.InputStream")
 
         self.mock_load_model = load_model_patcher.start()
-        self.mock_input_stream_cls = input_stream_patcher.start()
 
         self.addCleanup(load_model_patcher.stop)
-        self.addCleanup(input_stream_patcher.stop)
 
         self.mock_whisper_model = self.mock_load_model.return_value
         self.mock_whisper_model.transcribe.return_value = {
             "text": "Turn on the engines"
         }
 
+        self.mock_input_stream_cls = self.fake_sounddevice_module.InputStream
         self.mock_stream = MagicMock()
         self.mock_input_stream_cls.return_value = self.mock_stream
 

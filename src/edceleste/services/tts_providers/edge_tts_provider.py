@@ -3,7 +3,6 @@ import logging
 import os
 
 import edge_tts
-import sounddevice as sd
 import soundfile as sf
 
 from edceleste.services.models.settings_model import (
@@ -27,6 +26,8 @@ class EdgeTTSProvider(TTSProviderProtocol):
         return self.config.tts.provider  # type: ignore[return-value]
 
     async def synthesize(self, text: str) -> None:
+        import sounddevice as sd
+
         logger.info(
             "Synthesizing speech with the Edge provider using voice %s.",
             self.provider_settings.voice,
