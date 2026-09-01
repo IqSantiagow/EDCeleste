@@ -3,7 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import torch  # noqa: F401  (kept in sys.modules while chatterbox is faked)
@@ -86,9 +86,15 @@ def _write_audio_clip(path: str, seconds: float) -> None:
 
 class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        sd_play_patcher = patch.object(chatterbox_tts_provider.sd, "play")
-        self.mock_sd_play = sd_play_patcher.start()
-        self.addCleanup(sd_play_patcher.stop)
+        # sounddevice needs a working PortAudio install; fake the module so
+        # tests run on systems (like headless CI) that don't have it.
+        self.fake_sounddevice_module = MagicMock()
+        sounddevice_patcher = patch.dict(
+            sys.modules, {"sounddevice": self.fake_sounddevice_module}
+        )
+        sounddevice_patcher.start()
+        self.addCleanup(sounddevice_patcher.stop)
+        self.mock_sd_play = self.fake_sounddevice_module.play
 
         self.generated_samples = np.array([0.1, 0.2, 0.3])
         self.model = _make_model_mock(self.generated_samples)

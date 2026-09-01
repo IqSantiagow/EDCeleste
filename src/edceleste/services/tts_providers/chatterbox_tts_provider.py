@@ -3,7 +3,6 @@ import logging
 import os
 from typing import TYPE_CHECKING, Literal
 import soundfile as sf
-import sounddevice as sd
 from edceleste.services.models.settings_model import (
     ChatterboxTTSProviderModel,
     SettingsIssueModel,
@@ -51,6 +50,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         return self.config.tts.provider  # type: ignore[return-value]
 
     async def synthesize(self, text: str) -> None:
+        import sounddevice as sd
+
         model = self.__get_prepared_model()
 
         if not self.is_profile_prepared:
