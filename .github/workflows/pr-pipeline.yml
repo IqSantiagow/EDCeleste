@@ -15,8 +15,6 @@ on:
     types: [ created ]
   pull_request_review_comment:
     types: [ created ]
-  issues:
-    types: [ opened, assigned ]
 
 jobs:
   lint:
@@ -81,16 +79,16 @@ jobs:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
     environment: pr-action
-    # Run after lint/test succeed (or were skipped for non-PR events), on PR events,
-    # or on comments/issues only when @claude is mentioned
+    # Run after lint/test succeed (or were skipped for non-PR-open events), on PR events,
+    # or on PR comments/review comments only when @claude is mentioned.
+    # Issue-only triage lives in issue-triage.yml, not here.
     if: |
       always() &&
       (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
       (
         github.event_name == 'pull_request' ||
-        github.event_name == 'issues' ||
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
       )
     steps:
