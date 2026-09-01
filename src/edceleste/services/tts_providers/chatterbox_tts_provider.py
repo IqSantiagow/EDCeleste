@@ -28,6 +28,13 @@ class VoiceCloningState(Enum):
     SAMPLE_CREATED = auto()
 
 
+class VoiceCloningState(Enum):
+    DIRECTORY_CREATED = auto()
+    AUDIO_PROCESSED = auto()
+    COMPLETED = auto()
+    SAMPLE_CREATED = auto()
+
+
 def add_pt_file_extension_if_missing(profile_file_name: str) -> str:
     if profile_file_name.endswith(".pt"):
         return profile_file_name
@@ -123,6 +130,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         voice_profile_path = self.__build_profile_path(
             add_pt_file_extension_if_missing(self.provider_settings.profile)
         )
+        voice_profile_path = self.__build_profile_path(
+            add_pt_file_extension_if_missing(self.provider_settings.profile)
+        )
 
         if not voice_profile_path.exists():
             raise FileNotFoundError(
@@ -136,6 +146,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str
     ) -> AsyncGenerator[VoiceCloningState, None]:
+    async def clone_voice(
+        self, path_to_audio_file: str, profile_name: str
+    ) -> AsyncGenerator[VoiceCloningState, None]:
         model = self.__get_prepared_model()
         voices_path = self.VOICES_DIR
 
@@ -144,6 +157,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
 
         if not os.path.isfile(path_to_audio_file):
             raise FileNotFoundError(f"Audio file '{path_to_audio_file}' not found.")
+
+        yield VoiceCloningState.DIRECTORY_CREATED
 
         yield VoiceCloningState.DIRECTORY_CREATED
 
@@ -175,9 +190,16 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
 
             yield VoiceCloningState.COMPLETED
 
+            yield VoiceCloningState.COMPLETED
+
             profile_file_name = add_pt_file_extension_if_missing(
                 Path(profile_name).name
             )
+            model.conds.save(self.__build_profile_path(profile_file_name))
+
+            await self.prepare_sample_voice(profile_name)
+
+            yield VoiceCloningState.SAMPLE_CREATED
             model.conds.save(self.__build_profile_path(profile_file_name))
 
             await self.prepare_sample_voice(profile_name)
@@ -213,12 +235,18 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         disk, the UI should never see it. Voice profile names shown to the
         user (and stored in settings) are always without ".pt".
         """
+        """
+        The ".pt" extension is just how profile files happen to be stored on
+        disk, the UI should never see it. Voice profile names shown to the
+        user (and stored in settings) are always without ".pt".
+        """
         voices_path = self.VOICES_DIR
 
         if not voices_path.exists():
             return []
 
         profiles = [
+            f.name.removesuffix(".pt")
             f.name.removesuffix(".pt")
             for f in voices_path.iterdir()
             if f.is_file() and f.name.endswith(".pt")
@@ -255,8 +283,6 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         sf.write(sample_path, output.squeeze(0).cpu().numpy(), model.sr)
 
     async def play_sample_voice(self, profile_name: str) -> None:
-        import sounddevice as sd
-
         profile_file_name = profile_name + "_sample.wav"
         profile_path = self.__build_profile_path(profile_file_name)
 
