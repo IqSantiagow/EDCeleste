@@ -1,0 +1,66 @@
+name: Issue Triage
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+on:
+  issues:
+    types: [ opened, assigned ]
+  issue_comment:
+    types: [ created ]
+
+jobs:
+  claude-issue:
+    runs-on: ubuntu-latest
+    environment: pr-action
+    # Only for actual issues, not PR conversations (issue_comment also fires for those),
+    # and only on comments that @-mention Claude.
+    if: |
+      github.event_name == 'issues' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.comment.body, '@claude'))
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install system audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 ffmpeg
+
+      - name: Install project + lint/test tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          pip install ruff==0.15.18
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CC_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+
+            You are working the issue above. Read it and its comments to gather context,
+            then implement a fix on a new branch named `claude/issue-<number>-...`.
+
+            ## Before opening a PR
+            - Run `ruff check` and `ruff format --diff`; fix anything they flag.
+            - Run `coverage run -m unittest discover`; make sure the suite passes.
+            - Only then commit, push the branch, and open a PR that closes the issue.
+
+            If the issue is unclear or you get stuck, comment on the issue explaining
+            what's blocking you instead of guessing.
+
+          claude_args: |
+            --allowedTools "Bash(git:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(ruff check:*),Bash(ruff format:*),Bash(python -m unittest:*),Bash(coverage run:*),Bash(coverage report:*)"
