@@ -1,9 +1,10 @@
+import asyncio
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import numpy as np
 import torch  # noqa: F401  (kept in sys.modules while chatterbox is faked)
@@ -203,7 +204,7 @@ class ChatterboxTTSProviderVoiceProfileTest(unittest.TestCase):
         self.assertFalse(self.provider.is_profile_prepared)
 
     def test_prepare_model_with_profile_loads_the_saved_conditionals(self):
-        profile_path = Path(self.voices_directory.name) / PROFILE_NAME
+        profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
         profile_path.touch()
         loaded_conditionals = Mock()
         self.fake_tts_turbo_module.Conditionals.load.return_value = loaded_conditionals
@@ -230,23 +231,37 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
         self.provider = ChatterboxTTSProvider(_make_settings())
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name) / "voices"
+        self.provider.prepare_sample_voice = AsyncMock()
 
     def _make_source_clip(self, seconds: float) -> str:
         source_clip_path = os.path.join(self.source_directory.name, "recording.wav")
         _write_audio_clip(source_clip_path, seconds)
         return source_clip_path
 
+    def _consume_clone_voice(
+        self, source_clip_path: str, profile_name: str = PROFILE_NAME
+    ):
+        async def consume_states():
+            return [
+                state
+                async for state in self.provider.clone_voice(
+                    source_clip_path, profile_name
+                )
+            ]
+
+        return asyncio.run(consume_states())
+
     def test_clone_voice_raises_when_the_audio_file_does_not_exist(self):
         missing_clip_path = os.path.join(self.source_directory.name, "missing.wav")
 
         with self.assertRaises(FileNotFoundError):
-            self.provider.clone_voice(missing_clip_path, PROFILE_NAME)
+            self._consume_clone_voice(missing_clip_path)
 
     def test_clone_voice_raises_when_the_audio_file_is_shorter_than_ten_seconds(self):
         source_clip_path = self._make_source_clip(seconds=5.0)
 
         with self.assertRaises(ValueError):
-            self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+            self._consume_clone_voice(source_clip_path)
 
         self.model.prepare_conditionals.assert_not_called()
 
@@ -261,14 +276,14 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
             remember_how_long_the_trimmed_clip_is
         )
 
-        self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+        self._consume_clone_voice(source_clip_path, f"{PROFILE_NAME}.pt")
 
         self.assertEqual(trimmed_clip_frames, [10 * CLIP_SAMPLERATE])
 
     def test_clone_voice_saves_the_profile_with_a_pt_file_extension(self):
         source_clip_path = self._make_source_clip(seconds=12.0)
 
-        self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+        self._consume_clone_voice(source_clip_path)
 
         self.model.conds.save.assert_called_once_with(
             self.provider.VOICES_DIR / f"{PROFILE_NAME}.pt"
@@ -277,7 +292,7 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
     def test_clone_voice_does_not_duplicate_the_pt_file_extension(self):
         source_clip_path = self._make_source_clip(seconds=12.0)
 
-        self.provider.clone_voice(source_clip_path, f"{PROFILE_NAME}.pt")
+        self._consume_clone_voice(source_clip_path)
 
         self.model.conds.save.assert_called_once_with(
             self.provider.VOICES_DIR / f"{PROFILE_NAME}.pt"
@@ -286,7 +301,7 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
     def test_clone_voice_removes_the_trimmed_copy_of_the_source_clip(self):
         source_clip_path = self._make_source_clip(seconds=12.0)
 
-        self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+        self._consume_clone_voice(source_clip_path)
 
         trimmed_clip_path = self.provider.VOICES_DIR / "recording.wav"
         self.assertFalse(trimmed_clip_path.exists())
@@ -298,7 +313,7 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
             chatterbox_tts_provider.sf, "write", side_effect=OSError("disk full")
         ):
             with self.assertRaises(RuntimeError):
-                self.provider.clone_voice(source_clip_path, PROFILE_NAME)
+                self._consume_clone_voice(source_clip_path)
 
 
 class ChatterboxTTSProviderValidationTest(unittest.TestCase):
@@ -381,7 +396,7 @@ class ChatterboxTTSProviderGetAvailableProfilesTest(unittest.TestCase):
 
         self.assertEqual(profiles, [])
 
-    def test_get_available_profiles_returns_only_pt_files_in_the_voices_directory(
+    def test_get_available_profiles_strips_the_pt_extension_from_pt_files_only(
         self,
     ):
         self.provider.VOICES_DIR.mkdir(parents=True)
@@ -392,7 +407,7 @@ class ChatterboxTTSProviderGetAvailableProfilesTest(unittest.TestCase):
 
         profiles = self.provider.get_available_profiles()
 
-        self.assertCountEqual(profiles, ["celeste.pt", "aria.pt"])
+        self.assertCountEqual(profiles, ["celeste", "aria"])
 
 
 class FindVoicesDirectoryTest(unittest.TestCase):

@@ -78,6 +78,7 @@ dependencies = [
     "sounddevice==0.5.5",
     "openai-whisper==20250625",
     "chatterbox-tts==0.1.7",
+    "textual-slider==0.2.0",
 ]
 
 [project.optional-dependencies]

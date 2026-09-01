@@ -12,6 +12,10 @@ from edceleste.services.models.settings_model import (
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 
 
+async def _cloning_states():
+    yield "completed"
+
+
 def _make_settings() -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
@@ -33,6 +37,8 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_stt_input_devices_use_case=None,
         clone_voice_use_case=None,
         get_available_voice_profiles_use_case=None,
+        remove_voice_profile_use_case=None,
+        play_sample_voice_use_case=None,
         get_available_device_use_case=None,
     ):
         return SettingsRepository(
@@ -46,6 +52,8 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             clone_voice_use_case=clone_voice_use_case or Mock(),
             get_available_voice_profiles_use_case=get_available_voice_profiles_use_case
             or Mock(),
+            remove_voice_profile_use_case=remove_voice_profile_use_case or Mock(),
+            play_sample_voice_use_case=play_sample_voice_use_case or AsyncMock(),
             get_available_device_use_case=get_available_device_use_case or Mock(),
         )
 
@@ -115,14 +123,18 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_stt_models_use_case.assert_called_once()
 
     async def test_should_delegate_clone_voice_to_use_case(self):
-        clone_voice_use_case = AsyncMock()
+        clone_voice_use_case = Mock(return_value=_cloning_states())
         repository = self._make_repository(
             clone_voice_use_case=clone_voice_use_case,
         )
 
-        await repository.clone_voice("C:/audio/celeste.wav", "celeste")
+        result = [
+            state
+            async for state in repository.clone_voice("C:/audio/celeste.wav", "celeste")
+        ]
 
-        clone_voice_use_case.assert_awaited_once_with("C:/audio/celeste.wav", "celeste")
+        self.assertEqual(result, ["completed"])
+        clone_voice_use_case.assert_called_once_with("C:/audio/celeste.wav", "celeste")
 
     def test_should_delegate_get_available_voice_profiles_to_use_case(self):
         profiles = ["celeste.pt"]
@@ -146,6 +158,26 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "cuda")
         get_available_device_use_case.assert_called_once()
+
+    def test_should_delegate_remove_voice_profile_to_use_case(self):
+        remove_voice_profile_use_case = Mock()
+        repository = self._make_repository(
+            remove_voice_profile_use_case=remove_voice_profile_use_case
+        )
+
+        repository.remove_voice_profile("celeste")
+
+        remove_voice_profile_use_case.assert_called_once_with("celeste")
+
+    async def test_should_delegate_play_sample_voice_to_use_case(self):
+        play_sample_voice_use_case = AsyncMock()
+        repository = self._make_repository(
+            play_sample_voice_use_case=play_sample_voice_use_case
+        )
+
+        await repository.play_sample_voice("celeste")
+
+        play_sample_voice_use_case.assert_awaited_once_with("celeste")
 
 
 if __name__ == "__main__":
