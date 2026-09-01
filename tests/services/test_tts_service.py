@@ -19,6 +19,7 @@ from edceleste.services.exceptions.voice_cloning_exception import (
 )
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
+    VoiceCloningState,
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_service import TTSEvent, TTSService
@@ -40,6 +41,10 @@ def _make_settings(api_key: str, provider=None) -> SettingsModel:
 
 def _make_chatterbox_provider(profile: str = "celeste") -> ChatterboxTTSProviderModel:
     return ChatterboxTTSProviderModel(type="chatterbox", profile=profile)
+
+
+async def _cloning_states():
+    yield VoiceCloningState.COMPLETED
 
 
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
@@ -173,9 +178,16 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_clone_voice_delegates_to_the_chatterbox_provider(self):
         self.service.provider = Mock(spec=ChatterboxTTSProvider)
+        self.service.provider.clone_voice.return_value = _cloning_states()
 
-        await self.service.clone_voice("C:/audio/celeste.wav", "celeste")
+        result = [
+            state
+            async for state in self.service.clone_voice(
+                "C:/audio/celeste.wav", "celeste"
+            )
+        ]
 
+        self.assertEqual(result, [VoiceCloningState.COMPLETED])
         self.service.provider.clone_voice.assert_called_once_with(
             "C:/audio/celeste.wav", "celeste"
         )
@@ -184,14 +196,44 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.provider = Mock(spec=EdgeTTSProvider)
 
         with self.assertRaises(VoiceCloningException):
-            await self.service.clone_voice("C:/audio/celeste.wav", "celeste")
+            [
+                state
+                async for state in self.service.clone_voice(
+                    "C:/audio/celeste.wav", "celeste"
+                )
+            ]
 
     async def test_clone_voice_propagates_error_raised_by_the_provider(self):
         self.service.provider = Mock(spec=ChatterboxTTSProvider)
-        self.service.provider.clone_voice.side_effect = FileNotFoundError("no file")
+
+        async def raise_file_not_found(*args, **kwargs):
+            raise FileNotFoundError("no file")
+            yield
+
+        self.service.provider.clone_voice.return_value = raise_file_not_found()
 
         with self.assertRaises(FileNotFoundError):
-            await self.service.clone_voice("C:/audio/celeste.wav", "celeste")
+            [
+                state
+                async for state in self.service.clone_voice(
+                    "C:/audio/celeste.wav", "celeste"
+                )
+            ]
+
+    def test_remove_profile_delegates_to_the_chatterbox_provider(self):
+        self.service.provider = Mock(spec=ChatterboxTTSProvider)
+
+        self.service.remove_profile("celeste")
+
+        self.service.provider.remove_profile.assert_called_once_with("celeste")
+
+    async def test_play_sample_voice_delegates_to_the_chatterbox_provider(self):
+        self.service.provider = Mock(spec=ChatterboxTTSProvider)
+        self.service.provider.play_sample_voice = AsyncMock()
+
+        await self.service.play_sample_voice("celeste")
+
+        self.service.provider.play_sample_voice.assert_awaited_once_with("celeste")
 
     def test_get_available_profiles_delegates_to_the_chatterbox_provider(self):
         self.service.provider = Mock(spec=ChatterboxTTSProvider)

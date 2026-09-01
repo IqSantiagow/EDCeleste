@@ -1,6 +1,5 @@
-import asyncio
 import logging
-from typing import Literal
+from typing import AsyncGenerator, Literal
 
 import edge_tts
 
@@ -13,6 +12,7 @@ from edceleste.services.settings_service import SettingsService
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
+    VoiceCloningState,
 )
 from edceleste.services.tts_providers.tts_provider_protocol import TTSProviderProtocol
 
@@ -68,7 +68,9 @@ class TTSService:
     async def get_tts_voices(self) -> list[str]:
         return [voice["ShortName"] for voice in await edge_tts.list_voices()]
 
-    async def clone_voice(self, path_to_audio_file: str, profile_name: str) -> None:
+    async def clone_voice(
+        self, path_to_audio_file: str, profile_name: str
+    ) -> AsyncGenerator[VoiceCloningState, None]:
         if not isinstance(self.provider, ChatterboxTTSProvider):
             raise VoiceCloningException(
                 "The active TTS provider does not support voice cloning. "
@@ -80,15 +82,34 @@ class TTSService:
             profile_name,
             path_to_audio_file,
         )
-        await asyncio.to_thread(
-            self.provider.clone_voice, path_to_audio_file, profile_name
-        )
+        async for cloning_state in self.provider.clone_voice(
+            path_to_audio_file, profile_name
+        ):
+            yield cloning_state
 
     def get_available_profiles(self) -> list[str]:
         if not isinstance(self.provider, ChatterboxTTSProvider):
             return []
 
         return self.provider.get_available_profiles()
+
+    def remove_profile(self, profile_name: str) -> None:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        self.provider.remove_profile(profile_name)
+
+    async def play_sample_voice(self, profile_name: str) -> None:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        await self.provider.play_sample_voice(profile_name)
 
     def get_available_device(self) -> Literal["cuda", "cpu"]:
         if not isinstance(self.provider, ChatterboxTTSProvider):
