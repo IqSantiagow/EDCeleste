@@ -38,7 +38,11 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         clone_voice_use_case=None,
         get_available_voice_profiles_use_case=None,
         remove_voice_profile_use_case=None,
+        rename_voice_profile_use_case=None,
         play_sample_voice_use_case=None,
+        play_audio_file_use_case=None,
+        analyze_voice_sample_use_case=None,
+        preview_voice_sample_use_case=None,
         get_available_device_use_case=None,
     ):
         return SettingsRepository(
@@ -53,7 +57,11 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             get_available_voice_profiles_use_case=get_available_voice_profiles_use_case
             or Mock(),
             remove_voice_profile_use_case=remove_voice_profile_use_case or Mock(),
+            rename_voice_profile_use_case=rename_voice_profile_use_case or Mock(),
             play_sample_voice_use_case=play_sample_voice_use_case or AsyncMock(),
+            play_audio_file_use_case=play_audio_file_use_case or AsyncMock(),
+            analyze_voice_sample_use_case=analyze_voice_sample_use_case or Mock(),
+            preview_voice_sample_use_case=preview_voice_sample_use_case or AsyncMock(),
             get_available_device_use_case=get_available_device_use_case or Mock(),
         )
 
@@ -178,6 +186,50 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         await repository.play_sample_voice("celeste")
 
         play_sample_voice_use_case.assert_awaited_once_with("celeste")
+
+    async def test_should_delegate_play_audio_file_to_use_case(self):
+        play_audio_file_use_case = AsyncMock()
+        repository = self._make_repository(
+            play_audio_file_use_case=play_audio_file_use_case
+        )
+
+        await repository.play_audio_file("C:/ref.wav")
+
+        play_audio_file_use_case.assert_awaited_once_with("C:/ref.wav")
+
+    def test_should_delegate_analyze_voice_sample_to_use_case(self):
+        analysis = {"is_valid": True}
+        analyze_voice_sample_use_case = Mock(return_value=analysis)
+        repository = self._make_repository(
+            analyze_voice_sample_use_case=analyze_voice_sample_use_case
+        )
+
+        result = repository.analyze_voice_sample("C:/ref.wav")
+
+        self.assertEqual(result, analysis)
+        analyze_voice_sample_use_case.assert_called_once_with("C:/ref.wav")
+
+    def test_should_delegate_rename_voice_profile_to_use_case(self):
+        rename_voice_profile_use_case = Mock()
+        repository = self._make_repository(
+            rename_voice_profile_use_case=rename_voice_profile_use_case
+        )
+
+        repository.rename_voice_profile("celeste", "celeste-v2")
+
+        rename_voice_profile_use_case.assert_called_once_with("celeste", "celeste-v2")
+
+    async def test_should_delegate_preview_voice_sample_to_use_case(self):
+        preview_voice_sample_use_case = AsyncMock()
+        repository = self._make_repository(
+            preview_voice_sample_use_case=preview_voice_sample_use_case
+        )
+
+        await repository.preview_voice_sample("celeste", "Hello there.")
+
+        preview_voice_sample_use_case.assert_awaited_once_with(
+            "celeste", "Hello there."
+        )
 
 
 if __name__ == "__main__":

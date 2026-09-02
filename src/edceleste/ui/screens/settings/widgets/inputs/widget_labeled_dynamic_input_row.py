@@ -56,6 +56,7 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
                         classes="entry-input",
                         type=self.type,  # type: ignore
                         validators=self.validators,
+                        compact=True,
                     ).focus()
                 if not self.is_being_edited:
                     yield Label(

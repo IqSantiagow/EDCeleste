@@ -242,6 +242,48 @@ WidgetPathsContainer .entry-label {
     width: 20;
 }
 
+WidgetPathsContainer WidgetLabeledDynamicInputRow {
+    margin-bottom: 1;
+}
+
+/* ============================================================
+   Settings: TTS section
+   Nested provider settings blocks must size to their own content
+   (height: auto) so the outer VerticalScroll in WidgetTTSContainer
+   can measure real content height and scroll when it overflows.
+   Without this they inherit Vertical's default height: 1fr and
+   clip their own rows instead of scrolling.
+   ============================================================ */
+WidgetChatterboxTTSSettingsVertical,
+WidgetEdgeTTSSettingsVertical {
+    height: auto;
+}
+
+/* Row types differ in intrinsic height (select: 1, switch: 2, slider: 1),
+   so give them a shared bottom margin instead of relying on their own
+   height to create the gap between rows — keeps the spacing uniform. */
+WidgetChatterboxTTSSettingsVertical WidgetLabeledSelectRow,
+WidgetChatterboxTTSSettingsVertical WidgetLabeledSwitchRow,
+WidgetChatterboxTTSSettingsVertical WidgetLabeledSliderRow {
+    margin-bottom: 1;
+}
+
+/* Slider defaults to a bordered, 3-row-tall widget (see textual_slider),
+   the same trap Input's border fell into earlier in this file — override
+   it to a flat 1-row track so the row height stays fixed and consistent
+   with every other settings row. */
+WidgetLabeledSliderRow {
+    height: 1;
+}
+
+.entry-slider {
+    width: 1fr;
+    height: 1;
+    min-height: 1;
+    border: none;
+    padding: 0;
+}
+
 /* ============================================================
    Settings: keybinds section
    ============================================================ */
@@ -256,7 +298,7 @@ WidgetKeybindsContainer .entry-value {
 }
 
 WidgetLabeledDynamicInputRow {
-    height: 3;
+    height: 1;
 }
 
 WidgetLabeledSelectRow {
@@ -286,11 +328,10 @@ WidgetLabeledSwitchRow #settings-entry-value-container {
     content-align: left middle;
 }
 
-#settings-entry-row-container .entry-input{
-    padding: 0;
-    height: 1fr;
-    border: solid $primary;
-}
+/* Input(compact=True) already sets border: none and height: 1 via its
+   own CSS (see textual.widgets.Input) — nothing to override here. That
+   keeps the row's height fixed whether it's showing the value or being
+   edited, so nothing below it reflows when you click into a field. */
 
 #settings-entry-row-container .entry-select{
     padding: 0;
@@ -316,6 +357,54 @@ WidgetLabeledSwitchRow #settings-entry-value-container {
 }
 
 
+#clone-voice-button{
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    color: $success;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+.profile-row {
+    height: 1;
+    align: left middle;
+}
+
+.profile-row .profile-name {
+    width: 1fr;
+    color: $primary;
+}
+
+.profile-row Button {
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+.profile-row .profile-play-button {
+    color: $success;
+}
+
+.profile-row .profile-delete-button {
+    color: $error;
+}
+
+.no-profiles-message {
+    color: $font-muted-color;
+    padding: 1 0;
+}
+
 #comms-input{
     width: 1fr;
 }
@@ -333,6 +422,231 @@ WidgetLabeledSwitchRow #settings-entry-value-container {
         background: transparent;
     }
     &.-active{
+        background: transparent;
+    }
+}
+
+VoiceCloneModalScreen{
+    border: solid $secondary;
+    border-title-align: left;
+}
+
+.voice-clone-phase-bar{
+    height: auto;
+    padding: 1 0;
+}
+
+.voice-clone-phase-dots{
+    height: 1;
+    align: center middle;
+    color: $secondary;
+}
+
+.voice-clone-phase-labels{
+    height: 1;
+    align: center middle;
+    color: $font-muted-color;
+}
+
+.voice-clone-phase-labels Label{
+    padding: 0 1;
+}
+
+.voice-clone-phase-labels .-active{
+    color: $secondary;
+    text-style: bold;
+}
+
+.voice-clone-body{
+    height: 1fr;
+    align: center middle;
+}
+
+#clone-voice-confirm-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $success;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+.voice-clone-footer{
+    height: auto;
+    align: left middle;
+    border-top: solid $secondary;
+    padding: 1 1 0 1;
+}
+
+.voice-clone-footer-left{
+    width: 1fr;
+    height: auto;
+    align: left middle;
+}
+
+.voice-clone-footer-center{
+    width: 1fr;
+    height: auto;
+    align: center middle;
+}
+
+.voice-clone-footer-right{
+    width: 1fr;
+    height: auto;
+    align: right middle;
+}
+
+#voice-clone-cancel-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $error;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+#voice-clone-pick-another-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $warning;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+.voice-clone-hint-bar{
+    height: 1;
+    width: 100%;
+    content-align: center middle;
+    color: $font-muted-color;
+}
+
+.analysis-phase-body{
+    height: auto;
+    width: 100%;
+    padding: 0 2;
+}
+
+.analysis-heading{
+    color: $font-muted-color;
+}
+
+.analysis-file-name{
+    text-style: bold;
+    color: $primary;
+}
+
+.analysis-file-dir{
+    color: $font-muted-color;
+    padding-bottom: 1;
+}
+
+#analysis-waveform{
+    height: 3;
+}
+
+#analysis-waveform > .sparkline--max-color{
+    color: $warning;
+}
+
+#analysis-waveform > .sparkline--min-color{
+    color: $warning 30%;
+}
+
+.analysis-waveform-time-row{
+    height: 1;
+    color: $font-muted-color;
+    padding-bottom: 1;
+}
+
+.analysis-waveform-time-start{
+    width: 1fr;
+}
+
+.analysis-waveform-time-end{
+    width: 1fr;
+    content-align: right middle;
+}
+
+.analysis-check-row{
+    height: 1;
+}
+
+.analysis-check-icon{
+    width: 3;
+}
+
+.analysis-check-label{
+    width: 14;
+    color: $font-muted-color;
+}
+
+.analysis-check-value{
+    width: 16;
+}
+
+.analysis-check-hint{
+    color: $font-muted-color;
+}
+
+#analysis-play-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $success;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+.analysis-error-hint{
+    color: $error;
+    padding-top: 1;
+}
+
+.save-toggle-row{
+    height: auto;
+    padding: 1 0;
+}
+
+#compare-play-source-button,
+#compare-play-sample-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $success;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+#save-regenerate-button{
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $warning;
+    background: transparent;
+    &:hover{
+        color: $secondary;
         background: transparent;
     }
 }
