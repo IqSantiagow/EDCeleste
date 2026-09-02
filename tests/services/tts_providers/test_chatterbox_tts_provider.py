@@ -80,8 +80,12 @@ def _install_fake_chatterbox_module(test_case: unittest.TestCase) -> Mock:
     return fake_tts_turbo_module
 
 
-def _write_audio_clip(path: str, seconds: float) -> None:
-    samples = np.zeros(int(seconds * CLIP_SAMPLERATE), dtype="float32")
+def _write_audio_clip(
+    path: str, seconds: float, amplitude: float = 0.0, channels: int = 1
+) -> None:
+    frame_count = int(seconds * CLIP_SAMPLERATE)
+    shape = frame_count if channels == 1 else (frame_count, channels)
+    samples = np.full(shape, amplitude, dtype="float32")
     sf.write(path, samples, CLIP_SAMPLERATE, subtype="PCM_16")
 
 
@@ -314,6 +318,345 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
         ):
             with self.assertRaises(RuntimeError):
                 self._consume_clone_voice(source_clip_path)
+
+
+class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.fake_tts_turbo_module = _install_fake_chatterbox_module(self)
+
+        self.voices_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.voices_directory.cleanup)
+
+        self.generated_samples = np.array([0.1, 0.2, 0.3])
+        self.model = _make_model_mock(self.generated_samples)
+        self.model.device = "cpu"
+        self.loaded_conditionals = Mock()
+        self.fake_tts_turbo_module.Conditionals.load.return_value = (
+            self.loaded_conditionals
+        )
+
+        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider.model = self.model
+        self.provider.VOICES_DIR = Path(self.voices_directory.name)
+
+        profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
+        profile_path.touch()
+
+    async def test_reloads_this_profiles_conditionals_before_generating(self):
+        # Guards against the model.conds swap-out bug: something else in the
+        # app (background narration) could have loaded a different profile's
+        # conditionals onto the model in the meantime.
+        await self.provider.prepare_sample_voice(PROFILE_NAME)
+
+        profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
+        self.fake_tts_turbo_module.Conditionals.load.assert_called_once_with(
+            profile_path, "cpu"
+        )
+        self.assertIs(self.model.conds, self.loaded_conditionals)
+
+    async def test_uses_the_default_text_when_none_is_given(self):
+        await self.provider.prepare_sample_voice(PROFILE_NAME)
+
+        self.model.generate.assert_called_once_with(
+            text=chatterbox_tts_provider.DEFAULT_VOICE_SAMPLE_TEXT,
+            norm_loudness=False,
+            exaggeration=self.provider.provider_settings.exaggeration,
+            cfg_weight=self.provider.provider_settings.cfg_weight,
+        )
+
+    async def test_uses_the_given_text_instead_of_the_default(self):
+        await self.provider.prepare_sample_voice(PROFILE_NAME, text="Ahoy Commander.")
+
+        self.model.generate.assert_called_once_with(
+            text="Ahoy Commander.",
+            norm_loudness=False,
+            exaggeration=self.provider.provider_settings.exaggeration,
+            cfg_weight=self.provider.provider_settings.cfg_weight,
+        )
+
+    async def test_writes_the_generated_sample_to_disk(self):
+        await self.provider.prepare_sample_voice(PROFILE_NAME)
+
+        sample_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}_sample.wav"
+        self.assertTrue(sample_path.exists())
+
+
+class ChatterboxTTSProviderPreviewVoiceSampleTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.fake_sounddevice_module = MagicMock()
+        sounddevice_patcher = patch.dict(
+            sys.modules, {"sounddevice": self.fake_sounddevice_module}
+        )
+        sounddevice_patcher.start()
+        self.addCleanup(sounddevice_patcher.stop)
+        self.mock_sd_play = self.fake_sounddevice_module.play
+
+        self.fake_tts_turbo_module = _install_fake_chatterbox_module(self)
+
+        self.voices_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.voices_directory.cleanup)
+
+        self.generated_samples = np.array([0.1, 0.2, 0.3])
+        self.model = _make_model_mock(self.generated_samples)
+        self.model.device = "cpu"
+        self.loaded_conditionals = Mock()
+        self.fake_tts_turbo_module.Conditionals.load.return_value = (
+            self.loaded_conditionals
+        )
+
+        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider.model = self.model
+        self.provider.VOICES_DIR = Path(self.voices_directory.name)
+
+        profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
+        profile_path.touch()
+
+    async def test_reloads_this_profiles_conditionals_before_generating(self):
+        await self.provider.preview_voice_sample(PROFILE_NAME, "Ahoy Commander.")
+
+        profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
+        self.fake_tts_turbo_module.Conditionals.load.assert_called_once_with(
+            profile_path, "cpu"
+        )
+        self.assertIs(self.model.conds, self.loaded_conditionals)
+
+    async def test_generates_and_plays_the_given_text(self):
+        await self.provider.preview_voice_sample(PROFILE_NAME, "Ahoy Commander.")
+
+        self.model.generate.assert_called_once_with(
+            text="Ahoy Commander.",
+            norm_loudness=False,
+            exaggeration=self.provider.provider_settings.exaggeration,
+            cfg_weight=self.provider.provider_settings.cfg_weight,
+        )
+        played_samples, played_samplerate = self.mock_sd_play.call_args.args
+        np.testing.assert_allclose(played_samples, self.generated_samples)
+        self.assertEqual(played_samplerate, self.model.sr)
+
+    async def test_does_not_write_anything_to_disk(self):
+        # This is the whole point of preview_voice_sample vs
+        # prepare_sample_voice - trying out text must never overwrite the
+        # profile's saved demo sample.
+        await self.provider.preview_voice_sample(PROFILE_NAME, "Ahoy Commander.")
+
+        sample_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}_sample.wav"
+        self.assertFalse(sample_path.exists())
+
+
+class ChatterboxTTSProviderRenameProfileTest(unittest.TestCase):
+    def setUp(self):
+        self.voices_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.voices_directory.cleanup)
+
+        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider.VOICES_DIR = Path(self.voices_directory.name)
+
+    def _touch(self, file_name: str) -> Path:
+        path = Path(self.voices_directory.name) / file_name
+        path.touch()
+        return path
+
+    def test_renames_both_the_pt_file_and_the_sample(self):
+        self._touch("celeste.pt")
+        self._touch("celeste_sample.wav")
+
+        self.provider.rename_profile("celeste", "celeste-v2")
+
+        voices_dir = Path(self.voices_directory.name)
+        self.assertTrue((voices_dir / "celeste-v2.pt").exists())
+        self.assertTrue((voices_dir / "celeste-v2_sample.wav").exists())
+        self.assertFalse((voices_dir / "celeste.pt").exists())
+        self.assertFalse((voices_dir / "celeste_sample.wav").exists())
+
+    def test_renames_the_pt_file_even_when_there_is_no_sample_yet(self):
+        self._touch("celeste.pt")
+
+        self.provider.rename_profile("celeste", "celeste-v2")
+
+        voices_dir = Path(self.voices_directory.name)
+        self.assertTrue((voices_dir / "celeste-v2.pt").exists())
+
+    def test_raises_and_leaves_files_untouched_when_the_new_name_is_taken(self):
+        self._touch("celeste.pt")
+        self._touch("celeste-v2.pt")
+
+        with self.assertRaises(FileExistsError):
+            self.provider.rename_profile("celeste", "celeste-v2")
+
+        voices_dir = Path(self.voices_directory.name)
+        self.assertTrue((voices_dir / "celeste.pt").exists())
+
+    @unittest.skipUnless(
+        os.name == "nt",
+        "case-insensitive filename collisions only happen on Windows",
+    )
+    def test_raises_when_the_new_name_only_differs_by_case(self):
+        # Windows filesystems are case-insensitive, so "Celeste" and
+        # "celeste" would otherwise silently collide on disk.
+        self._touch("celeste.pt")
+        self._touch("celeste-v2.pt")
+
+        with self.assertRaises(FileExistsError):
+            self.provider.rename_profile("celeste", "CELESTE-V2")
+
+
+class CalculatePeakDbfsTest(unittest.TestCase):
+    def test_returns_zero_dbfs_for_a_full_scale_signal(self):
+        peak_dbfs = chatterbox_tts_provider.calculate_peak_dbfs(
+            np.array([1.0, -0.5, 0.2])
+        )
+
+        self.assertAlmostEqual(peak_dbfs, 0.0, places=5)
+
+    def test_returns_the_silence_floor_for_an_all_zero_signal(self):
+        peak_dbfs = chatterbox_tts_provider.calculate_peak_dbfs(np.zeros(100))
+
+        self.assertEqual(peak_dbfs, chatterbox_tts_provider.SILENCE_FLOOR_DBFS)
+
+    def test_returns_a_lower_value_for_a_quieter_signal(self):
+        peak_dbfs = chatterbox_tts_provider.calculate_peak_dbfs(np.array([0.1, -0.1]))
+
+        self.assertAlmostEqual(peak_dbfs, -20.0, places=5)
+
+
+class CalculateNoiseFloorDbfsTest(unittest.TestCase):
+    def test_picks_the_quietest_window_in_the_clip(self):
+        loud_window = np.full(10, 1.0)
+        quiet_window = np.full(10, 0.01)
+        samples = np.concatenate([loud_window, quiet_window])
+
+        noise_floor_dbfs = chatterbox_tts_provider.calculate_noise_floor_dbfs(
+            samples, sample_rate=100
+        )
+
+        self.assertAlmostEqual(noise_floor_dbfs, -40.0, places=5)
+
+    def test_returns_the_silence_floor_for_an_all_zero_signal(self):
+        noise_floor_dbfs = chatterbox_tts_provider.calculate_noise_floor_dbfs(
+            np.zeros(1000), sample_rate=100
+        )
+
+        self.assertEqual(noise_floor_dbfs, chatterbox_tts_provider.SILENCE_FLOOR_DBFS)
+
+
+class CalculateWaveformEnvelopeTest(unittest.TestCase):
+    def test_returns_one_peak_amplitude_value_per_window(self):
+        first_window = np.full(10, 0.2)
+        second_window = np.full(10, 0.8)
+        samples = np.concatenate([first_window, second_window])
+
+        envelope = chatterbox_tts_provider.calculate_waveform_envelope(
+            samples, sample_rate=100, window_seconds=0.1
+        )
+
+        self.assertEqual(len(envelope), 2)
+        self.assertAlmostEqual(envelope[0], 0.2, places=5)
+        self.assertAlmostEqual(envelope[1], 0.8, places=5)
+
+
+class ChatterboxTTSProviderAnalyzeSampleTest(unittest.TestCase):
+    def setUp(self):
+        self.source_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.source_directory.cleanup)
+
+        self.provider = ChatterboxTTSProvider(_make_settings())
+
+    def _clip_path(self, name: str = "reference.wav") -> str:
+        return os.path.join(self.source_directory.name, name)
+
+    def test_reports_duration_samplerate_and_mono_channel_count(self):
+        clip_path = self._clip_path()
+        _write_audio_clip(clip_path, seconds=12.0)
+
+        analysis = self.provider.perform_sample_voice_analysis_and_validate(clip_path)
+
+        self.assertAlmostEqual(analysis["duration_seconds"], 12.0, places=2)
+        self.assertEqual(analysis["sample_rate"], CLIP_SAMPLERATE)
+        self.assertEqual(analysis["channels"], 1)
+        self.assertTrue(analysis["is_mono"])
+        self.assertEqual(analysis["file_name"], "reference.wav")
+
+    def test_reports_stereo_files_as_not_mono(self):
+        clip_path = self._clip_path()
+        _write_audio_clip(clip_path, seconds=12.0, channels=2)
+
+        analysis = self.provider.perform_sample_voice_analysis_and_validate(clip_path)
+
+        self.assertEqual(analysis["channels"], 2)
+        self.assertFalse(analysis["is_mono"])
+
+    def test_is_valid_when_the_clip_meets_the_minimum_length(self):
+        clip_path = self._clip_path()
+        _write_audio_clip(clip_path, seconds=12.0)
+
+        analysis = self.provider.perform_sample_voice_analysis_and_validate(clip_path)
+
+        self.assertTrue(analysis["is_valid"])
+        self.assertIsNone(analysis["validation_error_message"])
+
+    def test_is_invalid_when_the_clip_is_shorter_than_the_minimum_length(self):
+        clip_path = self._clip_path()
+        _write_audio_clip(clip_path, seconds=5.0)
+
+        analysis = self.provider.perform_sample_voice_analysis_and_validate(clip_path)
+
+        self.assertFalse(analysis["is_valid"])
+        self.assertIn("Too short", analysis["validation_error_message"])
+
+    def test_reports_silence_as_the_dbfs_floor_with_no_clipping(self):
+        clip_path = self._clip_path()
+        _write_audio_clip(clip_path, seconds=12.0)
+
+        analysis = self.provider.perform_sample_voice_analysis_and_validate(clip_path)
+
+        self.assertEqual(
+            analysis["peak_dbfs"], chatterbox_tts_provider.SILENCE_FLOOR_DBFS
+        )
+        self.assertEqual(
+            analysis["noise_floor_dbfs"], chatterbox_tts_provider.SILENCE_FLOOR_DBFS
+        )
+        self.assertFalse(analysis["has_clipping"])
+
+
+class ChatterboxTTSProviderPlayAudioFileTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.fake_sounddevice_module = MagicMock()
+        sounddevice_patcher = patch.dict(
+            sys.modules, {"sounddevice": self.fake_sounddevice_module}
+        )
+        sounddevice_patcher.start()
+        self.addCleanup(sounddevice_patcher.stop)
+        self.mock_sd_play = self.fake_sounddevice_module.play
+
+        self.source_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.source_directory.cleanup)
+
+        self.provider = ChatterboxTTSProvider(_make_settings(volume=0.5))
+
+    async def test_play_audio_file_plays_the_given_file_scaled_by_volume(self):
+        clip_path = os.path.join(self.source_directory.name, "reference.wav")
+        _write_audio_clip(clip_path, seconds=1.0, amplitude=0.4)
+
+        await self.provider.play_audio_file(clip_path)
+
+        played_samples, played_samplerate = self.mock_sd_play.call_args.args
+        self.assertEqual(played_samplerate, CLIP_SAMPLERATE)
+        np.testing.assert_allclose(played_samples, played_samples[0], atol=1e-3)
+
+    async def test_play_sample_voice_raises_when_the_profile_sample_is_missing(self):
+        self.provider.VOICES_DIR = Path(self.source_directory.name)
+
+        with self.assertRaises(FileNotFoundError):
+            await self.provider.play_sample_voice("missing-profile")
+
+    async def test_play_sample_voice_plays_the_saved_profile_sample(self):
+        self.provider.VOICES_DIR = Path(self.source_directory.name)
+        sample_path = self.provider.VOICES_DIR / "celeste_sample.wav"
+        _write_audio_clip(str(sample_path), seconds=1.0, amplitude=0.4)
+
+        await self.provider.play_sample_voice("celeste")
+
+        self.mock_sd_play.assert_called_once()
 
 
 class ChatterboxTTSProviderValidationTest(unittest.TestCase):
