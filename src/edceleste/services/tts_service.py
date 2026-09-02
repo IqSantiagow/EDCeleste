@@ -12,6 +12,7 @@ from edceleste.services.settings_service import SettingsService
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
+    VoiceAnalysisResult,
     VoiceCloningState,
 )
 from edceleste.services.tts_providers.tts_provider_protocol import TTSProviderProtocol
@@ -102,6 +103,24 @@ class TTSService:
 
         self.provider.remove_profile(profile_name)
 
+    def rename_profile(self, old_profile_name: str, new_profile_name: str) -> None:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        self.provider.rename_profile(old_profile_name, new_profile_name)
+
+    async def preview_voice_sample(self, profile_name: str, text: str) -> None:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        await self.provider.preview_voice_sample(profile_name, text)
+
     async def play_sample_voice(self, profile_name: str) -> None:
         if not isinstance(self.provider, ChatterboxTTSProvider):
             raise VoiceCloningException(
@@ -110,6 +129,28 @@ class TTSService:
             )
 
         await self.provider.play_sample_voice(profile_name)
+
+    async def play_audio_file(self, path_to_audio_file: str) -> None:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        await self.provider.play_audio_file(path_to_audio_file)
+
+    def perform_sample_voice_analysis_and_validate(
+        self, path_to_audio_file: str
+    ) -> VoiceAnalysisResult:
+        if not isinstance(self.provider, ChatterboxTTSProvider):
+            raise VoiceCloningException(
+                "The active TTS provider does not support voice profiles. "
+                "Switch the TTS provider to 'chatterbox' and try again."
+            )
+
+        return self.provider.perform_sample_voice_analysis_and_validate(
+            path_to_audio_file
+        )
 
     def get_available_device(self) -> Literal["cuda", "cpu"]:
         if not isinstance(self.provider, ChatterboxTTSProvider):

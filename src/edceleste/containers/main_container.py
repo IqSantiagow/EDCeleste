@@ -28,6 +28,9 @@ from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
 from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
     StreamLLMResponsesUseCase,
 )
+from edceleste.use_cases.settings.analyze_voice_sample_use_case import (
+    AnalyzeVoiceSampleUseCase,
+)
 from edceleste.use_cases.settings.clone_voice_use_case import CloneVoiceUseCase
 from edceleste.use_cases.settings.get_available_device_use_case import (
     GetAvailableDeviceUseCase,
@@ -41,11 +44,18 @@ from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
     GetSttInputDevicesUseCase,
 )
 from edceleste.use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
+from edceleste.use_cases.settings.play_audio_file_use_case import PlayAudioFileUseCase
 from edceleste.use_cases.settings.play_sample_voice_use_case import (
     PlaySampleVoiceUseCase,
 )
+from edceleste.use_cases.settings.preview_voice_sample_use_case import (
+    PreviewVoiceSampleUseCase,
+)
 from edceleste.use_cases.settings.remove_voice_profile_use_case import (
     RemoveVoiceProfileUseCase,
+)
+from edceleste.use_cases.settings.rename_voice_profile_use_case import (
+    RenameVoiceProfileUseCase,
 )
 from edceleste.use_cases.settings.settings_get_keybinds_use_case import (
     SettingsGetKeybindsUseCase,
@@ -205,8 +215,24 @@ class Container(containers.DeclarativeContainer):
         RemoveVoiceProfileUseCase, voice_cloning_protocol=tts_service
     )
 
+    rename_voice_profile_use_case = providers.Factory(
+        RenameVoiceProfileUseCase, voice_cloning_protocol=tts_service
+    )
+
     play_sample_voice_use_case = providers.Factory(
         PlaySampleVoiceUseCase, voice_cloning_protocol=tts_service
+    )
+
+    play_audio_file_use_case = providers.Factory(
+        PlayAudioFileUseCase, voice_cloning_protocol=tts_service
+    )
+
+    analyze_voice_sample_use_case = providers.Factory(
+        AnalyzeVoiceSampleUseCase, voice_cloning_protocol=tts_service
+    )
+
+    preview_voice_sample_use_case = providers.Factory(
+        PreviewVoiceSampleUseCase, voice_cloning_protocol=tts_service
     )
 
     get_available_device_use_case = providers.Factory(
@@ -245,6 +271,10 @@ class Container(containers.DeclarativeContainer):
         clone_voice_use_case=clone_voice_use_case,
         get_available_voice_profiles_use_case=get_available_voice_profiles_use_case,
         remove_voice_profile_use_case=remove_voice_profile_use_case,
+        rename_voice_profile_use_case=rename_voice_profile_use_case,
         play_sample_voice_use_case=play_sample_voice_use_case,
+        play_audio_file_use_case=play_audio_file_use_case,
+        analyze_voice_sample_use_case=analyze_voice_sample_use_case,
+        preview_voice_sample_use_case=preview_voice_sample_use_case,
         get_available_device_use_case=get_available_device_use_case,
     )
