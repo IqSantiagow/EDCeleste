@@ -24,7 +24,6 @@ Celeste is an AI companion that reacts to in-game events in real time and acts l
   - a **COMMS** chat panel where you type commands and watch Celeste's streamed replies,
   - a **SHIP LOG** panel that streams journal events as they arrive.
 - **Health checks** — the journal watcher and the LLM endpoint are polled and surfaced live in the header.
-- **Optional LangSmith tracing** — enable via env vars to inspect LLM traces.
 
 > The dashboard can run against live journal files (`JournalWatcherService`) or a bundled sample event stream (`JournalWatcherServiceStub`, used by default during UI development).
 
@@ -47,14 +46,13 @@ pip install .
 
 ## Configuration
 
-Copy and edit the env file (process bootstrap — logging and LangSmith tracing only):
+Copy and edit the env file (process bootstrap — logging only):
 
 ```bash
 cp .env-example .env
 ```
 
 - `LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`
-- Optional LangSmith tracing: set `LANGSMITH__TRACING=true` and provide `LANGSMITH__API_KEY`.
 
 Copy and edit the app settings file (journal/keybinds paths, LLM, speech, and event reactions):
 
@@ -139,7 +137,7 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 - `use_cases/` — thin callables bridging the game/LLM state to UI view models; `use_cases/settings/` holds the settings-editing use cases (get/update settings, list voices/devices, clone a voice, load keybinds).
 - `containers/` — a single `dependency-injector` container wiring everything together.
 - `ui/` — the Textual TUI (dashboard widgets, screens, themes, CSS).
-- `config/` — pydantic-settings config loading (logging, LangSmith) and tracing setup.
+- `config/` — pydantic-settings config loading (logging).
 - `services/settings_service.py` — `SettingsService`, loading/persisting `config.yaml` (journal/keybinds paths, LLM provider, TTS provider/volume, STT settings, event reactions).
 
 ## Project Structure
