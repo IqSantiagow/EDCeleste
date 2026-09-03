@@ -1,10 +1,7 @@
 import logging
 
-from langchain_core.exceptions import LangChainException
 from textual.logging import TextualHandler
 
-from edceleste.config.config import LangSmithConfig
-from edceleste.config.tracing import configure_langsmith
 from edceleste.containers.main_container import Container
 from edceleste.ui.ui_app import UIApp
 
@@ -26,12 +23,8 @@ def main() -> None:
 
     logger = logging.getLogger(__name__)
 
-    configure_langsmith(LangSmithConfig(**container.config.langsmith()))
-
     try:
         UIApp().run()
-    except LangChainException as e:
-        logger.error("Raised a Langchain exception: %s", e)
     except Exception as e:
         logger.error("Raised an exception: %s", e)
 

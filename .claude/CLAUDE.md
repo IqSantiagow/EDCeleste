@@ -24,9 +24,8 @@ python -m pytest tests/services/journal/test_journal_watcher.py
 
 Two independent, both-gitignored config sources:
 
-- **`.env`** (copy from `.env-example`) — process bootstrap, loaded via Pydantic-settings (`AppConfig` in `config/config.py`). Only `logging` and `langsmith`:
+- **`.env`** (copy from `.env-example`) — process bootstrap, loaded via Pydantic-settings (`AppConfig` in `config/config.py`). Only `logging`:
   - `LOGGING__LEVEL` — `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL` (required)
-  - `LANGSMITH__TRACING` / `LANGSMITH__API_KEY` / `LANGSMITH__PROJECT` / `LANGSMITH__ENDPOINT` (optional)
 
 - **`config.yaml`** (copy from `config-example.yaml`) — user/runtime settings, loaded via `services/settings_service.py` (`SettingsService`) into `SettingsModel` (`services/models/settings_model.py`):
   - `paths.journal_path` / `paths.keybindings_path`
@@ -71,7 +70,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
-- LLM model: `claude-haiku-4-5-20251001` via LangChain Anthropic; configured in `services/llm_service.py`
+- LLM model: `claude-haiku-4-5-20251001` via the Claude Agent SDK (`adapters/claude_agent_sdk.py`); configured in `services/llm_service.py`
 
 ## Ape style code
 - Write a code so understandable that even an ape can understand it. Use simple names and exhausting function and variable names
