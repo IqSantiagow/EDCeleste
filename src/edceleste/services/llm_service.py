@@ -4,6 +4,7 @@ import logging
 import asyncio
 
 from edceleste.adapters.claude_agent_sdk import ClaudeAgentSDK
+from edceleste.adapters.lm_studio_sdk import LMStudioSDK
 from edceleste.protocols.llm_sdk_protocol import LLMSdkProtocol
 from edceleste.services.models.message_block import (
     AgentFullResponse,
@@ -64,6 +65,8 @@ The game has generated an event that you need to react to. The event is
 described below as JSON.
 {event_description}
 """
+
+SUPPORTED_LLM_PROVIDER_TYPES = ["claude_agent_sdk", "lm_studio"]
 
 
 class LLMService:
@@ -163,15 +166,31 @@ class LLMService:
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
-        if new_settings.llm.provider.type not in ["claude_agent_sdk"]:
+        if new_settings.llm.provider.type not in SUPPORTED_LLM_PROVIDER_TYPES:
             return SettingsIssueModel(
                 section="llm",
                 field="llm.provider.type",
                 message=(
-                    "Unsupported LLM provider. "
-                    "Supported providers are 'claude_agent_sdk'."
+                    "Unsupported LLM provider. Supported providers are "
+                    f"{', '.join(SUPPORTED_LLM_PROVIDER_TYPES)}."
                 ),
             )
+
+        provider = new_settings.llm.provider
+        if provider.type in SUPPORTED_LLM_PROVIDER_TYPES:
+            try:
+                sdk_provider = self.determine_provider(new_settings)
+                sdk_provider.validate_settings({"model": provider.model})
+            except Exception as e:
+                # Broad on purpose: an unreachable LM Studio server raises
+                # its own connection error here, not a ValueError, and that
+                # should show up as a validation issue too, not crash the
+                # save.
+                return SettingsIssueModel(
+                    section="llm",
+                    field="llm.provider.model",
+                    message=str(e),
+                )
         return None
 
     def reload_service(self):
@@ -204,17 +223,22 @@ class LLMService:
         if provider.type == "chat_completions":
             raise ValueError(
                 "Chat Completions provider is not supported in this "
-                "implementation. Use 'claude_agent_sdk' instead."
+                "implementation. Use 'claude_agent_sdk' or 'lm_studio' instead."
             )
         elif provider.type == "claude_agent_sdk":
             return ClaudeAgentSDK(
                 model=provider.model,
                 system_prompt=self.build_system_prompt(settings),
             )
+        elif provider.type == "lm_studio":
+            return LMStudioSDK(
+                model=provider.model,
+                system_prompt=self.build_system_prompt(settings),
+            )
         else:
             raise ValueError(
                 f"Unsupported LLM provider: {provider.type}. Supported providers "
-                "are 'claude_agent_sdk'."
+                f"are {', '.join(SUPPORTED_LLM_PROVIDER_TYPES)}."
             )
 
     def add_llm_request_to_queue(self, message: str) -> None:
@@ -234,3 +258,15 @@ class LLMService:
                 yield SystemMessage(content=f"LLM turn failed: {error}")
 
             yield LLMStatus.IDLE
+
+    def get_models(self, provider_type: str) -> list[str]:
+        # Asks the specific provider the settings screen is showing, not
+        # whatever provider happens to be loaded right now - the pilot might
+        # be previewing "lm_studio" while "claude_agent_sdk" is still the
+        # one actually active.
+        if provider_type == "claude_agent_sdk":
+            return ClaudeAgentSDK(model="", system_prompt="").get_models
+        elif provider_type == "lm_studio":
+            return LMStudioSDK(model="", system_prompt="").get_models
+        else:
+            return []

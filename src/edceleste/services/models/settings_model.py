@@ -140,11 +140,20 @@ class ClaudeAgentSdkModel(BaseModel):
     )
 
 
+class LmStudioModel(BaseModel):
+    type: Literal["lm_studio"] = Field(
+        description="The type of LLM model",
+    )
+    model: str = Field(
+        description="The model to use for LM Studio",
+    )
+
+
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 
 class LLMModel(BaseModel):
-    provider: Union[ChatCompletionsModel, ClaudeAgentSdkModel] = Field(
+    provider: Union[ChatCompletionsModel, ClaudeAgentSdkModel, LmStudioModel] = Field(
         default_factory=lambda: ClaudeAgentSdkModel(
             type="claude_agent_sdk", model=DEFAULT_CLAUDE_MODEL
         ),
