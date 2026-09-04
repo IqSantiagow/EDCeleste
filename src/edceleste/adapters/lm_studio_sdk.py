@@ -1,4 +1,5 @@
-from typing import AsyncGenerator
+from dataclasses import dataclass
+from typing import Any, AsyncGenerator, Literal
 import lmstudio as lms
 from lmstudio._sdk_models import LlmPredictionFragment, ToolCallRequestData
 
@@ -12,14 +13,30 @@ from edceleste.services.models.message_block import (
 from edceleste.protocols.tool_protocol import ToolProtocol
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DecoratedToolFunctionDef(lms.ToolFunctionDef):
+    readable_name: str
+    param_name: str
+
+
 class LMStudioSDK(LLMSdkProtocol):
     def __init__(self, model: str, system_prompt: str):
         self.model = model
         self.system_prompt = system_prompt
-        self.tools = []
+        self.tools: list[DecoratedToolFunctionDef] = []
 
     def register_tools(self, tools: list[ToolProtocol]) -> None:
-        self.tools = tools
+        self.tools = [
+            DecoratedToolFunctionDef(
+                readable_name=tool.readable_name,
+                name=tool.name,
+                description=tool.description,
+                param_name=tool.param_name,
+                parameters=self.to_lms_fun_params(tool.parameters),
+                implementation=tool.execute,
+            )
+            for tool in tools
+        ]
 
     async def execute_query(
         self, prompt: str
@@ -51,7 +68,7 @@ class LMStudioSDK(LLMSdkProtocol):
             await model.act(
                 prompt,
                 on_message=on_message,
-                tools=[tool.execute for tool in self.tools],
+                tools=self.tools,
                 on_prediction_fragment=on_prediction_fragment,
             )
         for event in events:
@@ -68,6 +85,32 @@ class LMStudioSDK(LLMSdkProtocol):
             raise ValueError(
                 f"Invalid model: {settings.get('model')}. Load this model first"
             )
+
+    def to_lms_fun_params(self, args: dict[str, Any]) -> dict[str, Any]:
+        parameter_type_map: dict[str, type] = {
+            "string": str,
+            "number": float,
+            "boolean": bool,
+            "integer": int,
+            "array": list,
+            "object": object,
+        }
+
+        params = dict()
+        properties = args.get("properties", {})
+        if not properties:
+            raise RuntimeError(f"Missing 'properties' in argument {args}")
+        for key in properties:
+            if not isinstance(properties[key], dict):
+                raise RuntimeError(
+                    f"Revice to_lms_fun_params function with argument {args}"
+                )
+            if "enum" in properties[key]:
+                params[key] = Literal[tuple(properties[key]["enum"])]
+                continue
+
+            params[key] = parameter_type_map[properties[key]["type"]]
+        return params
 
     def search_for_tool_in_registered_tools_by_tool_call_request(
         self, tool_call_request: "lms.ToolCallRequest"

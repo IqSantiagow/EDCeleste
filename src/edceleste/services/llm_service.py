@@ -254,7 +254,7 @@ class LLMService:
                 async for response in self.__send_message_and_stream_responses(message):
                     yield response
             except Exception as error:
-                logger.exception("LLM turn failed")
+                logger.exception(f"LLM turn failed: {error}", exc_info=error)
                 yield SystemMessage(content=f"LLM turn failed: {error}")
 
             yield LLMStatus.IDLE
