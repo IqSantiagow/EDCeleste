@@ -24,6 +24,7 @@ from edceleste.services.models.settings_model import (
     ChatCompletionsModel,
     ClaudeAgentSdkModel,
     LLMModel,
+    LmStudioModel,
     PathModel,
     SettingsModel,
     SttModel,
@@ -307,6 +308,22 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    def test_determine_provider_builds_lm_studio_from_settings(self):
+        settings = _make_settings()
+        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
+
+        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
+            provider = self.llm_service.determine_provider(settings)
+
+        self.assertIs(provider, mock_lm_studio_sdk.return_value)
+        self.assertEqual(
+            mock_lm_studio_sdk.call_args.kwargs,
+            {
+                "model": "llama-3",
+                "system_prompt": f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
+            },
+        )
+
     def test_determine_provider_rejects_chat_completions_provider(self):
         settings = _make_settings()
         settings.llm.provider = ChatCompletionsModel(
@@ -326,6 +343,67 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         issue = self.llm_service.validate_settings(settings)
 
         self.assertIsNone(issue)
+
+    def test_validate_settings_reports_no_issues_for_lm_studio_provider(self):
+        settings = _make_settings()
+        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
+
+        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
+            mock_lm_studio_sdk.return_value.validate_settings.return_value = None
+            issue = self.llm_service.validate_settings(settings)
+
+        self.assertIsNone(issue)
+
+    def test_validate_settings_rejects_chat_completions_as_unsupported_provider(self):
+        settings = _make_settings()
+        settings.llm.provider = ChatCompletionsModel(
+            type="chat_completions",
+            model="gpt-4",
+            base_url="https://example.com",
+            bearer_token="token",
+        )
+
+        issue = self.llm_service.validate_settings(settings)
+
+        assert issue is not None
+        self.assertEqual(issue.field, "llm.provider.type")
+
+    def test_validate_settings_reports_issue_when_sdk_raises_non_value_error(self):
+        # An unreachable LM Studio server raises its own connection error, not
+        # a ValueError - this must still come back as a validation issue
+        # instead of crashing the save.
+        settings = _make_settings()
+        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
+
+        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
+            mock_lm_studio_sdk.return_value.validate_settings.side_effect = (
+                ConnectionError("LM Studio server is not reachable")
+            )
+            issue = self.llm_service.validate_settings(settings)
+
+        assert issue is not None
+        self.assertEqual(issue.field, "llm.provider.model")
+        self.assertIn("not reachable", issue.message)
+
+    def test_get_models_delegates_to_claude_agent_sdk_for_that_provider_type(self):
+        self.mock_agent.get_models = ["claude-opus-5", "claude-sonnet-5"]
+
+        result = self.llm_service.get_models("claude_agent_sdk")
+
+        self.assertEqual(result, ["claude-opus-5", "claude-sonnet-5"])
+
+    def test_get_models_delegates_to_lm_studio_for_that_provider_type(self):
+        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
+            mock_lm_studio_sdk.return_value.get_models = ["llama-3", "mistral-7b"]
+
+            result = self.llm_service.get_models("lm_studio")
+
+        self.assertEqual(result, ["llama-3", "mistral-7b"])
+
+    def test_get_models_returns_empty_list_for_unsupported_provider_type(self):
+        result = self.llm_service.get_models("chat_completions")
+
+        self.assertEqual(result, [])
 
     def test_reload_service_rebuilds_agent_with_updated_system_prompt_and_tools(self):
         new_settings = _make_settings(system_prompt="New system prompt")

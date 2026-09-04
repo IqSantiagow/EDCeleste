@@ -111,3 +111,18 @@ class ClaudeAgentSDK(LLMSdkProtocol):
             if normalized_tool is not None
             else None,
         )
+
+    @property
+    def get_models(self) -> list[str]:
+        return [
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-fable-5",
+            "claude-haiku-4-5-20251001",
+        ]
+
+    def validate_settings(self, settings: dict[str, str]) -> None:
+        model = settings.get("model")
+        if model not in self.get_models:
+            raise ValueError(f"Invalid model: {model}")
+        return None
