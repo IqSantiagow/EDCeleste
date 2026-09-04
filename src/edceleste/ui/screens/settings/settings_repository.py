@@ -19,6 +19,7 @@ from edceleste.use_cases.settings.get_available_device_use_case import (
 from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
     GetAvailableVoiceProfilesUseCase,
 )
+from edceleste.use_cases.settings.get_llm_models_use_case import GetLlmModelsUseCase
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
@@ -55,6 +56,7 @@ class SettingsRepository:
         update_settings_use_case: UpdateSettingsUseCase,
         get_settings_use_case: GetSettingsUseCase,
         get_tts_voices_use_case: GetTTSVoicesUseCase,
+        get_llm_models_use_case: GetLlmModelsUseCase,
         get_stt_models_use_case: GetSttModelsUseCase,
         get_stt_input_devices_use_case: GetSttInputDevicesUseCase,
         clone_voice_use_case: CloneVoiceUseCase,
@@ -72,6 +74,7 @@ class SettingsRepository:
         self.update_settings_use_case = update_settings_use_case
         self.get_settings_use_case = get_settings_use_case
         self.get_tts_voices_use_case = get_tts_voices_use_case
+        self.get_llm_models_use_case = get_llm_models_use_case
         self.get_stt_models_use_case = get_stt_models_use_case
         self.get_stt_input_devices_use_case = get_stt_input_devices_use_case
         self.clone_voice_use_case = clone_voice_use_case
@@ -104,6 +107,9 @@ class SettingsRepository:
 
     async def get_voices(self) -> list[str]:
         return await self.get_tts_voices_use_case()
+
+    def get_llm_models(self, provider_type: str) -> list[str]:
+        return self.get_llm_models_use_case(provider_type)
 
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str

@@ -33,6 +33,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         update_settings_use_case=None,
         get_settings_use_case=None,
         get_tts_voices_use_case=None,
+        get_llm_models_use_case=None,
         get_stt_models_use_case=None,
         get_stt_input_devices_use_case=None,
         clone_voice_use_case=None,
@@ -51,6 +52,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             update_settings_use_case=update_settings_use_case or Mock(),
             get_settings_use_case=get_settings_use_case or Mock(),
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
+            get_llm_models_use_case=get_llm_models_use_case or Mock(),
             get_stt_models_use_case=get_stt_models_use_case or Mock(),
             get_stt_input_devices_use_case=get_stt_input_devices_use_case or Mock(),
             clone_voice_use_case=clone_voice_use_case or Mock(),
@@ -117,6 +119,18 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, voices)
         get_tts_voices_use_case.assert_awaited_once()
+
+    def test_should_delegate_get_llm_models_to_use_case(self):
+        models = ["claude-haiku-4-5-20251001", "claude-sonnet-5"]
+        get_llm_models_use_case = Mock(return_value=models)
+        repository = self._make_repository(
+            get_llm_models_use_case=get_llm_models_use_case
+        )
+
+        result = repository.get_llm_models("claude_agent_sdk")
+
+        self.assertEqual(result, models)
+        get_llm_models_use_case.assert_called_once_with("claude_agent_sdk")
 
     def test_should_delegate_get_stt_models_to_use_case(self):
         models = ["tiny.en", "base.en"]

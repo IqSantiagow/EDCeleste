@@ -33,6 +33,7 @@ class PerformGameAction(ToolProtocol):
         self.settings_service = settings_service
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Perform a game action based on the provided type of action"""
         if not self.settings_service.get_settings().game_actions.enabled:
             return self._error("Game actions are disabled by the user.")
 

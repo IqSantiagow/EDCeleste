@@ -2,8 +2,6 @@ stt:
   enabled: true
   model: "tiny.en"
 game_actions:
-  # When false, the LLM cannot press in-game keybinds via the
-  # PerformGameAction tool. Disabled by default for safety.
   enabled: false
 event_reaction:
   reactions:
