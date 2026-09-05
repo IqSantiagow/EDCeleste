@@ -33,6 +33,13 @@ class SettingsInputWidgetIds(Enum):
     TTS_DEVICE_INPUT = "tts-device-input"
     TTS_NANO_INPUT = "tts-nano-input"
     VOLUME_INPUT = "volume-input"
+    LLM_PROVIDER_TYPE_INPUT = "llm-provider-type-input"
+    LLM_MODEL_INPUT = "llm-model-input"
+    LLM_CHAT_COMPLETIONS_MODEL_INPUT = "llm-chat-completions-model-input"
+    LLM_BASE_URL_INPUT = "llm-base-url-input"
+    LLM_BEARER_TOKEN_INPUT = "llm-bearer-token-input"
+    LLM_SYSTEM_PROMPT_INPUT = "llm-system-prompt-input"
+    LLM_USER_PROMPT_INPUT = "llm-user-prompt-input"
     STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
     STT_INPUT_DEVICE_INPUT = "stt-input-device-input"
@@ -53,4 +60,12 @@ SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID = {
     "profile": (SettingsSection.TTS, SettingsInputWidgetIds.TTS_PROFILE_INPUT.value),
     "volume": (SettingsSection.TTS, SettingsInputWidgetIds.VOLUME_INPUT.value),
     "model": (SettingsSection.STT, SettingsInputWidgetIds.STT_MODEL_INPUT.value),
+    "llm.provider.type": (
+        SettingsSection.LLM,
+        SettingsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value,
+    ),
+    "llm.provider.model": (
+        SettingsSection.LLM,
+        SettingsInputWidgetIds.LLM_MODEL_INPUT.value,
+    ),
 }
