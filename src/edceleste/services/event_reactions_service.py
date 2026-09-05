@@ -18,16 +18,16 @@ class EventReactionsService:
         self.reload_service()
 
     async def process_event(self, event: JournalEvent) -> None:
-        if self.settings.event_reaction.reactions.get(event.event, False):
+        if self.settings.event_reactions.reactions.get(event.event, False):
             await self.event_bus.publish(EventReactionEvent(event=event))
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
-        if not isinstance(new_settings.event_reaction, EventReactionModel):
+        if not isinstance(new_settings.event_reactions, EventReactionModel):
             return SettingsIssueModel(
-                section="event_reaction",
-                field="event_reaction",
+                section="event_reactions",
+                field="event_reactions",
                 message=(
                     "Event reaction settings must be a mapping of event name to bool."
                 ),

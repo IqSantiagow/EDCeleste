@@ -225,7 +225,7 @@ class SettingsModel(BaseModel):
     llm: LLMModel = Field(
         description="The LLM connection settings",
     )
-    event_reaction: EventReactionModel = Field(
+    event_reactions: EventReactionModel = Field(
         description="The event reaction settings",
         default_factory=EventReactionModel,
     )

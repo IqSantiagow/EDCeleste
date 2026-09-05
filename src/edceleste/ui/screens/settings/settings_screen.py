@@ -5,23 +5,20 @@ from textual import on
 from textual.containers import Grid
 from textual.screen import Screen
 from textual.widgets import ContentSwitcher, Footer, Label, LoadingIndicator
-from edceleste.ui.screens.settings.widgets.inputs.widget_settings_row import (
-    WidgetSettingsRow,
-)
 from textual.reactive import reactive
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
 from edceleste.ui.screens.settings.events.settings_events import (
     SectionSettingsChanged,
 )
-from edceleste.ui.screens.settings.widgets.const_ids import (
-    SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID,
-)
+
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
+from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
+    WidgetBaseSettingsContainer,
+)
 from edceleste.ui.screens.settings.widgets.widget_settings_header_content import (
     SaveState,
     WidgetSettingsHeaderContent,
-    WidgetSettingsHeaderModifiedIndicator,
 )
 from edceleste.ui.screens.settings.widgets.widget_settings_section_content_column import (  # noqa: E501
     WidgetSettingsSectionContentColumn,
@@ -35,8 +32,6 @@ logger = logging.getLogger(__name__)
 
 
 class SettingsScreen(Screen):
-    # TODO: The whole settings screen logic and state management is a pure shit
-    # and needs to be refactored. Well, at least it works XD
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("ctrl+s", "validate_and_save_settings", "Save Settings"),
@@ -85,102 +80,57 @@ class SettingsScreen(Screen):
 
         setattr(self.settings_state, message.section.name.lower(), message.new_value)
 
-        current_section_state = getattr(
-            self.settings_state, message.section.name.lower()
+        is_section_modified = (
+            self.query(WidgetBaseSettingsContainer)
+            .filter(f"#settings-{message.section.name.lower()}")
+            .first()
+            .is_modified()
         )
 
-        modified_fields_count_in_section = self.compare_dicts_and_return_modified_count(
-            current_section_state.model_dump(),
-            getattr(
-                self._initial_settings_state, message.section.name.lower()
-            ).model_dump(),
+        self.query_one(WidgetSettingsSectionsColumn).change_section_modified_indicator(
+            message.section, should_show=is_section_modified
         )
 
-        if modified_fields_count_in_section > 0:
-            self.query_one(
-                WidgetSettingsSectionsColumn
-            ).change_section_modified_indicator(message.section, should_show=True)
-        else:
-            self.query_one(
-                WidgetSettingsSectionsColumn
-            ).change_section_modified_indicator(message.section, should_show=False)
-
-        self.query_one(
-            WidgetSettingsHeaderModifiedIndicator
-        ).set_number_of_modified_fields(
-            self.compare_dicts_and_return_modified_count(
-                self.settings_state.model_dump(),
-                self._initial_settings_state.model_dump(),
-            )
+        is_any_section_modified = any(
+            container.is_modified()
+            for container in self.query(WidgetBaseSettingsContainer)
         )
 
-    def compare_dicts_and_return_modified_count(
-        self, setting_a: dict, setting_b: dict
-    ) -> int:
-        # Switching a discriminated union field (e.g. llm.provider between
-        # claude_agent_sdk and chat_completions) swaps in a dict with a
-        # completely different set of keys, so we can't assume both sides
-        # share the same fields here - a field missing on one side just
-        # counts as changed instead of raising a KeyError.
-        number_of_changes = 0
-        for field in set(setting_a.keys()) | set(setting_b.keys()):
-            value_a = setting_a.get(field)
-            value_b = setting_b.get(field)
-            if isinstance(value_a, dict) and isinstance(value_b, dict):
-                number_of_changes += self.compare_dicts_and_return_modified_count(
-                    value_a, value_b
-                )
-            else:
-                if value_a == value_b:
-                    continue
-                number_of_changes += 1
-        return number_of_changes
+        self.query_one(WidgetSettingsHeaderContent).save_state = (
+            SaveState.MODIFIED if is_any_section_modified else SaveState.IDLE
+        )
 
     def action_validate_and_save_settings(self) -> None:
         if not self.settings_state:
             return
-        if (
-            self.compare_dicts_and_return_modified_count(
-                self.settings_state.model_dump(),
-                self._initial_settings_state.model_dump(),
-            )
-            == 0
-        ):
-            return
+
         failures = self.settings_repository.update_settings(self.settings_state)
         if failures:
-            self.query_one(
-                WidgetSettingsHeaderModifiedIndicator
-            ).save_state = SaveState.FAILED
-            self.notify_about_failures_to_inputs(failures)
+            self.query_one(WidgetSettingsHeaderContent).save_state = SaveState.FAILED
+            self.notify_about_failures_to_sections(failures)
         else:
-            self.query_one(
-                WidgetSettingsHeaderModifiedIndicator
-            ).save_state = SaveState.SAVED
+            self.query_one(WidgetSettingsHeaderContent).save_state = SaveState.SAVED
             self._initial_settings_state = deepcopy(self.settings_state)
             self.reset_all_validation_states()
 
-    def notify_about_failures_to_inputs(
+    def notify_about_failures_to_sections(
         self, failures: list[SettingsIssueModel]
     ) -> None:
         if not failures:
             return
         for failure in failures:
-            failure_field_id = failure.field
             error_message = failure.message
-            input_id = SECTION_ERROR_FIELD_TO_SECTION_TO_INPUT_WIDGET_ID.get(
-                failure_field_id, (None, None)
-            )[1]
-            if not input_id:
-                logging.warning(
-                    f"Failed to find input widget id for error field "
-                    f"'{failure_field_id}'. The fuck happened here?"
+
+            section_widget = (
+                self.query(WidgetBaseSettingsContainer)
+                .filter(
+                    f"#settings-{failure.section.lower()}",
                 )
-                continue
-            input_widget = self.query_one(f"#{input_id}", expect_type=WidgetSettingsRow)
-            input_widget.notify_about_validation_failure(error_message)
+                .first()
+            )
+            section_widget.show_validation_error(error_message)
 
     def reset_all_validation_states(self) -> None:
-        for input_widget in self.query(WidgetSettingsRow):
-            input_widget.reset_validation_state()
         self.query_one(WidgetSettingsSectionsColumn).reset_all_modified_indicators()
+        for container in self.query(WidgetBaseSettingsContainer):
+            container.reset_validation_state()

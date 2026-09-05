@@ -1,3 +1,5 @@
+import enum
+
 from textual import on, work
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
@@ -9,7 +11,6 @@ from edceleste.services.models.settings_model import ChatterboxTTSProviderModel
 from textual.app import ComposeResult
 
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
-from edceleste.ui.screens.settings.widgets.const_ids import SettingsInputWidgetIds
 from edceleste.ui.screens.settings.widgets.inputs.widget_button import WidgetButton
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_slider_row import (
     WidgetLabeledSliderRow,
@@ -27,6 +28,14 @@ from edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen import (
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 CHATTERBOX_DEVICE_OPTIONS = ["auto", "cuda", "cpu"]
+
+
+class ChatterboxTTSInputWidgetIds(enum.Enum):
+    TTS_PROFILE_INPUT = "tts-profile-input"
+    TTS_EXAGGERATION_INPUT = "tts-exaggeration-input"
+    TTS_CFG_WEIGHT_INPUT = "tts-cfg-weight-input"
+    TTS_DEVICE_INPUT = "tts-device-input"
+    TTS_NANO_INPUT = "tts-nano-input"
 
 
 class WidgetChatterboxTTSSettingsVertical(Vertical):
@@ -57,7 +66,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 "Voice: ",
                 self.voice_profiles,
                 self.chatterbox_provider.profile,
-                id=SettingsInputWidgetIds.TTS_PROFILE_INPUT.value,
+                id=ChatterboxTTSInputWidgetIds.TTS_PROFILE_INPUT.value,
             )
 
             yield WidgetSectionHeader("CLONED PROFILES")
@@ -85,7 +94,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 2,
                 self.chatterbox_provider.exaggeration,
                 step=0.1,
-                id=SettingsInputWidgetIds.TTS_EXAGGERATION_INPUT.value,
+                id=ChatterboxTTSInputWidgetIds.TTS_EXAGGERATION_INPUT.value,
             )
             yield WidgetLabeledSliderRow(
                 "Pace (cfg):",
@@ -93,18 +102,18 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 1,
                 self.chatterbox_provider.cfg_weight,
                 step=0.05,
-                id=SettingsInputWidgetIds.TTS_CFG_WEIGHT_INPUT.value,
+                id=ChatterboxTTSInputWidgetIds.TTS_CFG_WEIGHT_INPUT.value,
             )
             yield WidgetLabeledSelectRow(
                 "Device: ",
                 CHATTERBOX_DEVICE_OPTIONS,
                 self.chatterbox_provider.device,
-                id=SettingsInputWidgetIds.TTS_DEVICE_INPUT.value,
+                id=ChatterboxTTSInputWidgetIds.TTS_DEVICE_INPUT.value,
             )
             yield WidgetLabeledSwitchRow(
                 "Nano model:",
                 self.chatterbox_provider.nano,
-                id=SettingsInputWidgetIds.TTS_NANO_INPUT.value,
+                id=ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT.value,
             )
 
     def fetch_profiles(self) -> None:
@@ -133,7 +142,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
 
         if result.set_as_active:
             select = self.query_one(
-                f"#{SettingsInputWidgetIds.TTS_PROFILE_INPUT.value} Select", Select
+                f"#{ChatterboxTTSInputWidgetIds.TTS_PROFILE_INPUT.value} Select", Select
             )
             select.value = result.profile_name
 

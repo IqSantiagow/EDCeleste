@@ -42,7 +42,7 @@ class WidgetSettingsSectionContentColumn(Vertical):
             )
             yield widget_event_reactions_container.WidgetEventReactionsContainer(
                 settings_model=self.settings,
-                id="settings-event-reactions",
+                id="settings-event_reactions",
             )
             yield widget_system_prompts_container.WidgetSystemPromptsContainer(
                 llm_model=self.settings.llm,
@@ -58,5 +58,5 @@ class WidgetSettingsSectionContentColumn(Vertical):
             )
             yield widget_game_actions_container.WidgetGameActionsContainer(
                 game_actions_model=self.settings.game_actions,
-                id="settings-game-actions",
+                id="settings-game_actions",
             )

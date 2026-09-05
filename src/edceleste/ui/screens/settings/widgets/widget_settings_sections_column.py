@@ -8,11 +8,11 @@ from edceleste.ui.screens.settings.widgets.const_ids import SettingsSection
 _SECTIONS_LABELS_WITH_ID: dict[str, str] = {
     "settings-keybinds": "KEYBINDS",
     "settings-paths": "PATHS",
-    "settings-event-reactions": "EVENT REACTIONS",
+    "settings-event_reactions": "EVENT REACTIONS",
     "settings-llm": "LLM",
     "settings-tts": "TTS",
     "settings-stt": "STT",
-    "settings-game-actions": "GAME ACTIONS",
+    "settings-game_actions": "GAME ACTIONS",
 }
 
 
@@ -36,17 +36,9 @@ class WidgetSettingsSectionsColumn(ListView):
     def change_section_modified_indicator(
         self, section: SettingsSection, should_show: bool
     ) -> None:
-        item_id = next(
-            (
-                item_id
-                for item_id, sec in _SECTIONS_LABELS_WITH_ID.items()
-                if sec == section.name
-            ),
-            None,
-        )
-        if item_id is not None:
-            list_item = self.query_one(f"#{item_id}", WidgetSettingsSectionListItem)
-            list_item.should_show_changed_indicator = should_show
+        item_id = f"settings-{section.name.lower()}"
+        list_item = self.query_one(f"#{item_id}", WidgetSettingsSectionListItem)
+        list_item.should_show_changed_indicator = should_show
 
     def reset_all_modified_indicators(self) -> None:
         for item_id in _SECTIONS_LABELS_WITH_ID:

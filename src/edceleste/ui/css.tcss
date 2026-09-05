@@ -79,6 +79,7 @@ WidgetSettingsHeaderContent {
 #settings-header-modified-indicator {
     width: 1fr;
     align: right middle;
+    content-align: right middle;
 }
 
 .header-title {
@@ -233,6 +234,27 @@ WidgetSettingsSectionListItem {
 
 WidgetSettingsSectionListItem .section-label {
     width: 1fr;
+}
+
+/* ============================================================
+   Settings: validation error box (WidgetBaseSettingsContainer)
+   Hidden by default (ErrorContainer.display = False in Python);
+   shown as a red bordered box when show_validation_error() runs.
+   ============================================================ */
+ErrorContainer {
+    height: auto;
+    border: solid $error;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+ErrorContainer .error-label {
+    color: $error;
+    text-style: bold;
+}
+
+ErrorContainer .error-message-label {
+    color: $error;
 }
 
 /* ============================================================
