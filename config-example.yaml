@@ -3,7 +3,7 @@ stt:
   model: "tiny.en"
 game_actions:
   enabled: false
-event_reaction:
+event_reactions:
   reactions:
     ApproachBody: false
     ApproachSettlement: false
