@@ -132,8 +132,9 @@ class WidgetSystemPromptsContainer(Vertical):
                 classes="no-profiles-message",
             )
             return
-        # TODO: There is a bug if there wont be any model and user will change something in the settings, then the app will crash
-        # due to select not being mounted. It will be refactored in the future to avoid this issue.
+        # TODO: The app crashes when there are no models and the user changes
+        # the settings because the select widget is not mounted. Refactor this
+        # in the future to avoid the issue.
         yield WidgetLabeledSelectRow(
             "Model: ",
             self.models,
