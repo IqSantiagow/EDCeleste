@@ -285,6 +285,28 @@ WidgetLabeledSliderRow {
 }
 
 /* ============================================================
+   Settings: LLM section — multi-line prompt rows
+   (WidgetLabeledTextAreaRow)
+   TextArea defaults to height: 1fr, the same trap Input and Slider
+   fell into above — pin it to a fixed number of rows instead, so a
+   prompt editor doesn't try to swallow the rest of the screen.
+   ============================================================ */
+WidgetLabeledTextAreaRow {
+    height: auto;
+    margin-bottom: 1;
+}
+
+WidgetLabeledTextAreaRow .textarea-row-label-line {
+    height: 1;
+}
+
+.entry-textarea {
+    height: 6;
+    min-height: 6;
+    background: $panel;
+}
+
+/* ============================================================
    Settings: keybinds section
    ============================================================ */
 
