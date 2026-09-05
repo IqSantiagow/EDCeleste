@@ -128,12 +128,12 @@ def _base_settings_kwargs() -> dict:
 class TestSettingsModelEventReaction(unittest.TestCase):
     def test_default_event_reaction_only_load_game_enabled(self):
         settings = SettingsModel(**_base_settings_kwargs())
-        event_reaction = settings.event_reaction.reactions
+        event_reactions = settings.event_reactions.reactions
 
-        self.assertTrue(event_reaction["LoadGame"])
-        self.assertEqual(set(event_reaction), {event.value for event in KNOWN_EVENTS})
+        self.assertTrue(event_reactions["LoadGame"])
+        self.assertEqual(set(event_reactions), {event.value for event in KNOWN_EVENTS})
         other_events = {
-            key: value for key, value in event_reaction.items() if key != "LoadGame"
+            key: value for key, value in event_reactions.items() if key != "LoadGame"
         }
         self.assertTrue(all(value is False for value in other_events.values()))
 
@@ -142,32 +142,32 @@ class TestSettingsModelEventReaction(unittest.TestCase):
 
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"reactions": full_mapping},
+            event_reactions={"reactions": full_mapping},
         )
 
-        self.assertEqual(settings.event_reaction.reactions, full_mapping)
+        self.assertEqual(settings.event_reactions.reactions, full_mapping)
 
     def test_partial_mapping_fills_missing_known_events_with_false(self):
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"reactions": {"FSDJump": True}},
+            event_reactions={"reactions": {"FSDJump": True}},
         )
-        event_reaction = settings.event_reaction.reactions
+        event_reactions = settings.event_reactions.reactions
 
-        self.assertTrue(event_reaction["FSDJump"])
-        self.assertFalse(event_reaction["LoadGame"])
-        self.assertEqual(set(event_reaction), {event.value for event in KNOWN_EVENTS})
+        self.assertTrue(event_reactions["FSDJump"])
+        self.assertFalse(event_reactions["LoadGame"])
+        self.assertEqual(set(event_reactions), {event.value for event in KNOWN_EVENTS})
 
     def test_unknown_event_key_is_stripped_from_event_reaction_mapping(self):
         settings = SettingsModel(
             **_base_settings_kwargs(),
-            event_reaction={"reactions": {"NotARealEvent": True, "FSDJump": True}},
+            event_reactions={"reactions": {"NotARealEvent": True, "FSDJump": True}},
         )
-        event_reaction = settings.event_reaction.reactions
+        event_reactions = settings.event_reactions.reactions
 
-        self.assertNotIn("NotARealEvent", event_reaction)
-        self.assertTrue(event_reaction["FSDJump"])
-        self.assertEqual(set(event_reaction), {event.value for event in KNOWN_EVENTS})
+        self.assertNotIn("NotARealEvent", event_reactions)
+        self.assertTrue(event_reactions["FSDJump"])
+        self.assertEqual(set(event_reactions), {event.value for event in KNOWN_EVENTS})
 
     def test_direct_validator_call_rejects_non_dict_input(self):
         # Pydantic's own dict[str, bool] field-type check rejects non-dict
@@ -187,7 +187,7 @@ class TestSettingsModelEventReaction(unittest.TestCase):
     ):
         with self.assertRaises(ValidationError):
             SettingsModel(
-                **_base_settings_kwargs(), event_reaction=["not", "a", "dict"]
+                **_base_settings_kwargs(), event_reactions=["not", "a", "dict"]
             )
 
 

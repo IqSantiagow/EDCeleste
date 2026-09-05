@@ -1,20 +1,19 @@
-from textual.reactive import reactive
 from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event import (
     ValueChanged,
 )
-from edceleste.ui.screens.settings.widgets.inputs.widget_settings_row import (
-    WidgetSettingsRow,
-)
+
 from textual.app import ComposeResult
 from textual.widgets import Label, Select
 from textual.containers import HorizontalGroup
 
 
-class WidgetLabeledSelectRow(WidgetSettingsRow):
-    DEFAULT_CLASSES = "entry-row-full"
-    _initial_value: str
+from edceleste.ui.screens.settings.widgets.inputs.widget_base_input import (
+    WidgetBaseInput,
+)
 
-    value: reactive[str] = reactive("")
+
+class WidgetLabeledSelectRow(WidgetBaseInput):
+    DEFAULT_CLASSES = "entry-row-full"
 
     def __init__(
         self,
@@ -42,12 +41,10 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
             display a friendly name but store a compact key (e.g. a device
             index as a string).
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.label = label
         self.options = options
         self.values = values
-        self._initial_value = value
-        self.value = value
         assert self.id is not None, "WidgetLabeledSelectRow must have an id"
 
     def compose(self) -> ComposeResult:
@@ -58,8 +55,8 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
             # if its initial value isn't one of its options, so fall back to blank.
             effective_values = self.values if self.values is not None else self.options
             select_value = (
-                self._initial_value
-                if self._initial_value in effective_values
+                self.initial_value
+                if self.initial_value in effective_values
                 else Select.NULL
             )
             if self.values is not None:
@@ -76,36 +73,7 @@ class WidgetLabeledSelectRow(WidgetSettingsRow):
                     classes="entry-select",
                     compact=True,
                 )
-            yield Label(
-                "◉ changed",
-                classes="unsaved-changes-label warning-label {}".format(
-                    "hidden" if self.value == self._initial_value else ""
-                ),
-                id="unsaved-changes-label",
-            )
 
     def on_select_changed(self, event: Select.Changed) -> None:
         self.value = str(event.value)
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore
-
-    def watch_value(self, new_value: str) -> None:
-        if self.is_mounted:
-            if new_value != self._initial_value:
-                self.query_one("#unsaved-changes-label", Label).remove_class("hidden")
-            else:
-                self.query_one("#unsaved-changes-label", Label).add_class("hidden")
-
-    def notify_about_validation_failure(self, error_message: str) -> None:
-        self.query_one(".unsaved-changes-label", Label).update("✘ invalid")
-        self.query_one(".unsaved-changes-label", Label).add_class(
-            "error"
-        ).tooltip = error_message
-
-    def reset_validation_state(self) -> None:
-        # This method should be called when the settings are saved successfully
-        self.query_one(".unsaved-changes-label", Label).update("◉ changed")
-        self.query_one(".unsaved-changes-label", Label).remove_class("error")
-        self.query_one(".unsaved-changes-label", Label).add_class(
-            "hidden"
-        ).with_tooltip(None)
-        self._initial_value = self.value

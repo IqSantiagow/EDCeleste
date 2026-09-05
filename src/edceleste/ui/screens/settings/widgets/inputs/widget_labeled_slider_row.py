@@ -6,12 +6,14 @@ from textual_slider import Slider
 from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event import (
     ValueChanged,
 )
-from edceleste.ui.screens.settings.widgets.inputs.widget_settings_row import (
-    WidgetSettingsRow,
+
+
+from edceleste.ui.screens.settings.widgets.inputs.widget_base_input import (
+    WidgetBaseInput,
 )
 
 
-class WidgetLabeledSliderRow(WidgetSettingsRow):
+class WidgetLabeledSliderRow(WidgetBaseInput):
     """A labeled row with a slider for picking a decimal value.
 
     The Slider widget we build on only understands whole numbers, so this
@@ -21,7 +23,6 @@ class WidgetLabeledSliderRow(WidgetSettingsRow):
     """
 
     DEFAULT_CLASSES = "entry-row-full"
-    _initial_value: float
 
     def __init__(
         self,
@@ -33,13 +34,11 @@ class WidgetLabeledSliderRow(WidgetSettingsRow):
         *args,
         **kwargs,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.label = label
         self.minimum = minimum
         self.maximum = maximum
         self.step = step
-        self._initial_value = value
-        self.value = value
         assert self.id is not None, "WidgetLabeledSliderRow must have an id"
 
     def _steps_per_unit(self) -> int:
@@ -65,31 +64,8 @@ class WidgetLabeledSliderRow(WidgetSettingsRow):
                 classes="entry-value",
                 id="slider-value-label",
             )
-            yield Label(
-                "◉ changed",
-                classes="unsaved-changes-label warning-label {}".format(
-                    "hidden" if self.value == self._initial_value else ""
-                ),
-                id="unsaved-changes-label",
-            )
 
     def on_slider_changed(self, event: Slider.Changed) -> None:
         self.value = self._from_slider_steps(event.value)
         self.query_one("#slider-value-label", Label).update(f"{self.value:g}")
-        if self.value != self._initial_value:
-            self.query_one("#unsaved-changes-label", Label).remove_class("hidden")
-        else:
-            self.query_one("#unsaved-changes-label", Label).add_class("hidden")
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore
-
-    def notify_about_validation_failure(self, error_message: str) -> None:
-        # The slider can't go out of range by construction, so there is
-        # nothing for the parent container to reject.
-        ...
-
-    def reset_validation_state(self) -> None:
-        # This method should be called when the settings are saved successfully
-        self.query_one(".unsaved-changes-label", Label).update("◉ changed")
-        self.query_one(".unsaved-changes-label", Label).remove_class("error")
-        self.query_one(".unsaved-changes-label", Label).add_class("hidden")
-        self._initial_value = self.value

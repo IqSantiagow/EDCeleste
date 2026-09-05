@@ -17,15 +17,15 @@ from edceleste.services.models.settings_model import (
 from edceleste.services.settings_service import SettingsService
 
 
-def _make_settings(event_reaction: dict[str, bool] | None = None) -> SettingsModel:
+def _make_settings(event_reactions: dict[str, bool] | None = None) -> SettingsModel:
     settings = SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(volume=1.0),
         llm=LLMModel(api_key="sk-ant-test", system_prompt="prompt", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )
-    if event_reaction is not None:
-        settings.event_reaction = EventReactionModel(reactions=event_reaction)
+    if event_reactions is not None:
+        settings.event_reactions = EventReactionModel(reactions=event_reactions)
     return settings
 
 
@@ -69,7 +69,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_event_does_not_publish_when_setting_disabled(self):
         self.settings_service.get_settings.return_value = _make_settings(
-            event_reaction={"LoadGame": False}
+            event_reactions={"LoadGame": False}
         )
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
@@ -82,7 +82,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         # An event type absent from the mapping defaults to False (opt-in
         # behavior), same as an explicit False.
         self.settings_service.get_settings.return_value = _make_settings(
-            event_reaction={}
+            event_reactions={}
         )
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
@@ -94,7 +94,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_process_event_publishes_event_reaction_when_setting_enabled(self):
         loaded_game_event = _loaded_game_event()
         self.settings_service.get_settings.return_value = _make_settings(
-            event_reaction={"LoadGame": True}
+            event_reactions={"LoadGame": True}
         )
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
@@ -111,17 +111,17 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         # SettingsModel has no validate_assignment=True, so this plain
         # attribute assignment is allowed and lets us exercise the defensive
         # isinstance check in validate_settings.
-        new_settings.event_reaction = ["not", "a", "mapping"]
+        new_settings.event_reactions = ["not", "a", "mapping"]
 
         issue = service.validate_settings(new_settings)
 
         self.assertIsNotNone(issue)
-        self.assertEqual(issue.section, "event_reaction")
-        self.assertEqual(issue.field, "event_reaction")
+        self.assertEqual(issue.section, "event_reactions")
+        self.assertEqual(issue.field, "event_reactions")
 
     def test_validate_settings_returns_none_for_valid_mapping(self):
         service = self._make_service()
-        new_settings = _make_settings(event_reaction={"LoadGame": True})
+        new_settings = _make_settings(event_reactions={"LoadGame": True})
 
         issue = service.validate_settings(new_settings)
 
@@ -129,7 +129,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_reload_service_refreshes_cached_settings_from_settings_service(self):
         service = self._make_service()
-        new_settings = _make_settings(event_reaction={"FSDJump": True})
+        new_settings = _make_settings(event_reactions={"FSDJump": True})
         self.settings_service.get_settings.return_value = new_settings
 
         service.reload_service()
@@ -141,7 +141,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         # test_process_event_publishes_event_reaction_when_setting_enabled above,
         # exercised end-to-end through a real EventBus.
         self.settings_service.get_settings.return_value = _make_settings(
-            event_reaction={"LoadGame": True}
+            event_reactions={"LoadGame": True}
         )
         event_bus = EventBus()
         EventReactionsService(

@@ -6,11 +6,11 @@ from textual.containers import Container, HorizontalGroup
 from textual.validation import Validator
 from textual.widgets import Label
 from textual.widgets import Input
+from edceleste.ui.screens.settings.widgets.inputs.widget_base_input import (
+    WidgetBaseInput,
+)
 from textual.reactive import reactive
 
-from edceleste.ui.screens.settings.widgets.inputs.widget_settings_row import (
-    WidgetSettingsRow,
-)
 from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event import (
     ValueChanged,
 )
@@ -18,12 +18,10 @@ from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event impo
 logger = logging.getLogger(__name__)
 
 
-class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
+class WidgetLabeledDynamicInputRow(WidgetBaseInput):
     DEFAULT_CLASSES = "entry-row-full"
 
     is_being_edited: reactive[bool] = reactive(False, recompose=True)
-
-    _initial_value: str
 
     def __init__(
         self,
@@ -35,10 +33,8 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
         password: bool = False,
         **kwargs,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(value=value, initial_value=value, **kwargs)
         self.label = label
-        self.value = value
-        self._initial_value = value
         self.on_submit = on_submit
         self.type = type
         self.validators = validators if validators is not None else []
@@ -70,16 +66,9 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
                     yield Label(
                         displayed_value,
                         classes="entry-value {}".format(
-                            "warning-label" if self.value != self._initial_value else ""
+                            "warning-label" if self.value != self.initial_value else ""
                         ),
                     )
-            yield Label(
-                "◉ changed",
-                classes="unsaved-changes-label warning-label {}".format(
-                    "hidden" if self.value == self._initial_value else ""
-                ),
-                id="unsaved-changes-label",
-            )
 
     def on_click(self, _: events.Click) -> None:
         self.is_being_edited = True
@@ -109,19 +98,3 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
 
     def _send_value_changed_event(self, new_value: str) -> None:
         self.post_message(ValueChanged(self.id, new_value=new_value))  # type: ignore
-
-    def notify_about_validation_failure(self, error_message: str) -> None:
-        self.query_one(".unsaved-changes-label", Label).update("✘ invalid")
-        self.query_one(".unsaved-changes-label", Label).add_class(
-            "error"
-        ).tooltip = error_message
-
-    def reset_validation_state(self) -> None:
-        # This method should be called when the settings are saved successfully
-        self.query_one(".unsaved-changes-label", Label).update("◉ changed")
-        self.query_one(".unsaved-changes-label", Label).remove_class("error")
-        self.query_one(".unsaved-changes-label", Label).add_class(
-            "hidden"
-        ).with_tooltip(None)
-        self.query_one(".entry-value", Label).remove_class("warning-label")
-        self._initial_value = self.value

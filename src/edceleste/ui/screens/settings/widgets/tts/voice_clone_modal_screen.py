@@ -512,10 +512,8 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
         if message.is_successful:
             next_button.label = Content("[✓ Save profile]")
             next_button.disabled = False
-            pick_another_button.label = Content("[← Another file]")
-            pick_another_button.remove_class("hidden")
-        else:
-            pick_another_button.remove_class("hidden")
+        pick_another_button.label = Content("[← Another file]")
+        pick_another_button.remove_class("hidden")
 
     @work
     async def save_and_dismiss(self) -> None:

@@ -1,5 +1,7 @@
+import enum
+
 from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Label, LoadingIndicator
 from dependency_injector.wiring import Provide, inject
@@ -14,10 +16,7 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.ui.screens.settings.events.settings_events import SectionSettingsChanged
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
-from edceleste.ui.screens.settings.widgets.const_ids import (
-    SettingsInputWidgetIds,
-    SettingsSection,
-)
+from edceleste.ui.screens.settings.widgets.const_ids import SettingsSection
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_dynamic_input_row import (  # noqa: E501
     WidgetLabeledDynamicInputRow,
 )
@@ -27,6 +26,9 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
 )
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_textarea_row import (
     WidgetLabeledTextAreaRow,
+)
+from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
+    WidgetBaseSettingsContainer,
 )
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
 
@@ -50,7 +52,17 @@ def build_default_provider_for_type(
     )
 
 
-class WidgetSystemPromptsContainer(Vertical):
+class SystemPromptsInputWidgetIds(enum.Enum):
+    LLM_PROVIDER_TYPE_INPUT = "llm-provider-type-input"
+    LLM_MODEL_INPUT = "llm-model-input"
+    LLM_CHAT_COMPLETIONS_MODEL_INPUT = "llm-chat-completions-model-input"
+    LLM_BASE_URL_INPUT = "llm-base-url-input"
+    LLM_BEARER_TOKEN_INPUT = "llm-bearer-token-input"
+    LLM_SYSTEM_PROMPT_INPUT = "llm-system-prompt-input"
+    LLM_USER_PROMPT_INPUT = "llm-user-prompt-input"
+
+
+class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
     provider: reactive[
         ClaudeAgentSdkModel | ChatCompletionsModel | LmStudioModel | None
     ] = reactive(None, recompose=True)
@@ -88,6 +100,7 @@ class WidgetSystemPromptsContainer(Vertical):
             self.models = []
 
     def compose(self) -> ComposeResult:
+        yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("LLM SETTINGS")
             provider = self.provider
@@ -97,7 +110,7 @@ class WidgetSystemPromptsContainer(Vertical):
                 PROVIDER_OPTIONS,
                 provider.type,
                 values=PROVIDER_VALUES,
-                id=SettingsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value,
             )
             if isinstance(provider, (ClaudeAgentSdkModel, LmStudioModel)):
                 yield from self.mount_model_select_settings(provider)
@@ -110,14 +123,14 @@ class WidgetSystemPromptsContainer(Vertical):
                 self.llm_model.system_prompt,
                 # TODO: Implement validation logic
                 lambda value: self.log(f"System prompt submitted: {value}"),
-                id=SettingsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value,
             )
             yield WidgetLabeledTextAreaRow(
                 "User Prompt:",
                 self.llm_model.user_prompt,
                 # TODO: Implement validation logic. Not wired into LLMService yet.
                 lambda value: self.log(f"User prompt submitted: {value}"),
-                id=SettingsInputWidgetIds.LLM_USER_PROMPT_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT.value,
             )
 
     def mount_model_select_settings(
@@ -132,14 +145,11 @@ class WidgetSystemPromptsContainer(Vertical):
                 classes="no-profiles-message",
             )
             return
-        # TODO: The app crashes when there are no models and the user changes
-        # the settings because the select widget is not mounted. Refactor this
-        # in the future to avoid the issue.
         yield WidgetLabeledSelectRow(
             "Model: ",
             self.models,
             provider.model,
-            id=SettingsInputWidgetIds.LLM_MODEL_INPUT.value,
+            id=SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value,
         )
 
     def mount_chat_completions_settings(
@@ -150,14 +160,14 @@ class WidgetSystemPromptsContainer(Vertical):
             provider.model,
             lambda value: self.log(f"Chat Completions model submitted: {value}"),
             type="text",
-            id=SettingsInputWidgetIds.LLM_CHAT_COMPLETIONS_MODEL_INPUT.value,
+            id=SystemPromptsInputWidgetIds.LLM_CHAT_COMPLETIONS_MODEL_INPUT.value,
         )
         yield WidgetLabeledDynamicInputRow(
             "Base URL:",
             provider.base_url,
             lambda value: self.log(f"Base URL submitted: {value}"),
             type="text",
-            id=SettingsInputWidgetIds.LLM_BASE_URL_INPUT.value,
+            id=SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT.value,
         )
         yield WidgetLabeledDynamicInputRow(
             "Bearer Token:",
@@ -165,14 +175,17 @@ class WidgetSystemPromptsContainer(Vertical):
             lambda value: self.log(f"Bearer token submitted: {value}"),
             type="text",
             password=True,
-            id=SettingsInputWidgetIds.LLM_BEARER_TOKEN_INPUT.value,
+            id=SystemPromptsInputWidgetIds.LLM_BEARER_TOKEN_INPUT.value,
         )
 
     def on_value_changed(self, message: ValueChanged) -> None:
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
 
-        if message.sender_id == SettingsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value:
+        if (
+            message.sender_id
+            == SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value
+        ):
             if message.new_value != provider.type:
                 new_provider = build_default_provider_for_type(message.new_value)
                 self.llm_model.provider = new_provider
@@ -182,24 +195,32 @@ class WidgetSystemPromptsContainer(Vertical):
                 # instead of the wrong provider's models while we refetch.
                 self.models = None
                 self.call_later(self.fetch_models)
-        elif message.sender_id == SettingsInputWidgetIds.LLM_MODEL_INPUT.value:
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value:
             if isinstance(provider, (ClaudeAgentSdkModel, LmStudioModel)):
                 provider.model = message.new_value
         elif (
             message.sender_id
-            == SettingsInputWidgetIds.LLM_CHAT_COMPLETIONS_MODEL_INPUT.value
+            == SystemPromptsInputWidgetIds.LLM_CHAT_COMPLETIONS_MODEL_INPUT.value
         ):
             if isinstance(provider, ChatCompletionsModel):
                 provider.model = message.new_value
-        elif message.sender_id == SettingsInputWidgetIds.LLM_BASE_URL_INPUT.value:
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT.value:
             if isinstance(provider, ChatCompletionsModel):
                 provider.base_url = message.new_value
-        elif message.sender_id == SettingsInputWidgetIds.LLM_BEARER_TOKEN_INPUT.value:
+        elif (
+            message.sender_id
+            == SystemPromptsInputWidgetIds.LLM_BEARER_TOKEN_INPUT.value
+        ):
             if isinstance(provider, ChatCompletionsModel):
                 provider.bearer_token = message.new_value
-        elif message.sender_id == SettingsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value:
+        elif (
+            message.sender_id
+            == SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value
+        ):
             self.llm_model.system_prompt = message.new_value
-        elif message.sender_id == SettingsInputWidgetIds.LLM_USER_PROMPT_INPUT.value:
+        elif (
+            message.sender_id == SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT.value
+        ):
             self.llm_model.user_prompt = message.new_value
 
         self.post_message(

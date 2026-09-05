@@ -6,21 +6,19 @@ from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event impo
 from textual.containers import Horizontal, HorizontalGroup
 
 from textual.widgets import Label, Switch
-
-from edceleste.ui.screens.settings.widgets.inputs.widget_settings_row import (
-    WidgetSettingsRow,
+from edceleste.ui.screens.settings.widgets.inputs.widget_base_input import (
+    WidgetBaseInput,
 )
+
 
 logger = logging.getLogger(__name__)
 
 
-class WidgetLabeledSwitchRow(WidgetSettingsRow):
+class WidgetLabeledSwitchRow(WidgetBaseInput):
     DEFAULT_CLASSES = "entry-row"
-    _initial_value: bool
 
     def __init__(self, label: str, value: bool, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._initial_value = value
+        super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.value = value
         self.label = label
         assert self.id is not None, "WidgetLabeledSwitchRow must have an id"
@@ -30,29 +28,7 @@ class WidgetLabeledSwitchRow(WidgetSettingsRow):
             yield Label(self.label, classes="entry-label")
             with Horizontal(id="settings-entry-value-container"):
                 yield Switch(value=self.value, classes="entry-switch")
-                yield Label(
-                    "◉ changed",
-                    classes="unsaved-changes-label warning-label {}".format(
-                        "hidden" if self.value == self._initial_value else ""
-                    ),
-                    id="unsaved-changes-label",
-                )
 
     def on_switch_changed(self, event: Switch.Changed):
         self.value = event.value
-        if self.value != self._initial_value:
-            self.query_one("#unsaved-changes-label", Label).remove_class("hidden")
-        else:
-            self.query_one("#unsaved-changes-label", Label).add_class("hidden")
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore
-
-    def notify_about_validation_failure(self, error_message: str) -> None:
-        # Validation will be handled by the parent container
-        ...
-
-    def reset_validation_state(self) -> None:
-        # This method should be called when the settings are saved successfully
-        self.query_one(".unsaved-changes-label", Label).update("◉ changed")
-        self.query_one(".unsaved-changes-label", Label).remove_class("error")
-        self.query_one(".unsaved-changes-label", Label).add_class("hidden")
-        self._initial_value = self.value

@@ -1,3 +1,5 @@
+import enum
+
 from dependency_injector.wiring import Provide, inject
 from textual import work
 from textual.app import ComposeResult
@@ -8,10 +10,13 @@ from textual.widgets import LoadingIndicator
 from edceleste.containers.main_container import Container
 from edceleste.services.models.settings_model import EdgeTTSProviderModel
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
-from edceleste.ui.screens.settings.widgets.const_ids import SettingsInputWidgetIds
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row import (
     WidgetLabeledSelectRow,
 )
+
+
+class EdgeTTSInputWidgetIds(enum.Enum):
+    VOICE_INPUT = "voice-input"
 
 
 class WidgetEdgeTTSSettingsVertical(Vertical):
@@ -42,7 +47,7 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
                 "Voice: ",
                 options=self.voices,
                 value=self.edge_tts_provider_model.voice,
-                id=SettingsInputWidgetIds.VOICE_INPUT.value,
+                id=EdgeTTSInputWidgetIds.VOICE_INPUT.value,
             )
 
     @work
