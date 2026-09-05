@@ -32,6 +32,7 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
         on_submit: Callable,
         type: str,
         validators: list[Validator] | None = None,
+        password: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -41,6 +42,7 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
         self.on_submit = on_submit
         self.type = type
         self.validators = validators if validators is not None else []
+        self.password = password
         assert self.id is not None, "WidgetLabeledDynamicInputRow must have an id"
         assert self.type in ["integer", "text", "number"], (
             "Invalid input type. Must be 'integer', 'text', or 'number'."
@@ -56,11 +58,17 @@ class WidgetLabeledDynamicInputRow(WidgetSettingsRow):
                         classes="entry-input",
                         type=self.type,  # type: ignore
                         validators=self.validators,
+                        password=self.password,
                         compact=True,
                     ).focus()
                 if not self.is_being_edited:
+                    displayed_value = (
+                        "•" * len(self.value)
+                        if self.password and self.value
+                        else self.value
+                    )
                     yield Label(
-                        self.value,
+                        displayed_value,
                         classes="entry-value {}".format(
                             "warning-label" if self.value != self._initial_value else ""
                         ),

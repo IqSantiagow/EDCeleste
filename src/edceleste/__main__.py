@@ -14,6 +14,7 @@ def main() -> None:
             "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
             "edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical",  # noqa: E501
             "edceleste.ui.screens.settings.widgets.stt.widget_stt_container",
+            "edceleste.ui.screens.settings.widgets.system_prompts.widget_system_prompts_container",  # noqa: E501
         ]
     )
 

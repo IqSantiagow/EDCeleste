@@ -117,14 +117,21 @@ class SettingsScreen(Screen):
     def compare_dicts_and_return_modified_count(
         self, setting_a: dict, setting_b: dict
     ) -> int:
+        # Switching a discriminated union field (e.g. llm.provider between
+        # claude_agent_sdk and chat_completions) swaps in a dict with a
+        # completely different set of keys, so we can't assume both sides
+        # share the same fields here - a field missing on one side just
+        # counts as changed instead of raising a KeyError.
         number_of_changes = 0
-        for field in set(setting_a.keys()):
-            if isinstance(setting_a[field], dict):
+        for field in set(setting_a.keys()) | set(setting_b.keys()):
+            value_a = setting_a.get(field)
+            value_b = setting_b.get(field)
+            if isinstance(value_a, dict) and isinstance(value_b, dict):
                 number_of_changes += self.compare_dicts_and_return_modified_count(
-                    setting_a[field], setting_b[field]
+                    value_a, value_b
                 )
             else:
-                if setting_a[field] == setting_b[field]:
+                if value_a == value_b:
                     continue
                 number_of_changes += 1
         return number_of_changes
