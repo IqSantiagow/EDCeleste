@@ -62,6 +62,11 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.settings_handler.get_settings.return_value = _make_settings(model=MODEL)
 
         self.service = SttService(settings_handler=self.settings_handler)
+        # SttService no longer loads its settings in __init__ - that now
+        # happens in reload_service(), driven by the cold-start flow. Call it
+        # here so self.model/self.enabled reflect the settings above before
+        # each test runs.
+        self.service.reload_service()
 
     # --- start_recording ---
 
@@ -173,6 +178,22 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_load_model.assert_not_called()
 
+    # --- load_stt_model ---
+
+    def test_load_stt_model_raises_when_model_not_set(self):
+        self.service.model = None
+
+        with self.assertRaises(SttException):
+            self.service.load_stt_model()
+
+        self.mock_load_model.assert_not_called()
+
+    def test_load_stt_model_loads_once_and_caches_across_calls(self):
+        self.service.load_stt_model()
+        self.service.load_stt_model()
+
+        self.mock_load_model.assert_called_once_with(MODEL)
+
     # --- validate_settings ---
 
     def test_validate_settings_reports_issue_when_model_missing(self):
@@ -264,6 +285,54 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_load_model.assert_not_called()
         self.assertIsNone(self.service.whisper_model)
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await self.service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "stt")
+        self.assertFalse(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_reload_and_model_load_succeed(  # noqa: E501
+        self,
+    ):
+        statuses = [status async for status in self.service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+        self.mock_load_model.assert_called_once_with(MODEL)
+
+    async def test_cold_start_skips_model_load_when_stt_disabled(self):
+        self.settings_handler.get_settings.return_value = _make_settings(
+            model=MODEL, enabled=False
+        )
+        self.mock_load_model.reset_mock()
+
+        statuses = [status async for status in self.service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+        self.mock_load_model.assert_not_called()
+
+    async def test_cold_start_yields_error_message_when_model_load_fails(self):
+        self.settings_handler.get_settings.return_value = _make_settings(model="")
+
+        statuses = [status async for status in self.service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(
+            last_status.message, "STT model is not set. Cannot load model."
+        )
 
     # --- is_stt_enabled ---
 

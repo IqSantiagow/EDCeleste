@@ -1,9 +1,8 @@
-from typing import Protocol
-
+from edceleste.protocols.base_service_protocol import BaseServiceProtocol
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
 
-class SttProtocol(Protocol):
+class SttProtocol(BaseServiceProtocol):
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None: ...

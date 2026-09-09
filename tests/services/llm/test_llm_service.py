@@ -112,6 +112,10 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             settings_service=self.settings_handler,
             tools=[],
         )
+        # LLMService no longer builds its agent in __init__ - that now happens
+        # in reload_service(), driven by the cold-start flow. Call it here so
+        # self.mock_agent is wired in before each test runs.
+        self.llm_service.reload_service()
         # Game state is cached from the last GameStateChangedEvent seen on the bus
         # (see process_game_state_change). Set it directly here so the streaming
         # tests exercise the "state known" path.
@@ -404,6 +408,39 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         result = self.llm_service.get_models("chat_completions")
 
         self.assertEqual(result, [])
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await self.llm_service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "llm")
+        self.assertFalse(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_health_check_succeeds(self):
+        statuses = [status async for status in self.llm_service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+        self.mock_agent.execute_query.assert_called_once()
+
+    async def test_cold_start_yields_error_message_when_health_check_fails(self):
+        self.mock_agent.execute_query = Mock(
+            side_effect=_make_failing_agent_stream(RuntimeError("agent unreachable"))
+        )
+
+        statuses = [status async for status in self.llm_service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "agent unreachable")
 
     def test_reload_service_rebuilds_agent_with_updated_system_prompt_and_tools(self):
         new_settings = _make_settings(system_prompt="New system prompt")

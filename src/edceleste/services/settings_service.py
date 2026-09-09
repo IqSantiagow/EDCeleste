@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from glob import glob
 import logging
 import os
@@ -6,6 +7,7 @@ import shutil
 from pydantic import ValidationError
 import yaml
 
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.settings_model import SettingsModel
 
 logger = logging.getLogger(__name__)
@@ -64,3 +66,21 @@ class SettingsService:
         except ValidationError as e:
             logger.error("Failed to load settings from config.yaml.", exc_info=e)
             raise RuntimeError("Failed to load settings from config.yaml.") from e
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="settings",
+            message=None,
+            is_critical=True,
+            completed=False,
+        )
+        yield status
+
+        try:
+            self.load_settings()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

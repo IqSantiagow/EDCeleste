@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 from edceleste.services.models.settings_model import (
     LLMModel,
@@ -20,7 +20,7 @@ def _make_settings(system_prompt: str = "sp", journal_path: str = "C:/j"):
     )
 
 
-class SettingsServiceTest(unittest.TestCase):
+class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_get_settings_raises_before_load(self):
         service = SettingsService()
 
@@ -127,6 +127,43 @@ tts:
 
         mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
         self.assertEqual(mock_glob.call_count, 2)
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        service = SettingsService()
+        service.load_settings = Mock()
+
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "settings")
+        self.assertTrue(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_load_settings_succeeds(self):
+        service = SettingsService()
+        service.load_settings = Mock()
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_error_message_when_load_settings_fails(self):
+        service = SettingsService()
+        service.load_settings = Mock(side_effect=RuntimeError("config.yaml is broken"))
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "config.yaml is broken")
 
 
 if __name__ == "__main__":

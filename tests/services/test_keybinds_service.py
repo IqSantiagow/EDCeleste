@@ -63,11 +63,13 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_should_raise_file_not_found_error_when_no_binds_files_found(self):
         self.mock_glob.return_value = []
+        service = self._make_service()
 
-        # KeybindService.__init__ eagerly loads keybinds via _init_service,
-        # so construction itself is what raises here.
+        # KeybindService no longer loads keybinds in __init__ - that now
+        # happens in load_keybinds()/reload_service(), driven by the
+        # cold-start flow, so it is the explicit call that raises here.
         with self.assertRaises(FileNotFoundError):
-            self._make_service()
+            service.load_keybinds()
 
     def test_should_select_latest_binds_file_by_modification_time(self):
         self.mock_glob.return_value = [
@@ -76,14 +78,16 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         ]
         self.mock_getmtime.side_effect = [100, 200]
 
+        service = self._make_service()
+
         with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
             mock_parse.return_value.getroot.return_value = []
 
-            # An empty root means every required keybind is absent, so
-            # construction (which eagerly loads keybinds) fails fast; we
-            # still assert the newest file was the one parsed.
+            # An empty root means every required keybind is absent, so the
+            # explicit load_keybinds() call fails fast; we still assert the
+            # newest file was the one parsed.
             with self.assertRaises(MissingKeybindsError):
-                self._make_service()
+                service.load_keybinds()
 
             mock_parse.assert_called_once_with(f"{KEYBINDS_PATH}/newer.binds")
 
@@ -154,13 +158,16 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             b"</ToggleFlightAssist></Root>"
         )
 
+        service = self._make_service()
+
         with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
             mock_parse.return_value.getroot.return_value = root
 
-            # Construction eagerly loads keybinds, so it raises here rather
-            # than on a later explicit load_keybinds() call.
+            # KeybindService no longer loads keybinds in __init__ - that now
+            # happens in the explicit load_keybinds() call, which is what
+            # raises here.
             with self.assertRaises(MissingKeybindsError) as ctx:
-                self._make_service()
+                service.load_keybinds()
 
         self.assertIn(EdAction.SELECT_TARGET, ctx.exception.missing)
         self.assertNotIn(EdAction.TOGGLE_FLIGHT_ASSIST, ctx.exception.missing)
@@ -259,6 +266,45 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(service.keybinds_path, new_settings.paths.keybindings_path)
         self.assertEqual(len(service.get_keybinds()), REQUIRED_KEYBINDS_COUNT)
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        service = self._make_service()
+        service.reload_service = Mock()
+
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "keybinds")
+        self.assertFalse(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_reload_service_succeeds(
+        self,
+    ):
+        service = self._make_service()
+        service.reload_service = Mock()
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_error_message_when_reload_service_fails(self):
+        service = self._make_service()
+        service.reload_service = Mock(side_effect=FileNotFoundError("no binds files"))
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "no binds files")
 
 
 if __name__ == "__main__":

@@ -60,12 +60,15 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service.get_settings.return_value = _make_settings()
 
     def _make_service(self, event_bus=None):
-        # EventReactionsService.__init__ eagerly calls reload_service(), so
-        # settings_service.get_settings.return_value must be set beforehand.
-        return EventReactionsService(
+        # EventReactionsService no longer builds its state in __init__ - that
+        # now happens in reload_service(), driven by the cold-start flow. Call
+        # it here so self.settings is wired in before the test uses it.
+        service = EventReactionsService(
             event_bus=event_bus if event_bus is not None else Mock(spec=EventBus),
             settings_service=self.settings_service,
         )
+        service.reload_service()
+        return service
 
     async def test_process_event_does_not_publish_when_setting_disabled(self):
         self.settings_service.get_settings.return_value = _make_settings(
@@ -144,9 +147,10 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
             event_reactions={"LoadGame": True}
         )
         event_bus = EventBus()
-        EventReactionsService(
+        service = EventReactionsService(
             event_bus=event_bus, settings_service=self.settings_service
         )
+        service.reload_service()
         subscriber = AsyncMock()
         event_bus.subscribe(EventReactionEvent, subscriber)
         loaded_game_event = _loaded_game_event()
@@ -157,6 +161,45 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         published_event = subscriber.call_args.args[0]
         self.assertIsInstance(published_event, EventReactionEvent)
         self.assertEqual(published_event.event, loaded_game_event)
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        service = self._make_service()
+        service.reload_service = Mock()
+
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "event_reactions")
+        self.assertFalse(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_reload_service_succeeds(
+        self,
+    ):
+        service = self._make_service()
+        service.reload_service = Mock()
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_error_message_when_reload_service_fails(self):
+        service = self._make_service()
+        service.reload_service = Mock(side_effect=RuntimeError("settings unreachable"))
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "settings unreachable")
 
 
 if __name__ == "__main__":

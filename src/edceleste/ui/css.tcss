@@ -694,3 +694,114 @@ VoiceCloneModalScreen{
         background: transparent;
     }
 }
+
+/* ============================================================
+   System check screen (cold start / preflight)
+   (SystemCheckScreen, SystemCheckRow)
+   The whole screen is one bordered "PREFLIGHT" panel docked to the
+   top and sized to its own content (height: auto), so the frame
+   closes right under the progress row instead of stretching down.
+   ============================================================ */
+#system-check-panel {
+    height: auto;
+    margin: 0 1;
+    padding: 1 2;
+    border: solid $primary;
+    border-title-align: left;
+    border-title-color: $font-muted-color;
+}
+
+#system-check-banner {
+    height: auto;
+    padding: 0 0 1 2;
+    color: $primary;
+}
+
+SystemCheckRow {
+    height: 1;
+    padding: 0 0 0 2;
+}
+
+/* Fixed-width marker and name columns so every row lines up on the
+   same two gutters, whatever the service name length is. */
+.system-check-marker {
+    width: 6;
+    text-style: bold;
+    color: $font-muted-color;
+}
+
+.system-check-marker.state-in-progress {
+    color: $secondary;
+}
+
+.system-check-marker.state-completed {
+    color: $success;
+}
+
+.system-check-marker.state-failed {
+    color: $error;
+}
+
+.system-check-name {
+    width: 30;
+    color: $font-muted-color;
+}
+
+.system-check-name.state-in-progress {
+    color: $secondary;
+    text-style: bold;
+}
+
+.system-check-name.state-completed {
+    color: $foreground;
+}
+
+.system-check-name.state-failed {
+    color: $error;
+    text-style: bold;
+}
+
+.system-check-error {
+    color: $error;
+}
+
+#system-check-divider {
+    height: 1;
+    margin: 1 0 0 0;
+    color: $font-muted-color;
+}
+
+#system-check-progress-row {
+    height: 1;
+    padding: 0 0 0 2;
+}
+
+/* Padding equal to the marker column, width equal to marker + name,
+   so "Progress" sits under the service names and the bar starts
+   where the rest of the row content starts. */
+#system-check-progress-label {
+    width: 36;
+    padding: 0 0 0 6;
+    color: $foreground;
+}
+
+/* Short bar on the left, percentage pushed to the panel's right edge
+   (PercentageStatus already right-aligns its own text). */
+#system-check-progress {
+    width: 1fr;
+}
+
+#system-check-progress Bar {
+    width: 20;
+}
+
+#system-check-progress Bar > .bar--bar {
+    color: $primary;
+    background: $surface;
+}
+
+#system-check-progress PercentageStatus {
+    width: 1fr;
+    color: $primary;
+    text-style: bold;
+}

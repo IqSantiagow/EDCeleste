@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 from pydantic import TypeAdapter, ValidationError
 
 from edceleste.services.event_bus import EventBus
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.game_events import GameEvent
 from edceleste.services.models.journal_event import JournalEvent
 from edceleste.services.settings_service import SettingsService
@@ -110,3 +111,21 @@ class JournalWatcherService:
         self.journal_path = new_settings.paths.journal_path
         self.stop_watcher_service()
         self.start_watcher_service()
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="journal_watcher",
+            message=None,
+            is_critical=True,
+            completed=False,
+        )
+        yield status
+
+        try:
+            self.reload_service()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

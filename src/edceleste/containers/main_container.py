@@ -15,6 +15,9 @@ from edceleste.services.stubs.journal_watcher_service_stub import (
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
+from edceleste.ui.screens.system_check.system_check_repository import (
+    SystemCheckRepository,
+)
 from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
 from edceleste.use_cases.dashboard.llm_send_message_use_case import (
     LLMSendMessageUseCase,
@@ -72,6 +75,7 @@ from edceleste.use_cases.dashboard.stt_stop_recording_use_case import (
 )
 from edceleste.use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabledUseCase
 from edceleste.use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
+from edceleste.use_cases.system_check.system_check_use_case import SystemCheckUseCase
 
 
 def _build_loaded_settings_service() -> SettingsService:
@@ -252,6 +256,19 @@ class Container(containers.DeclarativeContainer):
         GetSttInputDevicesUseCase, stt_protocol=stt_service
     )
 
+    system_check_use_case = providers.Factory(
+        SystemCheckUseCase,
+        services=providers.Dict(
+            settings=settings_service,
+            journal_watcher=journal_watcher_service,
+            keybinds=keybinds_service,
+            llm=llm_service,
+            tts=tts_service,
+            stt=stt_service,
+            event_reactions=event_reactions_service,
+        ),
+    )
+
     # -----REPOSITORIES-----
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
@@ -283,4 +300,7 @@ class Container(containers.DeclarativeContainer):
         analyze_voice_sample_use_case=analyze_voice_sample_use_case,
         preview_voice_sample_use_case=preview_voice_sample_use_case,
         get_available_device_use_case=get_available_device_use_case,
+    )
+    system_check_repository = providers.Singleton(
+        SystemCheckRepository, system_check_use_case=system_check_use_case
     )

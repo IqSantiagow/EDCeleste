@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncGenerator
 
 import numpy as np
 import whisper
 
 from edceleste.services.exceptions.stt_exception import SttException
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
@@ -30,7 +31,6 @@ class SttService:
     def __init__(self, settings_handler: SettingsService) -> None:
         self.__settings_handler = settings_handler
         self._recorded_frames = []
-        self.reload_service()
 
     def validate_settings(
         self, new_settings: SettingsModel
@@ -83,13 +83,7 @@ class SttService:
             logger.warning("No audio data was captured during the recording.")
             return None
 
-        if not self.model:
-            logger.warning("STT model is not set. Cannot transcribe.")
-            raise SttException("STT model is not set. Cannot transcribe.")
-
-        if self.whisper_model is None:
-            logger.info("Loading Whisper model '%s' (lazy)...", self.model)
-            self.whisper_model = whisper.load_model(self.model)
+        self.load_stt_model()
 
         audio = np.concatenate(self._recorded_frames)
         self._recorded_frames = []
@@ -123,3 +117,31 @@ class SttService:
             if device["max_input_channels"] > 0 and device["name"] not in seen:
                 seen[device["name"]] = index
         return list(seen.items())
+
+    def load_stt_model(self) -> None:
+        if not self.model:
+            logger.warning("STT model is not set. Cannot load model.")
+            raise SttException("STT model is not set. Cannot load model.")
+
+        if self.whisper_model is None:
+            logger.info("Loading Whisper model '%s' (lazy)...", self.model)
+            self.whisper_model = whisper.load_model(self.model)
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="stt",
+            message=None,
+            is_critical=False,
+            completed=False,
+        )
+        yield status
+        try:
+            self.reload_service()
+            if self.enabled:
+                self.load_stt_model()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

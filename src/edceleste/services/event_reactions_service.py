@@ -1,4 +1,7 @@
+from typing import AsyncGenerator
+
 from edceleste.services.event_bus import EventBus
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.event_reaction_event import EventReactionEvent
 from edceleste.services.models.game_events import GameEvent
 from edceleste.services.models.journal_event import JournalEvent
@@ -15,7 +18,6 @@ class EventReactionsService:
         self.event_bus = event_bus
         self.settings_service = settings_service
         self.event_bus.subscribe(GameEvent, self.process_event)
-        self.reload_service()
 
     async def process_event(self, event: JournalEvent) -> None:
         if self.settings.event_reactions.reactions.get(event.event, False):
@@ -36,3 +38,20 @@ class EventReactionsService:
 
     def reload_service(self) -> None:
         self.settings = self.settings_service.get_settings()
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="event_reactions",
+            message=None,
+            is_critical=False,
+            completed=False,
+        )
+        yield status
+        try:
+            self.reload_service()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

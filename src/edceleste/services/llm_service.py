@@ -6,6 +6,7 @@ import asyncio
 from edceleste.adapters.claude_agent_sdk import ClaudeAgentSDK
 from edceleste.adapters.lm_studio_sdk import LMStudioSDK
 from edceleste.protocols.llm_sdk_protocol import LLMSdkProtocol
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.message_block import (
     AgentFullResponse,
     SystemMessage,
@@ -90,8 +91,6 @@ class LLMService:
         self.__event_bus.subscribe(
             GameStateChangedEvent, self.process_game_state_change
         )
-
-        self.reload_service()
 
     async def __send_message_and_stream_responses(
         self, message: str
@@ -270,3 +269,30 @@ class LLMService:
             return LMStudioSDK(model="", system_prompt="").get_models
         else:
             return []
+
+    async def __health_check(self) -> None:
+        """Check if the LLM provider is reachable and working.
+
+        If nothing booms, it's okay.
+        """
+        async for _ in self.__agent.execute_query(prompt="Respond with only 'OK'"):
+            pass
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="llm",
+            message=None,
+            is_critical=False,
+            completed=False,
+        )
+        yield status
+
+        try:
+            self.reload_service()
+            await self.__health_check()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

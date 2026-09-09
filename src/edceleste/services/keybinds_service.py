@@ -1,8 +1,10 @@
+from collections.abc import AsyncGenerator
 import glob
 import logging
 import os
 
 from edceleste.services.event_bus import EventBus
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.models.keybinds_model import (
     EdAction,
@@ -39,8 +41,6 @@ class KeybindService:
         self._keybinds_by_action: dict[EdAction, Keybind] = {}
         self._event_bus = event_bus
         self._event_bus.subscribe(EdAction, self.perform_action)
-
-        self.reload_service()
 
     def load_keybinds(self):
         found_binds_files = self._get_bind_files_or_throw_if_none(self.keybinds_path)
@@ -159,3 +159,21 @@ class KeybindService:
         self._keybinds_by_action.clear()
 
         self.load_keybinds()
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="keybinds",
+            message=None,
+            is_critical=False,
+            completed=False,
+        )
+        yield status
+
+        try:
+            self.reload_service()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

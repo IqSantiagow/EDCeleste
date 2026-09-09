@@ -58,6 +58,10 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service = TTSService(
             event_bus=EventBus(), settings_handler=self.settings_handler
         )
+        # TTSService no longer builds its provider in __init__ - that now
+        # happens in reload_service(), driven by the cold-start flow. Call it
+        # here so self.service.provider is wired in before each test runs.
+        self.service.reload_service()
 
     async def test_event_bus_publish_of_tts_event_triggers_synthesize(self):
         event_bus = EventBus()
@@ -143,6 +147,42 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             self.service.provider.provider_settings.voice, "en-US-GuyNeural"
         )
+
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        self.service.reload_service = Mock()
+
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await self.service.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "tts")
+        self.assertFalse(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_reload_service_succeeds(
+        self,
+    ):
+        self.service.reload_service = Mock()
+
+        statuses = [status async for status in self.service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_error_message_when_reload_service_fails(self):
+        self.service.reload_service = Mock(side_effect=RuntimeError("provider down"))
+
+        statuses = [status async for status in self.service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "provider down")
 
     async def test_get_tts_voices_returns_short_names_from_edge_tts_list_voices(self):
         available_voices = [

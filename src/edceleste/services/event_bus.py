@@ -23,4 +23,12 @@ class EventBus:
         for event_type, awaitables in self.subscribers.items():
             if isinstance(event, event_type):
                 for awaitable in awaitables:
-                    await awaitable(event)
+                    try:
+                        await awaitable(event)
+                    except Exception as e:
+                        logger.exception(
+                            "Error handling event %s with awaitable %s",
+                            event,
+                            awaitable,
+                            exc_info=e,
+                        )

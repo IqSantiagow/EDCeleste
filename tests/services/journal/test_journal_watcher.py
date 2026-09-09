@@ -183,6 +183,45 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         watcher.stop_watcher_service.assert_called_once()
         watcher.start_watcher_service.assert_called_once()
 
+    # --- cold_start ---
+
+    async def test_cold_start_yields_pending_status_first(self):
+        watcher = self._make_watcher()
+        watcher.reload_service = Mock()
+
+        # ColdStartStatus is mutated in place and re-yielded on completion, so
+        # the pending status must be inspected right after this first yield -
+        # collecting every yield into a list first would show the mutated,
+        # already-completed object instead.
+        first_status = await watcher.cold_start().__anext__()
+
+        self.assertEqual(first_status.service, "journal_watcher")
+        self.assertTrue(first_status.is_critical)
+        self.assertFalse(first_status.completed)
+        self.assertIsNone(first_status.message)
+
+    async def test_cold_start_yields_completed_status_when_reload_service_succeeds(
+        self,
+    ):
+        watcher = self._make_watcher()
+        watcher.reload_service = Mock()
+
+        statuses = [status async for status in watcher.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_error_message_when_reload_service_fails(self):
+        watcher = self._make_watcher()
+        watcher.reload_service = Mock(side_effect=FileNotFoundError("no journal path"))
+
+        statuses = [status async for status in watcher.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertEqual(last_status.message, "no journal path")
+
 
 if __name__ == "__main__":
     unittest.main()

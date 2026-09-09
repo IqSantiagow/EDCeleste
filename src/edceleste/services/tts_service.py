@@ -4,6 +4,7 @@ from typing import AsyncGenerator, Literal
 import edge_tts
 
 from edceleste.services.event_bus import EventBus
+from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
@@ -31,14 +32,13 @@ class TTSEvent:
 
 
 class TTSService:
+    provider_type: str | None = None
+    provider: TTSProviderProtocol | None = None
+
     def __init__(self, event_bus: EventBus, settings_handler: SettingsService) -> None:
         self.__event_bus = event_bus
         self.__settings_handler = settings_handler
         self.__event_bus.subscribe(TTSEvent, self.handle_tts_request)
-
-        current_settings = self.__settings_handler.get_settings()
-        self.provider_type = current_settings.tts.provider.type
-        self.provider: TTSProviderProtocol = self.build_provider(current_settings)
 
     def build_provider(self, settings: SettingsModel) -> TTSProviderProtocol:
         provider_class = TTS_PROVIDER_CLASSES[settings.tts.provider.type]
@@ -157,3 +157,20 @@ class TTSService:
             return "cpu"
 
         return self.provider.get_available_device()
+
+    async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        status = ColdStartStatus(
+            service="tts",
+            message=None,
+            is_critical=False,
+            completed=False,
+        )
+        yield status
+        try:
+            self.reload_service()
+            status.completed = True
+            yield status
+        except Exception as e:
+            status.completed = True
+            status.message = str(e)
+            yield status

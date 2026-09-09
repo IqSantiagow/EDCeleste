@@ -1,10 +1,9 @@
-from typing import Protocol
-
+from edceleste.protocols.base_service_protocol import BaseServiceProtocol
 from edceleste.services.models.keybinds_model import EdAction, Keybind
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
 
-class KeybindsProtocol(Protocol):
+class KeybindsProtocol(BaseServiceProtocol):
     def load_keybinds(self) -> None: ...
 
     def get_keybinds(self) -> list[Keybind]: ...

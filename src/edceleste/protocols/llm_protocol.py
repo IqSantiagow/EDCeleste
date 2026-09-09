@@ -1,11 +1,11 @@
 from collections.abc import AsyncGenerator
-from typing import Protocol
 
+from edceleste.protocols.base_service_protocol import BaseServiceProtocol
 from edceleste.services.models.llm_stream_item import LLMStreamItem
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
 
-class LLMProtocol(Protocol):
+class LLMProtocol(BaseServiceProtocol):
     def add_llm_request_to_queue(self, message: str) -> None: ...
 
     def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:
