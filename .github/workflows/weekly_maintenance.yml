@@ -25,14 +25,18 @@ jobs:
 
             Perform weekly repository maintenance:
 
-            1. Check for outdated dependencies in pyproject.toml
+            1. Check for outdated dependencies: review open Dependabot PRs
+               (`gh pr list --label dependencies`). Dependabot handles the version
+               checking; report anything stuck, failing CI, or needing a manual major bump.
             2. Review open issues older than 90 days
             3. Check for TODO comments in recent commits
-            4. Verify README.md examples still work
+            4. Verify README.md and .claude/CLAUDE.md against the code: referenced paths
+               exist, documented config fields exist in SettingsModel, and class names
+               in the architecture diagrams still exist in src/
             5. Review recent pull requests to main branch for any unresolved comments or issues
 
             Create a single issue summarizing any findings.
             If critical security issues are found, also comment on open PRs.
 
           claude_args: |
-            --allowedTools "Read,Bash(npm:*),Bash(gh issue:*),Bash(git:*)"
+            --allowedTools "Read,Grep,Glob,Bash(gh issue:*),Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(git:*)"
