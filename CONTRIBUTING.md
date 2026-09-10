@@ -7,7 +7,7 @@ Contributions are welcome! Here's how to get started.
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes
-4. Run tests: `python -m pytest`
+4. Run tests: `coverage run -m unittest discover`
 5. Commit with a clear message
 6. Push and open a Pull Request
 

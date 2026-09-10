@@ -70,13 +70,17 @@ cp config-example.yaml config.yaml
     model: claude-haiku-4-5-20251001
   ```
 
-  To use a compatible chat-completions endpoint instead, configure `type: chat_completions` together with `model`, `base_url`, and `bearer_token`.
+  The other supported provider is `type: lm_studio` with `model` — a locally running [LM Studio](https://lmstudio.ai) server. The model name must match one loaded in LM Studio.
+
+  `type: chat_completions` (with `model`, `base_url`, `bearer_token`) exists as a config schema but is **not wired up yet**: `LLMService` rejects it at runtime and settings validation refuses it.
 - `llm.system_prompt` — instructions given to Celeste. `llm.user_prompt` is a saved prompt reserved for future use and is not sent by the current LLM service.
 - `tts.provider` — text-to-speech provider. `type: edge` uses Microsoft Edge's cloud voices (`voice`); `type: chatterbox` clones a local voice `profile` (with `exaggeration`, `cfg_weight`, `device`, `nano`). `tts.volume` must be between `0.0` and `1.0`.
 - `stt.enabled` / `stt.model` / `stt.input_device` — speech-to-text toggle, Whisper model, and optional audio input-device index. Omit `input_device` or set it to `null` to use the system default device.
-- `event_reaction.reactions` — map of journal event names to booleans. Set an event to `true` when Celeste should react to it automatically; set it to `false` to suppress the automatic reaction. Keep the event list from `config-example.yaml`; unknown names are ignored and missing supported events default to `false`.
+- `event_reactions.reactions` — map of journal event names to booleans. Set an event to `true` when Celeste should react to it automatically; set it to `false` to suppress the automatic reaction. Keep the event list from `config-example.yaml`; unknown names are ignored and missing supported events default to `false`.
 
-The Claude Agent SDK uses its own Anthropic authentication setup. When using `chat_completions`, put the endpoint token in `llm.provider.bearer_token`.
+- `game_actions.enabled` — safety toggle. When `false` (the default) the LLM cannot press keybinds via the `PerformGameAction` tool.
+
+The Claude Agent SDK uses its own Anthropic authentication setup. LM Studio needs no credentials — just a running local server.
 
 ## Usage
 
@@ -97,11 +101,11 @@ ruff check
 ruff format --diff        # check only; drop --diff to auto-fix
 
 # Tests with coverage
-coverage run -m pytest
+coverage run -m unittest discover
 coverage report -m
 
 # Run a single test file
-python -m pytest tests/services/journal/test_journal_watcher.py
+python -m unittest tests.services.journal.test_journal_watcher
 ```
 
 ## Debugging
@@ -132,7 +136,7 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 
 - `services/` — core services: event bus, journal watcher, game state, LLM, TTS, STT, event reactions, keybinds, settings.
 - `services/tts_providers/` — pluggable `TtsProviderProtocol` implementations (`EdgeTTSProvider`, `ChatterboxTTSProvider`).
-- `adapters/` — external SDK implementations (`ClaudeAgentSDK`, an `LLMSdkProtocol` adapter) and tools (`PerformGameAction`, a `ToolProtocol` implementation the LLM can call).
+- `adapters/` — the two `LLMSdkProtocol` implementations (`ClaudeAgentSDK`, `LMStudioSDK`) and tools (`PerformGameAction`, a `ToolProtocol` implementation the LLM can call).
 - `projection/` — per-concern projections (player, location, fuel) that build the LLM's game-state snapshot.
 - `use_cases/` — thin callables bridging the game/LLM state to UI view models; `use_cases/settings/` holds the settings-editing use cases (get/update settings, list voices/devices, clone a voice, load keybinds).
 - `containers/` — a single `dependency-injector` container wiring everything together.
@@ -149,7 +153,7 @@ EDCeleste/
 ├── src/
 │   └── edceleste/
 │       ├── __main__.py    # Entry point (main())
-│       ├── adapters/      # LLM SDK adapters (ClaudeAgentSDK) and tools (PerformGameAction)
+│       ├── adapters/      # LLM SDK adapters (ClaudeAgentSDK, LMStudioSDK) and tools (PerformGameAction)
 │       │   └── tools/         # ToolProtocol implementations callable by the LLM
 │       ├── config/        # Config loading (pydantic-settings + .env), tracing
 │       ├── containers/    # dependency-injector wiring

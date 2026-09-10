@@ -15,7 +15,7 @@ coverage run -m unittest discover
 coverage report -m
 
 # Run a single test file
-python -m pytest tests/services/journal/test_journal_watcher.py
+python -m unittest tests.services.journal.test_journal_watcher
 ```
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
@@ -29,10 +29,16 @@ Two independent, both-gitignored config sources:
 
 - **`config.yaml`** (copy from `config-example.yaml`) — user/runtime settings, loaded via `services/settings_service.py` (`SettingsService`) into `SettingsModel` (`services/models/settings_model.py`):
   - `paths.journal_path` / `paths.keybindings_path`
-  - `llm.api_key` — Anthropic API key
+  - `llm.provider` — discriminated on `type`: `claude_agent_sdk` (default, `model`),
+    `lm_studio` (`model`), or `chat_completions` (`model`, `base_url`, `bearer_token`).
+    There is no `api_key` field; the Claude Agent SDK brings its own auth.
   - `llm.system_prompt` — used to build the LLM agent
   - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
-  - `tts.voice` / `tts.volume`
+  - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`,
+    `cfg_weight`, `device`, `nano`); `tts.volume` is `0.0`–`1.0`
+  - `stt.enabled` / `stt.model` / `stt.input_device`
+  - `event_reactions.reactions` — per-journal-event booleans for automatic replies
+  - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)
 
   `SettingsService.load_settings()` runs eagerly the first time the DI container resolves it (`containers/main_container.py`), before any service needing a bootstrap value is built. If `config.yaml` is missing, it's auto-created from `config-example.yaml` and startup fails with `FileNotFoundError` asking you to edit it and restart.
 
@@ -42,7 +48,7 @@ Two independent, both-gitignored config sources:
 ```
 ED journal files → JournalWatcherService → EventBus → Projections → GameStateService
                                                                           ↓
-                                        UIApp (Textual TUI) ← EdDashboard ← EdDashboardPresenter
+                                        UIApp (Textual TUI) ← EdDashboard ← EdDashboardRepository
                                                                           ↓
                                                                      LLMService
 ```
@@ -70,7 +76,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
-- LLM model: `claude-haiku-4-5-20251001` via the Claude Agent SDK (`adapters/claude_agent_sdk.py`); configured in `services/llm_service.py`
+- Default LLM: `claude-haiku-4-5-20251001` via the Claude Agent SDK (`adapters/claude_agent_sdk.py`). `LMStudioSDK` (`adapters/lm_studio_sdk.py`) is the only other `LLMSdkProtocol` implementation; the provider is selected in `config.yaml` and wired in `services/llm_service.py`. `chat_completions` is a valid config schema but `LLMService.determine_provider` rejects it at runtime
 
 ## Ape style code
 - Write a code so understandable that even an ape can understand it. Use simple names and exhausting function and variable names

@@ -50,5 +50,9 @@ llm:
   provider:
     type: "claude_agent_sdk"
     model: "claude-haiku-4-5-20251001"
+  # LM Studio runs the model locally; "model" must match one loaded in LM Studio.
+  # provider:
+  #   type: "lm_studio"
+  #   model: "qwen2.5-7b-instruct"
   system_prompt: "You are a helpful assistant for Elite Dangerous."
   user_prompt: "Summarize the current game state."
