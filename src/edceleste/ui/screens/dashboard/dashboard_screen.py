@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 class DashboardScreen(Screen):
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
-        ("ctrl+r", "push_settings", "Settings"),
+        ("ctrl+r", "app.push_settings", "Settings"),
     ]
 
     def __init__(
