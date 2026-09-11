@@ -5,11 +5,11 @@ from textual.widget import Widget
 from textual.widgets import Label
 from textual.reactive import reactive
 
-from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
-from edceleste.ui.widgets.dashboard.ship_log.widget_ship_log_entry import (
+from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
+from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_entry import (
     WidgetShipLogEntry,
 )
-from edceleste.ui.widgets.dashboard.view_models.journal_log_view_model import (
+from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     JournalLogViewModel,
 )
 

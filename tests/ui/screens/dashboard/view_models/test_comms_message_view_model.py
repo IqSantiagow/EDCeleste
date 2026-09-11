@@ -7,7 +7,7 @@ from edceleste.services.models.message_block import (
     ToolCall,
     ToolResult,
 )
-from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
 

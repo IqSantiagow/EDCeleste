@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 
 from edceleste.protocols.llm_protocol import LLMProtocol
 from edceleste.services.models.llm_status import LLMStatus
-from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
 

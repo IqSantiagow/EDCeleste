@@ -2,8 +2,10 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.reactive import reactive
 
-from edceleste.ui.widgets.dashboard.comms.widget_comms_entry import WidgetCommsEntry
-from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
+    WidgetCommsEntry,
+)
+from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
 

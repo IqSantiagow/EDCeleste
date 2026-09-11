@@ -9,9 +9,9 @@ from edceleste.projection.event_projections.location_projection import (
 from edceleste.projection.event_projections.player_projection import PlayerProjection
 from edceleste.projection.event_projections.projection import Projection
 from edceleste.services.event_bus import EventBus
-from edceleste.services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from edceleste.services.models.game_events import GameEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.game_stats import GameStatsSnapshot, PlayerStats
 
 logger = logging.getLogger(__name__)
 
@@ -63,23 +63,25 @@ class GameStateService:
             "Game state projection refreshed: %s", self.__game_state_projection
         )
 
-    def get_dashboard_stats(self) -> DashboardStatsSnapshot:
-        return DashboardStatsSnapshot(
-            location=self.__location_projection.current_star_system or "",
-            fuel=str(self.__fuel_projection.fuel_level),
-            ship=self.__player_projection.player_ship or "",
+    def __build_game_stats_snapshot(self) -> GameStatsSnapshot:
+        return GameStatsSnapshot(
+            player=PlayerStats(
+                name=self.__player_projection.player_name or "",
+                ship=self.__player_projection.player_ship or "",
+                credits=self.__player_projection.player_credits,
+            ),
         )
 
-    async def stream_dashboard_stats(
+    async def stream_game_stats(
         self,
-    ) -> AsyncGenerator[DashboardStatsSnapshot, None]:
+    ) -> AsyncGenerator[GameStatsSnapshot, None]:
         queue: asyncio.Queue = asyncio.Queue()
         self.__queue_watchers.append(queue)
 
         try:
             while True:
                 await queue.get()
-                yield self.get_dashboard_stats()
+                yield self.__build_game_stats_snapshot()
         finally:
             self.__queue_watchers.remove(queue)
 

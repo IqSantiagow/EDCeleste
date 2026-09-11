@@ -19,3 +19,4 @@ LOG.md
 .pi
 /dist
 /build
+/.dev-data

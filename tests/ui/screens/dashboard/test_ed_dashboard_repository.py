@@ -1,6 +1,6 @@
 import unittest
 
-from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
+from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 
 class FakeGetSttEnabledUseCase:
@@ -14,7 +14,6 @@ class FakeGetSttEnabledUseCase:
 class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
     def _make_repository(self, enabled: bool) -> EdDashboardRepository:
         return EdDashboardRepository(
-            stream_dashboard_stats_usecase=None,  # type: ignore
             stream_journal_events_usecase=None,  # type: ignore
             llm_send_message_usecase=None,  # type: ignore
             stream_llm_responses_usecase=None,  # type: ignore

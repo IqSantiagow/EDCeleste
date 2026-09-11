@@ -1,15 +1,14 @@
-from typing import AsyncGenerator, Protocol
+from collections.abc import AsyncGenerator
+from typing import Protocol
 
-from edceleste.services.models.dashboard_stats_snapshot import DashboardStatsSnapshot
 from edceleste.services.models.game_events import GameEvent
+from edceleste.services.models.game_stats import GameStatsSnapshot
 
 
 class GameStateProtocol(Protocol):
-    def get_dashboard_stats(self) -> DashboardStatsSnapshot: ...
-
-    def stream_dashboard_stats(
+    def stream_game_stats(
         self,
-    ) -> AsyncGenerator[DashboardStatsSnapshot, None]: ...
+    ) -> AsyncGenerator[GameStatsSnapshot, None]: ...
 
     def stream_journal_events(self) -> AsyncGenerator[GameEvent, None]: ...
 

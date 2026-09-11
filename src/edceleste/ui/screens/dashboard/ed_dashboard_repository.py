@@ -1,16 +1,10 @@
 from collections.abc import AsyncGenerator
 
-from edceleste.ui.widgets.dashboard.view_models.journal_log_view_model import (
+from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     JournalLogViewModel,
 )
 from edceleste.use_cases.dashboard.llm_send_message_use_case import (
     LLMSendMessageUseCase,
-)
-from edceleste.use_cases.dashboard.stream_dashboard_stats_usecase import (
-    StreamDashboardStatsUseCase,
-)
-from edceleste.ui.widgets.dashboard.view_models.dashboard_stats_view_model import (
-    DashboardStatsViewModel,
 )
 from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
     StreamJournalEventsUseCase,
@@ -31,7 +25,6 @@ from edceleste.use_cases.dashboard.get_stt_enabled_use_case import GetSttEnabled
 class EdDashboardRepository:
     def __init__(
         self,
-        stream_dashboard_stats_usecase: StreamDashboardStatsUseCase,
         stream_journal_events_usecase: StreamJournalEventsUseCase,
         llm_send_message_usecase: LLMSendMessageUseCase,
         stream_llm_responses_usecase: StreamLLMResponsesUseCase,
@@ -39,16 +32,12 @@ class EdDashboardRepository:
         stt_stop_recording_usecase: SttStopRecordingUseCase,
         get_stt_enabled_usecase: GetSttEnabledUseCase,
     ) -> None:
-        self.stream_dashboard_stats_usecase = stream_dashboard_stats_usecase
         self.stream_journal_events_usecase = stream_journal_events_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
         self.stream_llm_responses_usecase = stream_llm_responses_usecase
         self.stt_start_recording_usecase = stt_start_recording_usecase
         self.stt_stop_recording_usecase = stt_stop_recording_usecase
         self.get_stt_enabled_usecase = get_stt_enabled_usecase
-
-    def stream_dashboard_stats(self) -> AsyncGenerator[DashboardStatsViewModel, None]:
-        return self.stream_dashboard_stats_usecase()
 
     def stream_journal_events(self) -> AsyncGenerator[JournalLogViewModel, None]:
         return self.stream_journal_events_usecase()

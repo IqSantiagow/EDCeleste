@@ -26,7 +26,9 @@ from edceleste.ui.screens.settings.widgets.widget_settings_section_content_colum
 from edceleste.ui.screens.settings.widgets.widget_settings_sections_column import (
     WidgetSettingsSectionsColumn,
 )
-from edceleste.ui.widgets.app_header import AppHeader
+from edceleste.ui.screens.settings.widgets.widget_settings_header import (
+    WidgetSettingsHeader,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +52,8 @@ class SettingsScreen(Screen):
         self.settings_state = deepcopy(self._initial_settings_state)
 
     def compose(self):
-        logger.debug("Composing SettingsScreen")
         with Grid(id="settings-grid", classes="screen-grid"):
-            yield AppHeader(content=WidgetSettingsHeaderContent())
+            yield WidgetSettingsHeader()
             yield Label(id="sections-title", classes="header-title", content="SECTIONS")
             yield Label(id="keybinds-title", classes="header-title", content="KEYBINDS")
             yield WidgetSettingsSectionsColumn(id="settings-sections-column")

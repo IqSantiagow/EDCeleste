@@ -14,16 +14,17 @@ from edceleste.services.stubs.journal_watcher_service_stub import (
 )
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
+from edceleste.ui.screens.app.app_header_repository import AppHeaderRepository
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.system_check.system_check_repository import (
     SystemCheckRepository,
 )
-from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
+from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
 from edceleste.use_cases.dashboard.llm_send_message_use_case import (
     LLMSendMessageUseCase,
 )
-from edceleste.use_cases.dashboard.stream_dashboard_stats_usecase import (
-    StreamDashboardStatsUseCase,
+from edceleste.use_cases.app.stream_app_header_stats_usecase import (
+    StreamAppHeaderStatsUseCase,
 )
 from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
     StreamJournalEventsUseCase,
@@ -152,8 +153,9 @@ class Container(containers.DeclarativeContainer):
     )
 
     # -----USE CASES-----
-    stream_dashboard_stats_use_case = providers.Factory(
-        StreamDashboardStatsUseCase, game_state_reader=game_state_service
+
+    stream_app_header_stats_use_case = providers.Factory(
+        StreamAppHeaderStatsUseCase, game_state_protocol=game_state_service
     )
 
     stream_journal_events_use_case = providers.Factory(
@@ -272,7 +274,6 @@ class Container(containers.DeclarativeContainer):
     # -----REPOSITORIES-----
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
-        stream_dashboard_stats_usecase=stream_dashboard_stats_use_case,
         stream_journal_events_usecase=stream_journal_events_use_case,
         llm_send_message_usecase=llm_send_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
@@ -303,4 +304,9 @@ class Container(containers.DeclarativeContainer):
     )
     system_check_repository = providers.Singleton(
         SystemCheckRepository, system_check_use_case=system_check_use_case
+    )
+
+    app_header_repository = providers.Singleton(
+        AppHeaderRepository,
+        stream_app_header_stats_usecase=stream_app_header_stats_use_case,
     )

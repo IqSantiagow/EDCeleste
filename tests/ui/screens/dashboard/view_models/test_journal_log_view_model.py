@@ -2,7 +2,7 @@ from datetime import datetime
 import unittest
 
 from edceleste.services.models.game_events import StartJumpEvent
-from edceleste.ui.widgets.dashboard.view_models.journal_log_view_model import (
+from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     JournalLogViewModel,
 )
 

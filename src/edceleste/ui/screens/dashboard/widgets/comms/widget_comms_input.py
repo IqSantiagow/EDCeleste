@@ -11,7 +11,7 @@ from textual.containers import HorizontalGroup, VerticalGroup
 
 from edceleste.services.models.llm_status import LLMStatus
 from edceleste.ui.widgets.common.widget_spinner import WidgetSpinner
-from edceleste.ui.widgets.dashboard.ed_dashboard_repository import EdDashboardRepository
+from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
 
 
 class WidgetCommsInput(VerticalGroup):

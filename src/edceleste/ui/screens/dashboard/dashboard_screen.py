@@ -6,14 +6,15 @@ from textual.widgets import Label
 from textual.app import ComposeResult
 from textual import on, work
 from edceleste.services.models.llm_status import LLMStatus
-from edceleste.ui.widgets.app_header import AppHeader
-from edceleste.ui.widgets.dashboard.comms.widget_comms_col import WidgetCommsCol
-from edceleste.ui.widgets.dashboard.comms.widget_comms_input import WidgetCommsInput
-from edceleste.ui.widgets.dashboard.dashboard_headers.dashboard_stats_content import (
-    DashboardStatsContent,
+from edceleste.ui.screens.app.widgets.app_header import AppHeader
+from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_col import WidgetCommsCol
+from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_input import (
+    WidgetCommsInput,
 )
-from edceleste.ui.widgets.dashboard.ship_log.widget_ship_log_col import WidgetShipLogCol
-from edceleste.ui.widgets.dashboard.view_models.comms_message_view_model import (
+from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_col import (
+    WidgetShipLogCol,
+)
+from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
 )
 
@@ -27,12 +28,14 @@ class DashboardScreen(Screen):
 
     def __init__(
         self,
-        ed_dashboard_repository,
+        app_header_repository,
+        dashboard_repository,
         settings_repository,
         journal_watcher_service,
         **kwargs,
     ):
-        self.ed_dashboard_repository = ed_dashboard_repository
+        self.app_header_repository = app_header_repository
+        self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
         self.journal_watcher_service = journal_watcher_service
 
@@ -45,19 +48,15 @@ class DashboardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         with Grid(id="app-container", classes="screen-grid"):
-            yield AppHeader(
-                content=DashboardStatsContent(
-                    ed_dashboard_repository=self.ed_dashboard_repository
-                )
-            )
+            yield AppHeader(app_header_repository=self.app_header_repository)
             yield Label(id="comms-title", classes="header-title", content="COMMS")
             yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
             yield WidgetCommsCol(id="comms-col")
             yield WidgetShipLogCol(
-                ed_dashboard_repository=self.ed_dashboard_repository, id="ship-log-col"
+                ed_dashboard_repository=self.dashboard_repository, id="ship-log-col"
             )
             yield WidgetCommsInput(
-                ed_dashboard_repository=self.ed_dashboard_repository, id="input-row"
+                ed_dashboard_repository=self.dashboard_repository, id="input-row"
             )
             yield Footer(id="app-footer")
 
@@ -81,7 +80,7 @@ class DashboardScreen(Screen):
     async def set_up_llm_stream_worker(self) -> None:
         """The only consumer of the LLM queue - status to input, entries to COMMS."""
         logger.debug("Starting to stream LLM items")
-        async for item in self.ed_dashboard_repository.stream_llm_responses():
+        async for item in self.dashboard_repository.stream_llm_responses():
             if isinstance(item, LLMStatus):
                 self.query_one("#input-row", WidgetCommsInput).llm_state = item
             else:
