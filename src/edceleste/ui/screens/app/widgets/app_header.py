@@ -1,5 +1,6 @@
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
+from datetime import datetime
 from textual.reactive import reactive
 from textual.widgets import Label, Rule
 from textual import work
@@ -15,6 +16,8 @@ from edceleste.ui.screens.app.view_models.app_header_view_model import (
 class AppHeader(HorizontalGroup):
     state: reactive[AppHeaderViewModel] = reactive(AppHeaderViewModel.empty())
 
+    time: reactive[str] = reactive("")
+
     def __init__(self, app_header_repository: AppHeaderRepository, **kwargs) -> None:
         super().__init__(id="app-header", **kwargs)
         self.app_header_repository = app_header_repository
@@ -29,14 +32,22 @@ class AppHeader(HorizontalGroup):
             yield Rule(orientation="vertical")
             yield WidgetCommonStatLabel(text="CR", stat_value="", id="stat-credits")
             # TODO: Add right side of it
-        # with HorizontalGroup(id="dashboard-additional-stats-content-right"):
-        #     yield WidgetCommonStatLabel(text="LLM", stat_value="", id="stat-llm")
-        #     yield WidgetCommonStatLabel(text="TTS", stat_value="", id="stat-tts")
-        #     yield WidgetCommonStatLabel(text="MIC", stat_value="", id="stat-mic")
-        #     yield WidgetCommonStatLabel(text="JRNL", stat_value="", id="stat-jrnl")
+        with HorizontalGroup(id="dashboard-additional-stats-content-right"):
+            #    yield WidgetCommonStatLabel(text="LLM", stat_value="", id="stat-llm")
+            #    yield WidgetCommonStatLabel(text="TTS", stat_value="", id="stat-tts")
+            #    yield WidgetCommonStatLabel(text="MIC", stat_value="", id="stat-mic")
+            #    yield WidgetCommonStatLabel(text="JRNL", stat_value="", id="stat-jrnl")
+            yield Label("", id="stat-time")
+
+    def update_time(self) -> None:
+        self.time = datetime.now().strftime("%H:%M:%S")
+
+    def watch_time(self, new_time: str) -> None:
+        self.query_one("#stat-time", Label).content = new_time
 
     def on_mount(self) -> None:
         self.call_later(self.set_up_stream_worker)
+        self.update_timer = self.set_interval(1.0, self.update_time)
 
     def watch_state(self, new_state: AppHeaderViewModel) -> None:
         self.query_one("#stat-cmdr", WidgetCommonStatLabel).update_value(

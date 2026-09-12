@@ -63,6 +63,11 @@ WidgetTTSContainer {
     column-span: 2;
 }
 
+#dashboard-additional-stats-content-right {
+    dock: right;
+    width: auto;
+}
+
 #dashboard-title {
     color: $primary;
     text-style: bold;
