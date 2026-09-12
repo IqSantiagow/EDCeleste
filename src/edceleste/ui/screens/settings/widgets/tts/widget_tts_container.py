@@ -50,6 +50,9 @@ class TTSInputWidgetIds(enum.Enum):
 
 
 class WidgetTTSContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "TEXT TO SPEECH"
+
     provider: reactive[EdgeTTSProviderModel | ChatterboxTTSProviderModel | None] = (
         reactive(None, recompose=True)
     )

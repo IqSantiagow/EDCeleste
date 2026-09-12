@@ -4,10 +4,11 @@ import logging
 from textual import on
 from textual.containers import Grid
 from textual.screen import Screen
-from textual.widgets import ContentSwitcher, Footer, Label, LoadingIndicator
+from textual.widgets import ContentSwitcher, Footer, LoadingIndicator
 from textual.reactive import reactive
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
+from edceleste.ui.screens.app.widgets.app_header import AppHeader
 from edceleste.ui.screens.settings.events.settings_events import (
     SectionSettingsChanged,
 )
@@ -15,10 +16,6 @@ from edceleste.ui.screens.settings.events.settings_events import (
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
-)
-from edceleste.ui.screens.settings.widgets.widget_settings_header_content import (
-    SaveState,
-    WidgetSettingsHeaderContent,
 )
 from edceleste.ui.screens.settings.widgets.widget_settings_section_content_column import (  # noqa: E501
     WidgetSettingsSectionContentColumn,
@@ -28,7 +25,9 @@ from edceleste.ui.screens.settings.widgets.widget_settings_sections_column impor
 )
 from edceleste.ui.screens.settings.widgets.widget_settings_header import (
     WidgetSettingsHeader,
+    WidgetSettingsHeaderContent,
 )
+from edceleste.ui.screens.settings.widgets.save_states import SaveState
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +51,9 @@ class SettingsScreen(Screen):
         self.settings_state = deepcopy(self._initial_settings_state)
 
     def compose(self):
+        yield AppHeader()
+        yield WidgetSettingsHeader()
         with Grid(id="settings-grid", classes="screen-grid"):
-            yield WidgetSettingsHeader()
-            yield Label(id="sections-title", classes="header-title", content="SECTIONS")
-            yield Label(id="keybinds-title", classes="header-title", content="KEYBINDS")
             yield WidgetSettingsSectionsColumn(id="settings-sections-column")
             if not self.settings_state:
                 yield LoadingIndicator()

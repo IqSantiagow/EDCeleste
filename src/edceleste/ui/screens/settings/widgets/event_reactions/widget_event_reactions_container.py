@@ -119,6 +119,9 @@ _SESSION_EVENTS = [
 
 
 class WidgetEventReactionsContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "EVENT REACTIONS"
+
     def __init__(self, settings_model: SettingsModel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.settings_model = settings_model

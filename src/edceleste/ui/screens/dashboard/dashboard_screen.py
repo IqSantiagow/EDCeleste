@@ -28,13 +28,11 @@ class DashboardScreen(Screen):
 
     def __init__(
         self,
-        app_header_repository,
         dashboard_repository,
         settings_repository,
         journal_watcher_service,
         **kwargs,
     ):
-        self.app_header_repository = app_header_repository
         self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
         self.journal_watcher_service = journal_watcher_service
@@ -47,8 +45,8 @@ class DashboardScreen(Screen):
         self.set_up_llm_stream_worker()
 
     def compose(self) -> ComposeResult:
+        yield AppHeader()
         with Grid(id="app-container", classes="screen-grid"):
-            yield AppHeader(app_header_repository=self.app_header_repository)
             yield Label(id="comms-title", classes="header-title", content="COMMS")
             yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
             yield WidgetCommsCol(id="comms-col")

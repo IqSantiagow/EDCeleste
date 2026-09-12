@@ -78,6 +78,14 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
 - Default LLM: `claude-haiku-4-5-20251001` via the Claude Agent SDK (`adapters/claude_agent_sdk.py`). `LMStudioSDK` (`adapters/lm_studio_sdk.py`) is the only other `LLMSdkProtocol` implementation; the provider is selected in `config.yaml` and wired in `services/llm_service.py`. `chat_completions` is a valid config schema but `LLMService.determine_provider` rejects it at runtime
 
+## UI rules
+- Widgets used only within specific widgets should be kept in one file. F.e `WidgetCommsInput` is only used within the dashboard screen, so it stays in `ui/screens/dashboard/widgets/comms/widget_comms_input.py`.
+- Follow the following structure when creating new things in the UI: 
+  - `ui/screens/<screen_name>/widgets/` — widgets specific to a screen
+  - `ui/screens/<screen_name>/view_models/` — view models specific to a screen
+  - `ui/screens/<screen_name>/services/` — services specific to a screen
+  - `ui/screens/<screen_name>/repositories/` — repositories specific to a screen
+
 ## Ape style code
 - Write a code so understandable that even an ape can understand it. Use simple names and exhausting function and variable names
 

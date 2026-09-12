@@ -63,6 +63,9 @@ class SystemPromptsInputWidgetIds(enum.Enum):
 
 
 class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "LLM & PROMPTS"
+
     provider: reactive[
         ClaudeAgentSdkModel | ChatCompletionsModel | LmStudioModel | None
     ] = reactive(None, recompose=True)

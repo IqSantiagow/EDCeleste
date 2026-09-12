@@ -25,6 +25,9 @@ class GameActionsInputWidgetIds(enum.Enum):
 
 
 class WidgetGameActionsContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "GAME ACTIONS"
+
     def __init__(self, game_actions_model: GameActionsModel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.game_actions_model = game_actions_model

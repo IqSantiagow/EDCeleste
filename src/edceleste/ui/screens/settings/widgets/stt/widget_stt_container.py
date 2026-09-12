@@ -34,6 +34,9 @@ class SttInputWidgetIds(enum.Enum):
 
 
 class WidgetSttContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "SPEECH TO TEXT"
+
     models: reactive[list[str] | None] = reactive(None, recompose=True)
     input_devices: reactive[list[tuple[str, int]] | None] = reactive(
         None, recompose=True

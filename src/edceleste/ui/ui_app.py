@@ -37,14 +37,12 @@ class UIApp(App):
             Container.settings_repository
         ],
         system_check_repository=Provide[Container.system_check_repository],
-        app_header_repository=Provide[Container.app_header_repository],
     ) -> None:
         super().__init__()
         self.journal_watcher_service = journal_watcher_service
         self.ed_dashboard_repository = ed_dashboard_repository
         self.settings_repository = settings_repository
         self.system_check_repository = system_check_repository
-        self.app_header_repository = app_header_repository
 
     def on_mount(self) -> None:
         self.register_theme(amber_theme)
@@ -61,7 +59,6 @@ class UIApp(App):
             return
         self.push_screen(
             DashboardScreen(
-                app_header_repository=self.app_header_repository,
                 dashboard_repository=self.ed_dashboard_repository,
                 settings_repository=self.settings_repository,
                 journal_watcher_service=self.journal_watcher_service,

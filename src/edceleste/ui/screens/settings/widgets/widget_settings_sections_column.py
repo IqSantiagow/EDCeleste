@@ -17,6 +17,9 @@ _SECTIONS_LABELS_WITH_ID: dict[str, str] = {
 
 
 class WidgetSettingsSectionsColumn(ListView):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "SECTIONS"
+
     class WidgetSettingsSectionSelected(Message):
         def __init__(self, section_id: str) -> None:
             self.section_id = section_id

@@ -16,17 +16,18 @@ Footer {
 }
 
 .screen-grid {
-    grid-size: 2 4;
-    grid-rows: auto auto 1fr auto;
     grid-gutter: 1;
-    keyline: thin $primary;
 }
 
 #app-container {
+    grid-size: 2 3;
+    grid-rows: auto 1fr auto;
     grid-columns: 2fr 1fr;
 }
 
 #settings-grid {
+    grid-size: 2 4;
+    grid-rows: auto auto 1fr auto;
     grid-columns: 1fr 2fr;
 }
 
@@ -52,17 +53,26 @@ WidgetPathsContainer,
 WidgetKeybindsContainer,
 WidgetEventReactionsContainer,
 WidgetSystemPromptsContainer,
-WidgetTTSContainer {
+WidgetTTSContainer,
+WidgetGameActionsContainer,
+WidgetSttContainer {
     padding: 0 1;
+}
+
+/* Every settings section (WidgetPathsContainer, WidgetKeybindsContainer,
+   WidgetEventReactionsContainer, WidgetSystemPromptsContainer,
+   WidgetTTSContainer, WidgetGameActionsContainer, WidgetSttContainer)
+   carries DEFAULT_CLASSES = "settings-container" and a BORDER_TITLE
+   naming what it configures. */
+.settings-container {
+    border: round $secondary;
+    border-title-align: left;
+    border-title-color: $font-muted-color;
 }
 
 /* ============================================================
    Shared: header row + column titles
    ============================================================ */
-#app-header {
-    column-span: 2;
-}
-
 #dashboard-additional-stats-content-right {
     dock: right;
     width: auto;
@@ -71,6 +81,10 @@ WidgetTTSContainer {
 #dashboard-title {
     color: $primary;
     text-style: bold;
+}
+
+.settings-header {
+    border: round $secondary;
 }
 
 #settings-header-label {

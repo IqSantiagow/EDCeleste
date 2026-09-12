@@ -29,6 +29,9 @@ class PathsInputWidgetIds(enum.Enum):
 
 
 class WidgetPathsContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "PATHS"
+
     def __init__(self, path_model: PathModel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.path_model = path_model

@@ -11,6 +11,9 @@ from edceleste.ui.screens.settings.widgets.widget_base_settings_container import
 
 
 class WidgetKeybindsContainer(WidgetBaseSettingsContainer):
+    DEFAULT_CLASSES = "settings-container"
+    BORDER_TITLE = "KEYBINDS"
+
     def __init__(self, keybinds: list[Keybind], *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.keybinds = keybinds

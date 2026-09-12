@@ -1,9 +1,11 @@
+from dependency_injector.wiring import Provide, inject
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
 from datetime import datetime
 from textual.reactive import reactive
 from textual.widgets import Label, Rule
 from textual import work
+from edceleste.containers.main_container import Container
 from edceleste.ui.screens.app.widgets.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
@@ -18,8 +20,15 @@ class AppHeader(HorizontalGroup):
 
     time: reactive[str] = reactive("")
 
-    def __init__(self, app_header_repository: AppHeaderRepository, **kwargs) -> None:
-        super().__init__(id="app-header", **kwargs)
+    @inject
+    def __init__(
+        self,
+        app_header_repository: AppHeaderRepository = Provide[
+            Container.app_header_repository
+        ],
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs, classes="app-header")
         self.app_header_repository = app_header_repository
 
     def compose(self) -> ComposeResult:
