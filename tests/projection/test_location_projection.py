@@ -9,6 +9,7 @@ from edceleste.services.models.game_events import (
     UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
+    FSDTargetEvent,
     StartJumpEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
@@ -129,6 +130,15 @@ class TestLocationProjection(unittest.TestCase):
             SystemAddress=123456789,
             Body="Sol 3 c",
             BodyID=9,
+        )
+
+        cls.fsd_target_event = FSDTargetEvent(
+            event="FSDTarget",
+            timestamp=datetime.now(),
+            Name="Proxima Centauri",
+            SystemAddress=987654321,
+            StarClass="M",
+            RemainingJumpsInRoute=3,
         )
 
         cls.approach_settlement_event = ApproachSettlementEvent(
@@ -280,6 +290,28 @@ class TestLocationProjection(unittest.TestCase):
             "Player is currently in the Sol system.",
             location_projection.create_projection(),
         )
+
+    def test_should_process_fsd_target_event_and_create_projection(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.fsd_target_event)
+
+        expected_projection = (
+            "Player's next plotted jump is to system Proxima Centauri, "
+            "a class M star, with 3 jumps remaining on the route."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_clear_route_next_hop_once_player_arrives(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.fsd_target_event)
+        location_projection.process_event(self.fsd_jump_event)
+
+        expected_projection = "Player is currently in the Proxima Centauri system."
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
 
     def test_should_track_nearest_settlement_on_approach(self):
         location_projection = LocationProjection()

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from edceleste.projection.event_projections.projection import Projection
 from edceleste.services.models.game_events import (
     FSDJumpEvent,
+    FSDTargetEvent,
     StartJumpEvent,
     DockedEvent,
     UndockedEvent,
@@ -37,6 +38,11 @@ class LocationProjection(Projection):
 
     SETTLEMENT_PROJECTION = "Player is close to the settlement: {0}."
 
+    ROUTE_NEXT_HOP_PROJECTION = (
+        "Player's next plotted jump is to system {0}, a class {1} star, "
+        "with {2} jumps remaining on the route."
+    )
+
     def __init__(self):
         self.current_star_system = None
         self.target_star_system = None
@@ -46,6 +52,9 @@ class LocationProjection(Projection):
         self.is_in_supercruise = False
         self.current_body = None
         self.nearest_settlement = None
+        self.route_next_star_system = None
+        self.route_next_star_class = None
+        self.route_remaining_jumps = None
 
     def process_event(self, event: BaseModel) -> None:
         if isinstance(event, StartJumpEvent):
@@ -62,11 +71,22 @@ class LocationProjection(Projection):
             self.nearest_settlement = None
             return
 
+        if isinstance(event, FSDTargetEvent):
+            logger.debug("Received location event: %s", event)
+            self.route_next_star_system = event.Name
+            self.route_next_star_class = event.StarClass
+            self.route_remaining_jumps = event.RemainingJumpsInRoute
+            return
+
         if isinstance(event, FSDJumpEvent):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.target_star_system = None
             self.is_in_fsd_jump = False
+            if event.StarSystem == self.route_next_star_system:
+                self.route_next_star_system = None
+                self.route_next_star_class = None
+                self.route_remaining_jumps = None
             return
 
         if isinstance(event, DockedEvent):
@@ -169,6 +189,13 @@ class LocationProjection(Projection):
         if self.is_in_fsd_jump:
             projection_string += self.FSD_TRAVEL_PROJECTION.format(
                 self.target_star_system
+            )
+
+        if self.route_next_star_system:
+            projection_string += self.ROUTE_NEXT_HOP_PROJECTION.format(
+                self.route_next_star_system,
+                self.route_next_star_class,
+                self.route_remaining_jumps,
             )
 
         return projection_string

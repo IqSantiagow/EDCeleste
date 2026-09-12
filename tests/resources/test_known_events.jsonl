@@ -22,3 +22,4 @@
 { "timestamp":"2026-06-20T19:05:37Z", "event":"Reputation", "Empire":6.736310, "Federation":0.198000, "Independent":0.000000, "Alliance":0.000000 }
 { "timestamp":"2026-02-22T20:16:10Z", "event":"Died", "KillerName":"Blackbeard", "KillerShip":"asp", "KillerRank":"Master" }
 { "timestamp":"2026-02-22T20:17:22Z", "event":"Resurrect", "Option":"rebuy", "Cost":26799, "Bankrupt":false }
+{ "timestamp":"2026-02-21T11:30:12Z", "event":"FSDTarget", "Name":"Col 285 Sector LH-B a43-1", "SystemAddress":22949620632488, "StarClass":"TTS", "RemainingJumpsInRoute":9 }

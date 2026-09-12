@@ -8,6 +8,7 @@ from edceleste.services.models.game_events import (
     LoadedGameEvent,
     UnknownCheckedEvent,
     StartJumpEvent,
+    FSDTargetEvent,
     FSDJumpEvent,
     DockedEvent,
     UndockedEvent,
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 class JournalEventType(str, Enum):
     LoadGame = "LoadGame"
     StartJump = "StartJump"
+    FSDTarget = "FSDTarget"
     FSDJump = "FSDJump"
     Docked = "Docked"
     Undocked = "Undocked"
@@ -79,6 +81,7 @@ JournalEvent = Annotated[
     Union[
         Annotated[LoadedGameEvent, Tag(JournalEventType.LoadGame)],
         Annotated[StartJumpEvent, Tag(JournalEventType.StartJump)],
+        Annotated[FSDTargetEvent, Tag(JournalEventType.FSDTarget)],
         Annotated[FSDJumpEvent, Tag(JournalEventType.FSDJump)],
         Annotated[DockedEvent, Tag(JournalEventType.Docked)],
         Annotated[UndockedEvent, Tag(JournalEventType.Undocked)],

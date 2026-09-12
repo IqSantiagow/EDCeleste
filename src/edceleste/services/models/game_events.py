@@ -97,6 +97,14 @@ class StartJumpEvent(GameEvent):
     StarClass: Optional[str] = None
 
 
+class FSDTargetEvent(GameEvent):
+    event: Literal["FSDTarget"]
+    Name: str
+    SystemAddress: int
+    StarClass: str
+    RemainingJumpsInRoute: int
+
+
 class LocationEvent(GameEvent):
     event: Literal["Location"]
     StarSystem: str
