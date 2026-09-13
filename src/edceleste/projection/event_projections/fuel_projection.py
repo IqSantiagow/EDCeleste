@@ -9,6 +9,8 @@ from edceleste.services.models.game_events import (
     FuelScoopEvent,
     ReservoirReplenishedEvent,
     RefuelAllEvent,
+    StatusEvent,
+    StatusFlags,
 )
 
 logger = logging.getLogger(__name__)
@@ -17,9 +19,15 @@ logger = logging.getLogger(__name__)
 class FuelProjection(Projection):
     PROJECTION_STRING = "Current fuel level is: {0}"
 
+    SCOOPING_FUEL_PROJECTION = "Player is currently scooping fuel from a star."
+
+    LOW_FUEL_PROJECTION = "Warning: fuel is low."
+
     def __init__(self):
         self.fuel_level = 0.0
         self.fuel_capacity = 0.0
+        self.is_scooping_fuel = False
+        self.is_low_fuel = False
 
     def process_event(self, event: BaseModel):
         if isinstance(event, FSDJumpEvent):
@@ -56,9 +64,24 @@ class FuelProjection(Projection):
                 self.fuel_level = min(self.fuel_level, self.fuel_capacity)
             return
 
+        if isinstance(event, StatusEvent):
+            logger.debug("Received fuel event: %s", event)
+            self.is_scooping_fuel = bool(event.Flags & StatusFlags.ScoopingFuel)
+            self.is_low_fuel = bool(event.Flags & StatusFlags.LowFuel)
+            return
+
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
         if self.fuel_level == 0.0:
             logger.warning("Fuel level is at 0. Does the game started?")
-        return self.PROJECTION_STRING.format(self.fuel_level)
+
+        projection_string = self.PROJECTION_STRING.format(self.fuel_level)
+
+        if self.is_scooping_fuel:
+            projection_string += self.SCOOPING_FUEL_PROJECTION
+
+        if self.is_low_fuel:
+            projection_string += self.LOW_FUEL_PROJECTION
+
+        return projection_string

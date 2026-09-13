@@ -10,6 +10,9 @@ from edceleste.services.models.game_events import (
     ReputationEvent,
     DiedEvent,
     ResurrectEvent,
+    StatusEvent,
+    StatusFlags,
+    StatusFlags2,
 )
 
 
@@ -69,6 +72,36 @@ class PlayerProjectionTest(unittest.TestCase):
             Option="rebuy",
             Cost=26799,
             Bankrupt=False,
+        )
+        cls.status_event_on_foot = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=0,
+            Flags2=StatusFlags2.OnFoot,
+        )
+        cls.status_event_in_taxi = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=0,
+            Flags2=StatusFlags2.InTaxi,
+        )
+        cls.status_event_in_srv = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.InSRV,
+            Flags2=0,
+        )
+        cls.status_event_in_fighter = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.InFighter,
+            Flags2=0,
+        )
+        cls.status_event_in_main_ship = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.InMainShip,
+            Flags2=0,
         )
 
     def test_should_process_event_and_set_player_state_data(self):
@@ -157,4 +190,82 @@ class PlayerProjectionTest(unittest.TestCase):
         self.assertTrue(player_projection.is_alive)
         self.assertNotIn(
             PlayerProjection.DEAD_PROJECTION, player_projection.create_projection()
+        )
+
+    def test_should_report_on_foot_from_status_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.status_event_on_foot)
+
+        self.assertTrue(player_projection.is_on_foot)
+        self.assertIn(
+            PlayerProjection.ON_FOOT_PROJECTION, player_projection.create_projection()
+        )
+
+    def test_should_report_in_taxi_from_status_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.status_event_in_taxi)
+
+        self.assertTrue(player_projection.is_in_taxi)
+        self.assertIn(
+            PlayerProjection.IN_TAXI_PROJECTION, player_projection.create_projection()
+        )
+
+    def test_should_report_in_srv_from_status_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.status_event_in_srv)
+
+        self.assertTrue(player_projection.is_in_srv)
+        self.assertIn(
+            PlayerProjection.IN_SRV_PROJECTION, player_projection.create_projection()
+        )
+
+    def test_should_report_in_fighter_from_status_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.status_event_in_fighter)
+
+        self.assertTrue(player_projection.is_in_fighter)
+        self.assertIn(
+            PlayerProjection.IN_FIGHTER_PROJECTION,
+            player_projection.create_projection(),
+        )
+
+    def test_should_not_report_vehicle_context_while_in_main_ship(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.status_event_in_main_ship)
+
+        projection = player_projection.create_projection()
+
+        self.assertNotIn(PlayerProjection.ON_FOOT_PROJECTION, projection)
+        self.assertNotIn(PlayerProjection.IN_TAXI_PROJECTION, projection)
+        self.assertNotIn(PlayerProjection.IN_SRV_PROJECTION, projection)
+        self.assertNotIn(PlayerProjection.IN_FIGHTER_PROJECTION, projection)
+
+    def test_should_prioritize_on_foot_over_vehicle_flags(self):
+        # OnFoot (Flags2) and InSRV (Flags) should never really be set
+        # together in a real Status.json, but on_foot takes priority if they
+        # somehow are.
+        player_projection = PlayerProjection()
+
+        combined_status_event = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.InSRV,
+            Flags2=StatusFlags2.OnFoot,
+        )
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(combined_status_event)
+
+        self.assertIn(
+            PlayerProjection.ON_FOOT_PROJECTION, player_projection.create_projection()
         )

@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.game_state_service import GameStateService
-from edceleste.services.models.game_events import LoadedGameEvent
+from edceleste.services.models.game_events import LoadedGameEvent, StatusEvent
 
 
 def _loaded_game_event(**overrides) -> LoadedGameEvent:
@@ -83,6 +83,43 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         received = await pending
         self.assertIs(received, event)
         await stream.aclose()
+
+    async def test_stream_journal_events_excludes_status_events(self):
+        # Status.json is polled on its own cadence, not read from the
+        # journal log file, so it must never reach the frontend's live
+        # journal event stream.
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_journal_events()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=0, Flags2=0
+        )
+        await service.process_event(status_event)
+
+        journal_event = _loaded_game_event()
+        await service.process_event(journal_event)
+
+        # If the status event had been queued, this would resolve to it
+        # instead of waiting for the journal event below.
+        received = await pending
+        self.assertIs(received, journal_event)
+        await stream.aclose()
+
+    async def test_status_events_still_update_projections_despite_being_excluded(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=0, Flags2=0
+        )
+        await service.process_event(status_event)
+
+        self.assertIn(
+            "Warning: ship shields are down.", service.get_game_state_projection()
+        )
 
 
 if __name__ == "__main__":

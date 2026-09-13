@@ -1,6 +1,6 @@
 from edceleste.protocols.event_reactions_protocol import EventReactionsProtocol
 from edceleste.protocols.keybinds_protocol import KeybindsProtocol
-from edceleste.protocols.journal_watcher_protocol import JournalWatcherProtocol
+from edceleste.protocols.game_watcher_protocol import GameWatcherProtocol
 from edceleste.protocols.llm_protocol import LLMProtocol
 from edceleste.protocols.settings_protocol import SettingsProtocol
 from edceleste.protocols.stt_protocol import SttProtocol
@@ -16,7 +16,7 @@ class UpdateSettingsUseCase:
         self,
         tts_service: TTSProtocol,
         stt_service: SttProtocol,
-        journal_watcher_service: JournalWatcherProtocol,
+        game_watcher_service: GameWatcherProtocol,
         keybinds_service: KeybindsProtocol,
         llm_service: LLMProtocol,
         event_reactions_service: EventReactionsProtocol,
@@ -24,7 +24,7 @@ class UpdateSettingsUseCase:
     ) -> None:
         self.tts_service = tts_service
         self.stt_service = stt_service
-        self.journal_watcher_service = journal_watcher_service
+        self.game_watcher_service = game_watcher_service
         self.keybinds_service = keybinds_service
         self.llm_service = llm_service
         self.event_reactions_service = event_reactions_service
@@ -33,7 +33,7 @@ class UpdateSettingsUseCase:
     def __call__(self, new_settings: SettingsModel):
         tts_issues = self.tts_service.validate_settings(new_settings)
         stt_issues = self.stt_service.validate_settings(new_settings)
-        journal_issues = self.journal_watcher_service.validate_settings(new_settings)
+        game_watcher_issues = self.game_watcher_service.validate_settings(new_settings)
         keybinds_issues = self.keybinds_service.validate_settings(new_settings)
         llm_issues = self.llm_service.validate_settings(new_settings)
         event_reactions_issues = self.event_reactions_service.validate_settings(
@@ -46,8 +46,8 @@ class UpdateSettingsUseCase:
             issues.append(tts_issues)
         if stt_issues:
             issues.append(stt_issues)
-        if journal_issues:
-            issues.append(journal_issues)
+        if game_watcher_issues:
+            issues.append(game_watcher_issues)
         if keybinds_issues:
             issues.append(keybinds_issues)
         if llm_issues:
@@ -62,7 +62,7 @@ class UpdateSettingsUseCase:
 
         self.tts_service.reload_service()
         self.stt_service.reload_service()
-        self.journal_watcher_service.reload_service()
+        self.game_watcher_service.reload_service()
         self.keybinds_service.reload_service()
         self.llm_service.reload_service()
         self.event_reactions_service.reload_service()
