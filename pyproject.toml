@@ -31,8 +31,8 @@ dependencies = [
     "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.1",
     "mdurl==0.1.2",
-    "multidict==6.7.1",
-    "platformdirs==4.11.7",
+    "multidict==6.8.0",
+    "platformdirs==4.11.8",
     "propcache==0.5.2",
     "pydantic-settings==2.15.0",
     "pydantic==2.13.5",
@@ -64,7 +64,7 @@ test = [
 ]
 dev = [
     "aiohttp-jinja2==1.6",
-    "ast_serialize==0.10.0",
+    "ast_serialize==0.11.1",
     "click==8.5.0",
     "colorama==0.4.6",
     "Jinja2==3.1.6",
