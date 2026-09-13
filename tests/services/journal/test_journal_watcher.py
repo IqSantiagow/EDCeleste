@@ -1,9 +1,9 @@
 import unittest
 from datetime import datetime
-from unittest.mock import patch, mock_open, Mock
+from unittest.mock import AsyncMock, Mock, mock_open, patch
 
-from edceleste.services.journal_watcher_service import JournalWatcherService
-from edceleste.services.models.game_events import UnknownCheckedEvent
+from edceleste.services.game_watcher_service import GameWatcherService
+from edceleste.services.models.game_events import StatusEvent, UnknownCheckedEvent
 from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
@@ -26,13 +26,11 @@ def _make_settings(journal_path: str) -> SettingsModel:
 
 class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        glob_patcher = patch("edceleste.services.journal_watcher_service.glob.glob")
+        glob_patcher = patch("edceleste.services.game_watcher_service.glob.glob")
         getmtime_patcher = patch(
-            "edceleste.services.journal_watcher_service.os.path.getmtime"
+            "edceleste.services.game_watcher_service.os.path.getmtime"
         )
-        isdir_patcher = patch(
-            "edceleste.services.journal_watcher_service.os.path.isdir"
-        )
+        isdir_patcher = patch("edceleste.services.game_watcher_service.os.path.isdir")
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
@@ -50,8 +48,11 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
 
     def _make_watcher(self):
-        return JournalWatcherService(
-            journal_path=JOURNAL_PATH, event_bus=Mock(), settings_handler=Mock()
+        self.mock_event_bus = AsyncMock()
+        return GameWatcherService(
+            journal_path=JOURNAL_PATH,
+            event_bus=self.mock_event_bus,
+            settings_handler=Mock(),
         )
 
     def test_get_latest_journal_filepath(self):
@@ -64,7 +65,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
         watcher = self._make_watcher()
 
-        result = watcher._JournalWatcherService__get_latest_journal_filepath()  # type: ignore
+        result = watcher._GameWatcherService__get_latest_journal_filepath()  # type: ignore
 
         self.assertEqual(result, f"{JOURNAL_PATH}/Journal.2024-01-02.log")
 
@@ -74,7 +75,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         watcher = self._make_watcher()
 
         with self.assertRaises(FileNotFoundError):
-            watcher._JournalWatcherService__get_latest_journal_filepath()  # type: ignore
+            watcher._GameWatcherService__get_latest_journal_filepath()  # type: ignore
 
     async def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
@@ -83,40 +84,41 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         with patch("builtins.open", mock_open()) as m:
             mock_open_file = m()
 
-            mock_open_file.readline.side_effect = [
-                event1.model_dump_json(),
-                event2.model_dump_json(),
-            ]
-
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
+            def readline_side_effect():
+                yield event1.model_dump_json()
+                yield event2.model_dump_json()
+                watcher.stop_watcher_service()
+                yield ""
 
-            self.assertEqual(await gen.__anext__(), event1)
-            self.assertEqual(await gen.__anext__(), event2)
+            mock_open_file.readline.side_effect = readline_side_effect()
+
+            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
+
+            self.assertEqual(
+                self.mock_event_bus.publish.await_args_list,
+                [((event1,),), ((event2,),)],
+            )
 
     async def test_should_stop_emitting_events_on_stop_signal(self):
         event1 = self._make_event("SomeEvent1")
-        event2 = self._make_event("SomeEvent2")
 
         with patch("builtins.open", mock_open()) as m:
             mock_open_file = m()
 
-            mock_open_file.readline.side_effect = [
-                event1.model_dump_json(),
-                event2.model_dump_json(),
-            ]
-
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
+            def readline_side_effect():
+                yield event1.model_dump_json()
+                watcher.stop_watcher_service()
+                yield ""
 
-            self.assertEqual(await gen.__anext__(), event1)
+            mock_open_file.readline.side_effect = readline_side_effect()
 
-            watcher.stop_watcher_service()
+            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
 
-            with self.assertRaises(StopAsyncIteration):
-                await gen.__anext__()
+            self.mock_event_bus.publish.assert_awaited_once_with(event1)
 
     async def test_should_start_emitting_events(self):
         event1 = self._make_event("SomeEvent1")
@@ -126,27 +128,33 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         with patch("builtins.open", mock_open()) as m:
             mock_open_file = m()
 
-            mock_open_file.readline.side_effect = [
-                event1.model_dump_json(),
-                event2.model_dump_json(),
-                event3.model_dump_json(),
-            ]
-
             watcher = self._make_watcher()
 
-            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
+            def readline_side_effect():
+                yield event1.model_dump_json()
+                yield event2.model_dump_json()
+                watcher.stop_watcher_service()
+                yield ""
+                yield event3.model_dump_json()
+                watcher.stop_watcher_service()
+                yield ""
 
-            self.assertEqual(await gen.__anext__(), event1)
+            mock_open_file.readline.side_effect = readline_side_effect()
 
-            watcher.stop_watcher_service()
+            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
 
-            with self.assertRaises(StopAsyncIteration):
-                await gen.__anext__()
+            self.assertEqual(
+                self.mock_event_bus.publish.await_args_list,
+                [((event1,),), ((event2,),)],
+            )
 
             watcher.exit_signal = False
-            gen = watcher._JournalWatcherService__generate_journal_events()  # type: ignore
+            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
 
-            self.assertEqual(await gen.__anext__(), event2)
+            self.assertEqual(
+                self.mock_event_bus.publish.await_args_list,
+                [((event1,),), ((event2,),), ((event3,),)],
+            )
 
     def test_validate_settings_reports_issue_when_journal_path_missing(self):
         watcher = self._make_watcher()
@@ -169,7 +177,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         settings_handler = Mock()
         new_settings = _make_settings(journal_path="C:/new-journals")
         settings_handler.get_settings.return_value = new_settings
-        watcher = JournalWatcherService(
+        watcher = GameWatcherService(
             journal_path=JOURNAL_PATH,
             event_bus=Mock(),
             settings_handler=settings_handler,
@@ -182,6 +190,93 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(watcher.journal_path, "C:/new-journals")
         watcher.stop_watcher_service.assert_called_once()
         watcher.start_watcher_service.assert_called_once()
+
+    # --- watch_status_file_and_generate_event ---
+
+    async def test_watch_status_file_waits_until_status_file_appears(self):
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=1, Flags2=0
+        )
+        watcher = self._make_watcher()
+
+        sleep_calls = []
+
+        async def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) >= 2:
+                watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                side_effect=[False, True],
+            ),
+            patch("builtins.open", mock_open(read_data=status_event.model_dump_json())),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_status_file_and_generate_event()
+
+        # First pass finds no file and only waits; the event is only
+        # published once Status.json actually shows up on disk.
+        self.mock_event_bus.publish.assert_awaited_once_with(status_event)
+
+    async def test_watch_status_file_skips_invalid_status_json(self):
+        watcher = self._make_watcher()
+
+        async def fake_sleep(_seconds):
+            watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            patch("builtins.open", mock_open(read_data="not valid json")),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_status_file_and_generate_event()
+
+        self.mock_event_bus.publish.assert_not_awaited()
+
+    async def test_watch_status_file_only_republishes_on_change(self):
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=1, Flags2=0
+        )
+        watcher = self._make_watcher()
+
+        sleep_calls = []
+
+        async def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) >= 2:
+                watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            # getmtime stays constant across both loop passes, so the second
+            # pass must not re-read the file or re-publish the event.
+            patch(
+                "edceleste.services.game_watcher_service.os.path.getmtime",
+                return_value=100,
+            ),
+            patch("builtins.open", mock_open(read_data=status_event.model_dump_json())),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_status_file_and_generate_event()
+
+        self.mock_event_bus.publish.assert_awaited_once_with(status_event)
 
     # --- cold_start ---
 

@@ -8,14 +8,14 @@ from edceleste.services.models.game_events import (
     FSDTargetEvent,
     StartJumpEvent,
     DockedEvent,
-    UndockedEvent,
     LocationEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
-    SupercruiseDestinationDropEvent,
     ApproachBodyEvent,
     LeaveBodyEvent,
     ApproachSettlementEvent,
+    StatusEvent,
+    StatusFlags,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,16 +57,20 @@ class LocationProjection(Projection):
         self.route_remaining_jumps = None
 
     def process_event(self, event: BaseModel) -> None:
+        if isinstance(event, StatusEvent):
+            logger.debug("Received location event: %s", event)
+            self.is_docked = bool(event.Flags & StatusFlags.Docked)
+            self.is_in_supercruise = bool(event.Flags & StatusFlags.Supercruise)
+            self.is_in_fsd_jump = bool(event.Flags & StatusFlags.FsdJump)
+            return
+
         if isinstance(event, StartJumpEvent):
             logger.debug("Received location event: %s", event)
             if event.JumpType != "Hyperspace":
                 return
             self.target_star_system = event.StarSystem
-            self.current_station = None
             self.current_star_system = None
-            self.is_docked = False
-            self.is_in_fsd_jump = True
-            self.is_in_supercruise = False
+            self.current_station = None
             self.current_body = None
             self.nearest_settlement = None
             return
@@ -82,7 +86,6 @@ class LocationProjection(Projection):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.target_star_system = None
-            self.is_in_fsd_jump = False
             if event.StarSystem == self.route_next_star_system:
                 self.route_next_star_system = None
                 self.route_next_star_class = None
@@ -92,23 +95,13 @@ class LocationProjection(Projection):
         if isinstance(event, DockedEvent):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
-            self.is_docked = True
             self.current_station = event.StationName
-            self.is_in_fsd_jump = False
-            self.is_in_supercruise = False
             self.current_body = None
             self.nearest_settlement = None
             return
 
-        if isinstance(event, UndockedEvent):
-            logger.debug("Received location event: %s", event)
-            self.is_docked = False
-            self.is_in_fsd_jump = False
-            return
-
         if isinstance(event, LocationEvent):
             logger.debug("Received location event: %s", event)
-            self.is_docked = event.Docked
             self.current_star_system = event.StarSystem
             self.current_station = event.StationName
             return
@@ -116,9 +109,6 @@ class LocationProjection(Projection):
         if isinstance(event, SupercruiseEntryEvent):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
-            self.is_in_supercruise = True
-            self.is_in_fsd_jump = False
-            self.is_docked = False
             self.current_station = None
             self.current_body = None
             self.nearest_settlement = None
@@ -128,13 +118,6 @@ class LocationProjection(Projection):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.current_body = event.Body
-            self.is_in_supercruise = False
-            self.is_in_fsd_jump = False
-            return
-
-        if isinstance(event, SupercruiseDestinationDropEvent):
-            logger.debug("Received location event: %s", event)
-            self.is_in_supercruise = False
             return
 
         if isinstance(event, ApproachBodyEvent):

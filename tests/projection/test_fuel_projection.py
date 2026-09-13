@@ -8,6 +8,8 @@ from edceleste.services.models.game_events import (
     FSDJumpEvent,
     ReservoirReplenishedEvent,
     RefuelAllEvent,
+    StatusEvent,
+    StatusFlags,
 )
 
 
@@ -67,6 +69,24 @@ class FuelProjectionTest(unittest.TestCase):
             Cost=50,
             Amount=1.5,
         )
+        cls.status_event_scooping_fuel = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.ScoopingFuel,
+            Flags2=0,
+        )
+        cls.status_event_not_scooping_fuel = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.Supercruise,
+            Flags2=0,
+        )
+        cls.status_event_low_fuel = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.LowFuel,
+            Flags2=0,
+        )
 
     def test_should_process_to_event_and_set_fuel_level(self):
         fuel_projection = FuelProjection()
@@ -123,3 +143,59 @@ class FuelProjectionTest(unittest.TestCase):
         expected_projection = "Current fuel level is: {0}".format(event.Total)
 
         self.assertEqual(expected_projection, fuel_projection.create_projection())
+
+    def test_should_set_scooping_fuel_from_status_event(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.status_event_scooping_fuel)
+
+        self.assertTrue(fuel_projection.is_scooping_fuel)
+
+    def test_should_include_scooping_fuel_in_projection(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.fuel_scoop_event)
+        fuel_projection.process_event(self.status_event_scooping_fuel)
+
+        expected_projection = (
+            "Current fuel level is: {0}".format(self.fuel_scoop_event.Total)
+            + "Player is currently scooping fuel from a star."
+        )
+
+        self.assertEqual(expected_projection, fuel_projection.create_projection())
+
+    def test_should_clear_scooping_fuel_when_status_event_flag_unset(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.status_event_scooping_fuel)
+        fuel_projection.process_event(self.status_event_not_scooping_fuel)
+
+        self.assertFalse(fuel_projection.is_scooping_fuel)
+
+    def test_should_set_low_fuel_from_status_event(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.status_event_low_fuel)
+
+        self.assertTrue(fuel_projection.is_low_fuel)
+
+    def test_should_include_low_fuel_warning_in_projection(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.fuel_scoop_event)
+        fuel_projection.process_event(self.status_event_low_fuel)
+
+        expected_projection = (
+            "Current fuel level is: {0}".format(self.fuel_scoop_event.Total)
+            + "Warning: fuel is low."
+        )
+
+        self.assertEqual(expected_projection, fuel_projection.create_projection())
+
+    def test_should_clear_low_fuel_when_status_event_flag_unset(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.status_event_low_fuel)
+        fuel_projection.process_event(self.status_event_not_scooping_fuel)
+
+        self.assertFalse(fuel_projection.is_low_fuel)

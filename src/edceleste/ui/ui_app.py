@@ -4,7 +4,7 @@ from edceleste.ui.screens.system_check.system_check_screen import (
     SystemCheckScreen,
 )
 
-from edceleste.services.journal_watcher_service import JournalWatcherService
+from edceleste.services.game_watcher_service import GameWatcherService
 
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
@@ -27,8 +27,8 @@ class UIApp(App):
     @inject
     def __init__(
         self,
-        journal_watcher_service: JournalWatcherService = Provide[
-            Container.journal_watcher_service_stub
+        game_watcher_service: GameWatcherService = Provide[
+            Container.game_watcher_service_stub
         ],
         ed_dashboard_repository: EdDashboardRepository = Provide[
             Container.ed_dashboard_repository
@@ -39,7 +39,7 @@ class UIApp(App):
         system_check_repository=Provide[Container.system_check_repository],
     ) -> None:
         super().__init__()
-        self.journal_watcher_service = journal_watcher_service
+        self.game_watcher_service = game_watcher_service
         self.ed_dashboard_repository = ed_dashboard_repository
         self.settings_repository = settings_repository
         self.system_check_repository = system_check_repository
@@ -61,7 +61,7 @@ class UIApp(App):
             DashboardScreen(
                 dashboard_repository=self.ed_dashboard_repository,
                 settings_repository=self.settings_repository,
-                journal_watcher_service=self.journal_watcher_service,
+                game_watcher_service=self.game_watcher_service,
             )
         )
 

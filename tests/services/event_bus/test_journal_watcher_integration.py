@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, mock_open, AsyncMock, Mock, call
 
-from edceleste.services.journal_watcher_service import JournalWatcherService
+from edceleste.services.game_watcher_service import GameWatcherService
 from edceleste.services.models.game_events import UnknownCheckedEvent
 
 JOURNAL_PATH = "C:/journals"
@@ -17,16 +17,28 @@ def _make_mock_event_bus() -> Mock:
 
 class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        glob_patcher = patch("edceleste.services.journal_watcher_service.glob.glob")
+        glob_patcher = patch("edceleste.services.game_watcher_service.glob.glob")
         getmtime_patcher = patch(
-            "edceleste.services.journal_watcher_service.os.path.getmtime"
+            "edceleste.services.game_watcher_service.os.path.getmtime"
+        )
+        # start_watcher_service() also spawns the Status.json watcher task.
+        # This test file only covers the journal-line event bus integration,
+        # so that second task is replaced with a harmless no-op - otherwise
+        # it would immediately raise (no real Status.json on disk) and race
+        # the journal task for the same mocked builtins.open()/readline().
+        watch_status_file_patcher = patch.object(
+            GameWatcherService,
+            "watch_status_file_and_generate_event",
+            new=AsyncMock(),
         )
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
+        watch_status_file_patcher.start()
 
         self.addCleanup(glob_patcher.stop)
         self.addCleanup(getmtime_patcher.stop)
+        self.addCleanup(watch_status_file_patcher.stop)
 
         self.mock_glob.return_value = [f"{JOURNAL_PATH}/Journal.log"]
         self.mock_getmtime.return_value = 100
@@ -35,12 +47,14 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         return UnknownCheckedEvent(event=event_name, timestamp=datetime.now())
 
     async def _run_watcher_task(self, watcher):
-        # start_watcher_service() fires a background task and returns
-        # immediately; awaiting it here lets the task run until it stops
-        # itself (via stop_watcher_service(), which cancels the task).
+        # start_watcher_service() fires background tasks and returns
+        # immediately; awaiting the journal task here lets it run until it
+        # stops itself (via stop_watcher_service(), which cancels every
+        # task it started, journal task included).
         watcher.start_watcher_service()
+        journal_task = watcher._game_watcher_tasks[0]
         try:
-            await watcher._journal_watcher_task
+            await journal_task
         except asyncio.CancelledError:
             pass
 
@@ -61,7 +75,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
 
             mock_event_bus = _make_mock_event_bus()
 
-            watcher = JournalWatcherService(
+            watcher = GameWatcherService(
                 journal_path=JOURNAL_PATH,
                 event_bus=mock_event_bus,
                 settings_handler=Mock(),
@@ -79,7 +93,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
 
         mock_event_bus = _make_mock_event_bus()
 
-        watcher = JournalWatcherService(
+        watcher = GameWatcherService(
             journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
         )
 
@@ -108,7 +122,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
 
         mock_event_bus = _make_mock_event_bus()
 
-        watcher = JournalWatcherService(
+        watcher = GameWatcherService(
             journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
         )
 
