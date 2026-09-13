@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import IntFlag
 from typing import Literal, Optional
 
 from edceleste.services.models.game_models import (
@@ -249,6 +250,79 @@ class ResurrectEvent(GameEvent):
     Option: str
     Cost: int
     Bankrupt: bool
+
+
+class StatusFlags(IntFlag):
+    Docked = 1
+    Landed = 2
+    LandingGearDown = 4
+    ShieldsUp = 8
+    Supercruise = 16
+    FlightAssistOff = 32
+    HardpointsDeployed = 64
+    InWing = 128
+    LightsOn = 256
+    CargoScoopDeployed = 512
+    SilentRunning = 1024
+    ScoopingFuel = 2048
+    SrvHandbrake = 4096
+    SrvUsingTurret = 8192
+    SrvTurretRetracted = 16384
+    SrvDriveAssist = 32768
+    FsdMassLocked = 65536
+    FsdCharging = 131072
+    FsdCooldown = 262144
+    LowFuel = 524288
+    Overheating = 1048576
+    HasLatLong = 2097152
+    IsInDanger = 4194304
+    BeingInterdicted = 8388608
+    InMainShip = 16777216
+    InFighter = 33554432
+    InSRV = 67108864
+    HudInAnalysisMode = 134217728
+    NightVision = 268435456
+    AltitudeFromAverageRadius = 536870912
+    FsdJump = 1073741824
+    SrvHighBeam = 2147483648
+
+
+class StatusFlags2(IntFlag):
+    OnFoot = 1
+    InTaxi = 2
+    InMulticrew = 4
+    OnFootInStation = 8
+    OnFootOnPlanet = 16
+    AimDownSight = 32
+    LowOxygen = 64
+    LowHealth = 128
+    Cold = 256
+    Hot = 512
+    VeryCold = 1024
+    VeryHot = 2048
+    GlideMode = 4096
+    OnFootInHangar = 8192
+    OnFootSocialSpace = 16384
+    OnFootExterior = 32768
+    BreathableAtmosphere = 65536
+    TelepresenceMulticrew = 131072
+    PhysicalMulticrew = 262144
+    FsdHyperdriveCharging = 524288
+    SupercruiseOverdriveActive = 1048576
+    SupercruiseAssistActive = 2097152
+
+
+class NonJournalFileEvent:
+    """Marker for events that never came from the journal log file (e.g.
+    Status.json is polled separately, not read from a Journal*.log line).
+    GameStateService checks for this marker to keep such events out of the
+    live journal event stream shown on the frontend."""
+
+
+class StatusEvent(GameEvent, NonJournalFileEvent):
+    event: Literal["Status"]
+    Flags: int = 0
+    Flags2: int = 0
 
 
 class UnknownCheckedEvent(GameEvent):

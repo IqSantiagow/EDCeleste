@@ -8,8 +8,9 @@ from edceleste.projection.event_projections.location_projection import (
 )
 from edceleste.projection.event_projections.player_projection import PlayerProjection
 from edceleste.projection.event_projections.projection import Projection
+from edceleste.projection.event_projections.ship_projection import ShipProjection
 from edceleste.services.event_bus import EventBus
-from edceleste.services.models.game_events import GameEvent
+from edceleste.services.models.game_events import GameEvent, NonJournalFileEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.game_stats import GameStatsSnapshot, PlayerStats
 
@@ -25,11 +26,13 @@ class GameStateService:
         self.__player_projection = PlayerProjection()
         self.__fuel_projection = FuelProjection()
         self.__location_projection = LocationProjection()
+        self.__ship_projection = ShipProjection()
         self.__projections: frozenset[Projection] = frozenset(
             [
                 self.__player_projection,
                 self.__fuel_projection,
                 self.__location_projection,
+                self.__ship_projection,
             ]
         )
         self.__queue_watchers: list[asyncio.Queue[GameEvent]] = []
@@ -40,8 +43,11 @@ class GameStateService:
         for projection in self.__projections:
             projection.process_event(event)
 
-        for watcher in self.__queue_watchers:
-            watcher.put_nowait(event)
+        # All side files event should not be consumed here, it goes to front. Anyway
+        # stats refresh is in stream_game_stats method so simple trick as mixing works
+        if not isinstance(event, NonJournalFileEvent):
+            for watcher in self.__queue_watchers:
+                watcher.put_nowait(event)
 
         self.__refresh_state()
 

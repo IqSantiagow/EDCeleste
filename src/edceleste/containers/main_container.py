@@ -5,12 +5,12 @@ from edceleste.config.config import AppConfig
 from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
 from edceleste.services.game_state_service import GameStateService
-from edceleste.services.journal_watcher_service import JournalWatcherService
+from edceleste.services.game_watcher_service import GameWatcherService
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
-from edceleste.services.stubs.journal_watcher_service_stub import (
-    JournalWatcherServiceStub,
+from edceleste.services.stubs.game_watcher_service_stub import (
+    GameWatcherServiceStub,
 )
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
@@ -96,8 +96,8 @@ class Container(containers.DeclarativeContainer):
 
     event_bus = providers.Singleton(EventBus)
 
-    journal_watcher_service = providers.Singleton(
-        JournalWatcherService,
+    game_watcher_service = providers.Singleton(
+        GameWatcherService,
         journal_path=settings_service.provided.get_settings.call().paths.journal_path,
         event_bus=event_bus,
         settings_handler=settings_service,
@@ -129,8 +129,8 @@ class Container(containers.DeclarativeContainer):
         LLMService, event_bus=event_bus, settings_service=settings_service, tools=mcps
     )
 
-    journal_watcher_service_stub = providers.Singleton(
-        JournalWatcherServiceStub,
+    game_watcher_service_stub = providers.Singleton(
+        GameWatcherServiceStub,
         event_bus=event_bus,
         settings_handler=settings_service,
     )
@@ -195,7 +195,7 @@ class Container(containers.DeclarativeContainer):
         UpdateSettingsUseCase,
         tts_service=tts_service,
         stt_service=stt_service,
-        journal_watcher_service=journal_watcher_service,
+        game_watcher_service=game_watcher_service,
         keybinds_service=keybinds_service,
         llm_service=llm_service,
         event_reactions_service=event_reactions_service,
@@ -262,7 +262,7 @@ class Container(containers.DeclarativeContainer):
         SystemCheckUseCase,
         services=providers.Dict(
             settings=settings_service,
-            journal_watcher=journal_watcher_service,
+            game_watcher=game_watcher_service,
             keybinds=keybinds_service,
             llm=llm_service,
             tts=tts_service,

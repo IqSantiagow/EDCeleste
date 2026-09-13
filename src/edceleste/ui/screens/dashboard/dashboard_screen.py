@@ -30,17 +30,17 @@ class DashboardScreen(Screen):
         self,
         dashboard_repository,
         settings_repository,
-        journal_watcher_service,
+        game_watcher_service,
         **kwargs,
     ):
         self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
-        self.journal_watcher_service = journal_watcher_service
+        self.game_watcher_service = game_watcher_service
 
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
-        self.journal_watcher_service.start_watcher_service()
+        self.game_watcher_service.start_watcher_service()
         self.__load_keybinds()
         self.set_up_llm_stream_worker()
 
@@ -85,4 +85,4 @@ class DashboardScreen(Screen):
                 self.query_one("#comms-col", WidgetCommsCol).response_state = item
 
     def on_unmount(self) -> None:
-        self.journal_watcher_service.stop_watcher_service()
+        self.game_watcher_service.stop_watcher_service()

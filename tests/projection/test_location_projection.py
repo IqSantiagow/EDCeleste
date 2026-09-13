@@ -6,7 +6,6 @@ from edceleste.projection.event_projections.location_projection import (
 )
 from edceleste.services.models.game_events import (
     DockedEvent,
-    UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
     FSDTargetEvent,
@@ -16,6 +15,8 @@ from edceleste.services.models.game_events import (
     ApproachBodyEvent,
     LeaveBodyEvent,
     ApproachSettlementEvent,
+    StatusEvent,
+    StatusFlags,
 )
 from edceleste.services.models.game_models import BaseFactionModel, StationEconomyModel
 
@@ -43,12 +44,6 @@ class TestLocationProjection(unittest.TestCase):
             StationGovernment_Localised="Democracy",
             StationAllegiance="Federation",
             StationServices=["Refuel", "Repair"],
-        )
-
-        cls.undocked_event = UndockedEvent(
-            event="Undocked",
-            timestamp=datetime.now(),
-            StationName="Galileo",
         )
 
         cls.location_event = LocationEvent(
@@ -149,10 +144,42 @@ class TestLocationProjection(unittest.TestCase):
             BodyName="Sol 3 c",
         )
 
+        # Status.json-derived events - these are the only ones allowed to
+        # flip is_docked / is_in_supercruise / is_in_fsd_jump (see comment in
+        # LocationProjection.process_event).
+        cls.status_event_docked = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.Docked,
+            Flags2=0,
+        )
+
+        cls.status_event_in_supercruise = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.Supercruise,
+            Flags2=0,
+        )
+
+        cls.status_event_in_fsd_jump = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.FsdJump,
+            Flags2=0,
+        )
+
+        cls.status_event_no_flags_set = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=0,
+            Flags2=0,
+        )
+
     def test_should_process_docked_event_and_create_projection(self):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.docked_event)
+        location_projection.process_event(self.status_event_docked)
 
         expected_projection = (
             "Player is currently in the Sol system."
@@ -161,11 +188,12 @@ class TestLocationProjection(unittest.TestCase):
 
         self.assertEqual(expected_projection, location_projection.create_projection())
 
-    def test_should_process_undocked_event_and_create_projection(self):
+    def test_should_show_undocked_projection_once_docked_flag_clears(self):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.docked_event)
-        location_projection.process_event(self.undocked_event)
+        location_projection.process_event(self.status_event_docked)
+        location_projection.process_event(self.status_event_no_flags_set)
 
         expected_projection = (
             "Player is currently in the Sol system."
@@ -178,6 +206,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.location_event)
+        location_projection.process_event(self.status_event_docked)
 
         expected_projection = (
             "Player is currently in the Sol system."
@@ -199,6 +228,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.start_jump_hyperspace_event)
+        location_projection.process_event(self.status_event_in_fsd_jump)
 
         expected_projection = (
             "Player is currently during the FSD jump to system Proxima Centauri."
@@ -220,6 +250,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.docked_event)
+        location_projection.process_event(self.status_event_docked)
         location_projection.process_event(self.start_jump_supercruise_event)
 
         expected_projection = (
@@ -243,6 +274,7 @@ class TestLocationProjection(unittest.TestCase):
 
         location_projection.process_event(self.fsd_jump_event)
         location_projection.process_event(self.docked_event)
+        location_projection.process_event(self.status_event_docked)
 
         expected_projection = (
             "Player is currently in the Sol system."
@@ -255,6 +287,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.supercruise_entry_event)
+        location_projection.process_event(self.status_event_in_supercruise)
 
         expected_projection = (
             "Player is currently in the Sol system.Player is currently in supercruise."
@@ -312,6 +345,53 @@ class TestLocationProjection(unittest.TestCase):
         expected_projection = "Player is currently in the Proxima Centauri system."
 
         self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_set_docked_from_status_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_docked)
+
+        self.assertTrue(location_projection.is_docked)
+
+    def test_should_clear_docked_when_status_event_flag_unset(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_docked)
+        location_projection.process_event(self.status_event_no_flags_set)
+
+        self.assertFalse(location_projection.is_docked)
+
+    def test_should_set_supercruise_from_status_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_in_supercruise)
+
+        expected_projection = "Player is currently in supercruise."
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_clear_supercruise_when_status_event_flag_unset(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_in_supercruise)
+        location_projection.process_event(self.status_event_no_flags_set)
+
+        self.assertFalse(location_projection.is_in_supercruise)
+
+    def test_should_set_fsd_jump_from_status_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_in_fsd_jump)
+
+        self.assertTrue(location_projection.is_in_fsd_jump)
+
+    def test_should_clear_fsd_jump_when_status_event_flag_unset(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.status_event_in_fsd_jump)
+        location_projection.process_event(self.status_event_no_flags_set)
+
+        self.assertFalse(location_projection.is_in_fsd_jump)
 
     def test_should_track_nearest_settlement_on_approach(self):
         location_projection = LocationProjection()

@@ -11,6 +11,9 @@ from edceleste.services.models.game_events import (
     ReputationEvent,
     DiedEvent,
     ResurrectEvent,
+    StatusEvent,
+    StatusFlags,
+    StatusFlags2,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +32,11 @@ class PlayerProjection(Projection):
     )
 
     DEAD_PROJECTION = "Commander has been destroyed and is awaiting rebuy."
+
+    ON_FOOT_PROJECTION = "Commander is currently on foot."
+    IN_TAXI_PROJECTION = "Commander is currently riding a taxi."
+    IN_SRV_PROJECTION = "Commander is currently driving an SRV."
+    IN_FIGHTER_PROJECTION = "Commander is currently piloting a fighter."
 
     UNKNOWN_RANK = "Unranked"
 
@@ -79,6 +87,10 @@ class PlayerProjection(Projection):
         self.federation_reputation = None
         self.alliance_reputation = None
         self.is_alive = True
+        self.is_on_foot = False
+        self.is_in_taxi = False
+        self.is_in_srv = False
+        self.is_in_fighter = False
 
     def process_event(self, event: BaseModel):
         if isinstance(event, LoadedGameEvent):
@@ -128,6 +140,14 @@ class PlayerProjection(Projection):
             self.is_alive = True
             return
 
+        if isinstance(event, StatusEvent):
+            logger.debug("Received player state event: %s", event)
+            self.is_in_srv = bool(event.Flags & StatusFlags.InSRV)
+            self.is_in_fighter = bool(event.Flags & StatusFlags.InFighter)
+            self.is_on_foot = bool(event.Flags2 & StatusFlags2.OnFoot)
+            self.is_in_taxi = bool(event.Flags2 & StatusFlags2.InTaxi)
+            return
+
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
@@ -157,6 +177,15 @@ class PlayerProjection(Projection):
 
         if not self.is_alive:
             projection_string += self.DEAD_PROJECTION
+
+        if self.is_on_foot:
+            projection_string += self.ON_FOOT_PROJECTION
+        elif self.is_in_taxi:
+            projection_string += self.IN_TAXI_PROJECTION
+        elif self.is_in_srv:
+            projection_string += self.IN_SRV_PROJECTION
+        elif self.is_in_fighter:
+            projection_string += self.IN_FIGHTER_PROJECTION
 
         return projection_string
 
