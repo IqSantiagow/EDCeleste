@@ -55,6 +55,12 @@ class LocationProjection(Projection):
         self.route_next_star_system = None
         self.route_next_star_class = None
         self.route_remaining_jumps = None
+        self.system_security_level = None
+        self.system_allegiance = None
+        self.system_government = None
+        self.system_economy = None
+        self.system_second_economy = None
+        self.system_population = None
 
     def process_event(self, event: BaseModel) -> None:
         if isinstance(event, StatusEvent):
@@ -86,6 +92,12 @@ class LocationProjection(Projection):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.target_star_system = None
+            self.system_security_level = event.SystemSecurity_Localised
+            self.system_allegiance = event.SystemAllegiance
+            self.system_government = event.SystemGovernment_Localised
+            self.system_economy = event.SystemEconomy_Localised
+            self.system_second_economy = event.SystemSecondEconomy_Localised
+            self.system_population = event.Population
             if event.StarSystem == self.route_next_star_system:
                 self.route_next_star_system = None
                 self.route_next_star_class = None
@@ -104,6 +116,20 @@ class LocationProjection(Projection):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.current_station = event.StationName
+            # These fields are only sent by the game when known, so skip a
+            # blank value rather than clobbering the last good reading.
+            if event.SystemSecurity_Localised:
+                self.system_security_level = event.SystemSecurity_Localised
+            if event.SystemAllegiance:
+                self.system_allegiance = event.SystemAllegiance
+            if event.SystemGovernment_Localised:
+                self.system_government = event.SystemGovernment_Localised
+            if event.SystemEconomy_Localised:
+                self.system_economy = event.SystemEconomy_Localised
+            if event.SystemSecondEconomy_Localised:
+                self.system_second_economy = event.SystemSecondEconomy_Localised
+            if event.Population is not None:
+                self.system_population = event.Population
             return
 
         if isinstance(event, SupercruiseEntryEvent):

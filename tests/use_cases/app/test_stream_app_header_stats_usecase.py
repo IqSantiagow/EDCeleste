@@ -1,7 +1,13 @@
 from collections.abc import AsyncGenerator
 import unittest
 
-from edceleste.services.models.game_stats import GameStatsSnapshot, PlayerStats
+from edceleste.services.models.game_stats import (
+    FlightDriveStats,
+    GameStatsSnapshot,
+    NavigationStats,
+    PlayerStats,
+    ShipStats,
+)
 from edceleste.use_cases.app.stream_app_header_stats_usecase import (
     StreamAppHeaderStatsUseCase,
 )
@@ -25,7 +31,44 @@ def _game_stats_snapshot(
     player_name="TestCommander", player_ship="Sidewinder", player_credits=1000000
 ) -> GameStatsSnapshot:
     return GameStatsSnapshot(
-        player=PlayerStats(name=player_name, ship=player_ship, credits=player_credits)
+        player=PlayerStats(name=player_name, ship=player_ship, credits=player_credits),
+        navigation=NavigationStats(
+            current_star_system="",
+            system_security_level="",
+            system_allegiance="",
+            system_government="",
+            system_economy="",
+            system_second_economy="",
+            system_population=0,
+            current_body="",
+            is_in_supercruise=False,
+            route_next_star_system="",
+            route_remaining_jumps=0,
+        ),
+        flight_drive=FlightDriveStats(
+            fuel_level=0.0,
+            fuel_capacity=0.0,
+            fuel_reservoir=0.0,
+            is_scooping_fuel=False,
+            max_jump_range=0.0,
+            fsd_module_item="",
+        ),
+        ship=ShipStats(
+            is_landing_gear_down=False,
+            are_hardpoints_deployed=False,
+            are_lights_on=False,
+            are_shields_up=False,
+            pips_system=0,
+            pips_engine=0,
+            pips_weapons=0,
+            cargo_current=0.0,
+            cargo_capacity=0,
+            legal_status="",
+            hull_health=0.0,
+            unladen_mass=0.0,
+            rebuy_cost=0,
+            are_all_modules_healthy=False,
+        ),
     )
 
 

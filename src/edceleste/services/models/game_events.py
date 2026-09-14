@@ -21,6 +21,7 @@ class LoadedGameEvent(GameEvent):
     Horizons: bool
     Odyssey: bool
     Ship: str
+    Ship_Localised: Optional[str] = None
     ShipID: int
     StartLanded: Optional[bool] = None
     StartDead: Optional[bool] = None
@@ -32,6 +33,36 @@ class LoadedGameEvent(GameEvent):
     ShipIdent: str
     FuelLevel: float
     FuelCapacity: float
+
+
+class LoadoutFuelCapacityModel(IgnoreExtraFieldsModel):
+    Main: float
+    Reserve: float
+
+
+class LoadoutModuleModel(IgnoreExtraFieldsModel):
+    Slot: str
+    Item: str
+    On: bool
+    Priority: int
+    Health: float = 1.0
+
+
+class LoadoutEvent(GameEvent):
+    event: Literal["Loadout"]
+    Ship: str
+    ShipID: int
+    ShipName: str
+    ShipIdent: str
+    HullValue: int = 0
+    ModulesValue: int = 0
+    HullHealth: float = 1.0
+    UnladenMass: float
+    CargoCapacity: int
+    MaxJumpRange: float
+    FuelCapacity: LoadoutFuelCapacityModel
+    Rebuy: int
+    Modules: list[LoadoutModuleModel] = []
 
 
 class FSDJumpEvent(GameEvent):
@@ -319,10 +350,19 @@ class NonJournalFileEvent:
     live journal event stream shown on the frontend."""
 
 
+class StatusFuelModel(IgnoreExtraFieldsModel):
+    FuelMain: float
+    FuelReservoir: float
+
+
 class StatusEvent(GameEvent, NonJournalFileEvent):
     event: Literal["Status"]
     Flags: int = 0
     Flags2: int = 0
+    Pips: list[int] = []
+    Cargo: Optional[float] = None
+    LegalState: Optional[str] = None
+    Fuel: Optional[StatusFuelModel] = None
 
 
 class UnknownCheckedEvent(GameEvent):

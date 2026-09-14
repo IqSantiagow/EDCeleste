@@ -6,6 +6,7 @@ from pydantic import Discriminator, Tag
 
 from edceleste.services.models.game_events import (
     LoadedGameEvent,
+    LoadoutEvent,
     UnknownCheckedEvent,
     StartJumpEvent,
     FSDTargetEvent,
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 class JournalEventType(str, Enum):
     LoadGame = "LoadGame"
+    Loadout = "Loadout"
     StartJump = "StartJump"
     FSDTarget = "FSDTarget"
     FSDJump = "FSDJump"
@@ -80,6 +82,7 @@ def event_discriminator(raw: dict) -> JournalEventType:
 JournalEvent = Annotated[
     Union[
         Annotated[LoadedGameEvent, Tag(JournalEventType.LoadGame)],
+        Annotated[LoadoutEvent, Tag(JournalEventType.Loadout)],
         Annotated[StartJumpEvent, Tag(JournalEventType.StartJump)],
         Annotated[FSDTargetEvent, Tag(JournalEventType.FSDTarget)],
         Annotated[FSDJumpEvent, Tag(JournalEventType.FSDJump)],
