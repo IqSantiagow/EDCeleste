@@ -26,6 +26,7 @@ class FuelProjection(Projection):
     def __init__(self):
         self.fuel_level = 0.0
         self.fuel_capacity = 0.0
+        self.fuel_reservoir = 0.0
         self.is_scooping_fuel = False
         self.is_low_fuel = False
 
@@ -52,6 +53,7 @@ class FuelProjection(Projection):
         if isinstance(event, ReservoirReplenishedEvent):
             logger.debug("Received fuel event: %s", event)
             self.fuel_level = event.FuelMain
+            self.fuel_reservoir = event.FuelReservoir
             return
 
         if isinstance(event, RefuelAllEvent):
@@ -68,6 +70,9 @@ class FuelProjection(Projection):
             logger.debug("Received fuel event: %s", event)
             self.is_scooping_fuel = bool(event.Flags & StatusFlags.ScoopingFuel)
             self.is_low_fuel = bool(event.Flags & StatusFlags.LowFuel)
+            if event.Fuel:
+                self.fuel_level = event.Fuel.FuelMain
+                self.fuel_reservoir = event.Fuel.FuelReservoir
             return
 
         logger.debug("Received event but not withing allowed events. Skipping...")

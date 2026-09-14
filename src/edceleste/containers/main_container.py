@@ -26,11 +26,20 @@ from edceleste.use_cases.dashboard.llm_send_message_use_case import (
 from edceleste.use_cases.app.stream_app_header_stats_usecase import (
     StreamAppHeaderStatsUseCase,
 )
+from edceleste.use_cases.dashboard.stream_flight_and_drive_stats_use_case import (
+    StreamFlightAndDriveStatsUseCase,
+)
 from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
     StreamJournalEventsUseCase,
 )
 from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
     StreamLLMResponsesUseCase,
+)
+from edceleste.use_cases.dashboard.stream_navigation_stats_use_case import (
+    StreamNavigationStatsUseCase,
+)
+from edceleste.use_cases.dashboard.stream_ship_stats_use_case import (
+    StreamShipStatsUseCase,
 )
 from edceleste.use_cases.settings.analyze_voice_sample_use_case import (
     AnalyzeVoiceSampleUseCase,
@@ -162,6 +171,18 @@ class Container(containers.DeclarativeContainer):
         StreamJournalEventsUseCase, game_state_reader=game_state_service
     )
 
+    stream_navigation_stats_use_case = providers.Factory(
+        StreamNavigationStatsUseCase, game_state_protocol=game_state_service
+    )
+
+    stream_flight_and_drive_stats_use_case = providers.Factory(
+        StreamFlightAndDriveStatsUseCase, game_state_protocol=game_state_service
+    )
+
+    stream_ship_stats_use_case = providers.Factory(
+        StreamShipStatsUseCase, game_state_protocol=game_state_service
+    )
+
     llm_send_message_use_case = providers.Factory(
         LLMSendMessageUseCase,
         llm_protocol=llm_service,
@@ -280,6 +301,9 @@ class Container(containers.DeclarativeContainer):
         stt_start_recording_usecase=stt_start_recording_use_case,
         stt_stop_recording_usecase=stt_stop_recording_use_case,
         get_stt_enabled_usecase=get_stt_enabled_use_case,
+        stream_navigation_stats_usecase=stream_navigation_stats_use_case,
+        stream_flight_and_drive_stats_usecase=stream_flight_and_drive_stats_use_case,
+        stream_ship_stats_usecase=stream_ship_stats_use_case,
     )
 
     settings_repository = providers.Singleton(

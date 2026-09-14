@@ -199,3 +199,30 @@ class FuelProjectionTest(unittest.TestCase):
         fuel_projection.process_event(self.status_event_not_scooping_fuel)
 
         self.assertFalse(fuel_projection.is_low_fuel)
+
+    def test_should_set_fuel_level_and_reservoir_from_status_event_fuel(self):
+        fuel_projection = FuelProjection()
+
+        status_event_with_fuel = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=0,
+            Flags2=0,
+            Fuel={"FuelMain": 12.5, "FuelReservoir": 0.4},
+        )
+
+        fuel_projection.process_event(status_event_with_fuel)
+
+        self.assertEqual(fuel_projection.fuel_level, 12.5)
+        self.assertEqual(fuel_projection.fuel_reservoir, 0.4)
+
+    def test_should_keep_last_known_fuel_when_status_event_omits_it(self):
+        fuel_projection = FuelProjection()
+
+        fuel_projection.process_event(self.reservoir_replenished_event)
+        fuel_projection.process_event(self.status_event_not_scooping_fuel)
+
+        self.assertEqual(
+            fuel_projection.fuel_reservoir,
+            self.reservoir_replenished_event.FuelReservoir,
+        )

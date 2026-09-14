@@ -2,7 +2,6 @@ import logging
 from textual.screen import Screen
 from textual.widgets import Footer
 from textual.containers import Grid
-from textual.widgets import Label
 from textual.app import ComposeResult
 from textual import on, work
 from edceleste.services.models.llm_status import LLMStatus
@@ -13,6 +12,15 @@ from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_input import (
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_col import (
     WidgetShipLogCol,
+)
+from edceleste.ui.screens.dashboard.widgets.stats.widget_flight_and_drive_stats import (
+    WidgetFlightAndDriveStats,
+)
+from edceleste.ui.screens.dashboard.widgets.stats.widget_navigation_stats import (
+    WidgetNavigationStats,
+)
+from edceleste.ui.screens.dashboard.widgets.stats.widget_ship_stats import (
+    WidgetShipStats,
 )
 from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import (
     CommsMessageViewModel,
@@ -40,15 +48,23 @@ class DashboardScreen(Screen):
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
-        self.game_watcher_service.start_watcher_service()
         self.__load_keybinds()
         self.set_up_llm_stream_worker()
 
     def compose(self) -> ComposeResult:
         yield AppHeader()
         with Grid(id="app-container", classes="screen-grid"):
-            yield Label(id="comms-title", classes="header-title", content="COMMS")
-            yield Label(id="ship-log-title", classes="header-title", content="SHIP LOG")
+            yield WidgetNavigationStats(
+                ed_dashboard_repository=self.dashboard_repository,
+                id="navigation-stats",
+            )
+            yield WidgetFlightAndDriveStats(
+                ed_dashboard_repository=self.dashboard_repository,
+                id="flight-and-drive-stats",
+            )
+            yield WidgetShipStats(
+                ed_dashboard_repository=self.dashboard_repository, id="ship-stats"
+            )
             yield WidgetCommsCol(id="comms-col")
             yield WidgetShipLogCol(
                 ed_dashboard_repository=self.dashboard_repository, id="ship-log-col"
@@ -56,7 +72,7 @@ class DashboardScreen(Screen):
             yield WidgetCommsInput(
                 ed_dashboard_repository=self.dashboard_repository, id="input-row"
             )
-            yield Footer(id="app-footer")
+        yield Footer(id="app-footer")
 
     @on(WidgetCommsInput.UserCommandSubmitted)
     def handle_user_command_submitted(

@@ -1,10 +1,18 @@
 from collections.abc import AsyncGenerator
 
+from edceleste.ui.screens.dashboard.view_models.game_stats_view_model import (
+    FlightAndDriveViewModel,
+    NavigationStatsViewModel,
+    ShipStatsViewModel,
+)
 from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     JournalLogViewModel,
 )
 from edceleste.use_cases.dashboard.llm_send_message_use_case import (
     LLMSendMessageUseCase,
+)
+from edceleste.use_cases.dashboard.stream_flight_and_drive_stats_use_case import (
+    StreamFlightAndDriveStatsUseCase,
 )
 from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
     StreamJournalEventsUseCase,
@@ -12,6 +20,12 @@ from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
 from edceleste.use_cases.dashboard.stream_llm_responses_use_case import (
     CommsStreamItem,
     StreamLLMResponsesUseCase,
+)
+from edceleste.use_cases.dashboard.stream_navigation_stats_use_case import (
+    StreamNavigationStatsUseCase,
+)
+from edceleste.use_cases.dashboard.stream_ship_stats_use_case import (
+    StreamShipStatsUseCase,
 )
 from edceleste.use_cases.dashboard.stt_start_recording_use_case import (
     SttStartRecordingUseCase,
@@ -31,6 +45,9 @@ class EdDashboardRepository:
         stt_start_recording_usecase: SttStartRecordingUseCase,
         stt_stop_recording_usecase: SttStopRecordingUseCase,
         get_stt_enabled_usecase: GetSttEnabledUseCase,
+        stream_navigation_stats_usecase: StreamNavigationStatsUseCase,
+        stream_flight_and_drive_stats_usecase: StreamFlightAndDriveStatsUseCase,
+        stream_ship_stats_usecase: StreamShipStatsUseCase,
     ) -> None:
         self.stream_journal_events_usecase = stream_journal_events_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
@@ -38,6 +55,11 @@ class EdDashboardRepository:
         self.stt_start_recording_usecase = stt_start_recording_usecase
         self.stt_stop_recording_usecase = stt_stop_recording_usecase
         self.get_stt_enabled_usecase = get_stt_enabled_usecase
+        self.stream_navigation_stats_usecase = stream_navigation_stats_usecase
+        self.stream_flight_and_drive_stats_usecase = (
+            stream_flight_and_drive_stats_usecase
+        )
+        self.stream_ship_stats_usecase = stream_ship_stats_usecase
 
     def stream_journal_events(self) -> AsyncGenerator[JournalLogViewModel, None]:
         return self.stream_journal_events_usecase()
@@ -56,3 +78,14 @@ class EdDashboardRepository:
 
     def is_stt_enabled(self) -> bool:
         return self.get_stt_enabled_usecase()
+
+    def stream_navigation_stats(self) -> AsyncGenerator[NavigationStatsViewModel, None]:
+        return self.stream_navigation_stats_usecase()
+
+    def stream_flight_and_drive_stats(
+        self,
+    ) -> AsyncGenerator[FlightAndDriveViewModel, None]:
+        return self.stream_flight_and_drive_stats_usecase()
+
+    def stream_ship_stats(self) -> AsyncGenerator[ShipStatsViewModel, None]:
+        return self.stream_ship_stats_usecase()

@@ -20,6 +20,9 @@ def format_timestamp(timestamp: str) -> str:
 
 
 class WidgetShipLogCol(Widget):
+    DEFAULT_CLASSES = "titled-panel"
+    BORDER_TITLE = "SHIP LOG"
+
     old_state: list[JournalLogViewModel] = []
     state: reactive[list[JournalLogViewModel]] = reactive([])
 

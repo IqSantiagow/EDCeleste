@@ -97,7 +97,7 @@ class PlayerProjection(Projection):
             logger.debug("Received player state event: %s", event)
             self.player_name = event.Commander
             self.player_credits = event.Credits
-            self.player_ship = event.Ship
+            self.player_ship = event.Ship_Localised or event.Ship
             self.is_alive = True
             return
 

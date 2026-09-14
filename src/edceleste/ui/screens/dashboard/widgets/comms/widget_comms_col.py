@@ -11,6 +11,9 @@ from edceleste.ui.screens.dashboard.view_models.comms_message_view_model import 
 
 
 class WidgetCommsCol(Vertical):
+    DEFAULT_CLASSES = "titled-panel"
+    BORDER_TITLE = "COMMS"
+
     response_state: reactive[CommsMessageViewModel | None] = reactive(
         None, always_update=True
     )
