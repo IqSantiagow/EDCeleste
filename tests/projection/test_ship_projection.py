@@ -144,6 +144,16 @@ class ShipProjectionTest(unittest.TestCase):
         self.assertEqual(ship_projection.cargo_current, 12.0)
         self.assertEqual(ship_projection.legal_status, "Wanted")
 
+    def test_should_update_cargo_when_hold_becomes_empty(self):
+        # Cargo 0.0 means an empty hold, not a missing value, so it must
+        # replace the last known cargo instead of being skipped.
+        ship_projection = ShipProjection()
+
+        ship_projection.process_event(_status_event(Cargo=12.0))
+        ship_projection.process_event(_status_event(Cargo=0.0))
+
+        self.assertEqual(ship_projection.cargo_current, 0.0)
+
     def test_should_keep_last_known_legal_status_when_status_event_omits_it(self):
         ship_projection = ShipProjection()
 
