@@ -6,6 +6,7 @@
    ============================================================ */
 $font-muted-color: #6F4A24;
 $human-command-color: #2518d4;
+$shields-color: #22C7E0;
 
 /* ============================================================
    App shell
@@ -20,9 +21,20 @@ Footer {
 }
 
 #app-container {
-    grid-size: 2 3;
-    grid-rows: auto 1fr auto;
-    grid-columns: 2fr 1fr;
+    grid-size: 3 3;
+    grid-rows: 10 1fr auto;
+    grid-columns: 1fr 1fr 1fr;
+}
+
+#comms-col {
+    column-span: 2;
+}
+
+#input-row {
+    column-span: 3;
+    height: auto;
+    padding: 0 1;
+    border: round $secondary;
 }
 
 #settings-grid {
@@ -101,12 +113,6 @@ WidgetSettingsHeaderContent {
     content-align: right middle;
 }
 
-.header-title {
-    width: 1fr;
-    padding-left: 1;
-    color: $font-muted-color;
-}
-
 /* ============================================================
    Shared components: WidgetSectionHeader, WidgetLabeledValueRow
    (ui/widgets/common/)
@@ -162,6 +168,123 @@ WidgetCommonStatLabel .stat-value {
 }
 
 /* ============================================================
+   Dashboard: stats panels
+   (WidgetNavigationStats, WidgetFlightAndDriveStats, WidgetShipStats,
+   WidgetStatBar)
+   ============================================================ */
+.titled-panel,
+.stats-panel {
+    border: round $secondary;
+    border-title-align: left;
+    border-title-color: $font-muted-color;
+    border-subtitle-color: $font-muted-color;
+}
+
+.stats-panel {
+    height: 100%;
+    padding: 0 1;
+}
+
+.stats-panel .stat-row {
+    height: 1;
+}
+
+.stats-panel .stat-label {
+    width: 11;
+    color: $font-muted-color;
+}
+
+.stats-panel .stat-label.inline {
+    width: auto;
+    padding: 0 1 0 0;
+}
+
+.stats-panel .stat-value {
+    padding: 0 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+.stats-panel .stat-value.-alert {
+    color: $error;
+}
+
+.stats-panel .stat-muted {
+    color: $font-muted-color;
+    padding: 0 1;
+}
+
+/* Status dot (scoop, security level) - dimmed until the state is active. */
+.stats-panel .stat-badge {
+    color: $font-muted-color;
+    padding: 0 1;
+}
+
+.stats-panel .stat-badge.-active {
+    color: $success;
+}
+
+#navigation-security {
+    color: $warning;
+}
+
+.stat-digits-row {
+    height: 4;
+}
+
+#fuel-main-digits,
+#jump-range-digits {
+    width: auto;
+    color: $primary;
+}
+
+.stats-panel .ship-flag {
+    color: $font-muted-color;
+    padding: 0 1 0 0;
+}
+
+.stats-panel .ship-flag.-active {
+    color: $secondary;
+}
+
+/* WidgetStatBar: label, bar stretched over the rest of the line, value. */
+.stat-bar {
+    width: 1fr;
+    height: 1;
+}
+
+.stat-bar .stat-bar-track {
+    width: 1fr;
+}
+
+.stat-bar .stat-bar-track Bar {
+    width: 1fr;
+}
+
+.stat-bar .stat-bar-value {
+    padding: 0 1;
+    color: $primary;
+    text-style: bold;
+}
+
+#hull-bar Bar > .bar--bar,
+#hull-bar Bar > .bar--complete {
+    color: $success;
+}
+
+#shields-bar Bar > .bar--bar,
+#shields-bar Bar > .bar--complete {
+    color: $shields-color;
+}
+
+#fuel-bar Bar > .bar--bar,
+#fuel-bar Bar > .bar--complete,
+#cargo-bar Bar > .bar--bar,
+#cargo-bar Bar > .bar--complete {
+    color: $primary;
+}
+
+/* ============================================================
    Dashboard: comms column
    (WidgetCommsCol, WidgetCommsEntry, WidgetCommsInput)
    ============================================================ */
@@ -176,7 +299,14 @@ WidgetCommsEntry {
 }
 
 .comms-input-container {
-    height: 3;
+    height: 1;
+}
+
+#comms-input {
+    height: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
 }
 
 #comms-thinking-indicator {
@@ -219,10 +349,6 @@ WidgetCommsEntry.llm-error .comms-entry-content {
    Dashboard: ship log column
    (WidgetShipLogCol, WidgetShipLogEntry)
    ============================================================ */
-WidgetShipLogCol {
-    row-span: 2;
-}
-
 WidgetShipLogEntry {
     padding: 0 0 1 0;
 }

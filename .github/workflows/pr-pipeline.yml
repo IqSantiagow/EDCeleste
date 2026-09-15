@@ -100,6 +100,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CC_OAUTH_TOKEN }}
           track_progress: true
+          allowed_bots: "dependabot[bot]"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}

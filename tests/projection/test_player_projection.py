@@ -117,6 +117,16 @@ class PlayerProjectionTest(unittest.TestCase):
         )
         self.assertEqual(player_projection.player_ship, self.loaded_game_event.Ship)
 
+    def test_should_prefer_localised_ship_name(self):
+        player_projection = PlayerProjection()
+        loaded_game_event = self.loaded_game_event.model_copy(
+            update={"Ship": "cobramkiii", "Ship_Localised": "Cobra Mk III"}
+        )
+
+        player_projection.process_event(loaded_game_event)
+
+        self.assertEqual(player_projection.player_ship, "Cobra Mk III")
+
     def test_should_create_projection(self):
         player_projection = PlayerProjection()
 

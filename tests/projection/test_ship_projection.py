@@ -9,9 +9,9 @@ from edceleste.services.models.game_events import (
 )
 
 
-def _status_event(flags: int = 0, flags2: int = 0) -> StatusEvent:
+def _status_event(flags: int = 0, flags2: int = 0, **extra) -> StatusEvent:
     return StatusEvent(
-        event="Status", timestamp=datetime.now(), Flags=flags, Flags2=flags2
+        event="Status", timestamp=datetime.now(), Flags=flags, Flags2=flags2, **extra
     )
 
 
@@ -130,6 +130,37 @@ class ShipProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
+
+    def test_should_track_pips_cargo_and_legal_status_from_status_event(self):
+        ship_projection = ShipProjection()
+
+        ship_projection.process_event(
+            _status_event(Pips=[4, 8, 0], Cargo=12.0, LegalState="Wanted")
+        )
+
+        self.assertEqual(ship_projection.pips_system, 4)
+        self.assertEqual(ship_projection.pips_engine, 8)
+        self.assertEqual(ship_projection.pips_weapons, 0)
+        self.assertEqual(ship_projection.cargo_current, 12.0)
+        self.assertEqual(ship_projection.legal_status, "Wanted")
+
+    def test_should_update_cargo_when_hold_becomes_empty(self):
+        # Cargo 0.0 means an empty hold, not a missing value, so it must
+        # replace the last known cargo instead of being skipped.
+        ship_projection = ShipProjection()
+
+        ship_projection.process_event(_status_event(Cargo=12.0))
+        ship_projection.process_event(_status_event(Cargo=0.0))
+
+        self.assertEqual(ship_projection.cargo_current, 0.0)
+
+    def test_should_keep_last_known_legal_status_when_status_event_omits_it(self):
+        ship_projection = ShipProjection()
+
+        ship_projection.process_event(_status_event(LegalState="Clean"))
+        ship_projection.process_event(_status_event())
+
+        self.assertEqual(ship_projection.legal_status, "Clean")
 
     def test_should_ignore_unrelated_events(self):
         ship_projection = ShipProjection()

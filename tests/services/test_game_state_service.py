@@ -33,6 +33,10 @@ def _loaded_game_event(**overrides) -> LoadedGameEvent:
     return LoadedGameEvent(**defaults)
 
 
+def _status_event() -> StatusEvent:
+    return StatusEvent(event="Status", timestamp=datetime.now(), Flags=0, Flags2=0)
+
+
 class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
     async def test_stream_game_stats_yields_snapshot_reflecting_processed_event(
         self,
@@ -48,6 +52,9 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
 
         await service.process_event(_loaded_game_event())
+        # Only Status.json events wake the stats stream. Journal events just
+        # refresh the projections that the snapshot is built from.
+        await service.process_event(_status_event())
 
         snapshot = await pending
         self.assertEqual(snapshot.player.name, "TestCommander")
@@ -62,9 +69,11 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
 
         await service.process_event(_loaded_game_event(Ship="Sidewinder"))
+        await service.process_event(_status_event())
         first_snapshot = await pending
 
         await service.process_event(_loaded_game_event(Ship="Anaconda"))
+        await service.process_event(_status_event())
         second_snapshot = await stream.__anext__()
 
         self.assertEqual(first_snapshot.player.ship, "Sidewinder")

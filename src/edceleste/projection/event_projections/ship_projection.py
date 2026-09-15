@@ -30,6 +30,7 @@ class ShipProjection(Projection):
         # before the first Status.json read actually reports them down.
         self.are_shields_up = True
         self.are_hardpoints_deployed = False
+        self.are_lights_on = False
         self.is_cargo_scoop_deployed = False
         self.is_silent_running = False
         self.is_flight_assist_off = False
@@ -39,6 +40,11 @@ class ShipProjection(Projection):
         self.is_fsd_mass_locked = False
         self.is_fsd_charging = False
         self.is_fsd_in_cooldown = False
+        self.pips_system = 0
+        self.pips_engine = 0
+        self.pips_weapons = 0
+        self.cargo_current = 0.0
+        self.legal_status = None
 
     def process_event(self, event: BaseModel) -> None:
         if isinstance(event, StatusEvent):
@@ -49,6 +55,7 @@ class ShipProjection(Projection):
             self.are_hardpoints_deployed = bool(
                 event.Flags & StatusFlags.HardpointsDeployed
             )
+            self.are_lights_on = bool(event.Flags & StatusFlags.LightsOn)
             self.is_cargo_scoop_deployed = bool(
                 event.Flags & StatusFlags.CargoScoopDeployed
             )
@@ -60,6 +67,13 @@ class ShipProjection(Projection):
             self.is_fsd_mass_locked = bool(event.Flags & StatusFlags.FsdMassLocked)
             self.is_fsd_charging = bool(event.Flags & StatusFlags.FsdCharging)
             self.is_fsd_in_cooldown = bool(event.Flags & StatusFlags.FsdCooldown)
+            # Pips are reported by the game in half-pip units (0-8 per bank).
+            if len(event.Pips) == 3:
+                self.pips_system, self.pips_engine, self.pips_weapons = event.Pips
+            if event.Cargo is not None:
+                self.cargo_current = event.Cargo
+            if event.LegalState:
+                self.legal_status = event.LegalState
             return
 
         logger.debug("Received event but not withing allowed events. Skipping...")
