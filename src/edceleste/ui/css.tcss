@@ -214,8 +214,7 @@ WidgetCommonStatLabel .stat-value {
     padding: 0 1;
 }
 
-/* Kropka ze stanem (scoop, poziom bezpieczenstwa) - zgaszona dopoki
-   stan nie jest aktywny. */
+/* Status dot (scoop, security level) - dimmed until the state is active. */
 .stats-panel .stat-badge {
     color: $font-muted-color;
     padding: 0 1;
@@ -248,7 +247,7 @@ WidgetCommonStatLabel .stat-value {
     color: $secondary;
 }
 
-/* WidgetStatBar: podpis, pasek rozciagniety na reszte linii, wartosc. */
+/* WidgetStatBar: label, bar stretched over the rest of the line, value. */
 .stat-bar {
     width: 1fr;
     height: 1;
