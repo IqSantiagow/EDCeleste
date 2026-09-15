@@ -70,7 +70,7 @@ class ShipProjection(Projection):
             # Pips are reported by the game in half-pip units (0-8 per bank).
             if len(event.Pips) == 3:
                 self.pips_system, self.pips_engine, self.pips_weapons = event.Pips
-            if event.Cargo:
+            if event.Cargo is not None:
                 self.cargo_current = event.Cargo
             if event.LegalState:
                 self.legal_status = event.LegalState
