@@ -4,9 +4,9 @@ import unittest
 
 from edceleste.services.models.game_events import (
     DockedEvent,
-    FuelScoopEvent,
     LoadedGameEvent,
     StartJumpEvent,
+    UnknownCheckedEvent,
 )
 from edceleste.services.models.game_models import BaseFactionModel
 from edceleste.use_cases.dashboard.stream_journal_events_usecase import (
@@ -73,12 +73,6 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
             StationEconomies=[],
             DistFromStarLS=490.0,
         )
-        self.fuel_scoop_event = FuelScoopEvent(
-            event="FuelScoop",
-            timestamp=datetime(2026, 1, 1, 12, 3, 0),
-            Scooped=1.0,
-            Total=4.0,
-        )
 
     async def test_should_map_loaded_game_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.loaded_game_event])
@@ -87,9 +81,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         results = [view_model async for view_model in use_case()]
 
         self.assertEqual(results[0].event, "LoadGame")
-        self.assertIn("Commander: TestCommander", results[0].details)
-        self.assertIn("Ship: Sidewinder", results[0].details)
-        self.assertIn("Credits: 1000000", results[0].details)
+        self.assertEqual(results[0].details, "TestCommander · Test Ship · 1 000 000 CR")
 
     async def test_should_map_start_jump_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.start_jump_event])
@@ -98,9 +90,8 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         results = [view_model async for view_model in use_case()]
 
         self.assertEqual(results[0].event, "StartJump")
-        self.assertIn("JumpType: Hyperspace", results[0].details)
-        self.assertIn("StarSystem: Sol", results[0].details)
-        self.assertIn("SystemAddress: 10477373803", results[0].details)
+        self.assertEqual(results[0].details, "Hyperspace charging → Sol")
+        self.assertEqual(results[0].system, "Sol")
 
     async def test_should_map_docked_event_to_view_model(self):
         reader = FakeGameStateReader(events=[self.docked_event])
@@ -109,27 +100,28 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         results = [view_model async for view_model in use_case()]
 
         self.assertEqual(results[0].event, "Docked")
-        self.assertIn("StarSystem: Sol", results[0].details)
-        self.assertIn("StationName: Abraham Lincoln", results[0].details)
-        self.assertIn("StationType: Coriolis", results[0].details)
+        self.assertEqual(results[0].details, "Abraham Lincoln · Coriolis")
+        self.assertEqual(results[0].system, "Sol")
 
-    async def test_should_fallback_for_unhandled_event_type(self):
-        reader = FakeGameStateReader(events=[self.fuel_scoop_event])
+    async def test_should_leave_details_empty_for_unhandled_event_type(self):
+        unknown_event = UnknownCheckedEvent(
+            event="SomeBrandNewEvent", timestamp=datetime(2026, 1, 1, 12, 4, 0)
+        )
+        reader = FakeGameStateReader(events=[unknown_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
-        self.assertTrue(
-            results[0].details.startswith("Unknown event type: FuelScoopEvent")
-        )
+        self.assertEqual(results[0].event, "SomeBrandNewEvent")
+        self.assertEqual(results[0].details, "")
 
-    async def test_should_preserve_event_timestamp_as_string(self):
+    async def test_should_preserve_event_timestamp(self):
         reader = FakeGameStateReader(events=[self.start_jump_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
 
-        self.assertEqual(results[0].timestamp, str(self.start_jump_event.timestamp))
+        self.assertEqual(results[0].timestamp, self.start_jump_event.timestamp)
 
     async def test_should_yield_multiple_events_in_order(self):
         reader = FakeGameStateReader(events=[self.loaded_game_event, self.docked_event])
