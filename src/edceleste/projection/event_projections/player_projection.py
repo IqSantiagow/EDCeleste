@@ -3,6 +3,12 @@ import logging
 from pydantic import BaseModel
 
 from edceleste.projection.event_projections.projection import Projection
+from edceleste.services.models.rank_ladders import (
+    COMBAT_RANKS,
+    EXPLORATION_RANKS,
+    TRADE_RANKS,
+    rank_name,
+)
 from edceleste.services.models.game_events import (
     LoadedGameEvent,
     CommanderEvent,
@@ -37,44 +43,6 @@ class PlayerProjection(Projection):
     IN_TAXI_PROJECTION = "Commander is currently riding a taxi."
     IN_SRV_PROJECTION = "Commander is currently driving an SRV."
     IN_FIGHTER_PROJECTION = "Commander is currently piloting a fighter."
-
-    UNKNOWN_RANK = "Unranked"
-
-    COMBAT_RANKS = (
-        "Harmless",
-        "Mostly Harmless",
-        "Novice",
-        "Competent",
-        "Expert",
-        "Master",
-        "Dangerous",
-        "Deadly",
-        "Elite",
-    )
-
-    TRADE_RANKS = (
-        "Penniless",
-        "Mostly Penniless",
-        "Peddler",
-        "Dealer",
-        "Merchant",
-        "Broker",
-        "Entrepreneur",
-        "Tycoon",
-        "Elite",
-    )
-
-    EXPLORATION_RANKS = (
-        "Aimless",
-        "Mostly Aimless",
-        "Scout",
-        "Surveyor",
-        "Trailblazer",
-        "Pathfinder",
-        "Ranger",
-        "Pioneer",
-        "Elite",
-    )
 
     def __init__(self):
         self.player_name = None
@@ -163,9 +131,9 @@ class PlayerProjection(Projection):
         # otherwise leak literal "None" values into the LLM projection.
         if None not in (self.combat_rank, self.trade_rank, self.exploration_rank):
             projection_string += self.RANK_PROJECTION.format(
-                self.__rank_name(self.COMBAT_RANKS, self.combat_rank),
-                self.__rank_name(self.TRADE_RANKS, self.trade_rank),
-                self.__rank_name(self.EXPLORATION_RANKS, self.exploration_rank),
+                rank_name(COMBAT_RANKS, self.combat_rank),
+                rank_name(TRADE_RANKS, self.trade_rank),
+                rank_name(EXPLORATION_RANKS, self.exploration_rank),
             )
 
         if self.empire_reputation is not None:
@@ -188,9 +156,3 @@ class PlayerProjection(Projection):
             projection_string += self.IN_FIGHTER_PROJECTION
 
         return projection_string
-
-    @staticmethod
-    def __rank_name(ladder: tuple[str, ...], value) -> str:
-        if value is not None and 0 <= value < len(ladder):
-            return ladder[value]
-        return PlayerProjection.UNKNOWN_RANK
