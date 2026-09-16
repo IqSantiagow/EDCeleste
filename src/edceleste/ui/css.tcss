@@ -58,7 +58,8 @@ Rule {
    containers (header bar, dashboard columns, settings columns)
    ============================================================ */
 AppHeader,
-WidgetShipLogCol,
+WidgetShipLogPanel,
+WidgetShipLogExtendedPanel,
 WidgetCommsCol,
 WidgetSettingsSectionsColumn,
 WidgetPathsContainer,
@@ -289,7 +290,8 @@ WidgetCommonStatLabel .stat-value {
    (WidgetCommsCol, WidgetCommsEntry, WidgetCommsInput)
    ============================================================ */
 #comms-scroll,
-#ship-log-scroll {
+#ship-log-scroll,
+#ship-log-extended-scroll {
     height: 1fr;
 }
 
@@ -346,23 +348,216 @@ WidgetCommsEntry.llm-error .comms-entry-content {
 }
 
 /* ============================================================
-   Dashboard: ship log column
-   (WidgetShipLogCol, WidgetShipLogEntry)
+   Dashboard: ship log
+   (WidgetShipLogPanel, WidgetShipLogExtendedPanel,
+    WidgetShipLogFilterBar, WidgetShipLogRow, WidgetShipLogExtendedRow)
    ============================================================ */
-WidgetShipLogEntry {
-    padding: 0 0 1 0;
+
+/* Expanded mode: the grid grows by one row and COMMS shrinks to a full
+   width strip underneath the journal. */
+#app-container.-ship-log-expanded {
+    grid-size: 3 4;
+    grid-rows: 10 1fr 8 auto;
 }
 
-WidgetShipLogEntry > Label {
-    padding: 0 1 0 0;
+/* This class alone decides which of the two journal variants is visible. */
+#ship-log-wide {
+    display: none;
 }
 
-WidgetShipLogEntry .log-timestamp {
+#app-container.-ship-log-expanded #ship-log-rail {
+    display: none;
+}
+
+#app-container.-ship-log-expanded #ship-log-wide {
+    display: block;
+    column-span: 3;
+}
+
+#app-container.-ship-log-expanded #comms-col {
+    column-span: 3;
+}
+
+/* --- tabs --- */
+WidgetShipLogPanel TabbedContent,
+WidgetShipLogExtendedPanel TabbedContent,
+WidgetShipLogPanel TabbedContent > ContentSwitcher,
+WidgetShipLogExtendedPanel TabbedContent > ContentSwitcher,
+WidgetShipLogPanel TabPane,
+WidgetShipLogExtendedPanel TabPane {
+    height: 1fr;
+}
+
+WidgetShipLogPanel TabPane,
+WidgetShipLogExtendedPanel TabPane {
+    padding: 0;
+}
+
+WidgetShipLogPanel Tabs,
+WidgetShipLogExtendedPanel Tabs {
+    height: 2;
+    background: transparent;
+}
+
+WidgetShipLogPanel Tab,
+WidgetShipLogExtendedPanel Tab {
+    height: 1;
+    padding: 0 1;
+    color: $font-muted-color;
+    text-style: none;
+}
+
+WidgetShipLogPanel Tab:hover,
+WidgetShipLogExtendedPanel Tab:hover {
+    color: $secondary;
+}
+
+WidgetShipLogPanel Tab.-active,
+WidgetShipLogExtendedPanel Tab.-active {
+    color: $primary;
+    text-style: bold;
+    background: transparent;
+}
+
+/* color = the active tab's underline, background = the track under the rest */
+WidgetShipLogPanel Underline > .underline--bar,
+WidgetShipLogExtendedPanel Underline > .underline--bar {
+    color: $primary;
+    background: $surface;
+}
+
+/* --- filter bar --- */
+WidgetShipLogFilterBar {
+    height: 1;
+    padding: 0 0 0 1;
+}
+
+WidgetShipLogFilterChip {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    margin: 0 1 0 0;
+    color: $font-muted-color;
+    background: transparent;
+}
+
+WidgetShipLogFilterChip:hover {
+    color: $secondary;
+}
+
+WidgetShipLogFilterChip.-active {
+    color: $surface;
+    background: $primary;
+    text-style: bold;
+}
+
+/* --- column header (expanded mode only) --- */
+.ship-log-header-row {
+    height: 1;
+    padding: 0 0 0 1;
     color: $font-muted-color;
 }
 
-WidgetShipLogEntry .log-event {
+.ship-log-header-divider {
+    height: 1;
+    margin: 0;
+    color: $font-muted-color;
+}
+
+/* --- rows --- */
+WidgetShipLogRow,
+WidgetShipLogExtendedRow {
+    height: 1;
+    width: 1fr;
+}
+
+/* Striping is set from Python - :odd does not recompute when the list is rebuilt. */
+WidgetShipLogExtendedRow.zebra-row {
+    background: $panel;
+}
+
+/* Column widths hang off the panel so the header in expanded mode keeps
+   to the same grid as the rows. */
+WidgetShipLogPanel .log-time {
+    width: 6;
+    color: $font-muted-color;
+}
+
+WidgetShipLogExtendedPanel .log-time {
+    width: 9;
+    color: $font-muted-color;
+}
+
+WidgetShipLogPanel .log-marker,
+WidgetShipLogExtendedPanel .log-marker {
+    width: 2;
+}
+
+WidgetShipLogPanel .log-event,
+WidgetShipLogExtendedPanel .log-event {
+    width: 15;
+    padding: 0 1 0 0;
+    color: $secondary;
     text-style: bold;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+WidgetShipLogExtendedPanel .log-event {
+    width: 22;
+}
+
+WidgetShipLogExtendedPanel .log-system {
+    width: 20;
+    padding: 0 1 0 0;
+    color: $primary;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+WidgetShipLogPanel .log-details,
+WidgetShipLogExtendedPanel .log-details {
+    width: 1fr;
+    color: $font-muted-color;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The header is just a column label - none of the rows' colour or weight. */
+.ship-log-header-row .log-event,
+.ship-log-header-row .log-system,
+.ship-log-header-row .log-details {
+    color: $font-muted-color;
+    text-style: none;
+}
+
+/* --- marker colour per category --- */
+WidgetShipLogRow.log-nav .log-marker,
+WidgetShipLogExtendedRow.log-nav .log-marker {
+    color: $primary;
+}
+
+WidgetShipLogRow.log-combat .log-marker,
+WidgetShipLogExtendedRow.log-combat .log-marker {
+    color: $error;
+}
+
+WidgetShipLogRow.log-tools .log-marker,
+WidgetShipLogExtendedRow.log-tools .log-marker {
+    color: $success;
+}
+
+WidgetShipLogRow.log-other .log-marker,
+WidgetShipLogExtendedRow.log-other .log-marker {
+    color: $font-muted-color;
+}
+
+/* --- placeholder for the remaining tabs --- */
+.ship-log-no-data {
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+    color: $font-muted-color;
 }
 
 /* ============================================================
