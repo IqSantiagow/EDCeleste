@@ -46,6 +46,9 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         # in process_event doesn't blow up on a plain Mock.
         service = GameStateService(Mock(spec=EventBus))
         stream = service.stream_game_stats()
+        # Subscribing always yields the current state first, so drop that
+        # snapshot before testing what the events produce.
+        await stream.__anext__()
         # Prime the subscriber so its queue is registered and the running loop is
         # captured before we publish; otherwise the event would not be dispatched.
         pending = asyncio.ensure_future(stream.__anext__())
@@ -65,6 +68,8 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
     async def test_stream_game_stats_yields_updated_snapshot_for_each_event(self):
         service = GameStateService(Mock(spec=EventBus))
         stream = service.stream_game_stats()
+        # Discard the snapshot handed out on subscription.
+        await stream.__anext__()
         pending = asyncio.ensure_future(stream.__anext__())
         await asyncio.sleep(0)
 
@@ -79,6 +84,48 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first_snapshot.player.ship, "Sidewinder")
         self.assertEqual(second_snapshot.player.ship, "Anaconda")
         await stream.aclose()
+
+    async def test_stream_game_stats_yields_initial_snapshot_without_waiting_for_event(
+        self,
+    ):
+        # A fresh subscriber must get a snapshot straight away instead of
+        # blocking until the next Status.json event arrives.
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_game_stats()
+
+        snapshot = await stream.__anext__()
+
+        self.assertEqual(snapshot.player.name, "")
+        self.assertEqual(snapshot.player.ship, "")
+        self.assertEqual(snapshot.player.credits, 0)
+        await stream.aclose()
+
+    async def test_initial_snapshot_reflects_events_processed_before_subscribing(self):
+        # A screen opened later (the settings header) subscribes long after the
+        # game events were processed, and must still see the current state.
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(_loaded_game_event())
+
+        stream = service.stream_game_stats()
+        snapshot = await stream.__anext__()
+
+        self.assertEqual(snapshot.player.name, "TestCommander")
+        self.assertEqual(snapshot.player.ship, "Sidewinder")
+        self.assertEqual(snapshot.player.credits, 1000000)
+        await stream.aclose()
+
+    async def test_stream_game_stats_unregisters_queue_when_closed(self):
+        # The initial snapshot yields before the loop is entered, so make sure
+        # the cleanup in `finally` still runs when the stream is closed.
+        service = GameStateService(Mock(spec=EventBus))
+        watchers = service._GameStateService__status_queue_watchers
+
+        stream = service.stream_game_stats()
+        await stream.__anext__()
+        self.assertEqual(len(watchers), 1)
+
+        await stream.aclose()
+        self.assertEqual(watchers, [])
 
     async def test_stream_journal_events_yields_processed_event(self):
         service = GameStateService(Mock(spec=EventBus))
