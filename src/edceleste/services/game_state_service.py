@@ -142,6 +142,7 @@ class GameStateService:
         self.__status_queue_watchers.append(queue)
 
         try:
+            yield self.__build_game_stats_snapshot()
             while True:
                 await queue.get()
                 yield self.__build_game_stats_snapshot()
