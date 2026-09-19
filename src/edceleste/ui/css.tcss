@@ -561,6 +561,51 @@ WidgetShipLogExtendedRow.log-other .log-marker {
 }
 
 /* ============================================================
+   Dashboard: station market card (WidgetStationMarket)
+   The only DataTable in the app - every other table is built by hand
+   from Labels, so this is the one place the widget needs dressing.
+   ============================================================ */
+WidgetStationMarket {
+    height: 1fr;
+}
+
+#station-market-header {
+    height: 1;
+    padding: 0 0 0 1;
+    color: $primary;
+    text-style: bold;
+}
+
+#station-market-table {
+    height: 1fr;
+    width: 1fr;
+    background: transparent;
+}
+
+#station-market-table > .datatable--header {
+    color: $font-muted-color;
+    background: transparent;
+    text-style: none;
+}
+
+#station-market-table > .datatable--odd-row {
+    background: $panel;
+}
+
+#station-market-table > .datatable--even-row {
+    background: transparent;
+}
+
+#station-market-table > .datatable--cursor {
+    color: $surface;
+    background: $primary;
+}
+
+#station-market-table > .datatable--hover {
+    background: $panel;
+}
+
+/* ============================================================
    Settings: sections sidebar (WidgetSettingsSectionsColumn)
    ============================================================ */
 .section-nav-item {

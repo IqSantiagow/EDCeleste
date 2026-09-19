@@ -9,12 +9,21 @@ from edceleste.projection.event_projections.loadout_projection import (
 from edceleste.projection.event_projections.location_projection import (
     LocationProjection,
 )
+from edceleste.projection.event_projections.market_projection import MarketProjection
 from edceleste.projection.event_projections.player_projection import PlayerProjection
 from edceleste.projection.event_projections.projection import Projection
 from edceleste.projection.event_projections.ship_projection import ShipProjection
 from edceleste.services.event_bus import EventBus
-from edceleste.services.models.game_events import GameEvent, NonJournalFileEvent
+from edceleste.services.models.game_events import (
+    DockedEvent,
+    GameEvent,
+    LocationEvent,
+    MarketEvent,
+    NonJournalFileEvent,
+    UndockedEvent,
+)
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.market_stats import MarketSnapshot
 from edceleste.services.models.game_stats import (
     FlightDriveStats,
     GameStatsSnapshot,
@@ -29,6 +38,11 @@ logger = logging.getLogger(__name__)
 class GameStateService:
     GAME_PROJECTION = "Current game state is: {0}"
 
+    # Only these can change the station market card. Status.json is deliberately
+    # left out - it arrives every second and would rebuild the whole commodity
+    # table that often, losing the scroll position while the player reads it.
+    MARKET_CARD_EVENTS = (MarketEvent, DockedEvent, UndockedEvent, LocationEvent)
+
     def __init__(self, event_bus: EventBus) -> None:
         self.event_bus = event_bus
         self.__game_state_projection = None
@@ -37,6 +51,7 @@ class GameStateService:
         self.__location_projection = LocationProjection()
         self.__ship_projection = ShipProjection()
         self.__loadout_projection = LoadoutProjection()
+        self.__market_projection = MarketProjection()
         self.__projections: frozenset[Projection] = frozenset(
             [
                 self.__player_projection,
@@ -44,10 +59,12 @@ class GameStateService:
                 self.__location_projection,
                 self.__ship_projection,
                 self.__loadout_projection,
+                self.__market_projection,
             ]
         )
         self.__journal_queue_watchers: list[asyncio.Queue[GameEvent]] = []
         self.__status_queue_watchers: list[asyncio.Queue[GameEvent]] = []
+        self.__market_queue_watchers: list[asyncio.Queue[GameEvent]] = []
 
         event_bus.subscribe(GameEvent, self.process_event)
 
@@ -62,6 +79,12 @@ class GameStateService:
                 watcher.put_nowait(event)
         else:
             for watcher in self.__status_queue_watchers:
+                watcher.put_nowait(event)
+
+        # Separate branch on purpose: the station card is fed by both a side
+        # file (Market.json) and journal lines (Docked/Undocked/Location).
+        if isinstance(event, self.MARKET_CARD_EVENTS):
+            for watcher in self.__market_queue_watchers:
                 watcher.put_nowait(event)
 
         self.__refresh_state()
@@ -158,3 +181,24 @@ class GameStateService:
                 yield event
         finally:
             self.__journal_queue_watchers.remove(queue)
+
+    def __build_market_snapshot(self) -> MarketSnapshot:
+        market = self.__market_projection
+        return MarketSnapshot(
+            station_name=market.station_name or "",
+            is_docked=market.docked_market_id is not None,
+            has_commodities_market=market.has_commodities_market,
+            is_market_data_current=market.is_market_data_current(),
+            commodities=tuple(market.commodities),
+        )
+
+    async def stream_market(self) -> AsyncGenerator[MarketSnapshot, None]:
+        queue: asyncio.Queue = asyncio.Queue()
+        self.__market_queue_watchers.append(queue)
+        try:
+            yield self.__build_market_snapshot()
+            while True:
+                await queue.get()
+                yield self.__build_market_snapshot()
+        finally:
+            self.__market_queue_watchers.remove(queue)

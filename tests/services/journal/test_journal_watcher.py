@@ -3,7 +3,11 @@ from datetime import datetime
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 from edceleste.services.game_watcher_service import GameWatcherService
-from edceleste.services.models.game_events import StatusEvent, UnknownCheckedEvent
+from edceleste.services.models.game_events import (
+    MarketEvent,
+    StatusEvent,
+    UnknownCheckedEvent,
+)
 from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
@@ -316,6 +320,115 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         last_status = statuses[-1]
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "no journal path")
+
+    # --- watch_market_file_and_generate_event ---
+
+    def _make_market_event(self):
+        return MarketEvent(
+            event="Market",
+            timestamp=datetime.now(),
+            MarketID=3222042112,
+            StationName="Fan Horizons",
+            StarSystem="Beta Sculptoris",
+            Items=[],
+        )
+
+    async def test_watch_market_file_waits_until_market_file_appears(self):
+        market_event = self._make_market_event()
+        watcher = self._make_watcher()
+
+        sleep_calls = []
+
+        async def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) >= 2:
+                watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                side_effect=[False, True],
+            ),
+            patch("builtins.open", mock_open(read_data=market_event.model_dump_json())),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_market_file_and_generate_event()
+
+        # The game only writes Market.json once the player opens the commodity
+        # screen, so an absent file is normal and must not raise.
+        self.mock_event_bus.publish.assert_awaited_once_with(market_event)
+
+    async def test_watch_market_file_skips_invalid_market_json(self):
+        watcher = self._make_watcher()
+
+        async def fake_sleep(_seconds):
+            watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            patch("builtins.open", mock_open(read_data="not valid json")),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_market_file_and_generate_event()
+
+        self.mock_event_bus.publish.assert_not_awaited()
+
+    async def test_watch_market_file_only_republishes_on_change(self):
+        market_event = self._make_market_event()
+        watcher = self._make_watcher()
+
+        sleep_calls = []
+
+        async def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) >= 2:
+                watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            # getmtime stays constant across both loop passes, so the second
+            # pass must not re-read the file or re-publish the event.
+            patch(
+                "edceleste.services.game_watcher_service.os.path.getmtime",
+                return_value=100,
+            ),
+            patch("builtins.open", mock_open(read_data=market_event.model_dump_json())),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_market_file_and_generate_event()
+
+        self.mock_event_bus.publish.assert_awaited_once_with(market_event)
+
+    async def test_start_watcher_service_starts_a_task_per_watched_file(self):
+        """The journal plus one task for every side file. Tests elsewhere stub
+        these out by name, so a new one must not go unnoticed."""
+        watcher = self._make_watcher()
+
+        with (
+            patch.object(GameWatcherService, "watch_status_file_and_generate_event"),
+            patch.object(GameWatcherService, "watch_market_file_and_generate_event"),
+            patch.object(
+                GameWatcherService, "_GameWatcherService__generate_journal_events"
+            ),
+        ):
+            watcher.start_watcher_service()
+            self.assertEqual(len(watcher._game_watcher_tasks), 3)
+            watcher.stop_watcher_service()
 
 
 if __name__ == "__main__":

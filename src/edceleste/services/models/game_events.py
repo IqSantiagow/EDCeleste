@@ -150,6 +150,7 @@ class LocationEvent(GameEvent):
     StationFaction: Optional[BaseFactionModel] = None
     StationGovernment_Localised: Optional[str] = None
     StationAllegiance: Optional[str] = None
+    StationServices: list[str] = []
     StationEconomy_Localised: Optional[str] = None
     StationEconomies: list[StationEconomyModel] = []
     SystemAllegiance: Optional[str] = None
@@ -363,6 +364,29 @@ class StatusEvent(GameEvent, NonJournalFileEvent):
     Cargo: Optional[float] = None
     LegalState: Optional[str] = None
     Fuel: Optional[StatusFuelModel] = None
+
+
+class MarketItemModel(IgnoreExtraFieldsModel):
+    Name: str
+    Name_Localised: Optional[str] = None
+    Category: str
+    Category_Localised: Optional[str] = None
+    BuyPrice: int = 0
+    SellPrice: int = 0
+    MeanPrice: int = 0
+    StockBracket: int = 0
+    DemandBracket: int = 0
+    Stock: int = 0
+    Demand: int = 0
+    Rare: bool = False
+
+
+class MarketEvent(GameEvent, NonJournalFileEvent):
+    event: Literal["Market"]
+    MarketID: int
+    StationName: str
+    StarSystem: str
+    Items: list[MarketItemModel] = []
 
 
 class UnknownCheckedEvent(GameEvent):

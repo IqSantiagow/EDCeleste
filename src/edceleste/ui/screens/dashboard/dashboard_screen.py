@@ -1,6 +1,6 @@
 import logging
 from textual.screen import Screen
-from textual.widgets import Footer
+from textual.widgets import Footer, TabbedContent
 from textual.containers import Grid
 from textual.app import ComposeResult
 from textual import on, work
@@ -9,6 +9,9 @@ from edceleste.ui.screens.app.widgets.app_header import AppHeader
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_col import WidgetCommsCol
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_input import (
     WidgetCommsInput,
+)
+from edceleste.ui.screens.dashboard.widgets.ship_log.ship_log_tabs import (
+    ALWAYS_EXPANDED_TABS,
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_panel import (
     WidgetShipLogPanel,
@@ -96,13 +99,36 @@ class DashboardScreen(Screen):
         except FileNotFoundError as e:
             logger.warning("Could not load keybinds: %s", e)
 
+    @on(TabbedContent.TabActivated)
+    def handle_ship_log_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        tab_id = event.pane.id
+        if not tab_id:
+            return
+
+        for tabs in self.query(TabbedContent):
+            if tabs.active != tab_id:
+                tabs.active = tab_id
+
+        # Order matters: line the tabs up first, or the wide panel shows up
+        # still on the previous card and flashes its contents.
+        self.query_one("#app-container", Grid).set_class(
+            tab_id in ALWAYS_EXPANDED_TABS, "-ship-log-expanded"
+        )
+
     def action_toggle_ship_log_expanded(self) -> None:
         """Switch the journal between the rail and full width.
 
         Which panel is visible and how the grid is laid out both follow from
-        this single class - ui/css.tcss does the rest.
+        this single class - ui/css.tcss does the rest. Cards listed in
+        ALWAYS_EXPANDED_TABS have no rail version, so while one of them is
+        open there is nothing to shrink down to.
         """
+        if self.active_ship_log_tab() in ALWAYS_EXPANDED_TABS:
+            return
         self.query_one("#app-container", Grid).toggle_class("-ship-log-expanded")
+
+    def active_ship_log_tab(self) -> str:
+        return self.query_one("#ship-log-wide TabbedContent", TabbedContent).active
 
     @work
     async def set_up_journal_stream_worker(self) -> None:

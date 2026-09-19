@@ -8,7 +8,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.cold_start_status import ColdStartStatus
-from edceleste.services.models.game_events import StatusEvent
+from edceleste.services.models.game_events import MarketEvent, StatusEvent
 from edceleste.services.models.journal_event import JournalEvent
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
@@ -34,6 +34,9 @@ class GameWatcherService:
         )
         self._game_watcher_tasks.append(
             asyncio.create_task(self.watch_status_file_and_generate_event())
+        )
+        self._game_watcher_tasks.append(
+            asyncio.create_task(self.watch_market_file_and_generate_event())
         )
 
     def stop_watcher_service(self) -> None:
@@ -130,32 +133,43 @@ class GameWatcherService:
             yield status
 
     async def watch_status_file_and_generate_event(self) -> None:
-        status_file_path = os.path.join(self.journal_path, "Status.json")
+        await self.__watch_side_file_and_generate_event("Status.json", StatusEvent)
+
+    async def watch_market_file_and_generate_event(self) -> None:
+        await self.__watch_side_file_and_generate_event("Market.json", MarketEvent)
+
+    async def __watch_side_file_and_generate_event(
+        self, file_name, event_model
+    ) -> None:
+        file_path = os.path.join(self.journal_path, file_name)
         last_modified_time = None
         while True:
             if self.exit_signal:
                 break
 
-            if not os.path.isfile(status_file_path):
+            if not os.path.isfile(file_path):
                 logger.warning(
-                    "Status file not found at '%s'. Waiting for it to appear...",
-                    status_file_path,
+                    "%s not found at '%s'. Waiting for it to appear...",
+                    file_name,
+                    file_path,
                 )
                 await asyncio.sleep(1)
                 continue
 
-            current_modified_time = os.path.getmtime(status_file_path)
+            current_modified_time = os.path.getmtime(file_path)
             if current_modified_time != last_modified_time:
                 last_modified_time = current_modified_time
-                with open(status_file_path, "r") as f:
+                with open(file_path, "r") as f:
                     line = f.read()
                     if line:
                         try:
-                            status_data = StatusEvent.model_validate_json(line)
-                            await self.event_bus.publish(status_data)
+                            event = event_model.model_validate_json(line)
+                            await self.event_bus.publish(event)
                         except ValidationError:
                             logger.error(
-                                "Error during validation for status event: %s", line
+                                "Error during validation for %s event: %s",
+                                file_name,
+                                line,
                             )
 
             await asyncio.sleep(1)

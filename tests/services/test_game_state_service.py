@@ -6,6 +6,10 @@ from unittest.mock import Mock
 from edceleste.services.event_bus import EventBus
 from edceleste.services.game_state_service import GameStateService
 from edceleste.services.models.game_events import LoadedGameEvent, StatusEvent
+from tests.projection.test_market_projection import (
+    make_docked_event,
+    make_market_event,
+)
 
 
 def _loaded_game_event(**overrides) -> LoadedGameEvent:
@@ -176,6 +180,121 @@ class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
         self.assertIn(
             "Warning: ship shields are down.", service.get_game_state_projection()
         )
+
+
+class TestGameStateServiceMarketStream(unittest.IsolatedAsyncioTestCase):
+    async def test_stream_market_yields_the_current_snapshot_without_waiting(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_market()
+
+        snapshot = await stream.__anext__()
+
+        self.assertFalse(snapshot.is_docked)
+        self.assertFalse(snapshot.is_market_data_current)
+        await stream.aclose()
+
+    async def test_stream_market_yields_commodities_when_the_market_ids_match(self):
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(make_docked_event())
+        stream = service.stream_market()
+        await stream.__anext__()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(make_market_event())
+
+        snapshot = await pending
+        self.assertTrue(snapshot.is_market_data_current)
+        self.assertEqual(snapshot.station_name, "Fan Horizons")
+        self.assertEqual(len(snapshot.commodities), 1)
+        await stream.aclose()
+
+    async def test_stream_market_reports_stale_data_after_docking_elsewhere(self):
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(make_market_event())
+        stream = service.stream_market()
+        await stream.__anext__()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(
+            make_docked_event(StationName="Rutherford Prospect", MarketID=999)
+        )
+
+        snapshot = await pending
+        self.assertTrue(snapshot.is_docked)
+        self.assertFalse(snapshot.is_market_data_current)
+        await stream.aclose()
+
+    async def test_stream_market_is_not_woken_by_status_events(self):
+        """Status.json ticks once a second - waking on it would rebuild the
+        commodity table that often."""
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_market()
+        await stream.__anext__()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(_status_event())
+        await asyncio.sleep(0)
+        self.assertFalse(pending.done())
+
+        # A docking event does wake it, which also proves the stream is live.
+        await service.process_event(make_docked_event())
+        snapshot = await pending
+        self.assertEqual(snapshot.station_name, "Fan Horizons")
+        await stream.aclose()
+
+    async def test_stream_market_is_not_woken_by_unrelated_journal_events(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_market()
+        await stream.__anext__()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(_loaded_game_event())
+        await asyncio.sleep(0)
+        self.assertFalse(pending.done())
+
+        # Waking it with a real event leaves the generator idle again, so the
+        # stream can be closed without cancelling a running __anext__.
+        await service.process_event(make_docked_event())
+        await pending
+        await stream.aclose()
+
+    async def test_market_events_never_reach_the_journal_event_stream(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_journal_events()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(make_market_event())
+
+        journal_event = _loaded_game_event()
+        await service.process_event(journal_event)
+
+        received = await pending
+        self.assertIs(received, journal_event)
+        await stream.aclose()
+
+    async def test_stream_market_unregisters_its_queue_when_closed(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_market()
+        await stream.__anext__()
+
+        await stream.aclose()
+
+        self.assertEqual(service._GameStateService__market_queue_watchers, [])
+
+    async def test_market_reaches_the_llm_projection(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        await service.process_event(make_docked_event())
+        await service.process_event(make_market_event())
+
+        projection = service.get_game_state_projection()
+        self.assertIn("Fan Horizons", projection)
+        self.assertIn("Platinum", projection)
 
 
 if __name__ == "__main__":
