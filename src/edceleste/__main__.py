@@ -16,6 +16,7 @@ def main() -> None:
             "edceleste.ui.screens.settings.widgets.stt.widget_stt_container",
             "edceleste.ui.screens.settings.widgets.system_prompts.widget_system_prompts_container",  # noqa: E501
             "edceleste.ui.screens.app.widgets.app_header",
+            "edceleste.ui.screens.dashboard.widgets.ship_log.widget_station_market",
         ]
     )
 

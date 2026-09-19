@@ -10,7 +10,11 @@ from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.ship_log_tabs import (
     SHIP_LOG_TAB_LOG,
+    SHIP_LOG_TAB_STATION,
     compose_placeholder_tab_panes,
+)
+from edceleste.ui.screens.dashboard.widgets.ship_log.widget_station_market import (
+    WidgetStationMarket,
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_extended_row import (  # noqa: E501
     WidgetShipLogExtendedRow,
@@ -48,7 +52,9 @@ class WidgetShipLogExtendedPanel(Widget):
                     yield Label("DETAILS", classes="log-details")
                 yield Rule(classes="ship-log-header-divider")
                 yield VerticalScroll(id=SCROLL_ID)
-            yield from compose_placeholder_tab_panes()
+            yield from compose_placeholder_tab_panes(
+                {SHIP_LOG_TAB_STATION: WidgetStationMarket()}
+            )
 
     def on_mount(self) -> None:
         self.call_after_refresh(self.rebuild_rows)

@@ -13,15 +13,33 @@ from edceleste.services.models.game_stats import (
     PlayerStats,
     ShipStats,
 )
+from edceleste.services.models.market_stats import MarketSnapshot
 
 
 class FakeGameStateProtocol:
-    def __init__(self, game_stats_snapshots=None):
+    def __init__(self, game_stats_snapshots=None, market_snapshots=None):
         self.game_stats_snapshots = game_stats_snapshots or []
+        self.market_snapshots = market_snapshots or []
 
     async def stream_game_stats(self) -> AsyncGenerator[GameStatsSnapshot, None]:
         for snapshot in self.game_stats_snapshots:
             yield snapshot
+
+    async def stream_market(self) -> AsyncGenerator[MarketSnapshot, None]:
+        for snapshot in self.market_snapshots:
+            yield snapshot
+
+
+def make_market_snapshot(**overrides) -> MarketSnapshot:
+    defaults = dict(
+        station_name="Fan Horizons",
+        is_docked=True,
+        has_commodities_market=True,
+        is_market_data_current=True,
+        commodities=(),
+    )
+    defaults.update(overrides)
+    return MarketSnapshot(**defaults)  # type: ignore
 
 
 def make_player_stats(**overrides) -> PlayerStats:
