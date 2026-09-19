@@ -27,6 +27,12 @@ from edceleste.use_cases.dashboard.stream_navigation_stats_use_case import (
 from edceleste.use_cases.dashboard.stream_ship_stats_use_case import (
     StreamShipStatsUseCase,
 )
+from edceleste.use_cases.dashboard.stream_station_market_use_case import (
+    StreamStationMarketUseCase,
+)
+from edceleste.ui.screens.dashboard.view_models.station_market_view_model import (
+    StationMarketViewModel,
+)
 from edceleste.use_cases.dashboard.stt_start_recording_use_case import (
     SttStartRecordingUseCase,
 )
@@ -48,6 +54,7 @@ class EdDashboardRepository:
         stream_navigation_stats_usecase: StreamNavigationStatsUseCase,
         stream_flight_and_drive_stats_usecase: StreamFlightAndDriveStatsUseCase,
         stream_ship_stats_usecase: StreamShipStatsUseCase,
+        stream_station_market_usecase: StreamStationMarketUseCase,
     ) -> None:
         self.stream_journal_events_usecase = stream_journal_events_usecase
         self.llm_send_message_usecase = llm_send_message_usecase
@@ -60,6 +67,7 @@ class EdDashboardRepository:
             stream_flight_and_drive_stats_usecase
         )
         self.stream_ship_stats_usecase = stream_ship_stats_usecase
+        self.stream_station_market_usecase = stream_station_market_usecase
 
     def stream_journal_events(self) -> AsyncGenerator[JournalLogViewModel, None]:
         return self.stream_journal_events_usecase()
@@ -89,3 +97,6 @@ class EdDashboardRepository:
 
     def stream_ship_stats(self) -> AsyncGenerator[ShipStatsViewModel, None]:
         return self.stream_ship_stats_usecase()
+
+    def stream_station_market(self) -> AsyncGenerator[StationMarketViewModel, None]:
+        return self.stream_station_market_usecase()

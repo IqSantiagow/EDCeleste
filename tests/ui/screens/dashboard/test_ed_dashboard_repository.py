@@ -23,6 +23,7 @@ class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
             stream_navigation_stats_usecase=None,  # type: ignore
             stream_flight_and_drive_stats_usecase=None,  # type: ignore
             stream_ship_stats_usecase=None,  # type: ignore
+            stream_station_market_usecase=None,  # type: ignore
         )
 
     def test_is_stt_enabled_returns_true_when_use_case_returns_true(self):
@@ -56,6 +57,7 @@ class TestEdDashboardRepositoryStatsStreams(unittest.TestCase):
             stream_navigation_stats_usecase=None,
             stream_flight_and_drive_stats_usecase=None,
             stream_ship_stats_usecase=None,
+            stream_station_market_usecase=None,
         )
         use_cases.update(stats_use_cases)
         return EdDashboardRepository(**use_cases)  # type: ignore
@@ -83,6 +85,14 @@ class TestEdDashboardRepositoryStatsStreams(unittest.TestCase):
         )
 
         self.assertIs(repository.stream_ship_stats(), stream)
+
+    def test_stream_station_market_returns_stream_from_its_use_case(self):
+        stream = object()
+        repository = self._make_repository(
+            stream_station_market_usecase=FakeStreamUseCase(stream)
+        )
+
+        self.assertIs(repository.stream_station_market(), stream)
 
 
 if __name__ == "__main__":

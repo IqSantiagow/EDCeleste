@@ -21,24 +21,32 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         getmtime_patcher = patch(
             "edceleste.services.game_watcher_service.os.path.getmtime"
         )
-        # start_watcher_service() also spawns the Status.json watcher task.
-        # This test file only covers the journal-line event bus integration,
-        # so that second task is replaced with a harmless no-op - otherwise
-        # it would immediately raise (no real Status.json on disk) and race
-        # the journal task for the same mocked builtins.open()/readline().
+        # start_watcher_service() also spawns a watcher task per side file
+        # (Status.json, Market.json). This test file only covers the
+        # journal-line event bus integration, so those tasks are replaced with
+        # harmless no-ops - otherwise they would race the journal task for the
+        # same mocked builtins.open()/readline() on any machine where those
+        # files happen to exist under JOURNAL_PATH.
         watch_status_file_patcher = patch.object(
             GameWatcherService,
             "watch_status_file_and_generate_event",
+            new=AsyncMock(),
+        )
+        watch_market_file_patcher = patch.object(
+            GameWatcherService,
+            "watch_market_file_and_generate_event",
             new=AsyncMock(),
         )
 
         self.mock_glob = glob_patcher.start()
         self.mock_getmtime = getmtime_patcher.start()
         watch_status_file_patcher.start()
+        watch_market_file_patcher.start()
 
         self.addCleanup(glob_patcher.stop)
         self.addCleanup(getmtime_patcher.stop)
         self.addCleanup(watch_status_file_patcher.stop)
+        self.addCleanup(watch_market_file_patcher.stop)
 
         self.mock_glob.return_value = [f"{JOURNAL_PATH}/Journal.log"]
         self.mock_getmtime.return_value = 100

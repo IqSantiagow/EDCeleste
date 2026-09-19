@@ -41,6 +41,9 @@ from edceleste.use_cases.dashboard.stream_navigation_stats_use_case import (
 from edceleste.use_cases.dashboard.stream_ship_stats_use_case import (
     StreamShipStatsUseCase,
 )
+from edceleste.use_cases.dashboard.stream_station_market_use_case import (
+    StreamStationMarketUseCase,
+)
 from edceleste.use_cases.settings.analyze_voice_sample_use_case import (
     AnalyzeVoiceSampleUseCase,
 )
@@ -183,6 +186,10 @@ class Container(containers.DeclarativeContainer):
         StreamShipStatsUseCase, game_state_protocol=game_state_service
     )
 
+    stream_station_market_use_case = providers.Factory(
+        StreamStationMarketUseCase, game_state_protocol=game_state_service
+    )
+
     llm_send_message_use_case = providers.Factory(
         LLMSendMessageUseCase,
         llm_protocol=llm_service,
@@ -304,6 +311,7 @@ class Container(containers.DeclarativeContainer):
         stream_navigation_stats_usecase=stream_navigation_stats_use_case,
         stream_flight_and_drive_stats_usecase=stream_flight_and_drive_stats_use_case,
         stream_ship_stats_usecase=stream_ship_stats_use_case,
+        stream_station_market_usecase=stream_station_market_use_case,
     )
 
     settings_repository = providers.Singleton(
