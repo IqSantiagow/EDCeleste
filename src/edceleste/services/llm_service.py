@@ -3,15 +3,13 @@ from typing import Union
 import logging
 import asyncio
 
-from edceleste.adapters.claude_agent_sdk import ClaudeAgentSDK
-from edceleste.adapters.lm_studio_sdk import LMStudioSDK
-from edceleste.protocols.llm_sdk_protocol import LLMSdkProtocol
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.message_block import (
     AgentFullResponse,
     SystemMessage,
     UserMessage,
     AgentText,
+    Thinking,
     ToolCall,
     ToolResult,
 )
@@ -21,9 +19,28 @@ from edceleste.services.models.event_reaction_event import EventReactionEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.llm_status import LLMStatus
 from edceleste.services.models.llm_stream_item import LLMStreamItem
-from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
+from edceleste.services.models.settings_model import (
+    SUPPORTED_LLM_PROVIDER_TYPES,
+    LLMProviderModel,
+    SettingsIssueModel,
+    SettingsModel,
+)
 from edceleste.services.tts_service import TTSEvent
 from edceleste.services.settings_service import SettingsService
+from pydantic_ai import Agent, Tool
+from pydantic_ai.messages import (
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
+    PartEndEvent,
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models import Model, infer_model
+from pydantic_ai.providers import Provider, infer_provider_class
+
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +84,6 @@ described below as JSON.
 {event_description}
 """
 
-SUPPORTED_LLM_PROVIDER_TYPES = ["claude_agent_sdk", "lm_studio"]
-
 
 class LLMService:
     def __init__(
@@ -79,6 +94,7 @@ class LLMService:
     ) -> None:
         self.conversation: list[Union[UserMessage, AgentFullResponse]] = []
         self.game_state: str | None = None
+        self.__agent: Agent | None = None
 
         self.__settings_service = settings_service
         self.__event_bus = event_bus
@@ -114,9 +130,7 @@ class LLMService:
 
         full_response = AgentFullResponse(content="", tool_calls=[], tool_results=[])
         try:
-            async for response in self.__agent.execute_query(
-                prompt=conv_history_with_state
-            ):
+            async for response in self.stream_agent_response(conv_history_with_state):
                 if isinstance(response, AgentText):
                     full_response.content = full_response.content + response.content
                 if isinstance(response, ToolCall):
@@ -157,12 +171,66 @@ class LLMService:
 
         return message_history_prompt
 
-    def register_tools(self):
-        # TODO: Need to think about how to register tools dynamically
-        # to act as extension
-        self.__agent.register_tools(self.__tools)
+    async def stream_agent_response(
+        self, prompt: str
+    ) -> AsyncGenerator[AgentText | ToolCall | ToolResult | Thinking, None]:
+        if self.__agent is None:
+            raise RuntimeError(
+                "LLM is not configured. Check the LLM settings and restart."
+            )
 
-    def validate_settings(
+        async with self.__agent.run_stream_events(prompt) as events:
+            async for event in events:
+                block = self.to_message_block(event)
+
+                if block is not None:
+                    yield block
+
+    def to_message_block(
+        self, event: object
+    ) -> AgentText | ToolCall | ToolResult | Thinking | None:
+        # A part is only complete on PartEndEvent, speaking every delta would
+        # cut the sentence into pieces.
+        if isinstance(event, PartEndEvent):
+            if isinstance(event.part, TextPart):
+                return AgentText(content=event.part.content)
+            if isinstance(event.part, ThinkingPart):
+                return Thinking(content=event.part.content)
+        if isinstance(event, FunctionToolCallEvent):
+            return self.to_tool_call(event.part)
+        if isinstance(event, FunctionToolResultEvent):
+            return self.to_tool_result(event.part)
+
+        return None
+
+    def to_tool_call(self, part: ToolCallPart) -> ToolCall:
+        tool = self.find_tool(part.tool_name)
+
+        return ToolCall(
+            tool_name=part.tool_name,
+            input=part.args_as_dict(),
+            tool_readable_name=tool.readable_name if tool else part.tool_name,
+            param_name=tool.param_name if tool else None,
+        )
+
+    def to_tool_result(self, part: ToolReturnPart | RetryPromptPart) -> ToolResult:
+        if isinstance(part, RetryPromptPart):
+            return ToolResult(content=part.model_response(), is_error=True)
+
+        metadata = part.metadata or {}
+
+        return ToolResult(
+            content=part.content,  # type: ignore
+            is_error=bool(metadata.get("is_error")),
+        )
+
+    def build_tools(self) -> list[Tool]:
+        return [Tool(tool.execute, name=tool.name) for tool in self.__tools]
+
+    def find_tool(self, tool_name: str) -> ToolProtocol | None:
+        return next((tool for tool in self.__tools if tool.name == tool_name), None)
+
+    async def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
         if new_settings.llm.provider.type not in SUPPORTED_LLM_PROVIDER_TYPES:
@@ -174,29 +242,37 @@ class LLMService:
                     f"{', '.join(SUPPORTED_LLM_PROVIDER_TYPES)}."
                 ),
             )
+        try:
+            available_models = await self.get_models(new_settings.llm.provider)
+        except Exception as error:
+            return SettingsIssueModel(
+                section="llm",
+                field="llm.provider.type",
+                message=f"Cannot reach the LLM provider: {error}",
+            )
 
-        provider = new_settings.llm.provider
-        if provider.type in SUPPORTED_LLM_PROVIDER_TYPES:
-            try:
-                sdk_provider = self.determine_provider(new_settings)
-                sdk_provider.validate_settings({"model": provider.model})
-            except Exception as e:
-                # Broad on purpose: an unreachable LM Studio server raises
-                # its own connection error here, not a ValueError, and that
-                # should show up as a validation issue too, not crash the
-                # save.
-                return SettingsIssueModel(
-                    section="llm",
-                    field="llm.provider.model",
-                    message=str(e),
-                )
+        if available_models and new_settings.llm.provider.model not in available_models:
+            return SettingsIssueModel(
+                section="llm",
+                field="llm.provider.model",
+                message=(
+                    "Unsupported LLM model. Supported models are "
+                    f"{', '.join(available_models)}."
+                ),
+            )
+
         return None
 
     def reload_service(self):
         settings = self.__settings_service.get_settings()
 
-        self.__agent: LLMSdkProtocol = self.determine_provider(settings)
-        self.register_tools()
+        self.model = self.build_model(settings)
+
+        self.__agent = Agent(
+            model=self.model,
+            system_prompt=self.build_system_prompt(settings),
+            tools=self.build_tools(),
+        )
 
     async def process_event_reaction(self, event: EventReactionEvent) -> None:
         await self.__llm_queue.put(
@@ -216,29 +292,28 @@ class LLMService:
 
         return f"{VOICE_RESPONSE_RULES}\n{user_system_prompt}"
 
-    def determine_provider(self, settings: SettingsModel) -> LLMSdkProtocol:
-        provider = settings.llm.provider
-
-        if provider.type == "chat_completions":
-            raise ValueError(
-                "Chat Completions provider is not supported in this "
-                "implementation. Use 'claude_agent_sdk' or 'lm_studio' instead."
-            )
-        elif provider.type == "claude_agent_sdk":
-            return ClaudeAgentSDK(
-                model=provider.model,
-                system_prompt=self.build_system_prompt(settings),
-            )
-        elif provider.type == "lm_studio":
-            return LMStudioSDK(
-                model=provider.model,
-                system_prompt=self.build_system_prompt(settings),
-            )
-        else:
+    def determine_provider(self, provider: LLMProviderModel) -> Provider:
+        if provider.type not in SUPPORTED_LLM_PROVIDER_TYPES:
             raise ValueError(
                 f"Unsupported LLM provider: {provider.type}. Supported providers "
                 f"are {', '.join(SUPPORTED_LLM_PROVIDER_TYPES)}."
             )
+
+        provider_class = infer_provider_class(provider.type)
+
+        if provider.base_url:
+            return provider_class(api_key=provider.api_key, base_url=provider.base_url)  # type: ignore
+
+        return provider_class(api_key=provider.api_key)  # type: ignore
+
+    def build_model(self, settings: SettingsModel) -> Model:
+        """ "provider:model" is how pydantic_ai names a model, our config splits it."""
+        provider = settings.llm.provider
+
+        return infer_model(
+            f"{provider.type}:{provider.model}",
+            provider_factory=lambda _: self.determine_provider(provider),
+        )
 
     def add_llm_request_to_queue(self, message: str) -> None:
         self.__llm_queue.put_nowait(message)
@@ -258,24 +333,31 @@ class LLMService:
 
             yield LLMStatus.IDLE
 
-    def get_models(self, provider_type: str) -> list[str]:
-        # Asks the specific provider the settings screen is showing, not
-        # whatever provider happens to be loaded right now - the pilot might
-        # be previewing "lm_studio" while "claude_agent_sdk" is still the
-        # one actually active.
-        if provider_type == "claude_agent_sdk":
-            return ClaudeAgentSDK(model="", system_prompt="").get_models
-        elif provider_type == "lm_studio":
-            return LMStudioSDK(model="", system_prompt="").get_models
-        else:
+    async def get_models(self, provider: LLMProviderModel | None = None) -> list[str]:
+        provider = provider or self.__settings_service.get_settings().llm.provider
+        built_provider = self.determine_provider(provider)
+
+        client = getattr(built_provider, "client", None)
+        if not hasattr(client, "models"):
             return []
+
+        try:
+            # Google is not async, so we just catch it in
+            # exception and return list anyway.
+
+            models = await client.models.list()  # type: ignore
+        except Exception as e:
+            logger.exception(f"Failed to fetch models: {e}", exc_info=e)
+            return []
+
+        return [model.id for model in models.data]
 
     async def __health_check(self) -> None:
         """Check if the LLM provider is reachable and working.
 
         If nothing booms, it's okay.
         """
-        async for _ in self.__agent.execute_query(prompt="Respond with only 'OK'"):
+        async for _ in self.stream_agent_response("Respond with only 'OK'"):
             pass
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
