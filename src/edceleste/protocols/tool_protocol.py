@@ -1,11 +1,11 @@
 from typing import Any, Protocol
 
+from pydantic_ai import ToolReturn
+
 
 class ToolProtocol(Protocol):
     readable_name: str
     param_name: str
     name: str
-    description: str
-    parameters: dict[str, Any]
 
-    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]: ...
+    async def execute(self, *args: Any, **kwargs: Any) -> ToolReturn: ...

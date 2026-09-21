@@ -30,12 +30,12 @@ class UpdateSettingsUseCase:
         self.event_reactions_service = event_reactions_service
         self.settings_service = settings_service
 
-    def __call__(self, new_settings: SettingsModel):
+    async def __call__(self, new_settings: SettingsModel):
         tts_issues = self.tts_service.validate_settings(new_settings)
         stt_issues = self.stt_service.validate_settings(new_settings)
         game_watcher_issues = self.game_watcher_service.validate_settings(new_settings)
         keybinds_issues = self.keybinds_service.validate_settings(new_settings)
-        llm_issues = self.llm_service.validate_settings(new_settings)
+        llm_issues = await self.llm_service.validate_settings(new_settings)
         event_reactions_issues = self.event_reactions_service.validate_settings(
             new_settings
         )

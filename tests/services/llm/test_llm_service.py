@@ -1,12 +1,33 @@
 import asyncio
 import unittest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+from pydantic_ai.messages import (
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    RetryPromptPart,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from edceleste.services.models.message_block import (
     AgentFullResponse,
     AgentText,
     SystemMessage,
+    Thinking,
+    ToolCall,
+    ToolResult,
     UserMessage,
 )
 from edceleste.services.event_bus import EventBus
@@ -21,10 +42,8 @@ from edceleste.services.models.game_events import LoadedGameEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.llm_status import LLMStatus
 from edceleste.services.models.settings_model import (
-    ChatCompletionsModel,
-    ClaudeAgentSdkModel,
     LLMModel,
-    LmStudioModel,
+    LLMProviderModel,
     PathModel,
     SettingsModel,
     SttModel,
@@ -43,23 +62,28 @@ def _make_settings(system_prompt: str = SYSTEM_PROMPT) -> SettingsModel:
 
 
 def _make_agent_stream_of(blocks: list):
-    """Build a fake execute_query that yields the given blocks and then finishes."""
+    """Build a fake stream_agent_response that yields the given blocks."""
 
-    async def execute_query(prompt: str):
+    async def stream_agent_response(prompt: str):
         for block in blocks:
             yield block
 
-    return execute_query
+    return stream_agent_response
 
 
 def _make_failing_agent_stream(error: Exception):
-    """Build a fake execute_query that blows up instead of yielding anything."""
+    """Build a fake stream_agent_response that blows up instead of yielding."""
 
-    async def execute_query(prompt: str):
+    async def stream_agent_response(prompt: str):
         raise error
         yield  # pragma: no cover - only here to keep this an async generator
 
-    return execute_query
+    return stream_agent_response
+
+
+def _make_models_listing(model_ids: list[str]) -> Mock:
+    """Mimic what the OpenRouter client returns from models.list()."""
+    return Mock(data=[Mock(id=model_id) for model_id in model_ids])
 
 
 def _make_loaded_game_event() -> LoadedGameEvent:
@@ -85,22 +109,42 @@ def _make_loaded_game_event() -> LoadedGameEvent:
     )
 
 
+class FakeTool:
+    """Minimal ToolProtocol implementation, so no real game services are needed."""
+
+    readable_name = "Perform Game Action"
+    param_name = "action"
+    name = "perform_game_action"
+
+    async def execute(self, action: str) -> str:
+        """Perform a game action"""
+        return f"Performed game action: {action}"
+
+
 class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # LLMService builds the SDK adapter in __init__; patch the class so no
-        # real agent (or network call) is created and we can drive execute_query.
-        agent_patcher = patch("edceleste.services.llm_service.ClaudeAgentSDK")
-        self.mock_claude_agent_sdk = agent_patcher.start()
+        # The agent is a real pydantic_ai Agent in production; patch the class so
+        # no model is built and no network call is made.
+        agent_patcher = patch("edceleste.services.llm_service.Agent")
+        self.mock_agent_class = agent_patcher.start()
         self.addCleanup(agent_patcher.stop)
 
-        # Tool registration reaches for the DI container, which is not wired here.
-        register_tools_patcher = patch.object(LLMService, "register_tools")
-        self.mock_register_tools = register_tools_patcher.start()
-        self.addCleanup(register_tools_patcher.stop)
+        # Building the provider and the model both need a reachable OpenRouter.
+        provider_patcher = patch.object(LLMService, "determine_provider")
+        self.mock_determine_provider = provider_patcher.start()
+        self.addCleanup(provider_patcher.stop)
 
-        self.mock_agent = self.mock_claude_agent_sdk.return_value
-        self.mock_agent.execute_query = Mock(
-            side_effect=_make_agent_stream_of([AgentText(content="Test output 1")])
+        model_patcher = patch.object(LLMService, "build_model")
+        model_patcher.start()
+        self.addCleanup(model_patcher.stop)
+
+        # Every turn reads from this stream; the mapping of raw pydantic_ai events
+        # onto message blocks is covered by TestLLMServiceEventMapping instead.
+        stream_patcher = patch.object(LLMService, "stream_agent_response")
+        self.mock_stream_agent_response = stream_patcher.start()
+        self.addCleanup(stream_patcher.stop)
+        self.mock_stream_agent_response.side_effect = _make_agent_stream_of(
+            [AgentText(content="Test output 1")]
         )
 
         self.test_game_state = "Test game state"
@@ -112,13 +156,9 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             settings_service=self.settings_handler,
             tools=[],
         )
-        # LLMService no longer builds its agent in __init__ - that now happens
-        # in reload_service(), driven by the cold-start flow. Call it here so
-        # self.mock_agent is wired in before each test runs.
+        # The agent is built in reload_service(), driven by the cold-start flow.
         self.llm_service.reload_service()
-        # Game state is cached from the last GameStateChangedEvent seen on the bus
-        # (see process_game_state_change). Set it directly here so the streaming
-        # tests exercise the "state known" path.
+        # Game state is cached from the last GameStateChangedEvent seen on the bus.
         self.llm_service.game_state = self.test_game_state
 
         self.llm_stream = self.llm_service.consume_llm_queue()
@@ -164,20 +204,18 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         await self._collect_stream_items(3)
 
         self.assertEqual(
-            self.mock_claude_agent_sdk.call_args.kwargs["system_prompt"],
+            self.mock_agent_class.call_args.kwargs["system_prompt"],
             f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
         )
         self.assertIn(
             self.test_game_state,
-            self.mock_agent.execute_query.call_args.kwargs["prompt"],
+            self.mock_stream_agent_response.call_args.args[0],
         )
 
     async def test_should_publish_tts_event_for_every_agent_text(self):
         self.event_bus.publish = AsyncMock()
-        self.mock_agent.execute_query = Mock(
-            side_effect=_make_agent_stream_of(
-                [AgentText(content="First"), AgentText(content="Second")]
-            )
+        self.mock_stream_agent_response.side_effect = _make_agent_stream_of(
+            [AgentText(content="First"), AgentText(content="Second")]
         )
         self.llm_service.add_llm_request_to_queue("Test message")
 
@@ -225,14 +263,14 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
                 LLMStatus.IDLE,
             ],
         )
-        self.mock_agent.execute_query.assert_not_called()
+        self.mock_stream_agent_response.assert_not_called()
         self.assertEqual(self.llm_service.conversation, [])
 
     async def test_should_report_failed_turn_and_keep_serving_next_message(self):
         # A single broken turn cannot kill the stream - it is the only source of
         # data for COMMS.
-        self.mock_agent.execute_query = Mock(
-            side_effect=_make_failing_agent_stream(RuntimeError("agent down"))
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            RuntimeError("agent down")
         )
         self.llm_service.add_llm_request_to_queue("Failing message")
 
@@ -245,8 +283,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(failed_turn_items[2], LLMStatus.IDLE)
 
-        self.mock_agent.execute_query = Mock(
-            side_effect=_make_agent_stream_of([AgentText(content="Test output 2")])
+        self.mock_stream_agent_response.side_effect = _make_agent_stream_of(
+            [AgentText(content="Test output 2")]
         )
         self.llm_service.add_llm_request_to_queue("Next message")
 
@@ -295,119 +333,80 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             self.llm_service.conversation,
         )
 
-    def test_determine_provider_builds_claude_agent_sdk_from_settings(self):
+    # --- settings ---
+
+    async def test_validate_settings_reports_no_issues_for_a_known_model(self):
         settings = _make_settings()
-        settings.llm.provider = ClaudeAgentSdkModel(
-            type="claude_agent_sdk", model="claude-haiku-4-5-20251001"
+        settings.llm.provider.model = "anthropic/claude-haiku-4.5"
+        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+            return_value=_make_models_listing(["anthropic/claude-haiku-4.5"])
         )
 
-        provider = self.llm_service.determine_provider(settings)
-
-        self.assertIs(provider, self.mock_claude_agent_sdk.return_value)
-        self.assertEqual(
-            self.mock_claude_agent_sdk.call_args.kwargs,
-            {
-                "model": "claude-haiku-4-5-20251001",
-                "system_prompt": f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
-            },
-        )
-
-    def test_determine_provider_builds_lm_studio_from_settings(self):
-        settings = _make_settings()
-        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
-
-        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
-            provider = self.llm_service.determine_provider(settings)
-
-        self.assertIs(provider, mock_lm_studio_sdk.return_value)
-        self.assertEqual(
-            mock_lm_studio_sdk.call_args.kwargs,
-            {
-                "model": "llama-3",
-                "system_prompt": f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
-            },
-        )
-
-    def test_determine_provider_rejects_chat_completions_provider(self):
-        settings = _make_settings()
-        settings.llm.provider = ChatCompletionsModel(
-            type="chat_completions",
-            model="gpt-4",
-            base_url="https://example.com",
-            bearer_token="token",
-        )
-
-        with self.assertRaises(ValueError):
-            self.llm_service.determine_provider(settings)
-
-    def test_validate_settings_reports_no_issues(self):
-        # The CLI authenticates on its own, so the api key is no longer required.
-        settings = _make_settings()
-
-        issue = self.llm_service.validate_settings(settings)
+        issue = await self.llm_service.validate_settings(settings)
 
         self.assertIsNone(issue)
 
-    def test_validate_settings_reports_no_issues_for_lm_studio_provider(self):
+    async def test_validate_settings_rejects_a_model_openrouter_does_not_serve(self):
         settings = _make_settings()
-        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
-
-        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
-            mock_lm_studio_sdk.return_value.validate_settings.return_value = None
-            issue = self.llm_service.validate_settings(settings)
-
-        self.assertIsNone(issue)
-
-    def test_validate_settings_rejects_chat_completions_as_unsupported_provider(self):
-        settings = _make_settings()
-        settings.llm.provider = ChatCompletionsModel(
-            type="chat_completions",
-            model="gpt-4",
-            base_url="https://example.com",
-            bearer_token="token",
+        settings.llm.provider.model = "not/a-real-model"
+        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+            return_value=_make_models_listing(["anthropic/claude-haiku-4.5"])
         )
 
-        issue = self.llm_service.validate_settings(settings)
+        issue = await self.llm_service.validate_settings(settings)
+
+        assert issue is not None
+        self.assertEqual(issue.field, "llm.provider.model")
+
+    async def test_validate_settings_rejects_an_unsupported_provider_type(self):
+        settings = _make_settings()
+        settings.llm.provider = Mock(type="lm_studio")
+
+        issue = await self.llm_service.validate_settings(settings)
 
         assert issue is not None
         self.assertEqual(issue.field, "llm.provider.type")
 
-    def test_validate_settings_reports_issue_when_sdk_raises_non_value_error(self):
-        # An unreachable LM Studio server raises its own connection error, not
-        # a ValueError - this must still come back as a validation issue
-        # instead of crashing the save.
+    async def test_validate_settings_accepts_any_model_when_no_list_is_published(
+        self,
+    ):
+        # ollama, vllm and azure publish nothing to check the name against, so
+        # whatever the pilot typed has to pass.
         settings = _make_settings()
-        settings.llm.provider = LmStudioModel(type="lm_studio", model="llama-3")
+        settings.llm.provider.model = "some-local-model"
+        self.mock_determine_provider.return_value = Mock(spec=[])
 
-        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
-            mock_lm_studio_sdk.return_value.validate_settings.side_effect = (
-                ConnectionError("LM Studio server is not reachable")
-            )
-            issue = self.llm_service.validate_settings(settings)
+        issue = await self.llm_service.validate_settings(settings)
+
+        self.assertIsNone(issue)
+
+    async def test_validate_settings_reports_a_provider_that_cannot_be_built(self):
+        # Picking groq without its package installed must come back as a
+        # validation issue instead of crashing the save.
+        settings = _make_settings()
+        self.mock_determine_provider.side_effect = ImportError(
+            "Please install the `groq` package"
+        )
+
+        issue = await self.llm_service.validate_settings(settings)
 
         assert issue is not None
-        self.assertEqual(issue.field, "llm.provider.model")
-        self.assertIn("not reachable", issue.message)
+        self.assertEqual(issue.field, "llm.provider.type")
+        self.assertIn("groq", issue.message)
 
-    def test_get_models_delegates_to_claude_agent_sdk_for_that_provider_type(self):
-        self.mock_agent.get_models = ["claude-opus-5", "claude-sonnet-5"]
+    async def test_get_models_returns_nothing_when_the_provider_has_no_listing(self):
+        self.mock_determine_provider.return_value = Mock(spec=[])
 
-        result = self.llm_service.get_models("claude_agent_sdk")
+        self.assertEqual(await self.llm_service.get_models(), [])
 
-        self.assertEqual(result, ["claude-opus-5", "claude-sonnet-5"])
+    async def test_get_models_returns_the_ids_the_provider_serves(self):
+        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+            return_value=_make_models_listing(["openai/gpt-4o", "google/gemini-pro"])
+        )
 
-    def test_get_models_delegates_to_lm_studio_for_that_provider_type(self):
-        with patch("edceleste.services.llm_service.LMStudioSDK") as mock_lm_studio_sdk:
-            mock_lm_studio_sdk.return_value.get_models = ["llama-3", "mistral-7b"]
+        result = await self.llm_service.get_models()
 
-            result = self.llm_service.get_models("lm_studio")
-
-        self.assertEqual(result, ["llama-3", "mistral-7b"])
-
-    def test_get_models_returns_empty_list_for_unsupported_provider_type(self):
-        result = self.llm_service.get_models("chat_completions")
-
-        self.assertEqual(result, [])
+        self.assertEqual(result, ["openai/gpt-4o", "google/gemini-pro"])
 
     # --- cold_start ---
 
@@ -429,11 +428,11 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         last_status = statuses[-1]
         self.assertTrue(last_status.completed)
         self.assertIsNone(last_status.message)
-        self.mock_agent.execute_query.assert_called_once()
+        self.mock_stream_agent_response.assert_called_once()
 
     async def test_cold_start_yields_error_message_when_health_check_fails(self):
-        self.mock_agent.execute_query = Mock(
-            side_effect=_make_failing_agent_stream(RuntimeError("agent unreachable"))
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            RuntimeError("agent unreachable")
         )
 
         statuses = [status async for status in self.llm_service.cold_start()]
@@ -442,17 +441,222 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "agent unreachable")
 
-    def test_reload_service_rebuilds_agent_with_updated_system_prompt_and_tools(self):
+    def test_reload_service_rebuilds_agent_with_updated_system_prompt(self):
         new_settings = _make_settings(system_prompt="New system prompt")
         self.settings_handler.get_settings.return_value = new_settings
 
         self.llm_service.reload_service()
 
         self.assertEqual(
-            self.mock_claude_agent_sdk.call_args.kwargs["system_prompt"],
+            self.mock_agent_class.call_args.kwargs["system_prompt"],
             f"{VOICE_RESPONSE_RULES}\nNew system prompt",
         )
-        self.assertEqual(self.mock_register_tools.call_count, 2)
+
+
+class TestLLMServiceProvider(unittest.TestCase):
+    """Nothing is patched here, so real pydantic_ai providers and models are built."""
+
+    def setUp(self):
+        self.llm_service = LLMService(
+            event_bus=EventBus(),
+            settings_service=Mock(spec=SettingsService),
+            tools=[],
+        )
+
+    def test_should_build_the_provider_class_pydantic_ai_knows_for_that_name(self):
+        provider = self.llm_service.determine_provider(
+            LLMProviderModel(
+                type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
+            )
+        )
+
+        self.assertIsInstance(provider, OpenRouterProvider)
+
+    def test_should_build_any_other_supported_provider_the_same_way(self):
+        # Nothing about openrouter is hard wired - every provider goes through
+        # the same infer_provider_class call.
+        provider = self.llm_service.determine_provider(
+            LLMProviderModel(type="openai", model="gpt-4o", api_key="key-123")
+        )
+
+        self.assertIsInstance(provider, OpenAIProvider)
+
+    def test_should_pass_a_custom_base_url_to_the_provider(self):
+        provider = self.llm_service.determine_provider(
+            LLMProviderModel(
+                type="openai",
+                model="qwen2.5",
+                api_key="key-123",
+                base_url="http://localhost:1234/v1",
+            )
+        )
+
+        self.assertEqual(str(provider.base_url), "http://localhost:1234/v1/")
+
+    def test_should_reject_a_provider_type_pydantic_ai_does_not_serve(self):
+        with self.assertRaises(ValueError):
+            self.llm_service.determine_provider(
+                LLMProviderModel(type="lm_studio", model="llama-3", api_key="k")
+            )
+
+    def test_should_build_the_model_belonging_to_the_chosen_provider(self):
+        settings = _make_settings()
+        settings.llm.provider = LLMProviderModel(
+            type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
+        )
+
+        self.assertIsInstance(self.llm_service.build_model(settings), OpenRouterModel)
+
+    def test_should_build_a_different_model_class_for_a_different_provider(self):
+        settings = _make_settings()
+        settings.llm.provider = LLMProviderModel(
+            type="anthropic", model="claude-haiku-4-5-20251001", api_key="key-123"
+        )
+
+        self.assertIsInstance(self.llm_service.build_model(settings), AnthropicModel)
+
+
+class TestLLMServiceEventMapping(unittest.TestCase):
+    """pydantic_ai events carry more than the UI shows - only these map over."""
+
+    def setUp(self):
+        self.tool = FakeTool()
+        self.llm_service = LLMService(
+            event_bus=EventBus(),
+            settings_service=Mock(spec=SettingsService),
+            tools=[self.tool],
+        )
+
+    def test_should_map_a_finished_text_part_to_agent_text(self):
+        event = PartEndEvent(index=0, part=TextPart(content="Hello Commander"))
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            AgentText(content="Hello Commander"),
+        )
+
+    def test_should_map_a_finished_thinking_part_to_thinking(self):
+        event = PartEndEvent(index=0, part=ThinkingPart(content="weighing options"))
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            Thinking(content="weighing options"),
+        )
+
+    def test_should_ignore_text_deltas_so_speech_is_not_cut_into_pieces(self):
+        event = PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Hel"))
+
+        self.assertIsNone(self.llm_service.to_message_block(event))
+
+    def test_should_map_a_tool_call_to_the_readable_name_of_a_known_tool(self):
+        event = FunctionToolCallEvent(
+            part=ToolCallPart(
+                tool_name="perform_game_action",
+                args={"action": "ToggleFlightAssist"},
+                tool_call_id="call-1",
+            )
+        )
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            ToolCall(
+                tool_name="perform_game_action",
+                input={"action": "ToggleFlightAssist"},
+                tool_readable_name="Perform Game Action",
+                param_name="action",
+            ),
+        )
+
+    def test_should_fall_back_to_the_raw_name_for_an_unknown_tool(self):
+        event = FunctionToolCallEvent(
+            part=ToolCallPart(tool_name="mystery_tool", args={}, tool_call_id="call-1")
+        )
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            ToolCall(
+                tool_name="mystery_tool",
+                input={},
+                tool_readable_name="mystery_tool",
+                param_name=None,
+            ),
+        )
+
+    def test_should_read_the_error_flag_a_tool_put_in_its_metadata(self):
+        event = FunctionToolResultEvent(
+            part=ToolReturnPart(
+                tool_name="perform_game_action",
+                content="Game actions are disabled by the user.",
+                tool_call_id="call-1",
+                metadata={"is_error": True},
+            )
+        )
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            ToolResult(content="Game actions are disabled by the user.", is_error=True),
+        )
+
+    def test_should_map_a_successful_tool_result_without_an_error_flag(self):
+        event = FunctionToolResultEvent(
+            part=ToolReturnPart(
+                tool_name="perform_game_action",
+                content="Performed game action: Supercruise",
+                tool_call_id="call-1",
+                metadata={"is_error": False},
+            )
+        )
+
+        self.assertEqual(
+            self.llm_service.to_message_block(event),
+            ToolResult(content="Performed game action: Supercruise", is_error=False),
+        )
+
+    def test_should_treat_a_retry_prompt_as_a_failed_tool_result(self):
+        # A retry prompt means the model called the tool wrong, so the tool never
+        # ran - the pilot still has to see that the action did not happen.
+        event = FunctionToolResultEvent(
+            part=RetryPromptPart(
+                content="action is not a valid EdAction",
+                tool_name="perform_game_action",
+                tool_call_id="call-1",
+            )
+        )
+
+        block = self.llm_service.to_message_block(event)
+
+        assert isinstance(block, ToolResult)
+        self.assertTrue(block.is_error)
+        self.assertIn("not a valid EdAction", block.content)
+
+
+class TestLLMServiceStreamsFromAgent(unittest.IsolatedAsyncioTestCase):
+    """Drives a real Agent with a stubbed model, so the event loop is exercised."""
+
+    async def test_should_stream_tool_call_result_and_text_of_a_real_agent_run(self):
+        llm_service = LLMService(
+            event_bus=EventBus(),
+            settings_service=Mock(spec=SettingsService),
+            tools=[FakeTool()],
+        )
+        with (
+            patch.object(LLMService, "determine_provider"),
+            patch.object(LLMService, "build_model", return_value=TestModel()),
+        ):
+            llm_service.reload_service()
+
+        blocks = [
+            block async for block in llm_service.stream_agent_response("do something")
+        ]
+
+        tool_calls = [block for block in blocks if isinstance(block, ToolCall)]
+        tool_results = [block for block in blocks if isinstance(block, ToolResult)]
+
+        self.assertEqual(len(tool_calls), 1)
+        self.assertEqual(tool_calls[0].tool_readable_name, "Perform Game Action")
+        self.assertEqual(len(tool_results), 1)
+        self.assertFalse(tool_results[0].is_error)
+        self.assertTrue(any(isinstance(block, AgentText) for block in blocks))
 
 
 if __name__ == "__main__":
