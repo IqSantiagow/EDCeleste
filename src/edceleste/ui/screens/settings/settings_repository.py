@@ -5,7 +5,11 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
     VoiceCloningState,
 )
 from edceleste.services.models.keybinds_model import Keybind
-from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
+from edceleste.services.models.settings_model import (
+    LLMProviderModel,
+    SettingsIssueModel,
+    SettingsModel,
+)
 from edceleste.use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
 )
@@ -95,9 +99,11 @@ class SettingsRepository:
     def load_keybinds(self) -> None:
         self.settings_load_keybinds_use_case()
 
-    def update_settings(self, new_settings: SettingsModel) -> list[SettingsIssueModel]:
+    async def update_settings(
+        self, new_settings: SettingsModel
+    ) -> list[SettingsIssueModel]:
         try:
-            self.update_settings_use_case(new_settings)
+            await self.update_settings_use_case(new_settings)
             return []
         except SettingsValidationException as e:
             return e.issues
@@ -108,8 +114,10 @@ class SettingsRepository:
     async def get_voices(self) -> list[str]:
         return await self.get_tts_voices_use_case()
 
-    def get_llm_models(self, provider_type: str) -> list[str]:
-        return self.get_llm_models_use_case(provider_type)
+    async def get_llm_models(
+        self, provider: LLMProviderModel | None = None
+    ) -> list[str]:
+        return await self.get_llm_models_use_case(provider)
 
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str

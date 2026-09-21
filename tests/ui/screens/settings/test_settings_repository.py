@@ -87,16 +87,16 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         load_keybinds_use_case.assert_called_once()
 
-    def test_should_delegate_update_settings_to_use_case(self):
-        update_settings_use_case = Mock()
+    async def test_should_delegate_update_settings_to_use_case(self):
+        update_settings_use_case = AsyncMock()
         repository = self._make_repository(
             update_settings_use_case=update_settings_use_case
         )
         new_settings = _make_settings()
 
-        repository.update_settings(new_settings)
+        await repository.update_settings(new_settings)
 
-        update_settings_use_case.assert_called_once_with(new_settings)
+        update_settings_use_case.assert_awaited_once_with(new_settings)
 
     def test_should_delegate_get_settings_to_use_case(self):
         settings = _make_settings()
@@ -120,17 +120,19 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, voices)
         get_tts_voices_use_case.assert_awaited_once()
 
-    def test_should_delegate_get_llm_models_to_use_case(self):
-        models = ["claude-haiku-4-5-20251001", "claude-sonnet-5"]
-        get_llm_models_use_case = Mock(return_value=models)
+    async def test_should_delegate_get_llm_models_to_use_case(self):
+        models = ["anthropic/claude-haiku-4.5", "openai/gpt-4o"]
+        get_llm_models_use_case = AsyncMock(return_value=models)
         repository = self._make_repository(
             get_llm_models_use_case=get_llm_models_use_case
         )
 
-        result = repository.get_llm_models("claude_agent_sdk")
+        provider = _make_settings().llm.provider
+
+        result = await repository.get_llm_models(provider)
 
         self.assertEqual(result, models)
-        get_llm_models_use_case.assert_called_once_with("claude_agent_sdk")
+        get_llm_models_use_case.assert_awaited_once_with(provider)
 
     def test_should_delegate_get_stt_models_to_use_case(self):
         models = ["tiny.en", "base.en"]

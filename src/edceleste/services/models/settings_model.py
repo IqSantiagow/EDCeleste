@@ -115,50 +115,77 @@ class TTSModel(BaseModel, validate_assignment=True):
     )
 
 
-class ChatCompletionsModel(BaseModel):
-    type: Literal["chat_completions"] = Field(
-        description="The type of LLM model",
-    )
+# Every provider pydantic_ai can build from an api key. The six that need an
+# extra package installed (bedrock, cohere, groq, mistral, voyageai, xai) are
+# offered too, LLMService.validate_settings reports the missing package.
+SUPPORTED_LLM_PROVIDER_TYPES = [
+    "alibaba",
+    "anthropic",
+    "azure",
+    "azure-responses",
+    "bedrock",
+    "bedrock-mantle",
+    "cerebras",
+    "cohere",
+    "crusoe",
+    "deepseek",
+    "fireworks",
+    "github",
+    "github-copilot",
+    "google",
+    "google-cloud",
+    "groq",
+    "heroku",
+    "huggingface",
+    "litellm",
+    "mistral",
+    "moonshotai",
+    "nebius",
+    "ollama",
+    "openai",
+    "openai-chat",
+    "openai-responses",
+    "openrouter",
+    "ovhcloud",
+    "sambanova",
+    "together",
+    "typesafe",
+    "vercel",
+    "vllm",
+    "voyageai",
+    "xai",
+    "zai",
+]
 
+DEFAULT_LLM_PROVIDER_TYPE = "openrouter"
+DEFAULT_LLM_MODEL = "anthropic/claude-haiku-4.5"
+
+
+class LLMProviderModel(BaseModel):
+    """One shape for every provider - pydantic_ai knows how to build each one."""
+
+    type: str = Field(
+        description="The provider name, one of SUPPORTED_LLM_PROVIDER_TYPES",
+    )
     model: str = Field(
-        description="The model to use for chat completions",
+        description="The model to use, as the provider names it",
     )
-
-    base_url: str = Field(description="The base URL for the chat completions API")
-
-    bearer_token: str = Field(
-        description="The bearer token for the chat completions API"
+    api_key: str = Field(
+        default="",
+        description="The API key for the provider",
     )
-
-
-class ClaudeAgentSdkModel(BaseModel):
-    type: Literal["claude_agent_sdk"] = Field(
-        description="The type of LLM model",
+    base_url: str = Field(
+        default="",
+        description="Custom endpoint of the provider, empty means its default one",
     )
-    model: str = Field(
-        description="The model to use for the Claude Agent SDK",
-    )
-
-
-class LmStudioModel(BaseModel):
-    type: Literal["lm_studio"] = Field(
-        description="The type of LLM model",
-    )
-    model: str = Field(
-        description="The model to use for LM Studio",
-    )
-
-
-DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 
 class LLMModel(BaseModel):
-    provider: Union[ChatCompletionsModel, ClaudeAgentSdkModel, LmStudioModel] = Field(
-        default_factory=lambda: ClaudeAgentSdkModel(
-            type="claude_agent_sdk", model=DEFAULT_CLAUDE_MODEL
+    provider: LLMProviderModel = Field(
+        default_factory=lambda: LLMProviderModel(
+            type=DEFAULT_LLM_PROVIDER_TYPE, model=DEFAULT_LLM_MODEL
         ),
         description="The LLM provider",
-        discriminator="type",
     )
 
     system_prompt: str = Field(

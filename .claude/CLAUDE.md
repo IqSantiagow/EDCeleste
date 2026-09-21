@@ -29,9 +29,9 @@ Two independent, both-gitignored config sources:
 
 - **`config.yaml`** (copy from `config-example.yaml`) — user/runtime settings, loaded via `services/settings_service.py` (`SettingsService`) into `SettingsModel` (`services/models/settings_model.py`):
   - `paths.journal_path` / `paths.keybindings_path`
-  - `llm.provider` — discriminated on `type`: `claude_agent_sdk` (default, `model`),
-    `lm_studio` (`model`), or `chat_completions` (`model`, `base_url`, `bearer_token`).
-    There is no `api_key` field; the Claude Agent SDK brings its own auth.
+  - `llm.provider` — `type` (any provider name in `SUPPORTED_LLM_PROVIDER_TYPES`,
+    `services/models/settings_model.py`), `model`, `api_key` and an optional
+    `base_url` for providers without a public endpoint (ollama, vllm, azure).
   - `llm.system_prompt` — used to build the LLM agent
   - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
   - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`,
@@ -76,7 +76,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
-- Default LLM: `claude-haiku-4-5-20251001` via the Claude Agent SDK (`adapters/claude_agent_sdk.py`). `LMStudioSDK` (`adapters/lm_studio_sdk.py`) is the only other `LLMSdkProtocol` implementation; the provider is selected in `config.yaml` and wired in `services/llm_service.py`. `chat_completions` is a valid config schema but `LLMService.determine_provider` rejects it at runtime
+- The LLM runs through `pydantic-ai`. `LLMService` builds an `Agent` in `reload_service()` and streams it with `run_stream_events`. Providers are not hand wired: `determine_provider` calls `infer_provider_class(type)(api_key=...)` and `build_model` calls `infer_model("<type>:<model>")` with that provider, so every provider `pydantic_ai` supports works from config alone. Default: `openrouter` with `anthropic/claude-haiku-4.5`. Tools are plain objects implementing `ToolProtocol` and are wrapped with `pydantic_ai.Tool` in `LLMService.build_tools()` — `pydantic_ai` derives the arguments from the `execute` signature and the description from its docstring, so a tool never hand writes a JSON schema
 
 ## UI rules
 - Widgets used only within specific widgets should be kept in one file. F.e `WidgetCommsInput` is only used within the dashboard screen, so it stays in `ui/screens/dashboard/widgets/comms/widget_comms_input.py`.

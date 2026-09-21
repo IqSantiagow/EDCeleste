@@ -99,11 +99,11 @@ class SettingsScreen(Screen):
             SaveState.MODIFIED if is_any_section_modified else SaveState.IDLE
         )
 
-    def action_validate_and_save_settings(self) -> None:
+    async def action_validate_and_save_settings(self) -> None:
         if not self.settings_state:
             return
 
-        failures = self.settings_repository.update_settings(self.settings_state)
+        failures = await self.settings_repository.update_settings(self.settings_state)
         if failures:
             self.query_one(WidgetSettingsHeaderContent).save_state = SaveState.FAILED
             self.notify_about_failures_to_sections(failures)
