@@ -6,9 +6,9 @@ permissions:
   issues: write
   id-token: write
 
+# Claude starts only when someone asks for it with an `@claude` comment.
+# Opening or assigning an issue does nothing on purpose.
 on:
-  issues:
-    types: [ opened, assigned ]
   issue_comment:
     types: [ created ]
 
@@ -18,9 +18,7 @@ jobs:
     environment: pr-action
     # Only for actual issues, not PR conversations (issue_comment also fires for those),
     # and only on comments that @-mention Claude.
-    if: |
-      github.event_name == 'issues' ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.comment.body, '@claude'))
+    if: github.event.issue.pull_request == null && contains(github.event.comment.body, '@claude')
     steps:
       - uses: actions/checkout@v7
         with:
