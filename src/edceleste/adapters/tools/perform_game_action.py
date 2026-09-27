@@ -29,6 +29,12 @@ class PerformGameAction(ToolProtocol):
                 metadata={"is_error": True},
             )
 
+        if not self.keybind_service.is_bound(action):
+            return ToolReturn(
+                return_value=f"{action.value} is not bound to a keyboard key.",
+                metadata={"is_error": True},
+            )
+
         await self.keybind_service.perform_action(action)
 
         return ToolReturn(

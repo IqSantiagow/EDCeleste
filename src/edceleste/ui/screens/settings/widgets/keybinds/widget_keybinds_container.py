@@ -23,4 +23,11 @@ class WidgetKeybindsContainer(WidgetBaseSettingsContainer):
         yield WidgetSectionHeader("LOADED KEYBINDS")
         with VerticalScroll(id="keybinds-entry-container"):
             for keybind in self.keybinds:
-                yield WidgetLabeledValueRow(keybind.action, keybind.key)
+                yield WidgetLabeledValueRow(keybind.action, keybind_as_text(keybind))
+
+
+def keybind_as_text(keybind: Keybind) -> str:
+    """LeftShift+L, or "no keyboard key" for an action bound only elsewhere."""
+    if keybind.key is None:
+        return "no keyboard key"
+    return "+".join([*keybind.modifiers, keybind.key])

@@ -10,6 +10,7 @@ from edceleste.services.models.keybinds_model import (
     EdAction,
     Keybind,
     MissingKeybindsError,
+    action_in_plain_words,
 )
 from lxml import etree  # type: ignore
 
@@ -27,6 +28,14 @@ except ImportError:  # pydirectinput needs ctypes.WinDLL, so it only imports on 
     class _PydirectinputStub:
         @staticmethod
         def press(key: str) -> None:
+            raise RuntimeError("pydirectinput is only available on Windows")
+
+        @staticmethod
+        def keyDown(key: str) -> None:
+            raise RuntimeError("pydirectinput is only available on Windows")
+
+        @staticmethod
+        def keyUp(key: str) -> None:
             raise RuntimeError("pydirectinput is only available on Windows")
 
     pydirectinput = _PydirectinputStub()  # type: ignore[assignment]
@@ -63,12 +72,32 @@ class KeybindService:
     def resolve(self, action: EdAction) -> Keybind:
         return self._keybinds_by_action[action]
 
+    def is_bound(self, action: EdAction) -> bool:
+        return self.resolve(action).key is not None
+
     async def perform_action(self, action: EdAction) -> None:
         keybind = self.resolve(action)
+        if keybind.key is None:
+            logger.warning(
+                f"Action '{action.value}' has no keyboard key, nothing is pressed"
+            )
+            return
+
         normalized_key = self._normalize_key(keybind.key)
-        pydirectinput.press(normalized_key)
+        normalized_modifiers = [self._normalize_key(m) for m in keybind.modifiers]
+
+        for modifier in normalized_modifiers:
+            pydirectinput.keyDown(modifier)
+        try:
+            pydirectinput.press(normalized_key)
+        finally:
+            # Always let go of the modifiers, a stuck Shift breaks the game controls
+            for modifier in reversed(normalized_modifiers):
+                pydirectinput.keyUp(modifier)
+
         logger.info(
-            f"Performing action '{action.value}' bound to key '{normalized_key}'"
+            f"Performing action '{action.value}' bound to key "
+            f"'{'+'.join([*normalized_modifiers, normalized_key])}'"
         )
 
     def _normalize_key(self, key: str) -> str:
@@ -76,8 +105,16 @@ class KeybindService:
             return key.replace("Arrow", "").lower()
         if "LeftShift" in key:
             return "shiftleft"
+        if "RightShift" in key:
+            return "shiftright"
         if "LeftControl" in key:
             return "ctrlleft"
+        if "RightControl" in key:
+            return "ctrlright"
+        if "LeftAlt" in key:
+            return "altleft"
+        if "RightAlt" in key:
+            return "altright"
         if "Apostrophe" in key:
             return "'"
         if "BackSlash" in key:
@@ -144,9 +181,29 @@ class KeybindService:
                 action = EdAction(child.tag)
             except (ValueError, TypeError):
                 continue  # tag we don't map (or an XML comment) -> skip
-            key = child[0].get("Key").removeprefix("Key_")
-            loaded[action] = Keybind(key=key, action=action)
+            loaded[action] = self._read_keyboard_keybind(action, child)
         return loaded
+
+    def _read_keyboard_keybind(self, action: EdAction, action_element) -> Keybind:
+        # The primary binding if it is on the keyboard, otherwise the secondary one.
+        # With no keyboard binding at all the action is unbound (key None).
+        primary = action_element.find("Primary")
+        secondary = action_element.find("Secondary")
+        for binding in (primary, secondary):
+            if binding is None or binding.get("Device") != "Keyboard":
+                continue
+            modifiers = binding.findall("Modifier")
+            # A modifier on a joystick can't be pressed from the keyboard
+            if any(modifier.get("Device") != "Keyboard" for modifier in modifiers):
+                continue
+            return Keybind(
+                action=action,
+                key=binding.get("Key").removeprefix("Key_"),
+                modifiers=[
+                    modifier.get("Key").removeprefix("Key_") for modifier in modifiers
+                ],
+            )
+        return Keybind(action=action, key=None)
 
     def _validate_missing_keybinds(self, loaded: dict[EdAction, Keybind]) -> None:
         missing = set(EdAction) - loaded.keys()
@@ -171,6 +228,16 @@ class KeybindService:
 
         try:
             self.reload_service()
+            unbound_actions = [
+                keybind.action
+                for keybind in self._keybinds_by_action.values()
+                if keybind.key is None
+            ]
+            if unbound_actions:
+                unbound_names = [action_in_plain_words(a) for a in unbound_actions]
+                logger.warning(f"Actions without a keyboard key: {unbound_names}")
+                status.is_warning = True
+                status.message = f"No keyboard key for: {', '.join(unbound_names)}"
             status.completed = True
             yield status
         except Exception as e:

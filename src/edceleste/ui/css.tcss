@@ -1123,6 +1123,10 @@ SystemCheckRow {
     color: $success;
 }
 
+.system-check-marker.state-warning {
+    color: $warning;
+}
+
 .system-check-marker.state-failed {
     color: $error;
 }
@@ -1141,6 +1145,10 @@ SystemCheckRow {
     color: $foreground;
 }
 
+.system-check-name.state-warning {
+    color: $warning;
+}
+
 .system-check-name.state-failed {
     color: $error;
     text-style: bold;
@@ -1148,6 +1156,10 @@ SystemCheckRow {
 
 .system-check-error {
     color: $error;
+}
+
+.system-check-warning {
+    color: $warning;
 }
 
 #system-check-divider {
