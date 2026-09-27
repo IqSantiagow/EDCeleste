@@ -27,7 +27,7 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.services.tts_service import TTSEvent
 from edceleste.services.settings_service import SettingsService
-from pydantic_ai import Agent, Tool
+from pydantic_ai import Agent, ModelHTTPError, Tool
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -352,14 +352,6 @@ class LLMService:
 
         return [model.id for model in models.data]
 
-    async def __health_check(self) -> None:
-        """Check if the LLM provider is reachable and working.
-
-        If nothing booms, it's okay.
-        """
-        async for _ in self.stream_agent_response("Respond with only 'OK'"):
-            pass
-
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
         status = ColdStartStatus(
             service="llm",
@@ -371,10 +363,57 @@ class LLMService:
 
         try:
             self.reload_service()
-            await self.__health_check()
+            # Same check as the Test connection button in settings.
+            provider = self.__settings_service.get_settings().llm.provider
+            status.message = await self.test_connection(provider)
             status.completed = True
             yield status
         except Exception as e:
             status.completed = True
             status.message = str(e)
             yield status
+
+    async def test_connection(self, provider: LLMProviderModel) -> str | None:
+        """str if error, none if good"""
+        MAX_REASON = 200
+        try:
+            model = infer_model(
+                f"{provider.type}:{provider.model}",
+                provider_factory=lambda _: self.determine_provider(provider),
+            )
+
+            await asyncio.wait_for(
+                Agent(model=model).run("Respond with only 'OK'"), timeout=15
+            )
+            return None
+        except TimeoutError:
+            return "No answer within 15 s"
+        except ModelHTTPError as e:
+            reason = f"HTTP {e.status_code}"
+            if message := self._provider_message(e.body):
+                reason += f": {message}"
+            error_message = reason
+            if e.suggested_model_id:
+                error_message += f" Did you mean to use: {e.suggested_model_id} ?"
+
+        except Exception as e:
+            error_message = str(e)
+
+        if provider.api_key:
+            # If there is any chance the API key appears in the error message,
+            # redact it.
+            error_message = error_message.replace(
+                provider.api_key, "[REDACTED API KEY]"
+            )
+
+        error_message = error_message[:MAX_REASON]
+
+        return error_message
+
+    @staticmethod
+    def _provider_message(body: object) -> str | None:
+        if not isinstance(body, dict):
+            return None
+        error = body.get("error")
+        nested = error.get("message") if isinstance(error, dict) else None
+        return body.get("message") or nested
