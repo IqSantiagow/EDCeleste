@@ -55,6 +55,9 @@ from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
     GetAvailableVoiceProfilesUseCase,
 )
 from edceleste.use_cases.settings.get_llm_models_use_case import GetLlmModelsUseCase
+from edceleste.use_cases.settings.test_llm_connection_use_case import (
+    TestLlmConnectionUseCase,
+)
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
 from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
@@ -242,6 +245,10 @@ class Container(containers.DeclarativeContainer):
         GetLlmModelsUseCase, llm_protocol=llm_service
     )
 
+    test_llm_connection_use_case = providers.Factory(
+        TestLlmConnectionUseCase, llm_protocol=llm_service
+    )
+
     clone_voice_use_case = providers.Factory(
         CloneVoiceUseCase, voice_cloning_protocol=tts_service
     )
@@ -322,6 +329,7 @@ class Container(containers.DeclarativeContainer):
         get_settings_use_case=get_settings_use_case,
         get_tts_voices_use_case=get_tts_voices_use_case,
         get_llm_models_use_case=get_llm_models_use_case,
+        test_llm_connection_use_case=test_llm_connection_use_case,
         get_stt_models_use_case=get_stt_models_use_case,
         get_stt_input_devices_use_case=get_stt_input_devices_use_case,
         clone_voice_use_case=clone_voice_use_case,

@@ -25,3 +25,7 @@ class LLMProtocol(BaseServiceProtocol):
     async def get_models(
         self, provider: LLMProviderModel | None = None
     ) -> list[str]: ...
+
+    async def test_connection(self, provider: LLMProviderModel) -> str | None:
+        """Returns None when the provider answers, otherwise a short error text."""
+        ...

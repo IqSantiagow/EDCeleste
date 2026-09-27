@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
+from pydantic_ai import ModelHTTPError
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -128,6 +129,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         agent_patcher = patch("edceleste.services.llm_service.Agent")
         self.mock_agent_class = agent_patcher.start()
         self.addCleanup(agent_patcher.stop)
+        # The connection test awaits agent.run(), a plain Mock is not awaitable.
+        self.mock_agent_class.return_value.run = AsyncMock()
 
         # Building the provider and the model both need a reachable OpenRouter.
         provider_patcher = patch.object(LLMService, "determine_provider")
@@ -428,11 +431,11 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         last_status = statuses[-1]
         self.assertTrue(last_status.completed)
         self.assertIsNone(last_status.message)
-        self.mock_stream_agent_response.assert_called_once()
+        self.mock_agent_class.return_value.run.assert_awaited_once()
 
     async def test_cold_start_yields_error_message_when_health_check_fails(self):
-        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
-            RuntimeError("agent unreachable")
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError(
+            "agent unreachable"
         )
 
         statuses = [status async for status in self.llm_service.cold_start()]
@@ -440,6 +443,60 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         last_status = statuses[-1]
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "agent unreachable")
+
+    async def test_connection_redacts_api_keys_from_provider_errors(self):
+        provider = _make_settings().llm.provider
+        provider.api_key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456"
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError(
+            f"request failed for {provider.api_key}"
+        )
+
+        error_message = await self.llm_service.test_connection(provider)
+
+        self.assertEqual(
+            error_message,
+            "request failed for [REDACTED API KEY]",
+        )
+
+    async def test_connection_keeps_error_message_when_api_key_is_empty(self):
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError(
+            "Connection refused by the provider"
+        )
+
+        error_message = await self.llm_service.test_connection(
+            _make_settings().llm.provider
+        )
+
+        self.assertEqual(error_message, "Connection refused by the provider")
+
+    async def test_connection_returns_status_code_and_provider_reason(self):
+        self.mock_agent_class.return_value.run.side_effect = ModelHTTPError(
+            401, "some-model", body={"error": {"message": "Invalid API key"}}
+        )
+
+        error_message = await self.llm_service.test_connection(
+            _make_settings().llm.provider
+        )
+
+        self.assertEqual(error_message, "HTTP 401: Invalid API key")
+
+    async def test_connection_says_no_answer_when_the_provider_times_out(self):
+        self.mock_agent_class.return_value.run.side_effect = TimeoutError()
+
+        error_message = await self.llm_service.test_connection(
+            _make_settings().llm.provider
+        )
+
+        self.assertEqual(error_message, "No answer within 15 s")
+
+    async def test_connection_cuts_long_errors_to_200_characters(self):
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError("x" * 500)
+
+        error_message = await self.llm_service.test_connection(
+            _make_settings().llm.provider
+        )
+
+        self.assertEqual(error_message, "x" * 200)
 
     def test_reload_service_rebuilds_agent_with_updated_system_prompt(self):
         new_settings = _make_settings(system_prompt="New system prompt")

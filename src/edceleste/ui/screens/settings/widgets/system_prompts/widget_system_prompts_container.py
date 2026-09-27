@@ -25,6 +25,9 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_textarea_row import (
     WidgetLabeledTextAreaRow,
 )
+from edceleste.ui.screens.settings.widgets.inputs.widget_test_connection_row import (
+    WidgetTestConnectionRow,
+)
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
 )
@@ -85,6 +88,16 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         the loading indicator shows instead of the wrong models."""
         self.models = None
         self.call_later(self.fetch_models)
+        self.clear_connection_test_result()
+
+    async def test_llm_connection(self) -> str | None:
+        """Tests the values on screen, not the saved ones."""
+        provider = self.provider
+        assert provider is not None, "provider must be set before testing it"
+        return await self.settings_repository.test_llm_connection(provider)
+
+    def clear_connection_test_result(self) -> None:
+        self.query_one(WidgetTestConnectionRow).clear_result()
 
     def compose(self) -> ComposeResult:
         yield from super().compose()
@@ -115,6 +128,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 id=SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT.value,
             )
             yield from self.mount_model_settings(provider)
+            yield WidgetTestConnectionRow(self.test_llm_connection)
 
             yield WidgetSectionHeader("PROMPTS")
             yield WidgetLabeledTextAreaRow(
@@ -171,6 +185,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 self.refetch_models()
         elif message.sender_id == SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value:
             provider.model = message.new_value
+            self.clear_connection_test_result()
         elif message.sender_id == SystemPromptsInputWidgetIds.LLM_API_KEY_INPUT.value:
             provider.api_key = message.new_value
             self.refetch_models()

@@ -49,6 +49,9 @@ from edceleste.use_cases.settings.settings_get_keybinds_use_case import (
 from edceleste.use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
+from edceleste.use_cases.settings.test_llm_connection_use_case import (
+    TestLlmConnectionUseCase,
+)
 from edceleste.use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
@@ -61,6 +64,7 @@ class SettingsRepository:
         get_settings_use_case: GetSettingsUseCase,
         get_tts_voices_use_case: GetTTSVoicesUseCase,
         get_llm_models_use_case: GetLlmModelsUseCase,
+        test_llm_connection_use_case: TestLlmConnectionUseCase,
         get_stt_models_use_case: GetSttModelsUseCase,
         get_stt_input_devices_use_case: GetSttInputDevicesUseCase,
         clone_voice_use_case: CloneVoiceUseCase,
@@ -79,6 +83,7 @@ class SettingsRepository:
         self.get_settings_use_case = get_settings_use_case
         self.get_tts_voices_use_case = get_tts_voices_use_case
         self.get_llm_models_use_case = get_llm_models_use_case
+        self.test_llm_connection_use_case = test_llm_connection_use_case
         self.get_stt_models_use_case = get_stt_models_use_case
         self.get_stt_input_devices_use_case = get_stt_input_devices_use_case
         self.clone_voice_use_case = clone_voice_use_case
@@ -118,6 +123,9 @@ class SettingsRepository:
         self, provider: LLMProviderModel | None = None
     ) -> list[str]:
         return await self.get_llm_models_use_case(provider)
+
+    async def test_llm_connection(self, provider: LLMProviderModel) -> str | None:
+        return await self.test_llm_connection_use_case(provider)
 
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str

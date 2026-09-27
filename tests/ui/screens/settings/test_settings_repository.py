@@ -34,6 +34,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_settings_use_case=None,
         get_tts_voices_use_case=None,
         get_llm_models_use_case=None,
+        test_llm_connection_use_case=None,
         get_stt_models_use_case=None,
         get_stt_input_devices_use_case=None,
         clone_voice_use_case=None,
@@ -53,6 +54,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             get_settings_use_case=get_settings_use_case or Mock(),
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
             get_llm_models_use_case=get_llm_models_use_case or Mock(),
+            test_llm_connection_use_case=test_llm_connection_use_case or AsyncMock(),
             get_stt_models_use_case=get_stt_models_use_case or Mock(),
             get_stt_input_devices_use_case=get_stt_input_devices_use_case or Mock(),
             clone_voice_use_case=clone_voice_use_case or Mock(),
@@ -133,6 +135,18 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, models)
         get_llm_models_use_case.assert_awaited_once_with(provider)
+
+    async def test_should_delegate_test_llm_connection_to_use_case(self):
+        test_llm_connection_use_case = AsyncMock(return_value="401 Unauthorized")
+        repository = self._make_repository(
+            test_llm_connection_use_case=test_llm_connection_use_case
+        )
+        provider = _make_settings().llm.provider
+
+        result = await repository.test_llm_connection(provider)
+
+        self.assertEqual(result, "401 Unauthorized")
+        test_llm_connection_use_case.assert_awaited_once_with(provider)
 
     def test_should_delegate_get_stt_models_to_use_case(self):
         models = ["tiny.en", "base.en"]
