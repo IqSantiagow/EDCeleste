@@ -1,3 +1,4 @@
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -72,8 +73,20 @@ class MissingKeybindsError(Exception):
 
 
 class Keybind(BaseModel):
-    key: str = Field(..., description="The key associated with the keybind")
+    key: str | None = Field(
+        default=None,
+        description="The keyboard key, None when the action has no keyboard binding",
+    )
     action: EdAction = Field(..., description="The action associated with the keybind")
-    # modifier_key: str = Field(
-    #     default="", description="The modifier key associated with the keybind"
-    # ) TODO: Implement modifier key support in the future
+    modifiers: list[str] = Field(
+        default_factory=list,
+        description="Keys held down while the key is pressed, e.g. LeftShift",
+    )
+
+
+def action_in_plain_words(action: EdAction) -> str:
+    """UseShieldCell -> "Use shield cell", UIFocus -> "UI focus"."""
+    words = re.findall(r"[A-Z]{2,}(?=[A-Z][a-z]|\d|$)|[A-Z][a-z]*|\d+", action.value)
+    first_word, other_words = words[0], words[1:]
+    other_words = [word if word.isupper() else word.lower() for word in other_words]
+    return " ".join([first_word, *other_words])

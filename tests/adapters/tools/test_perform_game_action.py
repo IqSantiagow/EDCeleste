@@ -16,6 +16,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         # is called with a real EdAction instead of a raw dict.
         self.keybind_service = Mock(spec=KeybindService)
         self.keybind_service.perform_action = AsyncMock()
+        self.keybind_service.is_bound.return_value = True
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = Mock(
             spec=SettingsModel,
@@ -51,6 +52,19 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             result.return_value,
             "Game actions are disabled by the user.",
+        )
+
+    async def test_should_return_error_when_action_has_no_keyboard_key(self):
+        self.keybind_service.is_bound.return_value = False
+
+        result = await self.tool.execute(EdAction.USE_SHIELD_CELL)
+
+        self.keybind_service.is_bound.assert_called_once_with(EdAction.USE_SHIELD_CELL)
+        self.keybind_service.perform_action.assert_not_awaited()
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(
+            result.return_value,
+            "UseShieldCell is not bound to a keyboard key.",
         )
 
 

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from lxml import etree  # type: ignore
 
@@ -23,6 +23,22 @@ from edceleste.services.settings_service import SettingsService
 
 KEYBINDS_PATH = "C:/keybinds"
 REQUIRED_KEYBINDS_COUNT = len(EdAction)
+
+SHIELD_CELL_ONLY_ON_JOYSTICK = (
+    b"<UseShieldCell>"
+    b'<Primary Device="SaitekX52" Key="Joy_5" />'
+    b'<Secondary Device="{NoDevice}" Key="" />'
+    b"</UseShieldCell>"
+)
+
+
+def _binds_tree_with(action_xml: bytes):
+    """The test binds file with one action element swapped for action_xml."""
+    tree = etree.parse(str(TEST_BINDS_FILE_LOCATION))
+    new_action = etree.fromstring(action_xml)
+    old_action = tree.getroot().find(new_action.tag)
+    tree.getroot().replace(old_action, new_action)
+    return tree
 
 
 def _make_settings(api_key: str) -> SettingsModel:
@@ -60,6 +76,14 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             event_bus=EventBus(),
             settings_handler=self.settings_handler,
         )
+
+    def _load_service_with(self, action_xml: bytes) -> KeybindService:
+        tree = _binds_tree_with(action_xml)
+        service = self._make_service()
+        with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
+            mock_parse.return_value = tree
+            service.load_keybinds()
+        return service
 
     def test_should_raise_file_not_found_error_when_no_binds_files_found(self):
         self.mock_glob.return_value = []
@@ -172,6 +196,87 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(EdAction.SELECT_TARGET, ctx.exception.missing)
         self.assertNotIn(EdAction.TOGGLE_FLIGHT_ASSIST, ctx.exception.missing)
 
+    # --- keyboard binding: modifiers, primary / secondary, unbound ---
+
+    def test_should_read_modifier_of_keyboard_binding(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        keybind = service.resolve(EdAction.LANDING_GEAR_TOGGLE)
+
+        self.assertEqual(keybind.key, "L")
+        self.assertEqual(keybind.modifiers, ["LeftShift"])
+
+    def test_should_read_every_modifier_when_binding_has_two(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        keybind = service.resolve(EdAction.NIGHT_VISION_TOGGLE)
+
+        self.assertEqual(keybind.key, "L")
+        self.assertEqual(keybind.modifiers, ["LeftControl", "LeftShift"])
+
+    def test_should_have_no_modifiers_when_binding_has_none(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        keybind = service.resolve(EdAction.TOGGLE_FLIGHT_ASSIST)
+
+        self.assertEqual(keybind.key, "Z")
+        self.assertEqual(keybind.modifiers, [])
+
+    def test_should_take_keyboard_secondary_when_primary_is_on_joystick(self):
+        service = self._load_service_with(
+            b"<LandingGearToggle>"
+            b'<Primary Device="SaitekX52" Key="Joy_10" />'
+            b'<Secondary Device="Keyboard" Key="Key_G">'
+            b'<Modifier Device="Keyboard" Key="Key_LeftAlt" />'
+            b"</Secondary>"
+            b"</LandingGearToggle>"
+        )
+
+        keybind = service.resolve(EdAction.LANDING_GEAR_TOGGLE)
+
+        self.assertEqual(keybind.key, "G")
+        self.assertEqual(keybind.modifiers, ["LeftAlt"])
+
+    def test_should_mark_action_unbound_when_bound_only_to_joystick(self):
+        # Loading must not fail: the action is in the file, just not on the keyboard
+        service = self._load_service_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
+
+        self.assertIsNone(service.resolve(EdAction.USE_SHIELD_CELL).key)
+        self.assertFalse(service.is_bound(EdAction.USE_SHIELD_CELL))
+
+    def test_should_mark_action_unbound_when_keyboard_key_needs_joystick_modifier(
+        self,
+    ):
+        service = self._load_service_with(
+            b"<UseShieldCell>"
+            b'<Primary Device="Keyboard" Key="Key_C">'
+            b'<Modifier Device="SaitekX52" Key="Joy_5" />'
+            b"</Primary>"
+            b'<Secondary Device="{NoDevice}" Key="" />'
+            b"</UseShieldCell>"
+        )
+
+        self.assertFalse(service.is_bound(EdAction.USE_SHIELD_CELL))
+
+    def test_should_mark_action_unbound_when_bound_to_nothing(self):
+        service = self._load_service_with(
+            b"<UseShieldCell>"
+            b'<Primary Device="{NoDevice}" Key="" />'
+            b'<Secondary Device="{NoDevice}" Key="" />'
+            b"</UseShieldCell>"
+        )
+
+        self.assertFalse(service.is_bound(EdAction.USE_SHIELD_CELL))
+
+    def test_is_bound_returns_true_for_keyboard_binding(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        self.assertTrue(service.is_bound(EdAction.TOGGLE_FLIGHT_ASSIST))
+
     def test_normalize_key_strips_arrow_prefix_and_lowercases_direction(self):
         service = self._make_service()
 
@@ -195,6 +300,14 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service._normalize_key("Period"), ".")
         self.assertEqual(service._normalize_key("Slash"), "/")
 
+    def test_normalize_key_maps_right_and_alt_modifiers_to_modifier_names(self):
+        service = self._make_service()
+
+        self.assertEqual(service._normalize_key("RightShift"), "shiftright")
+        self.assertEqual(service._normalize_key("RightControl"), "ctrlright")
+        self.assertEqual(service._normalize_key("LeftAlt"), "altleft")
+        self.assertEqual(service._normalize_key("RightAlt"), "altright")
+
     def test_normalize_key_lowercases_unmapped_keys_by_default(self):
         service = self._make_service()
 
@@ -211,6 +324,55 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         mock_press.assert_called_once_with("z")
+
+    async def test_perform_action_holds_modifier_while_pressing_key(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+
+        self.assertEqual(
+            keyboard.mock_calls,
+            [call.keyDown("shiftleft"), call.press("l"), call.keyUp("shiftleft")],
+        )
+
+    async def test_perform_action_releases_two_modifiers_in_reverse_order(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            await service.perform_action(EdAction.NIGHT_VISION_TOGGLE)
+
+        self.assertEqual(
+            keyboard.mock_calls,
+            [
+                call.keyDown("ctrlleft"),
+                call.keyDown("shiftleft"),
+                call.press("l"),
+                call.keyUp("shiftleft"),
+                call.keyUp("ctrlleft"),
+            ],
+        )
+
+    async def test_perform_action_releases_modifier_when_key_press_fails(self):
+        service = self._make_service()
+        service.load_keybinds()
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            keyboard.press.side_effect = RuntimeError("press failed")
+            with self.assertRaises(RuntimeError):
+                await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+
+        keyboard.keyUp.assert_called_once_with("shiftleft")
+
+    async def test_perform_action_presses_nothing_when_action_is_unbound(self):
+        service = self._load_service_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            await service.perform_action(EdAction.USE_SHIELD_CELL)
+
+        self.assertEqual(keyboard.mock_calls, [])
 
     async def test_event_bus_publish_of_ed_action_triggers_perform_action(self):
         event_bus = EventBus()
@@ -254,6 +416,18 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         new_settings = _make_settings(api_key="sk-ant-test")
 
         issue = service.validate_settings(new_settings)
+
+        self.assertIsNone(issue)
+
+    def test_validate_settings_returns_no_issue_when_action_bound_only_to_joystick(
+        self,
+    ):
+        service = self._make_service()
+        tree = _binds_tree_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
+
+        with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
+            mock_parse.return_value = tree
+            issue = service.validate_settings(_make_settings(api_key="sk-ant-test"))
 
         self.assertIsNone(issue)
 
@@ -305,6 +479,33 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         last_status = statuses[-1]
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "no binds files")
+        self.assertFalse(last_status.is_warning)
+
+    async def test_cold_start_yields_no_warning_when_every_action_has_keyboard_key(
+        self,
+    ):
+        service = self._make_service()
+
+        statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertFalse(last_status.is_warning)
+        self.assertIsNone(last_status.message)
+
+    async def test_cold_start_yields_warning_when_action_has_no_keyboard_key(self):
+        service = self._make_service()
+        tree = _binds_tree_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
+
+        with patch("edceleste.services.keybinds_service.etree.parse") as mock_parse:
+            mock_parse.return_value = tree
+            statuses = [status async for status in service.cold_start()]
+
+        last_status = statuses[-1]
+        self.assertTrue(last_status.completed)
+        self.assertTrue(last_status.is_warning)
+        self.assertFalse(last_status.is_critical)
+        self.assertEqual(last_status.message, "No keyboard key for: Use shield cell")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ STATE_MARKERS = {
     "pending": ("[  ]", "state-pending"),
     "in_progress": ("[**]", "state-in-progress"),
     "completed": ("[ok]", "state-completed"),
+    "warning": ("[ !]", "state-warning"),
     "failed": ("[!!]", "state-failed"),
 }
 
@@ -73,6 +74,10 @@ class SystemCheckScreen(Screen[bool]):
             if status.completed and not status.message:
                 row.state = "completed"
                 completed_services += 1
+            elif status.completed and status.is_warning:
+                row.warning_message = status.message
+                row.state = "warning"
+                completed_services += 1
             elif status.message:
                 row.error_message = status.message
                 row.state = "failed"
@@ -87,10 +92,11 @@ class SystemCheckScreen(Screen[bool]):
 
 
 class SystemCheckRow(HorizontalGroup):
-    state: reactive[Literal["pending", "in_progress", "completed", "failed"]] = (
-        reactive("pending", recompose=True)
-    )
+    state: reactive[
+        Literal["pending", "in_progress", "completed", "warning", "failed"]
+    ] = reactive("pending", recompose=True)
     error_message: str | None = None
+    warning_message: str | None = None
 
     def __init__(self, service_name: str, **kwargs):
         super().__init__(**kwargs)
@@ -106,4 +112,9 @@ class SystemCheckRow(HorizontalGroup):
         if self.error_message:
             yield Label(
                 Content(f"Error: {self.error_message}"), classes="system-check-error"
+            )
+        if self.warning_message:
+            yield Label(
+                Content(f"Warning: {self.warning_message}"),
+                classes="system-check-warning",
             )
