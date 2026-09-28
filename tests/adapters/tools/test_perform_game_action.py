@@ -4,6 +4,9 @@ from unittest.mock import AsyncMock, Mock
 from pydantic_ai import Tool
 
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.settings_model import GameActionsModel, SettingsModel
@@ -65,6 +68,17 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             result.return_value,
             "UseShieldCell is not bound to a keyboard key.",
+        )
+
+    async def test_should_return_error_when_game_window_not_found(self):
+        self.keybind_service.perform_action.side_effect = GameWindowNotFoundException()
+
+        result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(
+            result.return_value,
+            "Game window not found, nothing was pressed.",
         )
 
 
