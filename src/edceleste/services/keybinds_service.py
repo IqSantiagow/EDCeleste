@@ -4,6 +4,10 @@ import logging
 import os
 
 from edceleste.services.event_bus import EventBus
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
+from edceleste.services.game_window import GameWindow
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.models.keybinds_model import (
@@ -43,10 +47,15 @@ except ImportError:  # pydirectinput needs ctypes.WinDLL, so it only imports on 
 
 class KeybindService:
     def __init__(
-        self, keybinds_path: str, event_bus: EventBus, settings_handler: SettingsService
+        self,
+        keybinds_path: str,
+        event_bus: EventBus,
+        settings_handler: SettingsService,
+        game_window: GameWindow,
     ) -> None:
         self.__settings_handler = settings_handler
         self.keybinds_path = keybinds_path
+        self.game_window = game_window
         self._keybinds_by_action: dict[EdAction, Keybind] = {}
         self._event_bus = event_bus
         self._event_bus.subscribe(EdAction, self.perform_action)
@@ -82,6 +91,12 @@ class KeybindService:
                 f"Action '{action.value}' has no keyboard key, nothing is pressed"
             )
             return
+
+        # A key pressed while the terminal has focus would be typed into the terminal
+        if not await self.game_window.bring_to_front():
+            raise GameWindowNotFoundException(
+                f"Game window not found, '{action.value}' is not pressed"
+            )
 
         normalized_key = self._normalize_key(keybind.key)
         normalized_modifiers = [self._normalize_key(m) for m in keybind.modifiers]

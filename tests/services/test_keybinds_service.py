@@ -1,9 +1,13 @@
 import unittest
-from unittest.mock import Mock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 from lxml import etree  # type: ignore
 
 from edceleste.services.event_bus import EventBus
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
+from edceleste.services.game_window import GameWindow
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import SYSTEM_PROMPT
 from edceleste.services.models.keybinds_model import (
@@ -70,11 +74,16 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             api_key="sk-ant-test"
         )
 
+        # The game is running and in front unless a test says otherwise
+        self.game_window = Mock(spec=GameWindow)
+        self.game_window.bring_to_front = AsyncMock(return_value=True)
+
     def _make_service(self):
         return KeybindService(
             keybinds_path=KEYBINDS_PATH,
             event_bus=EventBus(),
             settings_handler=self.settings_handler,
+            game_window=self.game_window,
         )
 
     def _load_service_with(self, action_xml: bytes) -> KeybindService:
@@ -373,6 +382,34 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             await service.perform_action(EdAction.USE_SHIELD_CELL)
 
         self.assertEqual(keyboard.mock_calls, [])
+        self.game_window.bring_to_front.assert_not_awaited()
+
+    # --- game window: keys go to the game, never to the terminal ---
+
+    async def test_perform_action_brings_game_window_to_front_before_pressing(self):
+        service = self._make_service()
+        service.load_keybinds()
+        steps = []
+        self.game_window.bring_to_front.side_effect = lambda: (
+            steps.append("bring game to front") or True
+        )
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            keyboard.press.side_effect = lambda key: steps.append(f"press {key}")
+            await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+
+        self.assertEqual(steps, ["bring game to front", "press z"])
+
+    async def test_perform_action_presses_nothing_when_game_window_not_found(self):
+        service = self._make_service()
+        service.load_keybinds()
+        self.game_window.bring_to_front.return_value = False
+
+        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
+            with self.assertRaises(GameWindowNotFoundException):
+                await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+
+        self.assertEqual(keyboard.mock_calls, [])
 
     async def test_event_bus_publish_of_ed_action_triggers_perform_action(self):
         event_bus = EventBus()
@@ -380,6 +417,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             keybinds_path=KEYBINDS_PATH,
             event_bus=event_bus,
             settings_handler=self.settings_handler,
+            game_window=self.game_window,
         )
         service.load_keybinds()
 
