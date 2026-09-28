@@ -6,6 +6,7 @@ from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
 from edceleste.services.game_state_service import GameStateService
 from edceleste.services.game_watcher_service import GameWatcherService
+from edceleste.services.game_window import GameWindow
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
@@ -120,6 +121,8 @@ class Container(containers.DeclarativeContainer):
 
     game_state_service = providers.Singleton(GameStateService, event_bus=event_bus)
 
+    game_window = providers.Singleton(GameWindow)
+
     keybinds_service = providers.Singleton(
         KeybindService,
         keybinds_path=(
@@ -127,6 +130,7 @@ class Container(containers.DeclarativeContainer):
         ),
         event_bus=event_bus,
         settings_handler=settings_service,
+        game_window=game_window,
     )
 
     perform_game_action = providers.Factory(

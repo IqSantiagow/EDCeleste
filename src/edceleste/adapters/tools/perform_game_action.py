@@ -1,6 +1,9 @@
 from pydantic_ai import ToolReturn
 
 from edceleste.protocols.tool_protocol import ToolProtocol
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.settings_service import SettingsService
@@ -35,7 +38,13 @@ class PerformGameAction(ToolProtocol):
                 metadata={"is_error": True},
             )
 
-        await self.keybind_service.perform_action(action)
+        try:
+            await self.keybind_service.perform_action(action)
+        except GameWindowNotFoundException:
+            return ToolReturn(
+                return_value="Game window not found, nothing was pressed.",
+                metadata={"is_error": True},
+            )
 
         return ToolReturn(
             return_value=f"Performed game action: {action.value}",
