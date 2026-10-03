@@ -6,12 +6,15 @@ from edceleste.projection.event_projections.location_projection import (
 )
 from edceleste.services.models.game_events import (
     DockedEvent,
+    DockingGrantedEvent,
+    UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
     FSDTargetEvent,
     StartJumpEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
+    SupercruiseDestinationDropEvent,
     ApproachBodyEvent,
     LeaveBodyEvent,
     ApproachSettlementEvent,
@@ -142,6 +145,37 @@ class TestLocationProjection(unittest.TestCase):
             Name="Jameson Memorial",
             SystemAddress=123456789,
             BodyName="Sol 3 c",
+        )
+
+        cls.docking_granted_event = DockingGrantedEvent(
+            event="DockingGranted",
+            timestamp=datetime.now(),
+            StationName="Galileo",
+            StationType="Coriolis",
+            MarketID=12345,
+            LandingPad=22,
+        )
+
+        cls.undocked_event = UndockedEvent(
+            event="Undocked",
+            timestamp=datetime.now(),
+            StationName="Galileo",
+        )
+
+        cls.supercruise_drop_at_site_event = SupercruiseDestinationDropEvent(
+            event="SupercruiseDestinationDrop",
+            timestamp=datetime.now(),
+            Type="$MULTIPLAYER_SCENARIO77_TITLE;",
+            Type_Localised="Resource Extraction Site [Low]",
+            Threat=2,
+        )
+
+        cls.supercruise_drop_at_station_event = SupercruiseDestinationDropEvent(
+            event="SupercruiseDestinationDrop",
+            timestamp=datetime.now(),
+            Type="Galileo",
+            Threat=0,
+            MarketID=12345,
         )
 
         # Status.json-derived events - these are the only ones allowed to
@@ -404,3 +438,104 @@ class TestLocationProjection(unittest.TestCase):
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_remember_landing_pad_from_docking_granted_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+
+        expected_projection = "Player was assigned landing pad 22 at station Galileo."
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_keep_landing_pad_after_docking(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(self.docked_event)
+
+        self.assertEqual(22, location_projection.assigned_landing_pad)
+        self.assertIn("landing pad 22", location_projection.create_projection())
+
+    def test_should_forget_landing_pad_on_undocked_event(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(self.docked_event)
+        location_projection.process_event(self.undocked_event)
+
+        self.assertIsNone(location_projection.assigned_landing_pad)
+        self.assertIsNone(location_projection.assigned_landing_pad_station)
+        self.assertNotIn("landing pad", location_projection.create_projection())
+
+    def test_should_forget_landing_pad_when_player_leaves_without_docking(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(self.supercruise_entry_event)
+
+        self.assertNotIn("landing pad", location_projection.create_projection())
+
+    def test_should_forget_landing_pad_on_hyperspace_jump(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(self.start_jump_hyperspace_event)
+
+        self.assertNotIn("landing pad", location_projection.create_projection())
+
+    def test_should_replace_landing_pad_when_station_grants_a_new_one(self):
+        location_projection = LocationProjection()
+        new_docking_granted_event = self.docking_granted_event.model_copy(
+            update={"LandingPad": 7}
+        )
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(new_docking_granted_event)
+
+        self.assertEqual(7, location_projection.assigned_landing_pad)
+
+    def test_should_remember_place_of_supercruise_destination_drop(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_entry_event)
+        location_projection.process_event(self.supercruise_drop_at_site_event)
+
+        expected_projection = (
+            "Player is currently in the Sol system."
+            "Player dropped out of supercruise at Resource Extraction Site [Low]."
+        )
+
+        self.assertEqual(expected_projection, location_projection.create_projection())
+
+    def test_should_use_plain_type_when_drop_destination_has_no_localised_name(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_drop_at_station_event)
+
+        self.assertEqual("Galileo", location_projection.supercruise_drop_place)
+
+    def test_should_forget_drop_place_on_next_supercruise_entry(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_drop_at_site_event)
+        location_projection.process_event(self.supercruise_entry_event)
+
+        self.assertIsNone(location_projection.supercruise_drop_place)
+        self.assertNotIn("dropped out", location_projection.create_projection())
+
+    def test_should_forget_drop_place_once_docked(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_drop_at_station_event)
+        location_projection.process_event(self.docked_event)
+
+        self.assertIsNone(location_projection.supercruise_drop_place)
+
+    def test_should_forget_drop_place_on_hyperspace_jump(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.supercruise_drop_at_site_event)
+        location_projection.process_event(self.start_jump_hyperspace_event)
+
+        self.assertIsNone(location_projection.supercruise_drop_place)

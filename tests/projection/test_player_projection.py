@@ -134,13 +134,27 @@ class PlayerProjectionTest(unittest.TestCase):
 
         expected_projection = (
             "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}."
+            "Commander plays in {3} game mode."
         ).format(
             self.loaded_game_event.Commander,
             self.loaded_game_event.Credits,
             self.loaded_game_event.Ship,
+            self.loaded_game_event.GameMode,
         )
 
         self.assertEqual(expected_projection, player_projection.create_projection())
+
+    def test_should_set_game_mode_from_loaded_game_event(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+
+        self.assertEqual(player_projection.game_mode, "Solo")
+
+    def test_should_omit_game_mode_before_game_is_loaded(self):
+        player_projection = PlayerProjection()
+
+        self.assertNotIn("game mode", player_projection.create_projection())
 
     def test_should_set_player_name_from_commander_event(self):
         player_projection = PlayerProjection()

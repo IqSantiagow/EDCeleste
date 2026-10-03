@@ -70,7 +70,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 **Adding a new game event:**
 1. Add a Pydantic model in `services/models/game_events.py`
 2. Register it in `KNOWN_EVENTS` and `_JournalEvent` union in `services/models/journal_event.py`
-3. Handle it in the relevant `Projection`
+3. Handle it in the relevant `Projection` — `tests/projection/test_recognized_events_feed_game_state.py` fails when a recognized event is handled by no projection (it looks for `isinstance(event, <Model>)` in `projection/event_projections/`)
 
 ## Constraints
 

@@ -8,9 +8,12 @@ from edceleste.services.models.game_events import (
     FSDTargetEvent,
     StartJumpEvent,
     DockedEvent,
+    DockingGrantedEvent,
+    UndockedEvent,
     LocationEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
+    SupercruiseDestinationDropEvent,
     ApproachBodyEvent,
     LeaveBodyEvent,
     ApproachSettlementEvent,
@@ -38,6 +41,10 @@ class LocationProjection(Projection):
 
     SETTLEMENT_PROJECTION = "Player is close to the settlement: {0}."
 
+    LANDING_PAD_PROJECTION = "Player was assigned landing pad {0} at station {1}."
+
+    SUPERCRUISE_DROP_PROJECTION = "Player dropped out of supercruise at {0}."
+
     ROUTE_NEXT_HOP_PROJECTION = (
         "Player's next plotted jump is to system {0}, a class {1} star, "
         "with {2} jumps remaining on the route."
@@ -52,6 +59,9 @@ class LocationProjection(Projection):
         self.is_in_supercruise = False
         self.current_body = None
         self.nearest_settlement = None
+        self.assigned_landing_pad = None
+        self.assigned_landing_pad_station = None
+        self.supercruise_drop_place = None
         self.route_next_star_system = None
         self.route_next_star_class = None
         self.route_remaining_jumps = None
@@ -79,6 +89,8 @@ class LocationProjection(Projection):
             self.current_station = None
             self.current_body = None
             self.nearest_settlement = None
+            self.supercruise_drop_place = None
+            self.__forget_landing_pad()
             return
 
         if isinstance(event, FSDTargetEvent):
@@ -110,6 +122,18 @@ class LocationProjection(Projection):
             self.current_station = event.StationName
             self.current_body = None
             self.nearest_settlement = None
+            self.supercruise_drop_place = None
+            return
+
+        if isinstance(event, DockingGrantedEvent):
+            logger.debug("Received location event: %s", event)
+            self.assigned_landing_pad = event.LandingPad
+            self.assigned_landing_pad_station = event.StationName
+            return
+
+        if isinstance(event, UndockedEvent):
+            logger.debug("Received location event: %s", event)
+            self.__forget_landing_pad()
             return
 
         if isinstance(event, LocationEvent):
@@ -138,12 +162,21 @@ class LocationProjection(Projection):
             self.current_station = None
             self.current_body = None
             self.nearest_settlement = None
+            self.supercruise_drop_place = None
+            self.__forget_landing_pad()
             return
 
         if isinstance(event, SupercruiseExitEvent):
             logger.debug("Received location event: %s", event)
             self.current_star_system = event.StarSystem
             self.current_body = event.Body
+            return
+
+        if isinstance(event, SupercruiseDestinationDropEvent):
+            logger.debug("Received location event: %s", event)
+            # Type_Localised is missing when the destination has a plain name,
+            # e.g. a station.
+            self.supercruise_drop_place = event.Type_Localised or event.Type
             return
 
         if isinstance(event, ApproachBodyEvent):
@@ -195,6 +228,16 @@ class LocationProjection(Projection):
                 self.nearest_settlement
             )
 
+        if self.assigned_landing_pad is not None:
+            projection_string += self.LANDING_PAD_PROJECTION.format(
+                self.assigned_landing_pad, self.assigned_landing_pad_station
+            )
+
+        if self.supercruise_drop_place:
+            projection_string += self.SUPERCRUISE_DROP_PROJECTION.format(
+                self.supercruise_drop_place
+            )
+
         if self.is_in_fsd_jump:
             projection_string += self.FSD_TRAVEL_PROJECTION.format(
                 self.target_star_system
@@ -208,3 +251,7 @@ class LocationProjection(Projection):
             )
 
         return projection_string
+
+    def __forget_landing_pad(self) -> None:
+        self.assigned_landing_pad = None
+        self.assigned_landing_pad_station = None
