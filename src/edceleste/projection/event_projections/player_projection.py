@@ -30,6 +30,8 @@ class PlayerProjection(Projection):
         "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}."
     )
 
+    GAME_MODE_PROJECTION = "Commander plays in {0} game mode."
+
     RANK_PROJECTION = "Commander ranks are Combat: {0}, Trade: {1}, Exploration: {2}."
 
     REPUTATION_PROJECTION = (
@@ -48,6 +50,7 @@ class PlayerProjection(Projection):
         self.player_name = None
         self.player_credits = 0
         self.player_ship = None
+        self.game_mode = None
         self.combat_rank = None
         self.trade_rank = None
         self.exploration_rank = None
@@ -66,6 +69,7 @@ class PlayerProjection(Projection):
             self.player_name = event.Commander
             self.player_credits = event.Credits
             self.player_ship = event.Ship_Localised or event.Ship
+            self.game_mode = event.GameMode
             self.is_alive = True
             return
 
@@ -125,6 +129,9 @@ class PlayerProjection(Projection):
         projection_string = self.PROJECTION_STRING.format(
             self.player_name, self.player_credits, self.player_ship
         )
+
+        if self.game_mode:
+            projection_string += self.GAME_MODE_PROJECTION.format(self.game_mode)
 
         # Only emit the rank line once every rank is known; PromotionEvent can
         # set ranks independently, so a partially populated state would
