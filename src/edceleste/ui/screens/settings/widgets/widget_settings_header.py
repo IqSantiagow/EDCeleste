@@ -32,19 +32,20 @@ class WidgetSettingsHeaderContent(HorizontalGroup):
         label.remove_class("error")
         label.remove_class("success")
 
-        if self.save_state is SaveState.MODIFIED:
-            label.update("◉ MODIFIED")
-            label.remove_class("hidden")
-        elif self.save_state is SaveState.SAVING:
-            label.update("◉ SAVING...")
-            label.remove_class("hidden")
-        elif self.save_state is SaveState.FAILED:
-            label.update("◉ ERROR DURING SAVING")
-            label.add_class("error")
-            label.remove_class("hidden")
-        elif self.save_state is SaveState.SAVED:
-            label.update("◉ SAVED")
-            label.remove_class("hidden")
-            label.add_class("success")
-        else:
-            label.add_class("hidden")
+        match self.save_state:
+            case SaveState.MODIFIED:
+                label.update("◉ MODIFIED")
+                label.remove_class("hidden")
+            case SaveState.SAVING:
+                label.update("◉ SAVING...")
+                label.remove_class("hidden")
+            case SaveState.FAILED:
+                label.update("◉ ERROR DURING SAVING")
+                label.add_class("error")
+                label.remove_class("hidden")
+            case SaveState.SAVED:
+                label.update("◉ SAVED")
+                label.remove_class("hidden")
+                label.add_class("success")
+            case _:
+                label.add_class("hidden")

@@ -1,5 +1,4 @@
 import enum
-
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from edceleste.ui.screens.settings.events.settings_events import (
@@ -23,7 +22,7 @@ from edceleste.ui.screens.settings.widgets.widget_base_settings_container import
 )
 
 
-class PathsInputWidgetIds(enum.Enum):
+class PathsInputWidgetIds(enum.StrEnum):
     JOURNAL_PATH_INPUT = "journal-path-input"
     KEYBINDS_PATH_INPUT = "keybinds-path-input"
 
@@ -46,7 +45,7 @@ class WidgetPathsContainer(WidgetBaseSettingsContainer):
                 # TODO: Implement validation logic
                 lambda value: self.log(f"Journal Path submitted: {value}"),
                 type="text",
-                id=PathsInputWidgetIds.JOURNAL_PATH_INPUT.value,
+                id=PathsInputWidgetIds.JOURNAL_PATH_INPUT,
             )
             yield WidgetLabeledDynamicInputRow(
                 "Keybinds Path:",
@@ -54,14 +53,14 @@ class WidgetPathsContainer(WidgetBaseSettingsContainer):
                 # TODO: Implement validation logic
                 lambda value: self.log(f"Keybinds Path submitted: {value}"),
                 type="text",
-                id=PathsInputWidgetIds.KEYBINDS_PATH_INPUT.value,
+                id=PathsInputWidgetIds.KEYBINDS_PATH_INPUT,
             )
             yield WidgetSectionHeader("APP SETTINGS")
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if message.sender_id == PathsInputWidgetIds.JOURNAL_PATH_INPUT.value:
+        if message.sender_id == PathsInputWidgetIds.JOURNAL_PATH_INPUT:
             self.path_model.journal_path = message.new_value
-        elif message.sender_id == PathsInputWidgetIds.KEYBINDS_PATH_INPUT.value:
+        elif message.sender_id == PathsInputWidgetIds.KEYBINDS_PATH_INPUT:
             self.path_model.keybindings_path = message.new_value
 
         self.post_message(

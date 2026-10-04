@@ -15,7 +15,7 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
 )
 
 
-class EdgeTTSInputWidgetIds(enum.Enum):
+class EdgeTTSInputWidgetIds(enum.StrEnum):
     VOICE_INPUT = "voice-input"
 
 
@@ -47,7 +47,7 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
                 "Voice: ",
                 options=self.voices,
                 value=self.edge_tts_provider_model.voice,
-                id=EdgeTTSInputWidgetIds.VOICE_INPUT.value,
+                id=EdgeTTSInputWidgetIds.VOICE_INPUT,
             )
 
     @work

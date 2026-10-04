@@ -9,7 +9,7 @@ NO_VALUE = "-"
 
 
 def value_or_dash(value: str) -> str:
-    return value if value else NO_VALUE
+    return value or NO_VALUE
 
 
 def security_badge_text(security: str) -> str:

@@ -1,7 +1,6 @@
 from collections.abc import AsyncGenerator
-from glob import glob
 import logging
-import os
+from pathlib import Path
 import shutil
 
 from pydantic import ValidationError
@@ -27,28 +26,31 @@ class SettingsService:
         return self.settings
 
     def update_settings(self, settings: SettingsModel) -> None:
-        config_file = glob("config.yaml")
+        CONFIG_FILE_PATH = Path("config.yaml")
 
-        if not config_file:
+        if not CONFIG_FILE_PATH.exists():
             logger.warning(
                 "No config.yaml file found while updating settings. "
                 "Creating a new config.yaml from config-example.yaml."
             )
             shutil.copyfile("config-example.yaml", "config.yaml")
-            config_file = glob("config.yaml")
+            if not CONFIG_FILE_PATH.exists():
+                raise RuntimeError(
+                    "Failed to create config.yaml from config-example.yaml."
+                )
 
-        with open(config_file[0], "w") as f:
+        with CONFIG_FILE_PATH.open("w") as f:
             yaml.safe_dump(settings.model_dump(), f)
 
         self.settings = settings
 
     def load_settings(self) -> None:
-        config_file = glob("config.yaml")
+        CONFIG_FILE_PATH = Path("config.yaml")
 
-        if not config_file:
+        if not CONFIG_FILE_PATH.exists():
             shutil.copyfile("config-example.yaml", "config.yaml")
 
-            if not os.path.exists("config.yaml"):
+            if not CONFIG_FILE_PATH.exists():
                 raise RuntimeError("Failed to copy config-example.yaml to config.yaml.")
 
             raise FileNotFoundError(
@@ -57,7 +59,7 @@ class SettingsService:
                 "application."
             )
 
-        with open(config_file[0]) as f:
+        with CONFIG_FILE_PATH.open("r") as f:
             data = yaml.safe_load(f)
 
         try:
