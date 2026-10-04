@@ -44,7 +44,7 @@ def build_default_provider_for_engine(
     return ChatterboxTTSProviderModel(type="chatterbox", profile="")
 
 
-class TTSInputWidgetIds(enum.Enum):
+class TTSInputWidgetIds(enum.StrEnum):
     TTS_PROVIDER_TYPE_INPUT = "tts-provider-type-input"
     VOLUME_INPUT = "volume-input"
 
@@ -78,7 +78,7 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 ENGINE_OPTIONS,
                 provider.type,
                 values=ENGINE_VALUES,
-                id=TTSInputWidgetIds.TTS_PROVIDER_TYPE_INPUT.value,
+                id=TTSInputWidgetIds.TTS_PROVIDER_TYPE_INPUT,
             )
             if isinstance(provider, EdgeTTSProviderModel):
                 yield from self.mount_edge_tts_settings(provider)
@@ -90,57 +90,55 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 1,
                 self.tts_model.volume,
                 step=0.05,
-                id=TTSInputWidgetIds.VOLUME_INPUT.value,
+                id=TTSInputWidgetIds.VOLUME_INPUT,
             )
 
     def on_value_changed(self, message: ValueChanged) -> None:
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
-        if message.sender_id == TTSInputWidgetIds.TTS_PROVIDER_TYPE_INPUT.value:
-            if message.new_value != provider.type:
-                new_provider = build_default_provider_for_engine(message.new_value)
-                self.tts_model.provider = new_provider
-                self.provider = new_provider
-        elif message.sender_id == EdgeTTSInputWidgetIds.VOICE_INPUT.value:
-            if isinstance(provider, EdgeTTSProviderModel):
-                provider.voice = message.new_value
-        elif message.sender_id == TTSInputWidgetIds.VOLUME_INPUT.value:
-            try:
-                self.tts_model.volume = float(message.new_value)
-            except ValueError:
-                self.log(f"Invalid volume value: {message.new_value}")
-                self.notify("Volume must be a number between 0.0 and 1.0.")
-                return
-        elif message.sender_id == ChatterboxTTSInputWidgetIds.TTS_PROFILE_INPUT.value:
-            if isinstance(provider, ChatterboxTTSProviderModel):
-                provider.profile = message.new_value
-        elif (
-            message.sender_id
-            == ChatterboxTTSInputWidgetIds.TTS_EXAGGERATION_INPUT.value
-        ):
-            if isinstance(provider, ChatterboxTTSProviderModel):
+        match message.sender_id:
+            case TTSInputWidgetIds.TTS_PROVIDER_TYPE_INPUT:
+                if message.new_value != provider.type:
+                    new_provider = build_default_provider_for_engine(message.new_value)
+                    self.tts_model.provider = new_provider
+                    self.provider = new_provider
+            case EdgeTTSInputWidgetIds.VOICE_INPUT:
+                if isinstance(provider, EdgeTTSProviderModel):
+                    provider.voice = message.new_value
+            case TTSInputWidgetIds.VOLUME_INPUT:
                 try:
-                    provider.exaggeration = float(message.new_value)
+                    self.tts_model.volume = float(message.new_value)
                 except ValueError:
-                    self.log(f"Invalid exaggeration value: {message.new_value}")
-                    self.notify("Exaggeration must be a number between 0.0 and 2.0.")
+                    self.log(f"Invalid volume value: {message.new_value}")
+                    self.notify("Volume must be a number between 0.0 and 1.0.")
                     return
-        elif (
-            message.sender_id == ChatterboxTTSInputWidgetIds.TTS_CFG_WEIGHT_INPUT.value
-        ):
-            if isinstance(provider, ChatterboxTTSProviderModel):
-                try:
-                    provider.cfg_weight = float(message.new_value)
-                except ValueError:
-                    self.log(f"Invalid pace value: {message.new_value}")
-                    self.notify("Pace must be a number between 0.0 and 1.0.")
-                    return
-        elif message.sender_id == ChatterboxTTSInputWidgetIds.TTS_DEVICE_INPUT.value:
-            if isinstance(provider, ChatterboxTTSProviderModel):
-                provider.device = message.new_value
-        elif message.sender_id == ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT.value:
-            if isinstance(provider, ChatterboxTTSProviderModel):
-                provider.nano = message.new_value
+            case ChatterboxTTSInputWidgetIds.TTS_PROFILE_INPUT:
+                if isinstance(provider, ChatterboxTTSProviderModel):
+                    provider.profile = message.new_value
+            case ChatterboxTTSInputWidgetIds.TTS_EXAGGERATION_INPUT:
+                if isinstance(provider, ChatterboxTTSProviderModel):
+                    try:
+                        provider.exaggeration = float(message.new_value)
+                    except ValueError:
+                        self.log(f"Invalid exaggeration value: {message.new_value}")
+                        self.notify(
+                            "Exaggeration must be a number between 0.0 and 2.0."
+                        )
+                        return
+            case ChatterboxTTSInputWidgetIds.TTS_CFG_WEIGHT_INPUT:
+                if isinstance(provider, ChatterboxTTSProviderModel):
+                    try:
+                        provider.cfg_weight = float(message.new_value)
+                    except ValueError:
+                        self.log(f"Invalid pace value: {message.new_value}")
+                        self.notify("Pace must be a number between 0.0 and 1.0.")
+                        return
+            case ChatterboxTTSInputWidgetIds.TTS_DEVICE_INPUT:
+                if isinstance(provider, ChatterboxTTSProviderModel):
+                    provider.device = message.new_value
+            case ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT:
+                if isinstance(provider, ChatterboxTTSProviderModel):
+                    provider.nano = message.new_value
 
         self.post_message(
             SectionSettingsChanged(

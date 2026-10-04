@@ -33,7 +33,4 @@ class WidgetBaseSettingsContainer(Vertical):
             widget.reset_current_value()
 
     def is_modified(self) -> bool:
-        for widget in self.query(WidgetBaseInput):
-            if widget.is_modified():
-                return True
-        return False
+        return any(widget.is_modified() for widget in self.query(WidgetBaseInput))

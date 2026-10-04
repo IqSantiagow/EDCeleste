@@ -1,11 +1,7 @@
 from textual.message import Message
-from typing import TypeVar
-from typing import Generic
-
-T = TypeVar("T")
 
 
-class ValueChanged(Message, Generic[T]):
+class ValueChanged[T](Message):
     def __init__(self, sender_id: str, new_value: T) -> None:
         super().__init__()
         self.new_value = new_value

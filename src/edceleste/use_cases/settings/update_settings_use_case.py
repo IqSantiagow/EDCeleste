@@ -40,20 +40,16 @@ class UpdateSettingsUseCase:
             new_settings
         )
 
-        issues = []
+        all_issues = [
+            tts_issues,
+            stt_issues,
+            game_watcher_issues,
+            keybinds_issues,
+            llm_issues,
+            event_reactions_issues,
+        ]
 
-        if tts_issues:
-            issues.append(tts_issues)
-        if stt_issues:
-            issues.append(stt_issues)
-        if game_watcher_issues:
-            issues.append(game_watcher_issues)
-        if keybinds_issues:
-            issues.append(keybinds_issues)
-        if llm_issues:
-            issues.append(llm_issues)
-        if event_reactions_issues:
-            issues.append(event_reactions_issues)
+        issues = [issue for issue in all_issues if issue]
 
         if issues:
             raise SettingsValidationException(issues)

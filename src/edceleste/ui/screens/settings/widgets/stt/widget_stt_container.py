@@ -27,7 +27,7 @@ from edceleste.ui.screens.settings.widgets.widget_base_settings_container import
 )
 
 
-class SttInputWidgetIds(enum.Enum):
+class SttInputWidgetIds(enum.StrEnum):
     STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
     STT_INPUT_DEVICE_INPUT = "stt-input-device-input"
@@ -69,13 +69,13 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
                 yield WidgetLabeledSwitchRow(
                     "Enabled: ",
                     value=self.stt_model.enabled,
-                    id=SttInputWidgetIds.STT_ENABLED_INPUT.value,
+                    id=SttInputWidgetIds.STT_ENABLED_INPUT,
                 )
                 yield WidgetLabeledSelectRow(
                     "Model: ",
                     options=self.models,
                     value=self.stt_model.model,
-                    id=SttInputWidgetIds.STT_MODEL_INPUT.value,
+                    id=SttInputWidgetIds.STT_MODEL_INPUT,
                 )
                 device_labels = [name for name, _ in self.input_devices]
                 device_values = [str(index) for _, index in self.input_devices]
@@ -86,7 +86,7 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
                     value=str(self.stt_model.input_device)
                     if self.stt_model.input_device is not None
                     else "",
-                    id=SttInputWidgetIds.STT_INPUT_DEVICE_INPUT.value,
+                    id=SttInputWidgetIds.STT_INPUT_DEVICE_INPUT,
                 )
 
     @work
@@ -107,11 +107,11 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
             self.input_devices = []
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if message.sender_id == SttInputWidgetIds.STT_ENABLED_INPUT.value:
+        if message.sender_id == SttInputWidgetIds.STT_ENABLED_INPUT:
             self.stt_model.enabled = message.new_value
-        elif message.sender_id == SttInputWidgetIds.STT_MODEL_INPUT.value:
+        elif message.sender_id == SttInputWidgetIds.STT_MODEL_INPUT:
             self.stt_model.model = message.new_value
-        elif message.sender_id == SttInputWidgetIds.STT_INPUT_DEVICE_INPUT.value:
+        elif message.sender_id == SttInputWidgetIds.STT_INPUT_DEVICE_INPUT:
             raw = message.new_value
             self.stt_model.input_device = int(raw) if raw and raw.isdigit() else None
 
