@@ -1,5 +1,10 @@
+import os
+import tempfile
 import unittest
-from unittest.mock import Mock, mock_open, patch
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import yaml
 
 from edceleste.services.models.settings_model import (
     LLMModel,
@@ -10,27 +15,7 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.services.settings_service import SettingsService
 
-
-def _make_settings(system_prompt: str = "sp", journal_path: str = "C:/j"):
-    return SettingsModel(
-        paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
-        tts=TTSModel(volume=1.0),
-        llm=LLMModel(system_prompt=system_prompt, user_prompt="up"),
-        stt=SttModel(model="tiny.en"),
-    )
-
-
-class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
-    def test_get_settings_raises_before_load(self):
-        service = SettingsService()
-
-        with self.assertRaises(RuntimeError):
-            service.get_settings()
-
-    @patch("edceleste.services.settings_service.glob", return_value=["config.yaml"])
-    def test_load_settings_populates_settings_from_yaml(self, _mock_glob):
-        service = SettingsService()
-        yaml_content = """
+VALID_CONFIG_YAML = """
 paths:
   journal_path: C:/j
   keybindings_path: C:/k
@@ -45,43 +30,8 @@ llm:
 stt:
   model: tiny.en
 """
-        with patch("builtins.open", mock_open(read_data=yaml_content)):
-            service.load_settings()
 
-        self.assertEqual(service.get_settings().llm.system_prompt, "sp")
-
-    @patch("edceleste.services.settings_service.os.path.exists", return_value=True)
-    @patch("edceleste.services.settings_service.shutil.copyfile")
-    @patch("edceleste.services.settings_service.glob", return_value=[])
-    def test_load_settings_creates_config_from_example_and_raises_when_missing(
-        self, _mock_glob, mock_copy, _mock_exists
-    ):
-        service = SettingsService()
-
-        with self.assertRaises(FileNotFoundError):
-            service.load_settings()
-
-        mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
-
-    @patch("edceleste.services.settings_service.os.path.exists", return_value=False)
-    @patch("edceleste.services.settings_service.shutil.copyfile")
-    @patch("edceleste.services.settings_service.glob", return_value=[])
-    def test_load_settings_raises_runtime_error_when_copy_from_example_fails(
-        self, _mock_glob, mock_copy, _mock_exists
-    ):
-        service = SettingsService()
-
-        with self.assertRaises(RuntimeError):
-            service.load_settings()
-
-        mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
-
-    @patch("edceleste.services.settings_service.glob", return_value=["config.yaml"])
-    def test_load_settings_raises_runtime_error_on_invalid_yaml_schema(
-        self, _mock_glob
-    ):
-        service = SettingsService()
-        yaml_content = """
+CONFIG_YAML_WITHOUT_LLM_AND_STT = """
 paths:
   journal_path: C:/j
   keybindings_path: C:/k
@@ -92,41 +42,91 @@ tts:
   volume: 1.0
 """
 
-        with patch("builtins.open", mock_open(read_data=yaml_content)):
-            with self.assertRaises(RuntimeError):
-                service.load_settings()
 
-    @patch("edceleste.services.settings_service.glob", return_value=["config.yaml"])
-    def test_update_settings_writes_yaml_when_one_section_changed(self, _mock_glob):
-        service = SettingsService()
-        service.settings = _make_settings(system_prompt="old")
-        new_settings = _make_settings(system_prompt="new")
-
-        with patch("builtins.open", mock_open()):
-            with patch(
-                "edceleste.services.settings_service.yaml.safe_dump"
-            ) as mock_dump:
-                service.update_settings(new_settings)
-
-        mock_dump.assert_called_once()
-        self.assertEqual(service.get_settings().llm.system_prompt, "new")
-
-    @patch(
-        "edceleste.services.settings_service.glob", side_effect=[[], ["config.yaml"]]
+def _make_settings(system_prompt: str = "sp", journal_path: str = "C:/j"):
+    return SettingsModel(
+        paths=PathModel(journal_path=journal_path, keybindings_path="C:/k"),
+        tts=TTSModel(volume=1.0),
+        llm=LLMModel(system_prompt=system_prompt, user_prompt="up"),
+        stt=SttModel(model="tiny.en"),
     )
+
+
+def _read_saved_system_prompt() -> str:
+    saved_config = yaml.safe_load(Path("config.yaml").read_text())
+    return saved_config["llm"]["system_prompt"]
+
+
+class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # SettingsService reads "config.yaml" from the current folder. Every test
+        # runs in its own empty temp folder, so the real config.yaml is never touched.
+        temp_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_folder.cleanup)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(temp_folder.name)
+
+    def test_get_settings_raises_before_load(self):
+        service = SettingsService()
+
+        with self.assertRaises(RuntimeError):
+            service.get_settings()
+
+    def test_load_settings_populates_settings_from_yaml(self):
+        Path("config.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService()
+
+        service.load_settings()
+
+        self.assertEqual(service.get_settings().llm.system_prompt, "sp")
+
+    def test_load_settings_creates_config_from_example_and_raises_when_missing(self):
+        Path("config-example.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService()
+
+        with self.assertRaises(FileNotFoundError):
+            service.load_settings()
+
+        self.assertEqual(Path("config.yaml").read_text(), VALID_CONFIG_YAML)
+
     @patch("edceleste.services.settings_service.shutil.copyfile")
-    def test_update_settings_creates_config_yaml_from_example_when_missing(
-        self, mock_copy, mock_glob
+    def test_load_settings_raises_runtime_error_when_copy_from_example_fails(
+        self, mock_copy
     ):
         service = SettingsService()
+
+        with self.assertRaises(RuntimeError):
+            service.load_settings()
+
+        mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
+
+    def test_load_settings_raises_runtime_error_on_invalid_yaml_schema(self):
+        Path("config.yaml").write_text(CONFIG_YAML_WITHOUT_LLM_AND_STT)
+        service = SettingsService()
+
+        with self.assertRaises(RuntimeError):
+            service.load_settings()
+
+    def test_update_settings_writes_yaml_when_one_section_changed(self):
+        Path("config.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService()
         service.settings = _make_settings(system_prompt="old")
         new_settings = _make_settings(system_prompt="new")
 
-        with patch("builtins.open", mock_open()):
-            service.update_settings(new_settings)
+        service.update_settings(new_settings)
 
-        mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
-        self.assertEqual(mock_glob.call_count, 2)
+        self.assertEqual(_read_saved_system_prompt(), "new")
+        self.assertEqual(service.get_settings().llm.system_prompt, "new")
+
+    def test_update_settings_creates_config_yaml_from_example_when_missing(self):
+        Path("config-example.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService()
+        service.settings = _make_settings(system_prompt="old")
+        new_settings = _make_settings(system_prompt="new")
+
+        service.update_settings(new_settings)
+
+        self.assertEqual(_read_saved_system_prompt(), "new")
 
     # --- cold_start ---
 

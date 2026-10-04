@@ -87,6 +87,6 @@ class Keybind(BaseModel):
 def action_in_plain_words(action: EdAction) -> str:
     """UseShieldCell -> "Use shield cell", UIFocus -> "UI focus"."""
     words = re.findall(r"[A-Z]{2,}(?=[A-Z][a-z]|\d|$)|[A-Z][a-z]*|\d+", action.value)
-    first_word, other_words = words[0], words[1:]
+    first_word, *other_words = words
     other_words = [word if word.isupper() else word.lower() for word in other_words]
     return " ".join([first_word, *other_words])

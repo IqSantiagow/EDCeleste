@@ -20,7 +20,7 @@ from edceleste.ui.screens.settings.widgets.widget_base_settings_container import
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 
-class GameActionsInputWidgetIds(enum.Enum):
+class GameActionsInputWidgetIds(enum.StrEnum):
     GAME_ACTIONS_ENABLED_INPUT = "game-actions-enabled-input"
 
 
@@ -39,14 +39,11 @@ class WidgetGameActionsContainer(WidgetBaseSettingsContainer):
             yield WidgetLabeledSwitchRow(
                 "Enabled: ",
                 value=self.game_actions_model.enabled,
-                id=GameActionsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT.value,
+                id=GameActionsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT,
             )
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        if (
-            message.sender_id
-            == GameActionsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT.value
-        ):
+        if message.sender_id == GameActionsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT:
             self.game_actions_model.enabled = message.new_value
 
         self.post_message(

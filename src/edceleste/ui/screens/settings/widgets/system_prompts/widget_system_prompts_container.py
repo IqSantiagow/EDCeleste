@@ -37,7 +37,7 @@ PROVIDER_OPTIONS = SUPPORTED_LLM_PROVIDER_TYPES
 PROVIDER_VALUES = SUPPORTED_LLM_PROVIDER_TYPES
 
 
-class SystemPromptsInputWidgetIds(enum.Enum):
+class SystemPromptsInputWidgetIds(enum.StrEnum):
     LLM_PROVIDER_TYPE_INPUT = "llm-provider-type-input"
     LLM_MODEL_INPUT = "llm-model-input"
     LLM_API_KEY_INPUT = "llm-api-key-input"
@@ -110,7 +110,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 PROVIDER_OPTIONS,
                 provider.type,
                 values=PROVIDER_VALUES,
-                id=SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT,
             )
             yield WidgetLabeledDynamicInputRow(
                 "API Key:",
@@ -118,14 +118,14 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 lambda value: self.log("API key submitted"),
                 type="text",
                 password=True,
-                id=SystemPromptsInputWidgetIds.LLM_API_KEY_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_API_KEY_INPUT,
             )
             yield WidgetLabeledDynamicInputRow(
                 "Base URL:",
                 provider.base_url,
                 lambda value: self.log(f"Base URL submitted: {value}"),
                 type="text",
-                id=SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT,
             )
             yield from self.mount_model_settings(provider)
             yield WidgetTestConnectionRow(self.test_llm_connection)
@@ -136,14 +136,14 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 self.llm_model.system_prompt,
                 # TODO: Implement validation logic
                 lambda value: self.log(f"System prompt submitted: {value}"),
-                id=SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT,
             )
             yield WidgetLabeledTextAreaRow(
                 "User Prompt:",
                 self.llm_model.user_prompt,
                 # TODO: Implement validation logic. Not wired into LLMService yet.
                 lambda value: self.log(f"User prompt submitted: {value}"),
-                id=SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT,
             )
 
     def mount_model_settings(self, provider: LLMProviderModel) -> ComposeResult:
@@ -160,46 +160,38 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 provider.model,
                 lambda value: self.log(f"Model submitted: {value}"),
                 type="text",
-                id=SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value,
+                id=SystemPromptsInputWidgetIds.LLM_MODEL_INPUT,
             )
             return
         yield WidgetLabeledSelectRow(
             "Model: ",
             self.models,
             provider.model,
-            id=SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value,
+            id=SystemPromptsInputWidgetIds.LLM_MODEL_INPUT,
         )
 
     def on_value_changed(self, message: ValueChanged) -> None:
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
 
-        if (
-            message.sender_id
-            == SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT.value
-        ):
+        if message.sender_id == SystemPromptsInputWidgetIds.LLM_PROVIDER_TYPE_INPUT:
             if message.new_value != provider.type:
                 new_provider = LLMProviderModel(type=message.new_value, model="")
                 self.llm_model.provider = new_provider
                 self.provider = new_provider
                 self.refetch_models()
-        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_MODEL_INPUT.value:
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_MODEL_INPUT:
             provider.model = message.new_value
             self.clear_connection_test_result()
-        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_API_KEY_INPUT.value:
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_API_KEY_INPUT:
             provider.api_key = message.new_value
             self.refetch_models()
-        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT.value:
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT:
             provider.base_url = message.new_value
             self.refetch_models()
-        elif (
-            message.sender_id
-            == SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT.value
-        ):
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_SYSTEM_PROMPT_INPUT:
             self.llm_model.system_prompt = message.new_value
-        elif (
-            message.sender_id == SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT.value
-        ):
+        elif message.sender_id == SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT:
             self.llm_model.user_prompt = message.new_value
 
         self.post_message(
