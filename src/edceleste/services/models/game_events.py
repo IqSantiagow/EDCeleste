@@ -12,6 +12,7 @@ from edceleste.services.models.pydantic_base_models import IgnoreExtraFieldsMode
 
 class GameEvent(IgnoreExtraFieldsModel):
     timestamp: datetime
+    event: str
 
 
 class LoadedGameEvent(GameEvent):

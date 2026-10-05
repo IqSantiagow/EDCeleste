@@ -28,7 +28,7 @@ class UIApp(App):
     def __init__(
         self,
         game_watcher_service: GameWatcherService = Provide[
-            Container.game_watcher_service_stub
+            Container.game_watcher_service
         ],
         ed_dashboard_repository: EdDashboardRepository = Provide[
             Container.ed_dashboard_repository

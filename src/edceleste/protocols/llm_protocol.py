@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from collections.abc import AsyncGenerator
 
 from edceleste.protocols.base_service_protocol import BaseServiceProtocol
@@ -9,7 +11,7 @@ from edceleste.services.models.settings_model import (
 )
 
 
-class LLMProtocol(BaseServiceProtocol):
+class LLMProtocol(BaseServiceProtocol, Protocol):
     def add_llm_request_to_queue(self, message: str) -> None: ...
 
     def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:

@@ -9,9 +9,6 @@ from edceleste.services.game_window import GameWindow
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
-from edceleste.services.stubs.game_watcher_service_stub import (
-    GameWatcherServiceStub,
-)
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
 from edceleste.ui.screens.app.app_header_repository import AppHeaderRepository
@@ -160,12 +157,6 @@ class Container(containers.DeclarativeContainer):
 
     llm_service = providers.Singleton(
         LLMService, event_bus=event_bus, settings_service=settings_service, tools=mcps
-    )
-
-    game_watcher_service_stub = providers.Singleton(
-        GameWatcherServiceStub,
-        event_bus=event_bus,
-        settings_handler=settings_service,
     )
 
     tts_service = providers.Singleton(

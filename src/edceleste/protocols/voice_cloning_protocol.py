@@ -7,7 +7,8 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
 
 
 class VoiceCloningProtocol(Protocol):
-    async def clone_voice(
+    # Plain def: an async generator is iterated with "async for", never awaited
+    def clone_voice(
         self, path_to_audio_file: str, profile_name: str
     ) -> "AsyncGenerator[VoiceCloningState, None]": ...
 

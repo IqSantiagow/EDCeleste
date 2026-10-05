@@ -266,7 +266,7 @@ class LLMService:
     def reload_service(self):
         settings = self.__settings_service.get_settings()
 
-        self.model = self.build_model(settings)
+        self.model = self.build_model(settings.llm.provider)
 
         self.__agent = Agent(
             model=self.model,
@@ -306,10 +306,8 @@ class LLMService:
 
         return provider_class(api_key=provider.api_key)  # type: ignore
 
-    def build_model(self, settings: SettingsModel) -> Model:
+    def build_model(self, provider: LLMProviderModel) -> Model:
         """ "provider:model" is how pydantic_ai names a model, our config splits it."""
-        provider = settings.llm.provider
-
         return infer_model(
             f"{provider.type}:{provider.model}",
             provider_factory=lambda _: self.determine_provider(provider),
@@ -377,10 +375,7 @@ class LLMService:
         """str if error, none if good"""
         MAX_REASON = 200
         try:
-            model = infer_model(
-                f"{provider.type}:{provider.model}",
-                provider_factory=lambda _: self.determine_provider(provider),
-            )
+            model = self.build_model(provider)
 
             await asyncio.wait_for(
                 Agent(model=model).run("Respond with only 'OK'"), timeout=15

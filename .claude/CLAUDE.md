@@ -10,6 +10,9 @@ edceleste
 ruff check
 ruff format --diff   # check only; drop --diff to auto-fix
 
+# Type check (settings in pyproject.toml)
+mypy
+
 # Tests with coverage
 coverage run -m pytest
 coverage report -m

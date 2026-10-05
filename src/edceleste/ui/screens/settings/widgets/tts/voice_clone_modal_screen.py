@@ -84,10 +84,11 @@ class AnalysisPhase(Static):
 
     @work
     async def run_analysis(self) -> None:
-        self.analysis = await asyncio.to_thread(
+        analysis = await asyncio.to_thread(
             self.settings_repository.analyze_voice_sample, str(self.file_path)
         )
-        self.post_message(self.AnalysisCompleted(self.analysis["is_valid"]))
+        self.analysis = analysis
+        self.post_message(self.AnalysisCompleted(analysis["is_valid"]))
         await self.recompose()
 
     def compose(self):

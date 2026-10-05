@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
-from pydantic_ai import ModelHTTPError
+from pydantic_ai import ModelHTTPError, models
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -557,20 +557,33 @@ class TestLLMServiceProvider(unittest.TestCase):
             )
 
     def test_should_build_the_model_belonging_to_the_chosen_provider(self):
-        settings = _make_settings()
-        settings.llm.provider = LLMProviderModel(
+        provider = LLMProviderModel(
             type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
         )
 
-        self.assertIsInstance(self.llm_service.build_model(settings), OpenRouterModel)
+        self.assertIsInstance(self.llm_service.build_model(provider), OpenRouterModel)
 
     def test_should_build_a_different_model_class_for_a_different_provider(self):
-        settings = _make_settings()
-        settings.llm.provider = LLMProviderModel(
+        provider = LLMProviderModel(
             type="anthropic", model="claude-haiku-4-5-20251001", api_key="key-123"
         )
 
-        self.assertIsInstance(self.llm_service.build_model(settings), AnthropicModel)
+        self.assertIsInstance(self.llm_service.build_model(provider), AnthropicModel)
+
+    def test_connection_test_should_build_the_model_and_reach_the_request(self):
+        # Blocked requests fail only at the request itself, so this error proves
+        # the model got built from the provider
+        provider = LLMProviderModel(
+            type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
+        )
+
+        with patch.object(models, "ALLOW_MODEL_REQUESTS", False):
+            error_message = asyncio.run(self.llm_service.test_connection(provider))
+
+        self.assertEqual(
+            error_message,
+            "Model requests are not allowed, since ALLOW_MODEL_REQUESTS is False",
+        )
 
 
 class TestLLMServiceEventMapping(unittest.TestCase):
