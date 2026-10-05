@@ -98,7 +98,9 @@ class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             service.load_settings()
 
-        mock_copy.assert_called_once_with("config-example.yaml", "config.yaml")
+        mock_copy.assert_called_once_with(
+            Path("config-example.yaml"), Path("config.yaml")
+        )
 
     def test_load_settings_raises_runtime_error_on_invalid_yaml_schema(self):
         Path("config.yaml").write_text(CONFIG_YAML_WITHOUT_LLM_AND_STT)
@@ -127,6 +129,41 @@ class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
         service.update_settings(new_settings)
 
         self.assertEqual(_read_saved_system_prompt(), "new")
+
+    # --- custom config path ---
+
+    def test_load_settings_reads_the_given_config_path(self):
+        Path("other").mkdir()
+        Path("other/my-config.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService(config_path=Path("other/my-config.yaml"))
+
+        service.load_settings()
+
+        self.assertEqual(service.get_settings().paths.journal_path, "C:/j")
+
+    def test_update_settings_writes_only_to_the_given_config_path(self):
+        Path("other").mkdir()
+        Path("other/my-config.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService(config_path=Path("other/my-config.yaml"))
+        service.settings = _make_settings(system_prompt="old")
+
+        service.update_settings(_make_settings(system_prompt="new"))
+
+        saved_config = yaml.safe_load(Path("other/my-config.yaml").read_text())
+        self.assertEqual(saved_config["llm"]["system_prompt"], "new")
+        self.assertFalse(Path("config.yaml").exists())
+
+    def test_load_settings_copies_the_given_example_when_config_is_missing(self):
+        Path("my-example.yaml").write_text(VALID_CONFIG_YAML)
+        service = SettingsService(
+            config_path=Path("my-config.yaml"),
+            example_config_path=Path("my-example.yaml"),
+        )
+
+        with self.assertRaises(FileNotFoundError):
+            service.load_settings()
+
+        self.assertEqual(Path("my-config.yaml").read_text(), VALID_CONFIG_YAML)
 
     # --- cold_start ---
 

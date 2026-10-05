@@ -3,6 +3,9 @@ from edceleste.services.models.settings_model import LLMProviderModel
 
 
 class TestLlmConnectionUseCase:
+    # Not a test, the name only starts with "Test" - tells pytest to skip it
+    __test__ = False
+
     def __init__(self, llm_protocol: LLMProtocol):
         self.llm_protocol = llm_protocol
 
