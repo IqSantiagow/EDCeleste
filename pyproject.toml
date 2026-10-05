@@ -102,7 +102,9 @@ select = ["E", "F", "TID"]
 "rich".msg = "Nie importuj rich bezpośrednio; używaj Textual/CSS."
 
 [tool.coverage.run]
-source = ["src"]
+# Only our package: compiled dependency_injector reports its code under a
+# relative "src/..." path that would otherwise be measured and break the report
+source = ["src/edceleste"]
 
 [tool.coverage.report]
 omit = [
