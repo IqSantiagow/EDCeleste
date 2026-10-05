@@ -60,6 +60,7 @@ dependencies = [
 test = [
     "coverage==7.16.2",
     "mock==5.2.0",
+    "pytest==9.1.1",
 ]
 dev = [
     "aiohttp-jinja2==1.6",
@@ -86,6 +87,12 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 edceleste = ["ui/*.tcss"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live_llm: talks to a real LLM over the network, needs OPENROUTER_API_KEY",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "TID"]

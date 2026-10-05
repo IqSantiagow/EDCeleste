@@ -2,23 +2,15 @@ import logging
 
 from textual.logging import TextualHandler
 
-from edceleste.containers.main_container import Container
+from edceleste.config.config import AppConfig
+from edceleste.containers.main_container import MODULES_USING_PROVIDE, Container
 from edceleste.ui.ui_app import UIApp
 
 
 def main() -> None:
     container = Container()
-    container.wire(
-        modules=[
-            "edceleste.ui.ui_app",
-            "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
-            "edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical",  # noqa: E501
-            "edceleste.ui.screens.settings.widgets.stt.widget_stt_container",
-            "edceleste.ui.screens.settings.widgets.system_prompts.widget_system_prompts_container",  # noqa: E501
-            "edceleste.ui.screens.app.widgets.app_header",
-            "edceleste.ui.screens.dashboard.widgets.ship_log.widget_station_market",
-        ]
-    )
+    container.config.from_pydantic(AppConfig())  # type: ignore[call-arg]
+    container.wire(modules=MODULES_USING_PROVIDE)
 
     log_level = container.config.logging.level()
 

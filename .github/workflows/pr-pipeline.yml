@@ -65,7 +65,7 @@ jobs:
 
       - name: Run tests and coverage
         run: |
-          coverage run -m unittest discover
+          coverage run -m pytest
           coverage report -m
           coverage xml
 

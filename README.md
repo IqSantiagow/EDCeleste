@@ -119,11 +119,11 @@ ruff check
 ruff format --diff        # check only; drop --diff to auto-fix
 
 # Tests with coverage
-coverage run -m unittest discover
+coverage run -m pytest
 coverage report -m
 
 # Run a single test file
-python -m unittest tests.services.journal.test_journal_watcher
+python -m pytest tests/services/journal/test_journal_watcher.py
 ```
 
 ## Debugging

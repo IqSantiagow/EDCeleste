@@ -52,10 +52,13 @@ class KeybindService:
         event_bus: EventBus,
         settings_handler: SettingsService,
         game_window: GameWindow,
+        key_presser=None,
     ) -> None:
         self.__settings_handler = settings_handler
         self.keybinds_path = keybinds_path
         self.game_window = game_window
+        # used for tests
+        self.key_presser = key_presser or pydirectinput
         self._keybinds_by_action: dict[EdAction, Keybind] = {}
         self._event_bus = event_bus
         self._event_bus.subscribe(EdAction, self.perform_action)
@@ -102,13 +105,13 @@ class KeybindService:
         normalized_modifiers = [self._normalize_key(m) for m in keybind.modifiers]
 
         for modifier in normalized_modifiers:
-            pydirectinput.keyDown(modifier)
+            self.key_presser.keyDown(modifier)
         try:
-            pydirectinput.press(normalized_key)
+            self.key_presser.press(normalized_key)
         finally:
             # Always let go of the modifiers, a stuck Shift breaks the game controls
             for modifier in reversed(normalized_modifiers):
-                pydirectinput.keyUp(modifier)
+                self.key_presser.keyUp(modifier)
 
         logger.info(
             f"Performing action '{action.value}' bound to key "

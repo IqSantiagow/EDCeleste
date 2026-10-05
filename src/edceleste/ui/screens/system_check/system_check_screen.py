@@ -33,6 +33,9 @@ STATE_MARKERS = {
 class SystemCheckScreen(Screen[bool]):
     service_names: list[str]
 
+    # Time to read the results before the dashboard opens, tests set it to 0
+    SECONDS_BEFORE_DASHBOARD = 2
+
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
     ]
@@ -87,7 +90,7 @@ class SystemCheckScreen(Screen[bool]):
             progress_bar.update(progress=int(completed_services / total_services * 100))
 
         if completed_services == total_services:
-            await sleep(2)
+            await sleep(self.SECONDS_BEFORE_DASHBOARD)
             self.dismiss(True)
 
 

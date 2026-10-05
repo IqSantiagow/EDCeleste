@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class SettingsService:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        config_path: Path = Path("config.yaml"),
+        example_config_path: Path = Path("config-example.yaml"),
+    ) -> None:
+        # Tests point these at a temp folder, so the real config.yaml stays untouched
+        self.config_path = config_path
+        self.example_config_path = example_config_path
         self.settings: SettingsModel | None = None
 
     def get_settings(self) -> SettingsModel:
@@ -26,31 +33,27 @@ class SettingsService:
         return self.settings
 
     def update_settings(self, settings: SettingsModel) -> None:
-        CONFIG_FILE_PATH = Path("config.yaml")
-
-        if not CONFIG_FILE_PATH.exists():
+        if not self.config_path.exists():
             logger.warning(
                 "No config.yaml file found while updating settings. "
                 "Creating a new config.yaml from config-example.yaml."
             )
-            shutil.copyfile("config-example.yaml", "config.yaml")
-            if not CONFIG_FILE_PATH.exists():
+            shutil.copyfile(self.example_config_path, self.config_path)
+            if not self.config_path.exists():
                 raise RuntimeError(
                     "Failed to create config.yaml from config-example.yaml."
                 )
 
-        with CONFIG_FILE_PATH.open("w") as f:
+        with self.config_path.open("w") as f:
             yaml.safe_dump(settings.model_dump(), f)
 
         self.settings = settings
 
     def load_settings(self) -> None:
-        CONFIG_FILE_PATH = Path("config.yaml")
+        if not self.config_path.exists():
+            shutil.copyfile(self.example_config_path, self.config_path)
 
-        if not CONFIG_FILE_PATH.exists():
-            shutil.copyfile("config-example.yaml", "config.yaml")
-
-            if not CONFIG_FILE_PATH.exists():
+            if not self.config_path.exists():
                 raise RuntimeError("Failed to copy config-example.yaml to config.yaml.")
 
             raise FileNotFoundError(
@@ -59,7 +62,7 @@ class SettingsService:
                 "application."
             )
 
-        with CONFIG_FILE_PATH.open("r") as f:
+        with self.config_path.open("r") as f:
             data = yaml.safe_load(f)
 
         try:

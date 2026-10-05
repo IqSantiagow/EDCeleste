@@ -11,11 +11,11 @@ ruff check
 ruff format --diff   # check only; drop --diff to auto-fix
 
 # Tests with coverage
-coverage run -m unittest discover
+coverage run -m pytest
 coverage report -m
 
 # Run a single test file
-python -m unittest tests.services.journal.test_journal_watcher
+python -m pytest tests/services/journal/test_journal_watcher.py
 ```
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
@@ -40,7 +40,7 @@ Two independent, both-gitignored config sources:
   - `event_reactions.reactions` — per-journal-event booleans for automatic replies
   - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)
 
-  `SettingsService.load_settings()` runs eagerly the first time the DI container resolves it (`containers/main_container.py`), before any service needing a bootstrap value is built. If `config.yaml` is missing, it's auto-created from `config-example.yaml` and startup fails with `FileNotFoundError` asking you to edit it and restart.
+  `SettingsService.load_settings()` runs eagerly the first time the DI container resolves it (`containers/main_container.py`), before any service needing a bootstrap value is built. If `config.yaml` is missing, it's auto-created from `config-example.yaml` and startup fails with `FileNotFoundError` asking you to edit it and restart. Both paths are constructor arguments of `SettingsService` (`config_path`, `example_config_path`) — tests always pass a temp folder, never the real `config.yaml`.
 
 ## Architecture
 
@@ -63,7 +63,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 - `projection/` — each `Projection` (protocol in `projection/event_projections/projection.py`) processes events and returns a text snippet for the LLM; `GameStateService` orchestrates all projections
 - `protocols/game_state_protocol.py` — `GameStateProtocol` is a structural Protocol that `GameStateService` implements; the UI depends only on this protocol, not the concrete class
 - `use_cases/` — thin callable classes that bridge `GameStateReader` → `DashboardViewModel`
-- `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`
+- `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`; every module that does this must be listed in `MODULES_USING_PROVIDE` (same file) — `tests/containers/test_wired_modules.py` fails otherwise
 - `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` as an `asyncio` task on its own event loop on mount
 - `__main__.py` — `main()`, exposed as the `edceleste` console script in `pyproject.toml`
 
