@@ -7,6 +7,7 @@ from edceleste.services.event_bus import EventBus
 from edceleste.services.exceptions.game_window_exception import (
     GameWindowNotFoundException,
 )
+from edceleste.services import keybinds_service
 from edceleste.services.game_window import GameWindow
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import SYSTEM_PROMPT
@@ -78,12 +79,16 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         self.game_window = Mock(spec=GameWindow)
         self.game_window.bring_to_front = AsyncMock(return_value=True)
 
+        # Remembers the keys instead of pressing them for real
+        self.keyboard = Mock()
+
     def _make_service(self):
         return KeybindService(
             keybinds_path=KEYBINDS_PATH,
             event_bus=EventBus(),
             settings_handler=self.settings_handler,
             game_window=self.game_window,
+            key_presser=self.keyboard,
         )
 
     def _load_service_with(self, action_xml: bytes) -> KeybindService:
@@ -327,22 +332,18 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        with patch(
-            "edceleste.services.keybinds_service.pydirectinput.press"
-        ) as mock_press:
-            await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+        await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
-        mock_press.assert_called_once_with("z")
+        self.keyboard.press.assert_called_once_with("z")
 
     async def test_perform_action_holds_modifier_while_pressing_key(self):
         service = self._make_service()
         service.load_keybinds()
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+        await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(
-            keyboard.mock_calls,
+            self.keyboard.mock_calls,
             [call.keyDown("shiftleft"), call.press("l"), call.keyUp("shiftleft")],
         )
 
@@ -350,11 +351,10 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            await service.perform_action(EdAction.NIGHT_VISION_TOGGLE)
+        await service.perform_action(EdAction.NIGHT_VISION_TOGGLE)
 
         self.assertEqual(
-            keyboard.mock_calls,
+            self.keyboard.mock_calls,
             [
                 call.keyDown("ctrlleft"),
                 call.keyDown("shiftleft"),
@@ -368,20 +368,18 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            keyboard.press.side_effect = RuntimeError("press failed")
-            with self.assertRaises(RuntimeError):
-                await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+        self.keyboard.press.side_effect = RuntimeError("press failed")
+        with self.assertRaises(RuntimeError):
+            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
 
-        keyboard.keyUp.assert_called_once_with("shiftleft")
+        self.keyboard.keyUp.assert_called_once_with("shiftleft")
 
     async def test_perform_action_presses_nothing_when_action_is_unbound(self):
         service = self._load_service_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            await service.perform_action(EdAction.USE_SHIELD_CELL)
+        await service.perform_action(EdAction.USE_SHIELD_CELL)
 
-        self.assertEqual(keyboard.mock_calls, [])
+        self.assertEqual(self.keyboard.mock_calls, [])
         self.game_window.bring_to_front.assert_not_awaited()
 
     # --- game window: keys go to the game, never to the terminal ---
@@ -394,9 +392,8 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             steps.append("bring game to front") or True
         )
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            keyboard.press.side_effect = lambda key: steps.append(f"press {key}")
-            await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+        self.keyboard.press.side_effect = lambda key: steps.append(f"press {key}")
+        await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.assertEqual(steps, ["bring game to front", "press z"])
 
@@ -405,11 +402,10 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service.load_keybinds()
         self.game_window.bring_to_front.return_value = False
 
-        with patch("edceleste.services.keybinds_service.pydirectinput") as keyboard:
-            with self.assertRaises(GameWindowNotFoundException):
-                await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+        with self.assertRaises(GameWindowNotFoundException):
+            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
 
-        self.assertEqual(keyboard.mock_calls, [])
+        self.assertEqual(self.keyboard.mock_calls, [])
 
     async def test_event_bus_publish_of_ed_action_triggers_perform_action(self):
         event_bus = EventBus()
@@ -418,15 +414,23 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             event_bus=event_bus,
             settings_handler=self.settings_handler,
             game_window=self.game_window,
+            key_presser=self.keyboard,
         )
         service.load_keybinds()
 
-        with patch(
-            "edceleste.services.keybinds_service.pydirectinput.press"
-        ) as mock_press:
-            await event_bus.publish(EdAction.TOGGLE_FLIGHT_ASSIST)
+        await event_bus.publish(EdAction.TOGGLE_FLIGHT_ASSIST)
 
-        mock_press.assert_called_once_with("z")
+        self.keyboard.press.assert_called_once_with("z")
+
+    def test_should_press_keys_with_pydirectinput_when_no_key_presser_is_given(self):
+        service = KeybindService(
+            keybinds_path=KEYBINDS_PATH,
+            event_bus=EventBus(),
+            settings_handler=self.settings_handler,
+            game_window=self.game_window,
+        )
+
+        self.assertIs(service.key_presser, keybinds_service.pydirectinput)
 
     def test_validate_settings_returns_issue_when_keybindings_path_empty(self):
         service = self._make_service()

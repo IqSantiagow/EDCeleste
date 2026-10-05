@@ -1,7 +1,6 @@
 from dependency_injector import containers, providers
 
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
-from edceleste.config.config import AppConfig
 from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
 from edceleste.services.game_state_service import GameStateService
@@ -95,6 +94,21 @@ from edceleste.use_cases.settings.update_settings_use_case import UpdateSettings
 from edceleste.use_cases.system_check.system_check_use_case import SystemCheckUseCase
 
 
+# Every module with an @inject default taken from this container. A module
+# missing here gets the Provide marker instead of the real object. main() and
+# the e2e tests both wire this list, test_wired_modules.py keeps it complete.
+MODULES_USING_PROVIDE = [
+    "edceleste.ui.ui_app",
+    "edceleste.ui.screens.app.widgets.app_header",
+    "edceleste.ui.screens.dashboard.widgets.ship_log.widget_station_market",
+    "edceleste.ui.screens.settings.widgets.stt.widget_stt_container",
+    "edceleste.ui.screens.settings.widgets.system_prompts.widget_system_prompts_container",  # noqa: E501
+    "edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen",
+    "edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical",  # noqa: E501
+    "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
+]
+
+
 def _build_loaded_settings_service() -> SettingsService:
     # TODO: Add initial setting to further load it during the app settings screen
     settings_service = SettingsService()
@@ -104,7 +118,7 @@ def _build_loaded_settings_service() -> SettingsService:
 
 class Container(containers.DeclarativeContainer):
     # -----CONFIG-----
-    config = providers.Configuration(pydantic_settings=[AppConfig()])  # type: ignore
+    config = providers.Configuration()
 
     # -----TOOLS-----
 
