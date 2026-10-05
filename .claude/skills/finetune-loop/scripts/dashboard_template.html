@@ -1,0 +1,234 @@
+<title>__TITLE__</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Report column: history first, then one bar chart per example kind, the training curves and the full table */
+:root{
+  --ground:#f6f7f9; --surface:#fcfcfb; --surface-2:#eef1f4;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#838d99; --rule:#dfe3e8; --grid:#e8eaed;
+  --candidate:#2a78d6; --baseline:#a3a7ad;
+  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#121211; --surface:#1a1a19; --surface-2:#242422;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#8f8e86; --rule:#2e2e2b; --grid:#2a2a27;
+  --candidate:#3987e5; --baseline:#6f6e68;
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#121211; --surface:#1a1a19; --surface-2:#242422;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#8f8e86; --rule:#2e2e2b; --grid:#2a2a27;
+  --candidate:#3987e5; --baseline:#6f6e68;
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px 88px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,5vw,44px);font-weight:700;letter-spacing:-.02em;line-height:1.1}
+h2{font-size:22px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+p{margin:0}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+header{padding:44px 0 26px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:14px}
+.lede{font-size:17.5px;color:var(--ink-2);max-width:66ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.meta span{background:var(--surface-2);padding:3px 9px;border-radius:3px}
+section{padding:38px 0;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:16px}
+.prose{color:var(--ink-2);max-width:68ch;font-size:15px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.chart{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.chart .note{font-size:12.5px;color:var(--muted)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:var(--body);fill:var(--ink-2);font-size:12px}
+svg .value{fill:var(--ink);font-family:var(--mono);font-size:11.5px}
+svg .axis{fill:var(--muted);font-family:var(--mono);font-size:10.5px}
+svg .grid{stroke:var(--grid)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);color:var(--ink-2);vertical-align:top}
+td.n{font-family:var(--mono);color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+td b{color:var(--ink)}
+.role{font-family:var(--mono);font-size:10.5px;padding:1px 6px;border-radius:3px;background:var(--surface-2);color:var(--muted)}
+#tip{position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:12.5px;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.12);max-width:280px}
+footer{padding:28px 0 0;font-size:12.5px;color:var(--muted)}
+@media (max-width:620px){.wrap{padding:0 16px 64px}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Fine-tune progress</p>
+    <h1 id="title"></h1>
+    <p class="lede" id="lede"></p>
+    <div class="meta" id="meta"></div>
+  </header>
+  <section id="history-section">
+    <div><p class="eyebrow">Iterations</p><h2>What changed and what came out of it</h2></div>
+    <div class="tbl"><table id="history"></table></div>
+  </section>
+  <section>
+    <div><p class="eyebrow">Accuracy per kind of example</p><h2>Every model on the same test split</h2></div>
+    <p class="prose">Share of questions answered right at the 0.5 threshold. Grey bars are baselines, blue bars are candidates. Hover a bar for the false and missed "yes" counts.</p>
+    <div class="charts" id="kind-charts"></div>
+  </section>
+  <section id="extra-section">
+    <div><p class="eyebrow">Project metrics</p><h2>What matters in the app</h2></div>
+    <div class="tbl"><table id="extra"></table></div>
+  </section>
+  <section id="curve-section">
+    <div><p class="eyebrow">Training</p><h2>Training loss per run</h2></div>
+    <div class="chart"><div class="legend" id="curve-legend"></div><div id="curve"></div><p class="note">Cross-entropy on the train split, logged every 10 optimizer steps. Lower is better; it says nothing about the test split by itself.</p></div>
+  </section>
+  <section>
+    <div><p class="eyebrow">All numbers</p><h2>Table view</h2></div>
+    <div class="tbl"><table id="full"></table></div>
+  </section>
+  <footer>Built by build_dashboard.py from iterations.json and the saved answers of every model.</footer>
+</div>
+<div id="tip" hidden></div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const tip = document.getElementById("tip");
+const percent = value => (value * 100).toFixed(1) + "%";
+
+function element(tag, attributes = {}, text) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+function showTip(event, html) { tip.innerHTML = html; tip.hidden = false; moveTip(event); }
+function moveTip(event) { tip.style.left = Math.min(event.clientX + 14, innerWidth - 300) + "px"; tip.style.top = (event.clientY + 14) + "px"; }
+function hideTip() { tip.hidden = true; }
+function escapeHtml(text) { const div = document.createElement("div"); div.textContent = text; return div.innerHTML; }
+
+document.getElementById("title").textContent = DATA.title;
+document.getElementById("lede").textContent = DATA.lede;
+const meta = document.getElementById("meta");
+[DATA.test_examples + " test examples", DATA.models.length + " models scored"].forEach(text => { const span = document.createElement("span"); span.textContent = text; meta.appendChild(span); });
+
+// iteration history
+if (DATA.history.length) {
+  const table = document.getElementById("history");
+  table.innerHTML = "<thead><tr><th>Iteration</th><th>Date</th><th>Change</th><th>Result</th></tr></thead>";
+  const body = document.createElement("tbody");
+  DATA.history.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><b>${escapeHtml(row.iteration)}</b></td><td class="n">${escapeHtml(row.date || "")}</td><td>${escapeHtml(row.change || "")}</td><td>${escapeHtml(row.result || "")}</td>`;
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+} else document.getElementById("history-section").hidden = true;
+
+// one horizontal bar chart per kind
+const kinds = [...new Set(DATA.models.flatMap(model => Object.keys(model.summary.kinds)))];
+const chartsBox = document.getElementById("kind-charts");
+kinds.forEach(kind => {
+  const box = document.createElement("div"); box.className = "chart";
+  const title = document.createElement("h3"); title.textContent = kind; box.appendChild(title);
+  const rows = DATA.models.filter(model => model.summary.kinds[kind]);
+  const labelWidth = 150, barArea = 230, rowHeight = 30, width = labelWidth + barArea + 56, height = rows.length * rowHeight + 24;
+  const svg = element("svg", {viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": `Question accuracy for ${kind}`});
+  [0, 0.5, 1].forEach(tick => {
+    const x = labelWidth + tick * barArea;
+    svg.appendChild(element("line", {x1: x, x2: x, y1: 0, y2: rows.length * rowHeight, class: "grid"}));
+    svg.appendChild(element("text", {x, y: rows.length * rowHeight + 16, "text-anchor": "middle", class: "axis"}, tick * 100 + "%"));
+  });
+  rows.forEach((model, index) => {
+    const metrics = model.summary.kinds[kind];
+    const y = index * rowHeight + 6, barWidth = Math.max(2, metrics.question_accuracy * barArea);
+    svg.appendChild(element("text", {x: labelWidth - 8, y: y + 13, "text-anchor": "end"}, model.label));
+    const bar = element("rect", {x: labelWidth, y, width: barWidth, height: 18, rx: 4, fill: model.role === "baseline" ? "var(--baseline)" : "var(--candidate)"});
+    const hit = element("rect", {x: labelWidth, y: y - 4, width: barArea, height: 26, fill: "transparent"});
+    const falseYes = metrics.false_yes["0.5"], missedYes = metrics.missed_yes["0.5"];
+    const detail = `<b>${escapeHtml(model.label)}</b> · ${escapeHtml(kind)}<br>questions right ${percent(metrics.question_accuracy)}<br>examples all right ${percent(metrics.example_all_right)}<br>false yes ${falseYes[0]}/${falseYes[1]} · missed yes ${missedYes[0]}/${missedYes[1]}<br>n = ${metrics.examples}`;
+    [bar, hit].forEach(node => { node.addEventListener("mousemove", event => showTip(event, detail)); node.addEventListener("mouseleave", hideTip); });
+    svg.appendChild(bar);
+    svg.appendChild(element("text", {x: labelWidth + barWidth + 6, y: y + 13, class: "value"}, percent(metrics.question_accuracy)));
+    svg.appendChild(hit);
+  });
+  box.appendChild(svg);
+  const note = document.createElement("p"); note.className = "note"; note.textContent = `n = ${rows[0].summary.kinds[kind].examples} examples`; box.appendChild(note);
+  chartsBox.appendChild(box);
+});
+
+// project-specific metrics
+const extraNames = [...new Set(DATA.models.flatMap(model => Object.keys(model.summary.extra || {})))];
+if (extraNames.length) {
+  const table = document.getElementById("extra");
+  table.innerHTML = "<thead><tr><th>Metric</th>" + DATA.models.map(model => `<th>${escapeHtml(model.label)}</th>`).join("") + "</tr></thead>";
+  const body = document.createElement("tbody");
+  extraNames.forEach(name => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${escapeHtml(name)}</td>` + DATA.models.map(model => `<td class="n">${escapeHtml(String((model.summary.extra || {})[name] ?? "—"))}</td>`).join("");
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+} else document.getElementById("extra-section").hidden = true;
+
+// training curves, at most three runs so every line keeps a safe color
+const runs = DATA.models.filter(model => model.curve.length).slice(-3);
+if (runs.length) {
+  const colors = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+  const width = 720, height = 260, left = 48, right = 120, top = 12, bottom = 30;
+  const maxStep = Math.max(...runs.flatMap(run => run.curve.map(point => point[0])));
+  const maxLoss = Math.max(...runs.flatMap(run => run.curve.map(point => point[1])));
+  const x = step => left + step / maxStep * (width - left - right);
+  const y = loss => top + (1 - loss / maxLoss) * (height - top - bottom);
+  const svg = element("svg", {viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": "Training loss per run"});
+  [0, 0.5, 1].forEach(share => {
+    const value = maxLoss * share;
+    svg.appendChild(element("line", {x1: left, x2: width - right, y1: y(value), y2: y(value), class: "grid"}));
+    svg.appendChild(element("text", {x: left - 6, y: y(value) + 4, "text-anchor": "end", class: "axis"}, value.toFixed(2)));
+  });
+  svg.appendChild(element("text", {x: width - right, y: height - 8, "text-anchor": "end", class: "axis"}, `step ${maxStep}`));
+  svg.appendChild(element("text", {x: left, y: height - 8, class: "axis"}, "step 0"));
+  const legend = document.getElementById("curve-legend");
+  runs.forEach((run, index) => {
+    const points = run.curve.map(point => `${x(point[0])},${y(point[1])}`).join(" ");
+    svg.appendChild(element("polyline", {points, fill: "none", stroke: colors[index], "stroke-width": 2, "stroke-linejoin": "round"}));
+    const last = run.curve[run.curve.length - 1];
+    svg.appendChild(element("text", {x: x(last[0]) + 6, y: y(last[1]) + 4 + index * 13, class: "value"}, run.label));
+    legend.insertAdjacentHTML("beforeend", `<span><i style="background:${colors[index]}"></i>${escapeHtml(run.label)}</span>`);
+  });
+  const crosshair = element("line", {y1: top, y2: height - bottom, stroke: "var(--muted)", "stroke-dasharray": "3 3", visibility: "hidden"});
+  svg.appendChild(crosshair);
+  const hit = element("rect", {x: left, y: top, width: width - left - right, height: height - top - bottom, fill: "transparent"});
+  hit.addEventListener("mousemove", event => {
+    const box = svg.getBoundingClientRect();
+    const step = Math.max(0, Math.min(maxStep, ((event.clientX - box.left) / box.width * width - left) / (width - left - right) * maxStep));
+    crosshair.setAttribute("x1", x(step)); crosshair.setAttribute("x2", x(step)); crosshair.setAttribute("visibility", "visible");
+    const lines = runs.map(run => {
+      const nearest = run.curve.reduce((best, point) => Math.abs(point[0] - step) < Math.abs(best[0] - step) ? point : best);
+      return `${escapeHtml(run.label)}: ${nearest[1].toFixed(4)} (step ${nearest[0]})`;
+    });
+    showTip(event, lines.join("<br>"));
+  });
+  hit.addEventListener("mouseleave", () => { crosshair.setAttribute("visibility", "hidden"); hideTip(); });
+  svg.appendChild(hit);
+  document.getElementById("curve").appendChild(svg);
+} else document.getElementById("curve-section").hidden = true;
+
+// table view
+const full = document.getElementById("full");
+full.innerHTML = "<thead><tr><th>Model</th><th>Kind</th><th>n</th><th>Questions right</th><th>All right</th><th>False yes 0.5 / 0.7 / 0.9</th><th>Missed yes 0.5</th></tr></thead>";
+const fullBody = document.createElement("tbody");
+DATA.models.forEach(model => Object.entries(model.summary.kinds).forEach(([kind, metrics]) => {
+  const falseYes = ["0.5", "0.7", "0.9"].map(threshold => metrics.false_yes[threshold][0]).join(" / ") + ` of ${metrics.false_yes["0.5"][1]}`;
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td><b>${escapeHtml(model.label)}</b> <span class="role">${escapeHtml(model.role)}</span></td><td>${escapeHtml(kind)}</td><td class="n">${metrics.examples}</td><td class="n">${percent(metrics.question_accuracy)}</td><td class="n">${percent(metrics.example_all_right)}</td><td class="n">${falseYes}</td><td class="n">${metrics.missed_yes["0.5"][0]} of ${metrics.missed_yes["0.5"][1]}</td>`;
+  fullBody.appendChild(tr);
+}));
+full.appendChild(fullBody);
+</script>

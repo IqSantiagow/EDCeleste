@@ -1,0 +1,1682 @@
+[
+ {
+  "id": "cmd-NightVisionToggle-0",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "llm-30",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: gdzie najlepiej sprzedać jakiś towar (np. złoto, painite)",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-2",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile masz kredytów",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "pair-4",
+  "category": "rozkaz złożony",
+  "intent": "SelectHighestThreat,DeployHardpointToggle",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: namierz największe zagrożenie + broń (wysuń albo schowaj hardpointy)",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "llm-4",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: co słychać w Galnecie",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-53",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o radę w walce",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-4",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: dokąd prowadzi trasa",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-45",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o Thargoidów",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-SetSpeed75-5",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "cmd-NightVisionToggle-3",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "state-23",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: co masz w ładowni",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-22",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy tarcze są aktywne",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-57",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o materiały do inżynierów",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-23",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: poproś, żeby następnym razem pytała przed boostem",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "state-6",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki jest stan kadłuba",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-6",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "cmd-SetSpeedZero-4",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "pair-5",
+  "category": "rozkaz złożony",
+  "intent": "SetSpeedZero,LandingGearToggle",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: gaz na zero / pełny stop + podwozie (wysuń albo schowaj)",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-DeployHeatSink-5",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "state-9",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaką masz rangę",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-DeployHeatSink-8",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "state-25",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy jesteś zadokowany",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-3",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "cmd-LandingGearToggle-5",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "llm-39",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: opowiedz o jakimś systemie albo frakcji",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-LandingGearToggle-1",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-0",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-5",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "llm-42",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: podsumuj, co się działo w tej sesji",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-12",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: podsumuj, co się działo w tej sesji",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "pair-9",
+  "category": "rozkaz złożony",
+  "intent": "IncreaseSystemsPower,UseBoostJuice",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: moc do systemów / tarcz + boost",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-UseBoostJuice-5",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "trap-16",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy tarcze wytrzymają",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-33",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: który inżynier ulepszy FSD albo thrustery",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-LandingGearToggle-8",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "state-16",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: gdzie jesteś (system, ciało)",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-19",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: dokąd prowadzi trasa",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-2",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "state-3",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jakim statkiem lecisz",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-LandingGearToggle-7",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "cmd-NightVisionToggle-7",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-15",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o Thargoidów",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-4",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-LandingGearToggle-3",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "trap-29",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że dobrze, że nie wysunęła podwozia",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-8",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "state-20",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile skoków zostało",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-15",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: poproś o radę, kiedy używać heat sinków",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "state-12",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy statek się przegrzewa",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-32",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: ile skoków do jakiegoś systemu",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-NightVisionToggle-1",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-6",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "state-8",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: co masz w ładowni",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "state-7",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy tarcze są aktywne",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "pair-10",
+  "category": "rozkaz złożony",
+  "intent": "DeployHardpointToggle,SelectHighestThreat",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: broń (wysuń albo schowaj hardpointy) + namierz największe zagrożenie",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-1",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-UseBoostJuice-1",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-1",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-DeployHeatSink-4",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "state-24",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaką masz rangę",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-DeployHeatSink-3",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-7",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-36",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak najlepiej zarabiać tym statkiem",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-10",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: opowiedz, że ostatnio zapomniałeś o podwoziu przy lądowaniu",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-UseShieldCell-4",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-4",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-NightVisionToggle-6",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "trap-5",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że boost był za wcześnie",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "pair-2",
+  "category": "rozkaz złożony",
+  "intent": "DeployHeatSink,UseBoostJuice",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: wystrzel heat sink + boost",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-4",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-DeployHeatSink-6",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-2",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "llm-10",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: co robić dalej w grze",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-LandingGearToggle-4",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "trap-17",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że nie wysuwaj broni na stacji",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-SetSpeedZero-2",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-5",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-7",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-34",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: co słychać w Galnecie",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-DeployHeatSink-0",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "pair-7",
+  "category": "rozkaz złożony",
+  "intent": "ToggleCargoScoop,SetSpeedZero",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: cargo scoop (otwórz albo zamknij) + gaz na zero / pełny stop",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-UseBoostJuice-6",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "llm-55",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj, jak się czuje Celeste",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-SetSpeed75-3",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "llm-44",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o misje albo reputację",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-DeployHeatSink-1",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "llm-19",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: podziękuj Celeste albo pochwal ją",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-3",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "trap-20",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj o różnicę między chaffem a ECM",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-48",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: porównaj dwa statki",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-14",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy przy interdykcji lepiej się poddać",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "trap-7",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, jak działa shield cell bank",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "state-0",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile masz paliwa",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-UseBoostJuice-2",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "state-5",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile skoków zostało",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-8",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że nie strzelaj chaffem bez pytania",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-3",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: który inżynier ulepszy FSD albo thrustery",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-SetSpeedZero-8",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-0",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-NightVisionToggle-4",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-NightVisionToggle-5",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-1",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "trap-22",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czemu podwozie jest wysunięte",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-UseBoostJuice-8",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-7",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "cmd-SetSpeedZero-6",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "trap-2",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że NIE chcesz jeszcze wysuwać podwozia",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-2",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: ile skoków do jakiegoś systemu",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-25",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj, jak się czuje Celeste",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-51",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o zasady gry (np. jak działa interdykcja)",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-13",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że namierzanie zagrożenia było super",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-SetSpeedZero-5",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "trap-3",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, ile masz heat sinków",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-4",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "llm-13",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: doradź, jaki statek kupić",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "state-17",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile masz kredytów",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-8",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak działa fuel scooping albo neutron boost",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-UseBoostJuice-0",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-DeployHeatSink-7",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "trap-26",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy heat sink zwiększa wykrywalność",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "trap-18",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, jaka jest optymalna prędkość podejścia",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "state-13",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaka jest najbliższa stacja",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-3",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "cmd-SetSpeedZero-0",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-5",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "llm-0",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: gdzie najlepiej sprzedać jakiś towar (np. złoto, painite)",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-DeployHeatSink-2",
+  "category": "rozkaz",
+  "intent": "DeployHeatSink",
+  "what": "ROZKAZ: wystrzel heat sink",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-7",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-8",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "cmd-SetSpeed75-0",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "llm-37",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: znajdź stację ze stocznią / outfittingiem",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-SetSpeed75-7",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-59",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o cokolwiek spoza gry",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-1",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: gdzie jesteś (system, ciało)",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-1",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zaplanuj trasę do jakiegoś systemu",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-6",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "trap-9",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czemu gaz jest na zero",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "trap-11",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy night vision zużywa energię",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-49",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: podziękuj Celeste albo pochwal ją",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-56",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o przypomnienie czegoś",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-8",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "llm-50",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: przywitaj się albo pożegnaj",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-52",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o ceny paliwa albo naprawy",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-21",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki jest stan kadłuba",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-1",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "cmd-UseShieldCell-1",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "llm-31",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zaplanuj trasę do jakiegoś systemu",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-5",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: czy dany system jest bezpieczny",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-28",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, co robi tryb nocny",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-58",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o Colonię albo Sagittarius A*",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-LandingGearToggle-6",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "state-18",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jakim statkiem lecisz",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-11",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o żart albo pogawędkę",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "state-15",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: ile masz paliwa",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-24",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy moc do systemów pomaga tarczom",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-35",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: czy dany system jest bezpieczny",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-SetSpeed75-1",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "pair-6",
+  "category": "rozkaz złożony",
+  "intent": "FireChaffLauncher,UseShieldCell",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: wystrzel chaff + użyj shield cell (SCB)",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-6",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "llm-6",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak najlepiej zarabiać tym statkiem",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-14",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o misje albo reputację",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-47",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak zdobyć rangę Elite w handlu albo eksploracji",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-27",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy statek się przegrzewa",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-2",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-8",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "state-10",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: czy jesteś zadokowany",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-IncreaseSystemsPower-0",
+  "category": "rozkaz",
+  "intent": "IncreaseSystemsPower",
+  "what": "ROZKAZ: moc do systemów / tarcz",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-SetSpeed75-4",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-2",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "pair-8",
+  "category": "rozkaz złożony",
+  "intent": "NightVisionToggle,LandingGearToggle",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: noktowizja (night vision) + podwozie (wysuń albo schowaj)",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "state-26",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki jest zasięg skoku",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "pair-11",
+  "category": "rozkaz złożony",
+  "intent": "SetSpeed75,DeployHeatSink",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: gaz na 75% + wystrzel heat sink",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-SetSpeed75-8",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "pair-1",
+  "category": "rozkaz złożony",
+  "intent": "UseBoostJuice,FireChaffLauncher",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: boost + wystrzel chaff",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "llm-16",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: gdzie kupić jakiś moduł",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "state-11",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki jest zasięg skoku",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-7",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: znajdź stację ze stocznią / outfittingiem",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-SetSpeedZero-7",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-38",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak działa fuel scooping albo neutron boost",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-28",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaka jest najbliższa stacja",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "trap-4",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy chaff działa na torpedy",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-UseShieldCell-7",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-20",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: przywitaj się albo pożegnaj",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-21",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy cargo scoop jest otwarty",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-5",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "cmd-SetSpeedZero-3",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "llm-43",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: doradź, jaki statek kupić",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "state-14",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki to typ gwiazdy",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "llm-28",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o Colonię albo Sagittarius A*",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-8",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "cmd-SetSpeedZero-1",
+  "category": "rozkaz",
+  "intent": "SetSpeedZero",
+  "what": "ROZKAZ: gaz na zero / pełny stop",
+  "hint": "pełnym zdaniem"
+ },
+ {
+  "id": "llm-54",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o pobliskie atrakcje do eksploracji",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-23",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o radę w walce",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-SetSpeed75-6",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "llm-26",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o przypomnienie czegoś",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-UseBoostJuice-3",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "llm-18",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: porównaj dwa statki",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-LandingGearToggle-0",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "trap-12",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, ile kosztuje cargo scoop",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-SetSpeed75-2",
+  "category": "rozkaz",
+  "intent": "SetSpeed75",
+  "what": "ROZKAZ: gaz na 75%",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-UseBoostJuice-7",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "llm-22",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o ceny paliwa albo naprawy",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-UseShieldCell-2",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-2",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "trap-25",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: opowiedz o walce, w której użyłeś shield cell",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "trap-27",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz „wait, don't deploy anything”",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "state-29",
+  "category": "pytanie o stan",
+  "intent": "stan",
+  "what": "PYTANIE O STAN STATKU: jaki to typ gwiazdy",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-27",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o materiały do inżynierów",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-6",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, czy warto wysunąć broń w tym systemie",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "trap-19",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: powiedz, że nie potrzebujesz teraz boosta",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "llm-40",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: co robić dalej w grze",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "llm-41",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: poproś o żart albo pogawędkę",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-3",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "cmd-UseBoostJuice-4",
+  "category": "rozkaz",
+  "intent": "UseBoostJuice",
+  "what": "ROZKAZ: boost",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "llm-24",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o pobliskie atrakcje do eksploracji",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-1",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: poproś, żeby przypomniała Ci później o podwoziu",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-UseShieldCell-6",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "pair-0",
+  "category": "rozkaz złożony",
+  "intent": "LandingGearToggle,SetSpeed75",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: podwozie (wysuń albo schowaj) + gaz na 75%",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "llm-21",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o zasady gry (np. jak działa interdykcja)",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-5",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-7",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "z „now” albo „right now”"
+ },
+ {
+  "id": "cmd-UseShieldCell-8",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "cmd-NightVisionToggle-8",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "dowolnie, jak by Ci przyszło w grze"
+ },
+ {
+  "id": "pair-3",
+  "category": "rozkaz złożony",
+  "intent": "UseShieldCell,IncreaseSystemsPower",
+  "what": "DWA ROZKAZY W JEDNYM ZDANIU: użyj shield cell (SCB) + moc do systemów / tarcz",
+  "hint": "jednym zdaniem, w dowolnej kolejności"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-4",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "grzecznie, z „please”"
+ },
+ {
+  "id": "cmd-UseShieldCell-0",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-SelectHighestThreat-0",
+  "category": "rozkaz",
+  "intent": "SelectHighestThreat",
+  "what": "ROZKAZ: namierz największe zagrożenie",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "llm-9",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: opowiedz o jakimś systemie albo frakcji",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-UseShieldCell-5",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "jak do kumpla, luźno"
+ },
+ {
+  "id": "llm-29",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: zapytaj o cokolwiek spoza gry",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "cmd-ToggleCargoScoop-3",
+  "category": "rozkaz",
+  "intent": "ToggleCargoScoop",
+  "what": "ROZKAZ: cargo scoop (otwórz albo zamknij)",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-6",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "innymi słowami niż zwykle"
+ },
+ {
+  "id": "llm-17",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: jak zdobyć rangę Elite w handlu albo eksploracji",
+  "hint": "swoimi słowami"
+ },
+ {
+  "id": "trap-0",
+  "category": "pułapka (to NIE jest rozkaz)",
+  "intent": "pułapka",
+  "what": "ZDANIE, KTÓRE NIE JEST ROZKAZEM: zapytaj, dlaczego heat sink się wystrzelił",
+  "hint": "po angielsku, naturalnie"
+ },
+ {
+  "id": "cmd-FireChaffLauncher-0",
+  "category": "rozkaz",
+  "intent": "FireChaffLauncher",
+  "what": "ROZKAZ: wystrzel chaff",
+  "hint": "krótko, jednym-dwoma słowami"
+ },
+ {
+  "id": "cmd-UseShieldCell-3",
+  "category": "rozkaz",
+  "intent": "UseShieldCell",
+  "what": "ROZKAZ: użyj shield cell (SCB)",
+  "hint": "w pośpiechu, jak w walce"
+ },
+ {
+  "id": "llm-46",
+  "category": "rozmowa",
+  "intent": "llm",
+  "what": "ROZMOWA / PYTANIE: gdzie kupić jakiś moduł",
+  "hint": "krócej i bardziej potocznie"
+ },
+ {
+  "id": "cmd-NightVisionToggle-2",
+  "category": "rozkaz",
+  "intent": "NightVisionToggle",
+  "what": "ROZKAZ: noktowizja (night vision)",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-LandingGearToggle-2",
+  "category": "rozkaz",
+  "intent": "LandingGearToggle",
+  "what": "ROZKAZ: podwozie (wysuń albo schowaj)",
+  "hint": "zacznij od „Celeste”"
+ },
+ {
+  "id": "cmd-DeployHardpointToggle-1",
+  "category": "rozkaz",
+  "intent": "DeployHardpointToggle",
+  "what": "ROZKAZ: broń (wysuń albo schowaj hardpointy)",
+  "hint": "pełnym zdaniem"
+ }
+]
