@@ -54,6 +54,7 @@ jobs:
 
             ## Before opening a PR
             - Run `ruff check` and `ruff format --diff`; fix anything they flag.
+            - Run `mypy`; fix every type error it reports.
             - Run `coverage run -m pytest`; make sure the suite passes.
             - Only then commit, push the branch, and open a PR that closes the issue.
 
@@ -61,4 +62,4 @@ jobs:
             what's blocking you instead of guessing.
 
           claude_args: |
-            --allowedTools "Bash(git:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(ruff check:*),Bash(ruff format:*),Bash(python -m pytest:*),Bash(coverage run:*),Bash(coverage report:*)"
+            --allowedTools "Bash(git:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(ruff check:*),Bash(ruff format:*),Bash(mypy:*),Bash(python -m pytest:*),Bash(coverage run:*),Bash(coverage report:*)"

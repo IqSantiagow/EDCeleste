@@ -83,11 +83,11 @@ class SttService:
             logger.warning("No audio data was captured during the recording.")
             return None
 
-        self.load_stt_model()
+        whisper_model = self.load_stt_model()
 
         audio = np.concatenate(self._recorded_frames)
         self._recorded_frames = []
-        result = self.whisper_model.transcribe(audio, fp16=False)
+        result = whisper_model.transcribe(audio, fp16=False)
         text: str = result.get("text", "")
         return text.strip() or None
 
@@ -118,7 +118,7 @@ class SttService:
                 seen[device["name"]] = index
         return list(seen.items())
 
-    def load_stt_model(self) -> None:
+    def load_stt_model(self) -> whisper.Whisper:
         if not self.model:
             logger.warning("STT model is not set. Cannot load model.")
             raise SttException("STT model is not set. Cannot load model.")
@@ -126,6 +126,8 @@ class SttService:
         if self.whisper_model is None:
             logger.info("Loading Whisper model '%s' (lazy)...", self.model)
             self.whisper_model = whisper.load_model(self.model)
+
+        return self.whisper_model
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
         status = ColdStartStatus(
