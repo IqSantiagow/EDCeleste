@@ -28,9 +28,13 @@ class GameWatcherService:
         self._game_watcher_tasks: list[asyncio.Task] = []
 
     def start_watcher_service(self) -> None:
+        latest_journal_file_path = self.__get_latest_journal_filepath()
+
         self.exit_signal = False
         self._game_watcher_tasks.append(
-            asyncio.create_task(self.__generate_journal_events())
+            asyncio.create_task(
+                self.__generate_journal_events(latest_journal_file_path)
+            )
         )
         self._game_watcher_tasks.append(
             asyncio.create_task(self.watch_status_file_and_generate_event())
@@ -46,10 +50,8 @@ class GameWatcherService:
                 task.cancel()
             self._game_watcher_tasks.clear()
 
-    async def __generate_journal_events(self) -> None:
-        latest_file_path = self.__get_latest_journal_filepath()
-
-        with open(latest_file_path, "r") as f:
+    async def __generate_journal_events(self, journal_file_path: str) -> None:
+        with open(journal_file_path, "r") as f:
             f.seek(0, 2)
             while True:
                 if self.exit_signal:
@@ -72,9 +74,7 @@ class GameWatcherService:
 
         if not journal_files:
             self.exit_signal = True
-            raise FileNotFoundError(
-                "No journal files found in the specified directory."
-            )
+            raise FileNotFoundError(f"No journal files found in '{self.journal_path}'.")
 
         latest_file = max(journal_files, key=os.path.getmtime)
 

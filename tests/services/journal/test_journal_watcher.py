@@ -17,6 +17,7 @@ from edceleste.services.models.settings_model import (
 )
 
 JOURNAL_PATH = "C:/journals"
+JOURNAL_FILE = f"{JOURNAL_PATH}/Journal.log"
 
 
 def _make_settings(journal_path: str) -> SettingsModel:
@@ -98,7 +99,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
+            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -120,7 +121,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
+            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
 
             self.mock_event_bus.publish.assert_awaited_once_with(event1)
 
@@ -145,7 +146,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
+            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -153,7 +154,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             )
 
             watcher.exit_signal = False
-            await watcher._GameWatcherService__generate_journal_events()  # type: ignore
+            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -429,6 +430,15 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             watcher.start_watcher_service()
             self.assertEqual(len(watcher._game_watcher_tasks), 3)
             watcher.stop_watcher_service()
+
+    def test_start_watcher_service_raises_and_starts_nothing_without_a_journal(self):
+        self.mock_glob.return_value = []
+        watcher = self._make_watcher()
+
+        with self.assertRaises(FileNotFoundError):
+            watcher.start_watcher_service()
+
+        self.assertEqual(watcher._game_watcher_tasks, [])
 
 
 if __name__ == "__main__":

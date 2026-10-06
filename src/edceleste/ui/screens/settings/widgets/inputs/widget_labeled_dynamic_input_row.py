@@ -56,7 +56,7 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
                         validators=self.validators,
                         password=self.password,
                         compact=True,
-                    ).focus()
+                    )
                 if not self.is_being_edited:
                     displayed_value = (
                         "•" * len(self.value)
@@ -72,6 +72,10 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
 
     def on_click(self, _: events.Click) -> None:
         self.is_being_edited = True
+        self.call_after_refresh(self.focus_input)
+
+    def focus_input(self) -> None:
+        self.query_one(Input).focus()
 
     def _submit_value(self, input_widget: Input) -> None:
         new_value = input_widget.value
