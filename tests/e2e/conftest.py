@@ -32,6 +32,9 @@ from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
     WidgetCommsEntry,
 )
+from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_row import (
+    WidgetShipLogRow,
+)
 from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from edceleste.ui.ui_app import UIApp
 from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
@@ -107,6 +110,11 @@ def comms_entries(app: App, entry_type: str) -> list[str]:
         for entry in app.screen.query(WidgetCommsEntry)
         if entry.entry_type == entry_type
     ]
+
+
+def ship_log_events(app: App) -> list[str]:
+    rail_rows = app.screen.query_one("#ship-log-rail").query(WidgetShipLogRow)
+    return [row.entry.event for row in rail_rows]
 
 
 StreamFunction = Callable[[list[ModelMessage], AgentInfo], AsyncIterator]
