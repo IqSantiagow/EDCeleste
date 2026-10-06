@@ -66,7 +66,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         super().__init__(*args, **kwargs)
         self.llm_model = llm_model
         self.settings_repository = settings_repository
-        self.provider = llm_model.provider
+        self.set_reactive(WidgetSystemPromptsContainer.provider, llm_model.provider)
 
     def on_mount(self) -> None:
         self.call_later(self.fetch_models)
