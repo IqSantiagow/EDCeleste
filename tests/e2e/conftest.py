@@ -1,5 +1,6 @@
 """The whole app runs for real, only what leaves the computer is faked:
-config file, journal folder, keyboard, game window, speaker and the LLM.
+config file, journal folder, keyboard, game window, speaker, microphones, the
+LLM and the lists of LLM models and edge-tts voices.
 """
 
 import shutil
@@ -13,6 +14,7 @@ from dependency_injector import providers
 from pydantic_ai import models
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from textual.app import App
 from textual.pilot import Pilot
 
 from edceleste.containers.main_container import MODULES_USING_PROVIDE, Container
@@ -27,6 +29,9 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.services.settings_service import SettingsService
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
+from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
+    WidgetCommsEntry,
+)
 from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from edceleste.ui.ui_app import UIApp
 from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
@@ -96,6 +101,14 @@ async def answer_not_scripted(messages: list[ModelMessage], agent_info: AgentInf
     yield NOT_SCRIPTED_ANSWER
 
 
+def comms_entries(app: App, entry_type: str) -> list[str]:
+    return [
+        entry.content
+        for entry in app.screen.query(WidgetCommsEntry)
+        if entry.entry_type == entry_type
+    ]
+
+
 StreamFunction = Callable[[list[ModelMessage], AgentInfo], AsyncIterator]
 
 
@@ -104,13 +117,14 @@ class EdCelesteTestEnvironment:
         journal_folder = temp_folder / "journal"
         journal_folder.mkdir()
         self.journal_file = journal_folder / "Journal.2026-10-05T120000.01.log"
+        self.status_file = journal_folder / "Status.json"
         self.journal_file.touch()
 
         bindings_folder = temp_folder / "bindings"
         bindings_folder.mkdir()
         shutil.copy(TEST_BINDS_FILE_LOCATION, bindings_folder / "Custom.4.2.binds")
 
-        settings = SettingsModel(
+        self.settings = SettingsModel(
             paths=PathModel(
                 journal_path=str(journal_folder),
                 keybindings_path=str(bindings_folder),
@@ -125,7 +139,7 @@ class EdCelesteTestEnvironment:
             event_reactions=EventReactionModel(reactions={}),
         )
         self.config_file = temp_folder / "config.yaml"
-        self.config_file.write_text(yaml.safe_dump(settings.model_dump()))
+        self.save_config()
 
         settings_service = SettingsService(config_path=self.config_file)
         settings_service.load_settings()
@@ -142,7 +156,14 @@ class EdCelesteTestEnvironment:
 
         self.spoken_texts: list[str] = []
         fake_tts_provider = FakeTtsProvider(self.spoken_texts)
-        self.container.tts_service().build_provider = lambda settings: fake_tts_provider
+        tts_service = self.container.tts_service()
+        tts_service.build_provider = lambda settings: fake_tts_provider
+        tts_service.get_tts_voices = self.edge_voices_without_network
+
+        self.container.llm_service().get_models = self.llm_models_without_network
+        self.container.stt_service().get_stt_input_devices = lambda: [
+            ("Test microphone", 0)
+        ]
 
         self.use_scripted_model(answer_not_scripted)
 
@@ -155,12 +176,35 @@ class EdCelesteTestEnvironment:
         )
         self.container.llm_service().build_model = lambda provider: scripted_model
 
+    async def edge_voices_without_network(self) -> list[str]:
+        return [self.settings.tts.provider.voice]
+
+    async def llm_models_without_network(self, provider=None) -> list[str]:
+        return [self.settings.llm.provider.model]
+
+    def save_config(self) -> None:
+        self.config_file.write_text(yaml.safe_dump(self.settings.model_dump()))
+
+    def allow_game_actions(self) -> None:
+        self.settings.game_actions.enabled = True
+        self.save_config()
+
+    def react_to_event(self, event_name: str) -> None:
+        self.settings.event_reactions.reactions[event_name] = True
+        self.save_config()
+
     def run_app(self):
         return UIApp().run_test(size=SCREEN_SIZE)
 
     def append_journal_event(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
             journal.write(recorded_journal_line(event_name) + "\n")
+
+    def write_status_file(self) -> None:
+        self.status_file.write_text(
+            '{ "timestamp":"2026-10-05T12:00:00Z", "event":"Status", "Flags":0 }',
+            encoding="utf-8",
+        )
 
     async def wait_until(
         self,

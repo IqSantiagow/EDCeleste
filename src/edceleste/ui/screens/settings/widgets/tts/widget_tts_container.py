@@ -65,7 +65,7 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.tts_model = tts_model
-        self.provider = tts_model.provider
+        self.set_reactive(WidgetTTSContainer.provider, tts_model.provider)
 
     def compose(self) -> ComposeResult:
         yield from super().compose()
