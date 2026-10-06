@@ -5,6 +5,7 @@ from textual.widgets import Label
 from edceleste.ui.screens.app.widgets.widget_common_stat_label import (
     WidgetCommonStatLabel,
 )
+from tests.e2e.conftest import ship_log_events
 
 pytestmark = pytest.mark.anyio
 
@@ -37,6 +38,11 @@ async def test_should_show_the_new_system_in_navigation_after_a_jump(edceleste):
         await edceleste.boot_to_dashboard(pilot)
 
         edceleste.append_journal_event("FSDJump")
+        await edceleste.wait_until(
+            pilot,
+            lambda: "FSDJump" in ship_log_events(pilot.app),
+            "FSDJump in the ship log before the game writes Status.json",
+        )
         edceleste.write_status_file()
 
         await edceleste.wait_until(
