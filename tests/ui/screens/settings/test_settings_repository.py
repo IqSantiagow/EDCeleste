@@ -1,6 +1,10 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
+from edceleste.services.models.instinct_status import (
+    InstinctModelState,
+    InstinctStatus,
+)
 from edceleste.services.models.keybinds_model import Keybind
 from edceleste.services.models.settings_model import (
     LLMModel,
@@ -35,6 +39,10 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_tts_voices_use_case=None,
         get_llm_models_use_case=None,
         test_llm_connection_use_case=None,
+        get_instinct_status_use_case=None,
+        get_instinct_download_size_use_case=None,
+        download_instinct_model_use_case=None,
+        cancel_instinct_download_use_case=None,
         get_stt_models_use_case=None,
         get_stt_input_devices_use_case=None,
         clone_voice_use_case=None,
@@ -55,6 +63,12 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
             get_llm_models_use_case=get_llm_models_use_case or Mock(),
             test_llm_connection_use_case=test_llm_connection_use_case or AsyncMock(),
+            get_instinct_status_use_case=get_instinct_status_use_case or Mock(),
+            get_instinct_download_size_use_case=get_instinct_download_size_use_case
+            or AsyncMock(),
+            download_instinct_model_use_case=download_instinct_model_use_case or Mock(),
+            cancel_instinct_download_use_case=cancel_instinct_download_use_case
+            or Mock(),
             get_stt_models_use_case=get_stt_models_use_case or Mock(),
             get_stt_input_devices_use_case=get_stt_input_devices_use_case or Mock(),
             clone_voice_use_case=clone_voice_use_case or Mock(),
@@ -147,6 +161,48 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "401 Unauthorized")
         test_llm_connection_use_case.assert_awaited_once_with(provider)
+
+    def test_should_delegate_get_instinct_status_to_use_case(self):
+        instinct_status = InstinctStatus(
+            state=InstinctModelState.READY,
+            download_progress=None,
+            running_device="cuda",
+            failure=None,
+        )
+        get_instinct_status_use_case = Mock(return_value=instinct_status)
+        repository = self._make_repository(
+            get_instinct_status_use_case=get_instinct_status_use_case
+        )
+
+        self.assertEqual(repository.get_instinct_status(), instinct_status)
+
+    async def test_should_delegate_get_instinct_download_size_to_use_case(self):
+        get_instinct_download_size_use_case = AsyncMock(return_value=1_524_827_608)
+        repository = self._make_repository(
+            get_instinct_download_size_use_case=get_instinct_download_size_use_case
+        )
+
+        self.assertEqual(await repository.get_instinct_download_size(), 1_524_827_608)
+
+    def test_should_delegate_download_instinct_model_to_use_case(self):
+        download_instinct_model_use_case = Mock()
+        repository = self._make_repository(
+            download_instinct_model_use_case=download_instinct_model_use_case
+        )
+
+        repository.download_instinct_model()
+
+        download_instinct_model_use_case.assert_called_once_with()
+
+    def test_should_delegate_cancel_instinct_download_to_use_case(self):
+        cancel_instinct_download_use_case = Mock()
+        repository = self._make_repository(
+            cancel_instinct_download_use_case=cancel_instinct_download_use_case
+        )
+
+        repository.cancel_instinct_download()
+
+        cancel_instinct_download_use_case.assert_called_once_with()
 
     def test_should_delegate_get_stt_models_to_use_case(self):
         models = ["tiny.en", "base.en"]

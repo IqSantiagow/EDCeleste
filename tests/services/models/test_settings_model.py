@@ -96,6 +96,27 @@ class TestSttModel(unittest.TestCase):
         self.assertEqual(SttModel.model_validate(dumped), stt_model)
 
 
+class TestInstinctSettings(unittest.TestCase):
+    def test_old_config_without_instinct_loads_with_instinct_off_on_auto(self):
+        old_llm_config = {
+            "provider": {"type": "openrouter", "model": "anthropic/claude-haiku-4.5"},
+            "system_prompt": "sp",
+            "user_prompt": "",
+        }
+
+        llm_model = LLMModel.model_validate(old_llm_config)
+
+        self.assertFalse(llm_model.instinct.enabled)
+        self.assertEqual(llm_model.instinct.device, "auto")
+        self.assertEqual(llm_model.provider.model, "anthropic/claude-haiku-4.5")
+
+    def test_unknown_device_is_refused(self):
+        with self.assertRaises(ValidationError):
+            LLMModel.model_validate(
+                {"system_prompt": "", "user_prompt": "", "instinct": {"device": "tpu"}}
+            )
+
+
 class TestGameActionsModel(unittest.TestCase):
     def test_enabled_defaults_to_false(self):
         game_actions_model = GameActionsModel()

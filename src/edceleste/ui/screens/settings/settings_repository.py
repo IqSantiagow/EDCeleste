@@ -1,5 +1,6 @@
 from typing import AsyncGenerator, Literal
 
+from edceleste.services.models.instinct_status import InstinctStatus
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
     VoiceAnalysisResult,
     VoiceCloningState,
@@ -52,6 +53,18 @@ from edceleste.use_cases.settings.settings_load_keybinds_use_case import (
 from edceleste.use_cases.settings.test_llm_connection_use_case import (
     TestLlmConnectionUseCase,
 )
+from edceleste.use_cases.settings.cancel_instinct_download_use_case import (
+    CancelInstinctDownloadUseCase,
+)
+from edceleste.use_cases.settings.download_instinct_model_use_case import (
+    DownloadInstinctModelUseCase,
+)
+from edceleste.use_cases.settings.get_instinct_download_size_use_case import (
+    GetInstinctDownloadSizeUseCase,
+)
+from edceleste.use_cases.settings.get_instinct_status_use_case import (
+    GetInstinctStatusUseCase,
+)
 from edceleste.use_cases.settings.update_settings_use_case import UpdateSettingsUseCase
 
 
@@ -65,6 +78,10 @@ class SettingsRepository:
         get_tts_voices_use_case: GetTTSVoicesUseCase,
         get_llm_models_use_case: GetLlmModelsUseCase,
         test_llm_connection_use_case: TestLlmConnectionUseCase,
+        get_instinct_status_use_case: GetInstinctStatusUseCase,
+        get_instinct_download_size_use_case: GetInstinctDownloadSizeUseCase,
+        download_instinct_model_use_case: DownloadInstinctModelUseCase,
+        cancel_instinct_download_use_case: CancelInstinctDownloadUseCase,
         get_stt_models_use_case: GetSttModelsUseCase,
         get_stt_input_devices_use_case: GetSttInputDevicesUseCase,
         clone_voice_use_case: CloneVoiceUseCase,
@@ -84,6 +101,10 @@ class SettingsRepository:
         self.get_tts_voices_use_case = get_tts_voices_use_case
         self.get_llm_models_use_case = get_llm_models_use_case
         self.test_llm_connection_use_case = test_llm_connection_use_case
+        self.get_instinct_status_use_case = get_instinct_status_use_case
+        self.get_instinct_download_size_use_case = get_instinct_download_size_use_case
+        self.download_instinct_model_use_case = download_instinct_model_use_case
+        self.cancel_instinct_download_use_case = cancel_instinct_download_use_case
         self.get_stt_models_use_case = get_stt_models_use_case
         self.get_stt_input_devices_use_case = get_stt_input_devices_use_case
         self.clone_voice_use_case = clone_voice_use_case
@@ -126,6 +147,18 @@ class SettingsRepository:
 
     async def test_llm_connection(self, provider: LLMProviderModel) -> str | None:
         return await self.test_llm_connection_use_case(provider)
+
+    def get_instinct_status(self) -> InstinctStatus:
+        return self.get_instinct_status_use_case()
+
+    async def get_instinct_download_size(self) -> int | None:
+        return await self.get_instinct_download_size_use_case()
+
+    def download_instinct_model(self) -> None:
+        self.download_instinct_model_use_case()
+
+    def cancel_instinct_download(self) -> None:
+        self.cancel_instinct_download_use_case()
 
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str

@@ -1,6 +1,7 @@
 from edceleste.protocols.event_reactions_protocol import EventReactionsProtocol
 from edceleste.protocols.keybinds_protocol import KeybindsProtocol
 from edceleste.protocols.game_watcher_protocol import GameWatcherProtocol
+from edceleste.protocols.instinct_protocol import InstinctProtocol
 from edceleste.protocols.llm_protocol import LLMProtocol
 from edceleste.protocols.settings_protocol import SettingsProtocol
 from edceleste.protocols.stt_protocol import SttProtocol
@@ -19,6 +20,7 @@ class UpdateSettingsUseCase:
         game_watcher_service: GameWatcherProtocol,
         keybinds_service: KeybindsProtocol,
         llm_service: LLMProtocol,
+        instinct_service: InstinctProtocol,
         event_reactions_service: EventReactionsProtocol,
         settings_service: SettingsProtocol,
     ) -> None:
@@ -27,6 +29,7 @@ class UpdateSettingsUseCase:
         self.game_watcher_service = game_watcher_service
         self.keybinds_service = keybinds_service
         self.llm_service = llm_service
+        self.instinct_service = instinct_service
         self.event_reactions_service = event_reactions_service
         self.settings_service = settings_service
 
@@ -36,6 +39,7 @@ class UpdateSettingsUseCase:
         game_watcher_issues = self.game_watcher_service.validate_settings(new_settings)
         keybinds_issues = self.keybinds_service.validate_settings(new_settings)
         llm_issues = await self.llm_service.validate_settings(new_settings)
+        instinct_issues = self.instinct_service.validate_settings(new_settings)
         event_reactions_issues = self.event_reactions_service.validate_settings(
             new_settings
         )
@@ -46,6 +50,7 @@ class UpdateSettingsUseCase:
             game_watcher_issues,
             keybinds_issues,
             llm_issues,
+            instinct_issues,
             event_reactions_issues,
         ]
 
@@ -61,4 +66,5 @@ class UpdateSettingsUseCase:
         self.game_watcher_service.reload_service()
         self.keybinds_service.reload_service()
         self.llm_service.reload_service()
+        self.instinct_service.reload_service()
         self.event_reactions_service.reload_service()

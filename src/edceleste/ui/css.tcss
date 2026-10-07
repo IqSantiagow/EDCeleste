@@ -1238,3 +1238,68 @@ SystemCheckRow {
         color: $error;
     }
 }
+
+/* ============================================================
+   Settings · LLM · INSTINCT group (#109)
+   ============================================================ */
+/* One label column for every group of the section, as on the design */
+WidgetSystemPromptsContainer .entry-label {
+    width: 21;
+}
+
+WidgetLabeledSwitchRow #settings-entry-value-container.with-hint {
+    align: left middle;
+}
+
+.entry-hint {
+    color: $font-muted-color;
+}
+
+WidgetSystemPromptsContainer WidgetLabeledSwitchRow {
+    height: 1;
+}
+
+WidgetSystemPromptsContainer .entry-value {
+    padding: 0;
+}
+
+WidgetInstinctStatusRow {
+    height: 1;
+    margin: 0 0 1 0;
+}
+
+/* Fixed width, so [Download] / [Cancel] / [Retry] stay in one column */
+#instinct-status-text {
+    width: 60;
+    &.busy {
+        color: $secondary;
+    }
+    &.ready {
+        color: $success;
+    }
+    &.failed {
+        color: $error;
+    }
+}
+
+#instinct-status-button {
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    color: $success;
+    background: transparent;
+    &:hover {
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+/* Startup: progress text of a service still working, and the disabled state */
+.system-check-progress {
+    color: $secondary;
+}
+
+.system-check-disabled {
+    color: $font-muted-color;
+}

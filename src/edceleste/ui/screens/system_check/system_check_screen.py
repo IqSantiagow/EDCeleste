@@ -27,6 +27,7 @@ STATE_MARKERS = {
     "completed": ("[ok]", "state-completed"),
     "warning": ("[ !]", "state-warning"),
     "failed": ("[!!]", "state-failed"),
+    "disabled": ("[--]", "state-disabled"),
 }
 
 
@@ -73,8 +74,12 @@ class SystemCheckScreen(Screen[bool]):
             status,
         ) in self.system_check_repository.run_system_check():
             row = self.query_one(f"#system-check-row-{service_name}", SystemCheckRow)
+            row.progress_text = status.progress_text
             row.state = "in_progress"
-            if status.completed and not status.message:
+            if status.is_disabled:
+                row.state = "disabled"
+                completed_services += 1
+            elif status.completed and not status.message:
                 row.state = "completed"
                 completed_services += 1
             elif status.completed and status.is_warning:
@@ -96,8 +101,9 @@ class SystemCheckScreen(Screen[bool]):
 
 class SystemCheckRow(HorizontalGroup):
     state: reactive[
-        Literal["pending", "in_progress", "completed", "warning", "failed"]
+        Literal["pending", "in_progress", "completed", "warning", "failed", "disabled"]
     ] = reactive("pending", recompose=True)
+    progress_text: reactive[str | None] = reactive(None, recompose=True)
     error_message: str | None = None
     warning_message: str | None = None
 
@@ -109,9 +115,11 @@ class SystemCheckRow(HorizontalGroup):
         marker, state_class = STATE_MARKERS[self.state]
         yield Label(Content(marker), classes=f"system-check-marker {state_class}")
         yield Label(
-            Content(self.service_name.replace("_", " ").upper()),
+            Content(row_name_for(self.service_name)),
             classes=f"system-check-name {state_class}",
         )
+        if self.state == "in_progress" and self.progress_text:
+            yield Label(Content(self.progress_text), classes="system-check-progress")
         if self.error_message:
             yield Label(
                 Content(f"Error: {self.error_message}"), classes="system-check-error"
@@ -121,3 +129,13 @@ class SystemCheckRow(HorizontalGroup):
                 Content(f"Warning: {self.warning_message}"),
                 classes="system-check-warning",
             )
+        if self.state == "disabled":
+            yield Label("Disabled", classes=f"system-check-disabled {state_class}")
+
+
+def row_name_for(service_name: str) -> str:
+    # "llm__instinct" is a service of its own, drawn as a child row of LLM
+    parent_service, _, child_service = service_name.partition("__")
+    if child_service:
+        return f"└ {child_service.replace('_', ' ').upper()}"
+    return parent_service.replace("_", " ").upper()

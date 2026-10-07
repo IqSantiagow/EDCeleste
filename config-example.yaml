@@ -54,5 +54,10 @@ llm:
     # Leave empty for the default endpoint of the provider. Needed by the ones
     # that have no public endpoint, for example a local ollama or vllm server.
     base_url: ""
+  # Instinct presses keys for simple commands before Celeste answers. Its model
+  # (1.5 GB) is downloaded from Hugging Face the first time it is switched on.
+  instinct:
+    enabled: false
+    device: "auto"  # auto, cuda or cpu
   system_prompt: "You are a helpful assistant for Elite Dangerous."
   user_prompt: "Summarize the current game state."
