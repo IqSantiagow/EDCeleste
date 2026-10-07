@@ -14,7 +14,7 @@ from edceleste.services.models.settings_model import (
     TTSModel,
 )
 from edceleste.services.settings_service import SettingsService
-from edceleste.services.stt_service import SttService
+from edceleste.services.stt_service import GAME_VOCABULARY_PROMPT, SttService
 
 MODEL = "tiny.en"
 
@@ -146,6 +146,15 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "Turn on the engines")
         self.mock_whisper_model.transcribe.assert_called_once()
+
+    def test_stop_recording_prompts_whisper_with_game_vocabulary(self):
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        self.service.stop_recording()
+
+        transcribe_arguments = self.mock_whisper_model.transcribe.call_args.kwargs
+        self.assertEqual(transcribe_arguments["initial_prompt"], GAME_VOCABULARY_PROMPT)
 
     def test_stop_recording_returns_none_when_transcription_empty(self):
         self.mock_whisper_model.transcribe.return_value = {"text": ""}
