@@ -7,6 +7,10 @@ from textual.widgets import Label, LoadingIndicator
 from dependency_injector.wiring import Provide, inject
 
 from edceleste.containers.main_container import Container
+from edceleste.services.decision_model_download_service import (
+    MODEL_REPO,
+    MODEL_VERSION,
+)
 from edceleste.services.models.settings_model import (
     SUPPORTED_LLM_PROVIDER_TYPES,
     LLMModel,
@@ -22,19 +26,28 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
     ValueChanged,
     WidgetLabeledSelectRow,
 )
+from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_switch_row import (
+    WidgetLabeledSwitchRow,
+)
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_textarea_row import (
     WidgetLabeledTextAreaRow,
 )
 from edceleste.ui.screens.settings.widgets.inputs.widget_test_connection_row import (
     WidgetTestConnectionRow,
 )
+from edceleste.ui.screens.settings.widgets.system_prompts.widget_instinct_status_row import (  # noqa: E501
+    WidgetInstinctStatusRow,
+)
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
 )
+from edceleste.ui.widgets.common.widget_labeled_value_row import WidgetLabeledValueRow
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 PROVIDER_OPTIONS = SUPPORTED_LLM_PROVIDER_TYPES
 PROVIDER_VALUES = SUPPORTED_LLM_PROVIDER_TYPES
+INSTINCT_DEVICE_OPTIONS = ["auto", "cuda", "cpu"]
+INSTINCT_MODEL_NAME = f"{MODEL_REPO.split('/')[-1]} · {MODEL_VERSION} · fixed"
 
 
 class SystemPromptsInputWidgetIds(enum.StrEnum):
@@ -44,6 +57,8 @@ class SystemPromptsInputWidgetIds(enum.StrEnum):
     LLM_BASE_URL_INPUT = "llm-base-url-input"
     LLM_SYSTEM_PROMPT_INPUT = "llm-system-prompt-input"
     LLM_USER_PROMPT_INPUT = "llm-user-prompt-input"
+    INSTINCT_ENABLED_INPUT = "instinct-enabled-input"
+    INSTINCT_DEVICE_INPUT = "instinct-device-input"
 
 
 class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
@@ -102,7 +117,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
     def compose(self) -> ComposeResult:
         yield from super().compose()
         with VerticalScroll():
-            yield WidgetSectionHeader("LLM SETTINGS")
+            yield WidgetSectionHeader("CELESTE")
             provider = self.provider
             assert provider is not None, "provider must be set before compose() runs"
             yield WidgetLabeledSelectRow(
@@ -129,6 +144,22 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
             )
             yield from self.mount_model_settings(provider)
             yield WidgetTestConnectionRow(self.test_llm_connection)
+
+            yield WidgetSectionHeader("INSTINCT · FAST COMMANDS")
+            yield WidgetLabeledSwitchRow(
+                "Enabled:",
+                self.llm_model.instinct.enabled,
+                hint="commands press keys before Celeste answers",
+                id=SystemPromptsInputWidgetIds.INSTINCT_ENABLED_INPUT,
+            )
+            yield WidgetLabeledSelectRow(
+                "Device: ",
+                INSTINCT_DEVICE_OPTIONS,
+                self.llm_model.instinct.device,
+                id=SystemPromptsInputWidgetIds.INSTINCT_DEVICE_INPUT,
+            )
+            yield WidgetLabeledValueRow("Model:", INSTINCT_MODEL_NAME)
+            yield WidgetInstinctStatusRow(self.settings_repository)
 
             yield WidgetSectionHeader("PROMPTS")
             yield WidgetLabeledTextAreaRow(
@@ -193,6 +224,10 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
             self.llm_model.system_prompt = message.new_value
         elif message.sender_id == SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT:
             self.llm_model.user_prompt = message.new_value
+        elif message.sender_id == SystemPromptsInputWidgetIds.INSTINCT_ENABLED_INPUT:
+            self.llm_model.instinct.enabled = message.new_value
+        elif message.sender_id == SystemPromptsInputWidgetIds.INSTINCT_DEVICE_INPUT:
+            self.llm_model.instinct.device = message.new_value
 
         self.post_message(
             SectionSettingsChanged(
