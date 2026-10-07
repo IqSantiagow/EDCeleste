@@ -1,7 +1,7 @@
 import unittest
 
 from textual.app import App, ComposeResult
-from textual.widgets import Label
+from textual.widgets import Label, ProgressBar
 
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
@@ -100,10 +100,25 @@ class TestWidgetInstinctStatusRow(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             await pilot.pause(0.2)
 
-            self.assertIn("Downloading", status_text(app))
-            self.assertIn("━━━━━━━━────────────", status_text(app))
-            self.assertTrue(status_text(app).endswith("42% · 630 MB of 1.5 GB"))
+            progress_bar = app.query_one("#instinct-download-bar", ProgressBar)
+            figures = app.query_one("#instinct-download-figures", Label)
+            self.assertEqual(status_text(app), "Downloading")
+            self.assertTrue(progress_bar.display)
+            self.assertAlmostEqual(progress_bar.percentage, 0.42)
+            self.assertEqual(str(figures.content), "42% · 630 MB of 1.5 GB")
             self.assertEqual(str(button(app).label), "[Cancel]")
+
+    async def test_progress_bar_is_hidden_when_not_downloading(self):
+        repository = FakeSettingsRepository(
+            make_status(InstinctModelState.NOT_DOWNLOADED), MODEL_BYTES
+        )
+        app = RowTestApp(repository)
+
+        async with app.run_test() as pilot:
+            await pilot.pause(0.2)
+
+            progress_bar = app.query_one("#instinct-download-bar", ProgressBar)
+            self.assertFalse(progress_bar.display)
 
     async def test_ready_names_the_device_and_has_no_button(self):
         repository = FakeSettingsRepository(
