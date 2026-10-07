@@ -5,9 +5,14 @@ from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
 from edceleste.services.game_state_service import GameStateService
 from edceleste.services.game_watcher_service import GameWatcherService
+from edceleste.services.decision_model_download_service import (
+    DecisionModelDownloadService,
+)
 from edceleste.services.game_window import GameWindow
+from edceleste.services.instinct_service import InstinctService
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
+from edceleste.services.local_decision_model_service import LocalDecisionModelService
 from edceleste.services.stt_service import SttService
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
@@ -52,6 +57,18 @@ from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
     GetAvailableVoiceProfilesUseCase,
 )
 from edceleste.use_cases.settings.get_llm_models_use_case import GetLlmModelsUseCase
+from edceleste.use_cases.settings.cancel_instinct_download_use_case import (
+    CancelInstinctDownloadUseCase,
+)
+from edceleste.use_cases.settings.download_instinct_model_use_case import (
+    DownloadInstinctModelUseCase,
+)
+from edceleste.use_cases.settings.get_instinct_download_size_use_case import (
+    GetInstinctDownloadSizeUseCase,
+)
+from edceleste.use_cases.settings.get_instinct_status_use_case import (
+    GetInstinctStatusUseCase,
+)
 from edceleste.use_cases.settings.test_llm_connection_use_case import (
     TestLlmConnectionUseCase,
 )
@@ -159,6 +176,19 @@ class Container(containers.DeclarativeContainer):
         LLMService, event_bus=event_bus, settings_service=settings_service, tools=mcps
     )
 
+    decision_model_download_service = providers.Singleton(DecisionModelDownloadService)
+
+    local_decision_model_service = providers.Singleton(
+        LocalDecisionModelService, download_service=decision_model_download_service
+    )
+
+    instinct_service = providers.Singleton(
+        InstinctService,
+        settings_service=settings_service,
+        download_service=decision_model_download_service,
+        model_service=local_decision_model_service,
+    )
+
     tts_service = providers.Singleton(
         TTSService,
         event_bus=event_bus,
@@ -238,6 +268,7 @@ class Container(containers.DeclarativeContainer):
         game_watcher_service=game_watcher_service,
         keybinds_service=keybinds_service,
         llm_service=llm_service,
+        instinct_service=instinct_service,
         event_reactions_service=event_reactions_service,
         settings_service=settings_service,
     )
@@ -256,6 +287,22 @@ class Container(containers.DeclarativeContainer):
 
     test_llm_connection_use_case = providers.Factory(
         TestLlmConnectionUseCase, llm_protocol=llm_service
+    )
+
+    get_instinct_status_use_case = providers.Factory(
+        GetInstinctStatusUseCase, instinct_protocol=instinct_service
+    )
+
+    get_instinct_download_size_use_case = providers.Factory(
+        GetInstinctDownloadSizeUseCase, instinct_protocol=instinct_service
+    )
+
+    download_instinct_model_use_case = providers.Factory(
+        DownloadInstinctModelUseCase, instinct_protocol=instinct_service
+    )
+
+    cancel_instinct_download_use_case = providers.Factory(
+        CancelInstinctDownloadUseCase, instinct_protocol=instinct_service
     )
 
     clone_voice_use_case = providers.Factory(
@@ -309,6 +356,7 @@ class Container(containers.DeclarativeContainer):
             game_watcher=game_watcher_service,
             keybinds=keybinds_service,
             llm=llm_service,
+            llm__instinct=instinct_service,
             tts=tts_service,
             stt=stt_service,
             event_reactions=event_reactions_service,
@@ -339,6 +387,10 @@ class Container(containers.DeclarativeContainer):
         get_tts_voices_use_case=get_tts_voices_use_case,
         get_llm_models_use_case=get_llm_models_use_case,
         test_llm_connection_use_case=test_llm_connection_use_case,
+        get_instinct_status_use_case=get_instinct_status_use_case,
+        get_instinct_download_size_use_case=get_instinct_download_size_use_case,
+        download_instinct_model_use_case=download_instinct_model_use_case,
+        cancel_instinct_download_use_case=cancel_instinct_download_use_case,
         get_stt_models_use_case=get_stt_models_use_case,
         get_stt_input_devices_use_case=get_stt_input_devices_use_case,
         clone_voice_use_case=clone_voice_use_case,

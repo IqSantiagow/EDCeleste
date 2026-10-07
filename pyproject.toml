@@ -54,6 +54,8 @@ dependencies = [
     "chatterbox-tts==0.1.7",
     "textual-slider==0.2.0",
     "textual-fspicker==1.0.1",
+    "decider-ai==1.8.1",
+    "triton-windows==3.7.0.post26; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -106,7 +108,7 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type information
-module = ["chatterbox.*", "sounddevice", "soundfile", "whisper", "yaml"]
+module = ["chatterbox.*", "decider.*", "sounddevice", "soundfile", "whisper", "yaml"]
 ignore_missing_imports = true
 
 [tool.coverage.run]

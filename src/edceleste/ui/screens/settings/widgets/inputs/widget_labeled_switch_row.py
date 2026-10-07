@@ -17,17 +17,26 @@ logger = logging.getLogger(__name__)
 class WidgetLabeledSwitchRow(WidgetBaseInput):
     DEFAULT_CLASSES = "entry-row"
 
-    def __init__(self, label: str, value: bool, *args, **kwargs) -> None:
+    def __init__(
+        self, label: str, value: bool, *args, hint: str = "", **kwargs
+    ) -> None:
         super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.value = value
         self.label = label
+        self.hint = hint
         assert self.id is not None, "WidgetLabeledSwitchRow must have an id"
 
     def compose(self) -> ComposeResult:
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
-            with Horizontal(id="settings-entry-value-container"):
+            # with a hint the switch sits next to the label and the hint follows it
+            with Horizontal(
+                id="settings-entry-value-container",
+                classes="with-hint" if self.hint else "",
+            ):
                 yield Switch(value=self.value, classes="entry-switch")
+                if self.hint:
+                    yield Label(self.hint, classes="entry-hint")
 
     def on_switch_changed(self, event: Switch.Changed):
         self.value = event.value

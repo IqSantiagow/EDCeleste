@@ -36,6 +36,10 @@ Two independent, both-gitignored config sources:
     `services/models/settings_model.py`), `model`, `api_key` and an optional
     `base_url` for providers without a public endpoint (ollama, vllm, azure).
   - `llm.system_prompt` — used to build the LLM agent
+  - `llm.instinct` — `enabled` and `device` (`auto` | `cuda` | `cpu`) of Instinct, the local
+    fast-command model. `InstinctService` downloads it on first use to
+    `%LOCALAPPDATA%\EDCeleste\models` and loads it; its repo and revision are fixed in
+    `decision_model_download_service.py`.
   - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
   - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`,
     `cfg_weight`, `device`, `nano`); `tts.volume` is `0.0`–`1.0`

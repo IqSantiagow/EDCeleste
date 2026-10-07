@@ -18,6 +18,9 @@ from textual.app import App
 from textual.pilot import Pilot
 
 from edceleste.containers.main_container import MODULES_USING_PROVIDE, Container
+from edceleste.services.decision_model_download_service import (
+    DecisionModelDownloadService,
+)
 from edceleste.services.game_window import GameWindow
 from edceleste.services.models.settings_model import (
     EventReactionModel,
@@ -43,6 +46,7 @@ from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
 SCREEN_SIZE = (200, 50)
 
 NOT_SCRIPTED_ANSWER = "No answer was scripted for this test."
+INSTINCT_MODEL_BYTES = 1_524_827_608
 
 
 class FakeKeyboard:
@@ -154,6 +158,15 @@ class EdCelesteTestEnvironment:
 
         self.container = Container()
         self.container.settings_service.override(providers.Object(settings_service))
+
+        # The Instinct model stays in the temp folder and its size never asks the Hub
+        instinct_download_service = DecisionModelDownloadService(
+            models_directory=temp_folder / "models"
+        )
+        instinct_download_service.get_download_size = lambda: INSTINCT_MODEL_BYTES
+        self.container.decision_model_download_service.override(
+            providers.Object(instinct_download_service)
+        )
 
         self.fake_keyboard = FakeKeyboard()
         keybinds_service = self.container.keybinds_service()
