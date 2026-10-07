@@ -1269,8 +1269,35 @@ WidgetInstinctStatusRow {
 }
 
 /* Fixed width, so [Download] / [Cancel] / [Retry] stay in one column */
-#instinct-status-text {
+#instinct-status-content {
     width: 60;
+}
+
+#instinct-status-spinner {
+    width: 2;
+    color: $secondary;
+}
+
+#instinct-download-bar {
+    width: auto;
+    padding: 0 1;
+}
+
+#instinct-download-bar Bar {
+    width: 20;
+}
+
+#instinct-download-bar Bar > .bar--bar {
+    color: $primary;
+    background: $surface;
+}
+
+#instinct-download-figures {
+    color: $secondary;
+}
+
+#instinct-status-text {
+    width: auto;
     &.busy {
         color: $secondary;
     }

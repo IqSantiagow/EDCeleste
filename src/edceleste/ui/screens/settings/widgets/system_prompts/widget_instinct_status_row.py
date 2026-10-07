@@ -4,7 +4,7 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
 from textual.content import Content
-from textual.widgets import Button, Label
+from textual.widgets import Button, Label, ProgressBar
 
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
@@ -17,8 +17,8 @@ from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.settings.widgets.inputs.widget_button import WidgetButton
 from edceleste.ui.widgets.common.widget_spinner import WidgetSpinner
 
-PROGRESS_BAR_CELLS = 20
 SECONDS_BETWEEN_REDRAWS = 0.1
+BUSY_STATES = (InstinctModelState.DOWNLOADING, InstinctModelState.LOADING)
 
 
 @dataclass
@@ -28,13 +28,6 @@ class StatusLine:
     button_name: str | None
 
 
-def draw_progress_bar(progress: DownloadProgress) -> str:
-    filled_cells = (
-        progress.bytes_done * PROGRESS_BAR_CELLS // max(progress.bytes_total, 1)
-    )
-    return "━" * filled_cells + "─" * (PROGRESS_BAR_CELLS - filled_cells)
-
-
 class WidgetInstinctStatusRow(HorizontalGroup):
     DEFAULT_CLASSES = "entry-row-full"
 
@@ -42,11 +35,16 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         super().__init__(**kwargs)
         self.settings_repository = settings_repository
         self.download_size: int | None = None
-        self.spinner_frame_number = 0
 
     def compose(self) -> ComposeResult:
         yield Label("Status:", classes="entry-label")
-        yield Label("", id="instinct-status-text")
+        with HorizontalGroup(id="instinct-status-content"):
+            yield WidgetSpinner(id="instinct-status-spinner")
+            yield Label("", id="instinct-status-text")
+            yield ProgressBar(
+                id="instinct-download-bar", show_eta=False, show_percentage=False
+            )
+            yield Label("", id="instinct-download-figures")
         yield WidgetButton("Download", id="instinct-status-button")
 
     def on_mount(self) -> None:
@@ -62,6 +60,13 @@ class WidgetInstinctStatusRow(HorizontalGroup):
 
     def show_status(self) -> None:
         status = self.settings_repository.get_instinct_status()
+        self.show_spinner(status.state in BUSY_STATES)
+        self.show_download_progress(
+            status.download_progress
+            if status.state == InstinctModelState.DOWNLOADING
+            else None
+        )
+
         status_line = self.build_status_line(status)
         status_label = self.query_one("#instinct-status-text", Label)
         status_label.update(Content(status_line.text))
@@ -70,19 +75,31 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         button.display = status_line.button_name is not None
         button.label = Content(f"[{status_line.button_name}]")
 
+    def show_spinner(self, is_busy: bool) -> None:
+        spinner = self.query_one("#instinct-status-spinner", WidgetSpinner)
+        spinner.display = is_busy
+        if is_busy:
+            spinner.start()
+        else:
+            spinner.stop()
+
+    def show_download_progress(self, progress: DownloadProgress | None) -> None:
+        progress_bar = self.query_one("#instinct-download-bar", ProgressBar)
+        figures_label = self.query_one("#instinct-download-figures", Label)
+        progress_bar.display = progress is not None
+        figures_label.display = progress is not None
+        if progress:
+            progress_bar.update(
+                total=progress.bytes_total, progress=progress.bytes_done
+            )
+            figures_label.update(describe_download_progress(progress))
+
     def build_status_line(self, status: InstinctStatus) -> StatusLine:
-        spinner = self.next_spinner_frame()
         match status.state:
-            case InstinctModelState.DOWNLOADING if status.download_progress:
-                bar = draw_progress_bar(status.download_progress)
-                figures = describe_download_progress(status.download_progress)
-                return StatusLine(
-                    f"{spinner} Downloading {bar} {figures}", "busy", "Cancel"
-                )
             case InstinctModelState.DOWNLOADING:
-                return StatusLine(f"{spinner} Downloading", "busy", "Cancel")
+                return StatusLine("Downloading", "busy", "Cancel")
             case InstinctModelState.LOADING:
-                return StatusLine(f"{spinner} Loading the model", "busy", None)
+                return StatusLine("Loading the model", "busy", None)
             case InstinctModelState.READY if status.running_device:
                 return StatusLine(
                     f"✓ Ready · running on {status.running_device}", "ready", None
@@ -100,11 +117,6 @@ class WidgetInstinctStatusRow(HorizontalGroup):
                     return StatusLine("○ Not downloaded", "", "Download")
                 size = describe_size(self.download_size)
                 return StatusLine(f"○ Not downloaded · {size}", "", "Download")
-
-    def next_spinner_frame(self) -> str:
-        self.spinner_frame_number += 1
-        frames = WidgetSpinner.SPINNER_FRAMES
-        return frames[self.spinner_frame_number % len(frames)]
 
     @on(Button.Pressed, "#instinct-status-button")
     def handle_button_pressed(self, event: Button.Pressed) -> None:
