@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 _WHISPER_SAMPLE_RATE = 16_000
 
+GAME_VOCABULARY_PROMPT = (
+    "Celeste, is this system safe? What is in my hold? Do I have enough fuel for the "
+    "next jump? Deploy hardpoints. Landing gear, cargo scoop, jettison cargo. Frame "
+    "shift drive, FSD, supercruise. Flight assist off, boost. Four pips to systems, "
+    "engines, weapons. Heat sink, chaff launcher, shield cell bank. Night vision, "
+    "galaxy map, FSS."
+)
+
 
 class SttService:
     enabled: bool = True
@@ -87,7 +95,9 @@ class SttService:
 
         audio = np.concatenate(self._recorded_frames)
         self._recorded_frames = []
-        result = whisper_model.transcribe(audio, fp16=False)
+        result = whisper_model.transcribe(
+            audio, fp16=False, initial_prompt=GAME_VOCABULARY_PROMPT
+        )
         text: str = result.get("text", "")
         return text.strip() or None
 
