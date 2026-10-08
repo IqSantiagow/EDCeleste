@@ -19,7 +19,16 @@ coverage report -m
 
 # Run a single test file
 python -m pytest tests/services/journal/test_journal_watcher.py
+
+# Mutation tests (mutmut needs Linux; on Windows this runs in Docker, report in mutation_testing/report/)
+bash mutation_testing/run_in_docker.sh src/edceleste/services/event_bus.py   # given files
+bash mutation_testing/run_in_docker.sh                                       # whole project, ~30 min
 ```
+
+After implementing a feature or a bug fix and once the tests pass, ask the `mutation-tester`
+subagent (`.claude/agents/mutation-tester.md`) to check the changed files, then add the tests
+for the gaps it reports. The `mutation` job in `.github/workflows/pr-pipeline.yml` runs the same
+check on the source files a PR changes and fails below `MIN_MUTATION_SCORE` (75%).
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
 

@@ -20,3 +20,5 @@ LOG.md
 /dist
 /build
 /.dev-data
+/mutants
+/mutation_testing/report
