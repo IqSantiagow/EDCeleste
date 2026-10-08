@@ -1086,6 +1086,7 @@ VoiceCloneModalScreen{
    The whole screen is one bordered "PREFLIGHT" panel docked to the
    top and sized to its own content (height: auto), so the frame
    closes right under the progress row instead of stretching down.
+   Celeste's head sits on the left, the checks on the right.
    ============================================================ */
 #system-check-panel {
     height: auto;
@@ -1094,6 +1095,18 @@ VoiceCloneModalScreen{
     border: solid $primary;
     border-title-align: left;
     border-title-color: $font-muted-color;
+}
+
+#system-check-logo {
+    width: auto;
+    height: auto;
+    padding: 0 4 0 0;
+    color: $primary;
+}
+
+#system-check-checks {
+    width: 1fr;
+    height: auto;
 }
 
 #system-check-banner {

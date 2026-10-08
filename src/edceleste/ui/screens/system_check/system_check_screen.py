@@ -9,6 +9,7 @@ from textual.reactive import reactive
 from textual.content import Content
 
 
+from edceleste.ui.screens.system_check.celeste_logo import CELESTE_LOGO
 from edceleste.ui.screens.system_check.system_check_repository import (
     SystemCheckRepository,
 )
@@ -52,16 +53,20 @@ class SystemCheckScreen(Screen[bool]):
         self.start_system_check()
 
     def compose(self):
-        with Vertical(id="system-check-panel"):
-            yield Static(EDCELESTE_BANNER, id="system-check-banner")
-            for service_name in self.service_names:
-                yield SystemCheckRow(
-                    service_name, id=f"system-check-row-{service_name}"
-                )
-            yield Rule(id="system-check-divider")
-            with Horizontal(id="system-check-progress-row"):
-                yield Label("Progress", id="system-check-progress-label")
-                yield ProgressBar(id="system-check-progress", total=100, show_eta=False)
+        with Horizontal(id="system-check-panel"):
+            yield Static(CELESTE_LOGO, id="system-check-logo")
+            with Vertical(id="system-check-checks"):
+                yield Static(EDCELESTE_BANNER, id="system-check-banner")
+                for service_name in self.service_names:
+                    yield SystemCheckRow(
+                        service_name, id=f"system-check-row-{service_name}"
+                    )
+                yield Rule(id="system-check-divider")
+                with Horizontal(id="system-check-progress-row"):
+                    yield Label("Progress", id="system-check-progress-label")
+                    yield ProgressBar(
+                        id="system-check-progress", total=100, show_eta=False
+                    )
         yield Footer()
 
     @work
