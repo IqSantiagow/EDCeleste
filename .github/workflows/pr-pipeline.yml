@@ -78,6 +78,84 @@ jobs:
           coverageFile: coverage.xml
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  mutation:
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MIN_MUTATION_SCORE: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find changed source files
+        id: changed
+        run: |
+          changed_files=$(git diff --name-only --diff-filter=d "origin/${{ github.base_ref }}...HEAD" -- 'src/edceleste/*.py' \
+            | grep -v -e '^src/edceleste/ui/' -e '^src/edceleste/__main__.py$' || true)
+          echo "files=$(echo $changed_files)" >> "$GITHUB_OUTPUT"
+          echo "Changed source files: $changed_files"
+          if [ -z "$changed_files" ]; then
+            echo "Mutation tests skipped: this PR changes no source files outside ui/." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Setup python version
+        if: steps.changed.outputs.files != ''
+        uses: actions/setup-python@v7
+        with:
+          python-version: 3.12
+          cache: pip
+
+      - name: Install system audio dependencies
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 ffmpeg
+
+      - name: Install dependencies
+        if: steps.changed.outputs.files != ''
+        # Only the dependencies: an installed edceleste could shadow the mutated code.
+        # The CPU build of torch is a few GB smaller and the tests do not need a GPU.
+        run: |
+          python -m pip install --upgrade pip
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu ".[test,mutation]"
+          pip uninstall -y edceleste
+
+      - name: Run mutation tests
+        if: steps.changed.outputs.files != ''
+        env:
+          # File names come from the PR, so they go through env and not straight into the script
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: bash mutation_testing/run_mutmut.sh $CHANGED_FILES
+
+      - name: Write job summary
+        if: always() && steps.changed.outputs.files != ''
+        run: |
+          {
+            echo "## Mutation tests"
+            echo "Required score: ${MIN_MUTATION_SCORE}%"
+            echo '```'
+            cat mutation_testing/report/summary.txt 2>/dev/null || echo "No report, the run stopped before mutmut finished. See the job log."
+            echo '```'
+            if [ -s mutation_testing/report/survivors.txt ]; then
+              echo "<details><summary>Mutants no test caught</summary>"
+              echo
+              echo '```diff'
+              head -c 60000 mutation_testing/report/survivors.txt
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload mutation report
+        if: always() && steps.changed.outputs.files != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: mutation_testing/report/
+
   claude-review:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
