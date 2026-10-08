@@ -1,10 +1,17 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/celeste-logo-dark.png">
+    <img src="docs/celeste-logo-light.png" alt="EDCeleste logo: Celeste, a pilot with a headset, drawn in braille dots, above the EDCELESTE block letters" width="420">
+  </picture>
+</p>
+
 # EDCeleste
 
 A voice co-pilot for Elite Dangerous that lives in your terminal.
 
 Celeste follows your game as it happens, talks with you, and presses keys for you. Say "deploy landing gear" and the gear moves. Ask "how much fuel do I have?" and she answers from what the game just wrote.
 
-![EDCeleste dashboard](image.png)
+![EDCeleste dashboard: navigation, flight and ship panels on top, the COMMS conversation with Celeste on the left and the ship log on the right](docs/screenshots/dashboard.png)
 
 > **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, is being wired in ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
 
@@ -18,6 +25,20 @@ Celeste follows your game as it happens, talks with you, and presses keys for yo
 - **Reacts to the game.** Pick the game events Celeste should speak up about, for example loading into the game or docking.
 - **Works with any LLM.** OpenRouter by default; Anthropic, OpenAI, Google, Groq, Mistral or a local Ollama / vLLM server work from settings alone.
 - **Runs in the terminal.** A start-up check, a cockpit dashboard with navigation, ship and comms panels, and a settings screen that checks every change before saving it.
+
+## Screenshots
+
+The app running on a recorded game journal: a jump to Beta Sculptoris, docking at Fan Horizons and a refuel.
+
+**Start-up check.** Every service is checked before the dashboard opens: settings, the game journal, keybindings, the LLM, Instinct, voice out and in, and event reactions.
+
+![Start-up check: Celeste's head drawn in braille dots on the left, the EDCELESTE block letters and the list of checked services on the right](docs/screenshots/preflight.png)
+
+**Settings.** The LLM provider and model with a connection test, Instinct and its model download, the prompts, and the game events Celeste speaks up about.
+
+| LLM and Instinct | Event reactions |
+| --- | --- |
+| ![Settings, LLM section: provider, API key, model, Test connection, Instinct switch, device, model and download status, system prompt](docs/screenshots/settings-llm.png) | ![Settings, event reactions section: game events grouped into critical, navigation, docking and fuel, each with a switch](docs/screenshots/settings-reactions.png) |
 
 ## How it works
 
