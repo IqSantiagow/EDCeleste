@@ -12,7 +12,6 @@ from edceleste.services.game_window import GameWindow
 from edceleste.services.instinct_service import InstinctService
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
-from edceleste.services.local_decision_model_service import LocalDecisionModelService
 from edceleste.services.stt_service import SttService
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
@@ -178,15 +177,10 @@ class Container(containers.DeclarativeContainer):
 
     decision_model_download_service = providers.Singleton(DecisionModelDownloadService)
 
-    local_decision_model_service = providers.Singleton(
-        LocalDecisionModelService, download_service=decision_model_download_service
-    )
-
     instinct_service = providers.Singleton(
         InstinctService,
         settings_service=settings_service,
         download_service=decision_model_download_service,
-        model_service=local_decision_model_service,
     )
 
     tts_service = providers.Singleton(
