@@ -11,6 +11,10 @@ on:
     branches:
       - main
     types: [ opened, synchronize, ready_for_review, reopened ]
+  # After a merge, lint and tests run again on main and the report job publishes the test history
+  push:
+    branches:
+      - main
   issue_comment:
     types: [ created ]
   pull_request_review_comment:
@@ -18,7 +22,7 @@ on:
 
 jobs:
   lint:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +45,7 @@ jobs:
 
   test:
     needs: lint
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: pr-action
     steps:
@@ -68,15 +72,72 @@ jobs:
 
       - name: Run tests and coverage
         run: |
-          coverage run -m pytest
+          coverage run -m pytest --alluredir allure-results
           coverage report -m
           coverage xml
 
+      # A failing run still has results, and the report job needs them most then
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+
       - name: Generate coverage report
+        if: github.event_name == 'pull_request'
         uses: orgoro/coverage@v3.3
         with:
           coverageFile: coverage.xml
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  report:
+    needs: test
+    # Only main writes the test history: a PR's code may never land.
+    # When lint failed the tests were skipped, so there are no results to report.
+    if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    runs-on: ubuntu-latest
+    # Write access only here, not in test, which installs 60+ dependencies
+    permissions:
+      contents: write
+    # Two merges close together publish one after the other, so neither loses its history line
+    concurrency:
+      group: allure-history
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out the published report
+        # The gh-pages branch does not exist before the first run
+        continue-on-error: true
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+
+      - name: Generate Allure report
+        # allurerc.json writes the report and the history to allure-report/
+        run: |
+          mkdir -p allure-report
+          if [ -f gh-pages/history.jsonl ]; then
+            cp gh-pages/history.jsonl allure-report/history.jsonl
+          fi
+          npx --yes allure@3.20.1 generate allure-results
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./allure-report
+          # One commit with only the latest report, so the branch stays small
+          force_orphan: true
 
   mutation:
     needs: test

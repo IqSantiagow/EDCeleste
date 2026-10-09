@@ -30,6 +30,11 @@ subagent (`.claude/agents/mutation-tester.md`) to check the changed files, then 
 for the gaps it reports. The `mutation` job in `.github/workflows/pr-pipeline.yml` runs the same
 check on the source files a PR changes and fails below `MIN_MUTATION_SCORE` (75%).
 
+Every push to `main` runs `lint` and `test` again, and the `report` job of the same workflow turns
+the pytest results into an Allure 3 report (`allurerc.json`) and publishes it to the `gh-pages`
+branch, with the last 50 runs in `history.jsonl`: https://iqsantiagow.github.io/EDCeleste/.
+Pull requests publish nothing.
+
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
 
 ## Configuration
