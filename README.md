@@ -7,6 +7,9 @@
 
 # EDCeleste
 
+[![main](https://github.com/IqSantiagow/EDCeleste/actions/workflows/pr-pipeline.yml/badge.svg?branch=main&event=push)](https://github.com/IqSantiagow/EDCeleste/actions/workflows/pr-pipeline.yml?query=branch%3Amain+event%3Apush)
+[![Test history](https://img.shields.io/badge/tests-history-blue)](https://iqsantiagow.github.io/EDCeleste/)
+
 A voice co-pilot for Elite Dangerous that lives in your terminal.
 
 Celeste follows your game as it happens, talks with you, and presses keys for you. Say "deploy landing gear" and the gear moves. Ask "how much fuel do I have?" and she answers from what the game just wrote.
