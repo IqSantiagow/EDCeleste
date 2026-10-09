@@ -47,6 +47,8 @@ class PlayerProjection(Projection):
     IN_FIGHTER_PROJECTION = "Commander is currently piloting a fighter."
 
     def __init__(self):
+        """None means "not known yet". The commander starts alive and in the
+        ship (not on foot, not in a taxi, SRV or fighter)."""
         self.player_name = None
         self.player_credits = 0
         self.player_ship = None
@@ -64,6 +66,15 @@ class PlayerProjection(Projection):
         self.is_in_fighter = False
 
     def process_event(self, event: BaseModel):
+        """- LoadGame -> name, credits, readable ship name, game mode, and
+          marks the commander alive.
+        - Commander -> name.
+        - Rank -> all three main ranks (combat, trade, exploration).
+        - Promotion -> only the ranks the event carries, the others stay.
+        - Reputation -> Empire, Federation and Alliance reputation.
+        - Died / Resurrect -> dead / alive.
+        - Status (Status.json) -> in SRV, in fighter, on foot, in taxi flags.
+        Any other event is skipped."""
         if isinstance(event, LoadedGameEvent):
             logger.debug("Received player state event: %s", event)
             self.player_name = event.Commander
@@ -123,6 +134,14 @@ class PlayerProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
+        """1. Name, credits and ship are always there, even before LoadGame (a
+           warning is logged and the text says "None").
+        2. Game mode, ranks (by name, only when all three are known) and
+           reputation are added when known.
+        3. A "destroyed" sentence when the commander is dead.
+        4. At most one "where is the commander" sentence, in this order: on
+           foot, taxi, SRV, fighter.
+        """
         if not self.player_name or not self.player_ship:
             logger.warning("Player state not set. Does the game started?")
 

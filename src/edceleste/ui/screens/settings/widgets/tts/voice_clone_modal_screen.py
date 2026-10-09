@@ -41,6 +41,8 @@ CLONING_STEP_LABELS = [
 
 
 def format_seconds_as_clock(seconds: float) -> str:
+    """75.25 -> "01:15.2". Minutes are not capped at 60, there are no
+    hours."""
     minutes = int(seconds // 60)
     remaining_seconds = seconds % 60
     return f"{minutes:02d}:{remaining_seconds:04.1f}"
@@ -50,6 +52,8 @@ class AnalysisCheckRow(Horizontal):
     DEFAULT_CLASSES = "analysis-check-row"
 
     def __init__(self, label: str, value: str, is_ok: bool, hint: str = "", **kwargs):
+        """One line of the sample analysis, e.g. "Duration  12.3s". is_ok
+        picks the icon, hint is the grey text after the value."""
         super().__init__(**kwargs)
         self.check_label = label
         self.check_value = value
@@ -57,6 +61,7 @@ class AnalysisCheckRow(Horizontal):
         self.check_hint = hint
 
     def compose(self):
+        """A green ✓ or a red ✗, then label, value and hint."""
         icon = "✓" if self.is_ok else "✗"
         icon_status_class = "success" if self.is_ok else "error"
         yield Label(
@@ -70,20 +75,32 @@ class AnalysisCheckRow(Horizontal):
 class AnalysisPhase(Static):
     class AnalysisCompleted(Message):
         def __init__(self, is_valid: bool) -> None:
+            """Posted when the sample analysis finishes. is_valid False (sample
+            shorter than 10 s) keeps the modal's Next button disabled."""
             super().__init__()
             self.is_valid = is_valid
 
     def __init__(self, file_path: Path, settings_repository: SettingsRepository):
+        """Step 2 of the modal. analysis stays None until run_analysis()
+        finishes, compose() shows "Analyzing sample..." until then."""
         self.file_path = file_path
         self.settings_repository = settings_repository
         self.analysis: VoiceAnalysisResult | None = None
         super().__init__()
 
     def on_mount(self):
+        """Starts the analysis as soon as the step is shown."""
         self.run_analysis()
 
     @work
     async def run_analysis(self) -> None:
+        """Worker.
+        1. Reads and measures the audio file in a thread, so the UI does not
+           freeze.
+        2. Posts AnalysisCompleted to the modal, which enables Next for a
+           valid sample.
+        3. Recomposes to show the results.
+        """
         analysis = await asyncio.to_thread(
             self.settings_repository.analyze_voice_sample, str(self.file_path)
         )
@@ -92,6 +109,9 @@ class AnalysisPhase(Static):
         await self.recompose()
 
     def compose(self):
+        """Before the analysis only "Analyzing sample...". After it: file name
+        and folder, the waveform with its length, the check rows, a play
+        button, and a red hint when the sample is not valid."""
         with Vertical(classes="voice-clone-body analysis-phase-body"):
             if self.analysis is None:
                 yield Label("Analyzing sample...", classes="analysis-status-label")
@@ -121,6 +141,8 @@ class AnalysisPhase(Static):
                 )
 
     def _compose_check_rows(self):
+        """Duration, channels, sample rate, peak and noise floor. Only the
+        duration can fail, the others are always ✓ and only informative."""
         analysis = self.analysis
         assert analysis is not None
 
@@ -150,10 +172,13 @@ class AnalysisPhase(Static):
 
     @on(Button.Pressed, "#analysis-play-button")
     def handle_play_pressed(self) -> None:
-        self.play_sample()
+        """The ▶ Play button under the analysis."""
+        self.play_selected_file()
 
     @work
-    async def play_sample(self) -> None:
+    async def play_selected_file(self) -> None:
+        """Worker. Plays the picked audio file through the speakers, as it
+        is, without the clone."""
         await self.settings_repository.play_audio_file(str(self.file_path))
 
 
@@ -163,27 +188,35 @@ class CloningStepRow(Horizontal):
     DEFAULT_CLASSES = "analysis-check-row"
 
     def __init__(self, label: str, **kwargs):
+        """label is one entry of CLONING_STEP_LABELS."""
         super().__init__(**kwargs)
         self.step_label = label
 
     def compose(self):
+        """Starts as pending: the "○" icon, with a hidden spinner next to
+        it."""
         yield Label("○", classes="analysis-check-icon warning-label", id="step-icon")
         yield WidgetSpinner(classes="analysis-check-icon hidden", id="step-spinner")
         yield Label(self.step_label, classes="analysis-check-label")
 
     def mark_active(self) -> None:
+        """Hides the "○" and shows a running spinner in its place."""
         self.query_one("#step-icon", Label).add_class("hidden")
         spinner = self.query_one("#step-spinner", WidgetSpinner)
         spinner.remove_class("hidden")
         spinner.start()
 
     def mark_done(self) -> None:
+        """Stops the spinner and shows a green ✓."""
         self._show_icon("✓", "success")
 
     def mark_failed(self) -> None:
+        """Stops the spinner and shows a red ✗."""
         self._show_icon("✗", "error")
 
     def _show_icon(self, icon: str, status_class: str) -> None:
+        """Puts icon into the "○" label and shows it again. status_class
+        "success" or "error" colours it."""
         spinner = self.query_one("#step-spinner", WidgetSpinner)
         spinner.stop()
         spinner.add_class("hidden")
@@ -195,6 +228,9 @@ class CloningStepRow(Horizontal):
 class SavePhase(Static):
     class CloningCompleted(Message):
         def __init__(self, is_successful: bool) -> None:
+            """Posted when cloning ends, good or bad. The modal turns Next into
+            [✓ Save profile] only when is_successful, and always shows
+            [← Another file]."""
             super().__init__()
             self.is_successful = is_successful
 
@@ -203,6 +239,8 @@ class SavePhase(Static):
     is_ready: reactive[bool] = reactive(False, recompose=True)
 
     def __init__(self, file_path: Path, settings_repository: SettingsRepository):
+        """Step 3 of the modal. The profile is first cloned under the file name
+        without extension, e.g. "celeste.wav" -> "celeste"."""
         self.file_path = file_path
         # The name the profile already lives under on disk since clone_voice()
         # ran. The user can rename it before saving - see attempt_save().
@@ -211,9 +249,12 @@ class SavePhase(Static):
         super().__init__()
 
     def on_mount(self):
+        """Starts cloning as soon as the step is shown."""
         self.run_clone_voice()
 
     def compose(self):
+        """Not ready: "<file> → <profile name>" and one CloningStepRow per
+        step. Ready: the view from _compose_ready_view()."""
         with VerticalScroll(
             classes="voice-clone-body analysis-phase-body", id="save-phase-body"
         ):
@@ -229,6 +270,13 @@ class SavePhase(Static):
             yield from self._compose_ready_view()
 
     def _compose_ready_view(self):
+        """Shown after a successful clone:
+        - the profile name input (prefilled) and a hidden error line for it,
+        - the "Set as active" switch, on by default,
+        - A/B buttons to compare the source file with the demo sample,
+        - a sample text input and a regenerate button to hear the clone say
+          any text.
+        """
         yield Label("✓ Profile ready", classes="warning-label success")
 
         yield Label("Profile name", classes="analysis-heading")
@@ -267,6 +315,15 @@ class SavePhase(Static):
 
     @work
     async def run_clone_voice(self) -> None:
+        """Worker. Clones the voice with Chatterbox and saves the profile and a
+        demo sample to disk under temporary_profile_name.
+
+        Every state the repository yields ticks the current step ✓ and starts
+        the spinner on the next one. On error the current step gets ✗, the
+        error text is added under the steps and CloningCompleted(False) is
+        posted. On success is_ready flips, which recomposes into the ready
+        view, and CloningCompleted(True) is posted.
+        """
         steps = list(self.query(CloningStepRow))
         step_index = 0
         steps[step_index].mark_active()
@@ -296,32 +353,50 @@ class SavePhase(Static):
 
     @on(Button.Pressed, "#compare-play-source-button")
     def handle_play_source_pressed(self) -> None:
+        """The "A source file" ▶ button."""
         self.play_source()
 
     @on(Button.Pressed, "#compare-play-sample-button")
     def handle_play_sample_pressed(self) -> None:
+        """The "B clone synthesis" ▶ button."""
         self.play_sample()
 
     @work(exclusive=True, group="ab-playback")
     async def play_source(self) -> None:
+        """Worker. Plays the original picked file. Shares the "ab-playback"
+        group with the other two players, so a new press cancels the
+        running one."""
         await self.settings_repository.play_audio_file(str(self.file_path))
 
     @work(exclusive=True, group="ab-playback")
     async def play_sample(self) -> None:
+        """Worker. Plays the demo sample saved by cloning, not a new synthesis.
+        Same "ab-playback" group as play_source()."""
         await self.settings_repository.play_sample_voice(self.temporary_profile_name)
 
     @on(Button.Pressed, "#save-regenerate-button")
     def handle_regenerate_pressed(self) -> None:
+        """The ↻ Regenerate button."""
         self.preview_sample_with_custom_text()
 
     @work(exclusive=True, group="ab-playback")
     async def preview_sample_with_custom_text(self) -> None:
+        """Worker. Makes the cloned voice say the text from the sample text
+        input and plays it. It runs the Chatterbox model, so it is slow, and
+        it saves nothing. Same "ab-playback" group as play_source()."""
         new_text = self.query_one("#save-sample-text-input", Input).value
         await self.settings_repository.preview_voice_sample(
             self.temporary_profile_name, new_text
         )
 
     async def attempt_save(self) -> VoiceCloneSaveResult | None:
+        """Called by the modal's [✓ Save profile] button. The profile is
+        already on disk, so "saving" only means:
+        1. empty name -> error under the input, returns None,
+        2. a changed name -> renames the profile files on disk in a thread.
+           A name that is taken -> error under the input, returns None,
+        3. returns the final name and the "Set as active" switch value.
+        """
         candidate_name = self.query_one("#save-profile-name-input", Input).value.strip()
         error_label = self.query_one("#save-name-error", Label)
 
@@ -352,6 +427,9 @@ class SavePhase(Static):
 
 class FilePickPhase(Static):
     def compose(self):
+        """Step 1 of the modal. The "Clone Voice" button opens the file picker,
+        the hidden label shows the picked file afterwards. The modal screen
+        handles both."""
         with Vertical(classes="voice-clone-body"):
             with Center():
                 yield WidgetButton("Clone Voice", id="clone-voice-button")
@@ -365,6 +443,8 @@ class PhaseBar(Static):
     phase = 1
 
     def compose(self):
+        """Three dots joined by lines over FILE, ANALYSIS and SAVE. Starts on
+        FILE."""
         with Vertical(classes="voice-clone-phase-bar"):
             with Horizontal(classes="voice-clone-phase-dots"):
                 yield Label("●───────", id="phase-dot-1")
@@ -377,6 +457,8 @@ class PhaseBar(Static):
                 yield Label("SAVE", classes="phase save-phase")
 
     def phase_next(self):
+        """Moves the highlight one step right and fills the dot of the new
+        step. It never goes past SAVE."""
         self.phase += 1
         self.query(".phase.-active").remove_class("-active")
         if self.phase < 3:
@@ -387,6 +469,7 @@ class PhaseBar(Static):
             self.query_one("#phase-dot-3", Label).update("●")
 
     def phase_reset(self):
+        """Back to FILE: highlight on FILE, dots 2 and 3 empty again."""
         self.phase = 1
         self.query(".phase.-active").remove_class("-active")
         self.query_one(".file-phase").add_class("-active")
@@ -407,13 +490,20 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
         *args,
         **kwargs,
     ) -> None:
+        """A three step wizard: 1 pick a file, 2 analyse it, 3 clone and name
+        it. phase holds the current step. Dismissed with a
+        VoiceCloneSaveResult after a save, or with None on cancel."""
         super().__init__(*args, **kwargs)
         self.settings_repository = settings_repository
 
     def on_mount(self):
+        """Sets the title drawn in the modal border."""
         self.border_title = "CLONE VOICE FROM FILE"
 
     def compose(self):
+        """Phase bar on top, the step body in the middle (FilePickPhase at the
+        start) and the footer: [X Cancel], a hidden [← Pick another] and a
+        disabled [Next →]."""
         with Vertical():
             yield PhaseBar()
             with Center(classes="voice-clone-body"):
@@ -434,6 +524,9 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
 
     @on(Button.Pressed, "#clone-voice-button")
     def handle_clone_voice_pressed(self) -> None:
+        """The "Clone Voice" button of step 1. Opens a file picker that shows
+        only .mp3 and .wav files. The picked path goes to
+        handle_file_selected()."""
         self.app.push_screen(
             FileOpen(
                 filters=Filters(
@@ -444,25 +537,39 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
             callback=self.handle_file_selected,
         )
 
-    def handle_file_selected(self, opened: Path | None) -> None:
-        if opened is None:
+    def handle_file_selected(self, selected_file_path: Path | None) -> None:
+        """None means the pilot closed the picker without a file. Otherwise
+        remembers the path, shows it under the button and enables Next."""
+        if selected_file_path is None:
             return
-        self.file_path = opened
-        self.query_one("#selected-file-label", Label).update(f"Selected file: {opened}")
+        self.file_path = selected_file_path
+        self.query_one("#selected-file-label", Label).update(
+            f"Selected file: {selected_file_path}"
+        )
         self.query_one("#selected-file-label").remove_class("hidden")
         self.query_one("#voice-clone-next-button", WidgetButton).disabled = False
 
     def cleanup_unsaved_clone(self) -> None:
+        """Only in step 3, where cloning already wrote a profile to disk.
+        Deletes that profile, so leaving without saving leaves no files
+        behind. Steps 1 and 2 wrote nothing."""
         if self.phase == 3 and self.file_path is not None:
             self.settings_repository.remove_voice_profile(self.file_path.stem)
 
     @on(Button.Pressed, "#voice-clone-cancel-button")
     def handle_cancel_pressed(self) -> None:
+        """[X Cancel]. Deletes an unsaved clone and closes the modal with
+        None."""
         self.cleanup_unsaved_clone()
         self.dismiss(None)
 
     @on(Button.Pressed, "#voice-clone-pick-another-button")
     def handle_pick_another_pressed(self) -> None:
+        """[← Pick another] in step 2 or 3:
+        1. deletes an unsaved clone (step 3),
+        2. forgets the file and disables Next,
+        3. puts FilePickPhase back in the body and resets the phase bar.
+        """
         self.cleanup_unsaved_clone()
         self.phase = 1
         self.file_path = None
@@ -474,6 +581,14 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
 
     @on(Button.Pressed, "#voice-clone-next-button")
     def handle_next_pressed(self) -> None:
+        """[Next →], in step 3 [✓ Save profile].
+
+        - step 3 -> saves and closes, see save_and_dismiss(),
+        - step 1 -> step 2: mounts AnalysisPhase, disables Next until the
+          analysis says the sample is valid, shows [← Pick another],
+        - step 2 -> step 3: mounts SavePhase, which starts cloning, disables
+          Next until cloning ends, hides [← Pick another].
+        """
         if self.phase == 3:
             self.save_and_dismiss()
             return
@@ -499,6 +614,7 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     def on_analysis_phase_analysis_completed(
         self, message: AnalysisPhase.AnalysisCompleted
     ) -> None:
+        """Enables Next only for a valid sample."""
         self.query_one(
             "#voice-clone-next-button", WidgetButton
         ).disabled = not message.is_valid
@@ -506,6 +622,8 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     def on_save_phase_cloning_completed(
         self, message: SavePhase.CloningCompleted
     ) -> None:
+        """Success turns Next into an enabled [✓ Save profile]. Success or not,
+        [← Pick another] comes back as [← Another file]."""
         next_button = self.query_one("#voice-clone-next-button", WidgetButton)
         pick_another_button = self.query_one(
             "#voice-clone-pick-another-button", WidgetButton
@@ -518,6 +636,9 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
 
     @work
     async def save_and_dismiss(self) -> None:
+        """Worker. Asks SavePhase to apply the name. None (empty or taken
+        name) keeps the modal open with the error shown, otherwise the modal
+        closes and returns the result to the Chatterbox settings."""
         save_phase = self.query_one(SavePhase)
         result = await save_phase.attempt_save()
         if result is not None:

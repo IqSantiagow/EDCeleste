@@ -12,12 +12,17 @@ FSD_RATINGS = {"5": "A", "4": "B", "3": "C", "2": "D", "1": "E"}
 
 
 def fuel_percent(fuel: float, fuel_capacity: float) -> float:
+    """0-100 for the tank bar. An unknown tank size (0) gives an empty bar
+    instead of a division by zero."""
     if not fuel_capacity:
         return EMPTY_TANK_PERCENT
     return fuel / fuel_capacity * 100
 
 
 def fsd_module_text(fsd_module_item: str) -> str:
+    """Turns the journal item name into the in-game short name:
+    "int_hyperdrive_size5_class5" -> "FSD 5A". Class 5 is A, class 1 is E.
+    A name without the "size<n>_class<n>" ending is returned as it is."""
     name_parts = fsd_module_item.split("_")
     if len(name_parts) < 2 or not name_parts[-2].startswith("size"):
         return fsd_module_item
@@ -28,6 +33,7 @@ def fsd_module_text(fsd_module_item: str) -> str:
 
 
 def scoop_text(is_scooping: bool) -> str:
+    """Filled dot while the fuel scoop is working, empty dot otherwise."""
     return "● ACTIVE" if is_scooping else "○ IDLE"
 
 
@@ -38,10 +44,15 @@ class WidgetFlightAndDriveStats(Vertical):
     def __init__(
         self, ed_dashboard_repository: EdDashboardRepository, **kwargs
     ) -> None:
+        """Only stores the repository. The stats start streaming in
+        on_mount()."""
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
+        """Fuel and jump range as big digits, the tank bar, the scoop badge and
+        the reservoir. Everything starts at zero / IDLE until the first stats
+        arrive."""
         with HorizontalGroup(classes="stat-digits-row"):
             with Vertical():
                 yield Label("FUEL MAIN", classes="stat-label")
@@ -57,10 +68,15 @@ class WidgetFlightAndDriveStats(Vertical):
             yield Label("0.0 T", classes="stat-value", id="fuel-reservoir")
 
     def on_mount(self) -> None:
+        """Starts the worker that keeps this panel up to date."""
         self.stream_flight_and_drive_stats()
 
     @work
     async def stream_flight_and_drive_stats(self) -> None:
+        """Textual worker that runs as long as the widget lives. For every new
+        stats from the repository it rewrites the whole panel: FSD name in the
+        border subtitle, fuel, jump range, tank bar, scoop badge (highlighted
+        while scooping) and reservoir."""
         async for stats in self.ed_dashboard_repository.stream_flight_and_drive_stats():
             percent_of_tank = fuel_percent(stats.fuel, stats.fuel_capacity)
             self.border_subtitle = fsd_module_text(stats.fsd_module)

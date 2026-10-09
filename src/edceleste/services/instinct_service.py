@@ -53,6 +53,14 @@ gpu_kernels: dict = {}
 
 
 def switch_qwen_kernels_to_device(device: str) -> None:
+    """Changes global state: swaps functions inside the transformers qwen3_5
+    module, so it affects every Qwen model in the process. Called right
+    before the model is loaded.
+
+    The first call saves the original GPU kernels in gpu_kernels. "cuda" puts
+    the GPU kernels back, any other device puts in the plain torch version
+    hidden under the GPU wrapper, which also runs on the CPU.
+    """
     from transformers.models.qwen3_5 import modeling_qwen3_5
 
     for kernel_name in GPU_ONLY_KERNELS:
@@ -64,6 +72,10 @@ def switch_qwen_kernels_to_device(device: str) -> None:
 
 
 def describe_failure_reason(error: Exception) -> str:
+    """Short reason shown in the settings row and the cold start warning.
+    No connection or a timeout -> "no connection to huggingface.co".
+    Anything else -> the first line of the error text cut to 120 characters,
+    or the exception class name when the text is empty."""
     if isinstance(error, (httpx.ConnectError, httpx.TimeoutException)):
         return "no connection to huggingface.co"
     first_line = str(error).splitlines()[0] if str(error) else type(error).__name__
@@ -84,15 +96,29 @@ class InstinctService:
         settings_service: SettingsService,
         download_service: DecisionModelDownloadService,
     ) -> None:
+        """Only stores the dependencies. Nothing is downloaded or loaded here,
+        that starts in reload_service()."""
         self.settings_service = settings_service
         self.download_service = download_service
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        """Always None. enabled and device are already limited by the
+        settings model, so Instinct never blocks saving the settings."""
         return None
 
     def reload_service(self) -> None:
+        """Applies the saved Instinct settings. Called by cold_start() and
+        after the settings change.
+
+        1. Stores enabled and the device. A new device unloads the model.
+        2. Enabled -> starts the download and load in a background task and
+           returns at once, it does not wait for the task.
+           Disabled -> unloads the model and frees the GPU memory. A download
+           that is already running is not cancelled, it finishes, but the
+           model is not loaded after it.
+        """
         instinct_settings = self.settings_service.get_settings().llm.instinct
         self.enabled = instinct_settings.enabled
         self.change_device(instinct_settings.device)
@@ -102,18 +128,39 @@ class InstinctService:
             self.unload_model()
 
     def download_and_load_model_in_background(self) -> None:
+        """Starts download_and_load_model() as an asyncio task and returns at
+        once. Needs a running event loop.
+        Does nothing while the previous task still runs. Clears the last
+        failure, so the UI stops showing it."""
         if self.is_busy():
             return
         self.failure = None
         self.background_task = asyncio.create_task(self.download_and_load_model())
 
     def cancel_download(self) -> None:
+        """Only raises the cancel flag in the download service. The download
+        stops at its next chunk, deletes the half downloaded files, and
+        download_and_load_model() ends without a failure."""
         self.download_service.cancel_download()
 
     def is_busy(self) -> bool:
+        """True while the background download and load task runs. A finished,
+        failed or cancelled task is not busy."""
         return self.background_task is not None and not self.background_task.done()
 
     async def download_and_load_model(self) -> None:
+        """Body of the background task. Goes to the network.
+
+        1. When the model is not on disk yet, downloads it from the Hugging
+           Face Hub and keeps the newest progress in download_progress, so the
+           UI and cold_start() can show it.
+        2. When Instinct is still enabled, loads the model and asks one warm up
+           question in a worker thread, so the first real command is fast.
+
+        Errors are not raised. A cancelled download is only logged. Any other
+        error is logged and saved in failure, together with the step that failed
+        ("download" or "load"). download_progress is always cleared at the end.
+        """
         step: Literal["download", "load"] = "download"
         try:
             if not self.download_service.is_model_downloaded():
@@ -130,10 +177,16 @@ class InstinctService:
         finally:
             self.download_progress = None
 
-    def get_download_size(self) -> int | None:
+    def fetch_download_size(self) -> int | None:
+        """Model size in bytes, for the "Not downloaded" row in settings.
+
+        The first call asks the Hugging Face Hub over the network and blocks,
+        later calls return the saved answer. Returns None when the Hub cannot
+        be reached. That error is logged, not raised, and the next call asks
+        the Hub again."""
         if self.download_size is None:
             try:
-                self.download_size = self.download_service.get_download_size()
+                self.download_size = self.download_service.fetch_download_size()
             except Exception:
                 # without the Hub the row says just "Not downloaded"
                 logger.warning("Cannot ask the Hub for the model size", exc_info=True)
@@ -142,11 +195,15 @@ class InstinctService:
     # ----- The model itself -----
 
     def change_device(self, device_choice: DeviceChoice) -> None:
+        """A different device unloads the model, the same device keeps it. The
+        model is not loaded again here, only by the next load_model() call."""
         if device_choice != self.device_choice:
             self.unload_model()  # loaded again on the new device by the next call
         self.device_choice = device_choice
 
     def unload_model(self) -> None:
+        """Forgets the loaded model and empties the CUDA cache. Does nothing
+        when no model is loaded. The files on disk stay."""
         if self.decider is None:
             return
         self.decider = None
@@ -155,9 +212,22 @@ class InstinctService:
         torch.cuda.empty_cache()  # give the GPU memory back to the game
 
     def running_device(self) -> str | None:
+        """Device the loaded model really runs on, e.g. "cuda" or "cpu", so
+        the settings row can show where "auto" ended up. None when no model is
+        loaded."""
         return str(self.decider.dev) if self.decider is not None else None
 
     def load_model(self) -> Decider:
+        """Loads the model on the first call, later calls return the same one.
+        Slow and blocking, so callers run it in a worker thread.
+
+        1. Raises ModelNotDownloaded when the files are not on disk. It never
+           downloads anything.
+        2. "auto" becomes "cuda" when torch sees a GPU, otherwise "cpu".
+        3. Switches the Qwen kernels to that device.
+        4. Loads the model. Without Triton, torch.compile cannot run, so the
+           slower eager forward is used.
+        """
         if self.decider is not None:
             return self.decider
         if not self.download_service.is_model_downloaded():
@@ -184,7 +254,16 @@ class InstinctService:
         )
         return self.decider
 
-    def ask(self, state: dict, questions: dict) -> dict:
+    def ask_decision_model(self, state: dict, questions: dict) -> dict:
+        """Runs the local model once. Blocking, and slow when the model is not
+        loaded yet, because it loads it first (errors like ModelNotDownloaded
+        are raised). Logs what the pilot said or which event came, the answers
+        and how long it took.
+
+        state holds e.g. "game_state" and "pilot_said". questions maps a
+        question name to its type, instructions and criteria, see
+        WARM_UP_QUESTIONS. The answers are keyed by the same question names.
+        """
         decider = self.load_model()
         start = time.perf_counter()
         answers = decider.system_one(state, questions)["answers"]
@@ -197,12 +276,17 @@ class InstinctService:
         return answers
 
     def warm_up(self) -> None:
+        """Loads the model and asks one made up question, so the slow first
+        run happens at startup and not on the pilot's first command. The answer
+        is thrown away. Blocking."""
         state = {"game_state": "", "pilot_said": "deploy hardpoints"}
-        self.ask(state, WARM_UP_QUESTIONS)
+        self.ask_decision_model(state, WARM_UP_QUESTIONS)
 
     # ----- Status for the UI and the cold start -----
 
     def get_status(self) -> InstinctStatus:
+        """Snapshot for the Instinct row in settings. Checks the disk to see
+        if the model is downloaded."""
         return InstinctStatus(
             state=self.get_model_state(),
             download_progress=self.download_progress,
@@ -211,6 +295,13 @@ class InstinctService:
         )
 
     def get_model_state(self) -> InstinctModelState:
+        """Picks the one state the UI shows, first match wins:
+        1. background task runs -> LOADING when the files are on disk,
+           otherwise DOWNLOADING,
+        2. the last task failed -> FAILED,
+        3. files are on disk -> READY, even when the model is not in memory,
+        4. otherwise NOT_DOWNLOADED.
+        """
         is_downloaded = self.download_service.is_model_downloaded()
         if self.is_busy():
             if is_downloaded:
@@ -223,6 +314,18 @@ class InstinctService:
         return InstinctModelState.NOT_DOWNLOADED
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        """Startup check shown in the system check screen. May download the
+        model, which can take minutes.
+
+        1. Yields a "not completed" status, so the UI shows a spinner.
+        2. Applies the settings (reload_service). Disabled -> yields completed
+           with is_disabled and stops.
+        3. Enabled -> waits for the background download and load, and yields
+           the download progress every 0.2 s.
+        4. Yields completed. A failed download or load is only a warning with
+           the reason, never critical, because without Instinct every command
+           still goes through Celeste.
+        """
         status = ColdStartStatus(
             service="instinct",
             message=None,

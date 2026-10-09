@@ -22,21 +22,34 @@ class WidgetTestConnectionRow(HorizontalGroup):
     def __init__(
         self, test_connection: Callable[[], Awaitable[str | None]], **kwargs
     ) -> None:
+        """test_connection is called on every press of the button. It must not
+        raise, errors come back as the returned text."""
         super().__init__(**kwargs)
         self.test_connection = test_connection
 
     def compose(self) -> ComposeResult:
+        """The spinner is stopped and the result label is empty until the
+        first press."""
         yield WidgetButton("Test connection", id="test-connection-button")
         yield WidgetSpinner("Testing...", id="test-connection-spinner")
         yield Label("", id="test-connection-result")
 
     @on(Button.Pressed, "#test-connection-button")
     def handle_test_connection_pressed(self, event: Button.Pressed) -> None:
+        """Stops the press here, so the settings screen does not see it, and
+        starts the test in a worker."""
         event.stop()
         self.run_connection_test()
 
     @work(exclusive=True)
     async def run_connection_test(self) -> None:
+        """Worker, exclusive, so a new run cancels the old one.
+
+        1. Disables the button, clears the old result, starts the spinner.
+        2. Awaits test_connection(), which usually goes to the network.
+        3. Stops the spinner, enables the button again.
+        4. Shows "✓ Connected" in green or "✗ <error>" in red.
+        """
         button = self.query_one("#test-connection-button", WidgetButton)
         spinner = self.query_one("#test-connection-spinner", WidgetSpinner)
 
@@ -56,6 +69,8 @@ class WidgetTestConnectionRow(HorizontalGroup):
             self.show_result(f"✗ {error_message}", "error")
 
     def show_result(self, text: str, status_class: str) -> None:
+        """status_class "success" or "error" colours the text. Empty text and
+        empty class leave the row blank."""
         result_label = self.query_one("#test-connection-result", Label)
         # Content, not str - a provider error can hold "[...]", which Textual
         # would read as markup and swallow or crash on.

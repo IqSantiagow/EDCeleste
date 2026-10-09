@@ -43,6 +43,9 @@ ENGINE_VALUES = ["edge", "chatterbox"]
 def build_default_provider_for_engine(
     engine: str,
 ) -> EdgeTTSProviderModel | ChatterboxTTSProviderModel:
+    """Used when the pilot switches the engine. "edge" gets the default Edge
+    voice, anything else gets Chatterbox with no voice profile picked. The
+    settings of the old engine are dropped."""
     if engine == "edge":
         return EdgeTTSProviderModel(type="edge", voice=DEFAULT_EDGE_VOICE)
     return ChatterboxTTSProviderModel(type="chatterbox", profile="")
@@ -67,11 +70,18 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
         *args,
         **kwargs,
     ) -> None:
+        """tts_model is part of the screen's working copy of the settings and
+        is changed in place. provider is set without triggering a recompose,
+        because nothing is composed yet."""
         super().__init__(*args, **kwargs)
         self.tts_model = tts_model
         self.set_reactive(WidgetTTSContainer.provider, tts_model.provider)
 
     def compose(self) -> ComposeResult:
+        """Runs again when provider changes (engine switch). The engine
+        select, then the settings of that engine (Edge voice list or
+        Chatterbox profiles and params), then the volume slider and the Voice
+        Lab block, which are the same for both engines."""
         yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("TTS SETTINGS")
@@ -85,9 +95,9 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 id=TTSInputWidgetIds.TTS_PROVIDER_TYPE_INPUT,
             )
             if isinstance(provider, EdgeTTSProviderModel):
-                yield from self.mount_edge_tts_settings(provider)
+                yield from self.compose_edge_tts_settings(provider)
             elif isinstance(provider, ChatterboxTTSProviderModel):
-                yield from self.mount_chatterbox_settings(provider)
+                yield from self.compose_chatterbox_settings(provider)
             yield WidgetLabeledSliderRow(
                 "Volume:",
                 0,
@@ -99,6 +109,18 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
             yield WidgetVoiceLabSettingsVertical(self.tts_model.voice_lab)
 
     def on_value_changed(self, message: ValueChanged) -> None:
+        """Gets ValueChanged from every row in this section, also from the Edge,
+        Chatterbox and Voice Lab blocks, because the message bubbles up.
+
+        Writes the new value into tts_model and posts
+        SectionSettingsChanged(TTS) to the settings screen. Nothing is saved
+        here. Special cases:
+        - engine changed -> a fresh default provider and a recompose,
+        - an Edge or Chatterbox field while the other engine is active -> not
+          written, but the message is still posted,
+        - volume, exaggeration or pace that is not a number -> notification
+          and no post.
+        """
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
         match message.sender_id:
@@ -160,12 +182,16 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
             )
         )
 
-    def mount_chatterbox_settings(
+    def compose_chatterbox_settings(
         self, chatterbox_provider: ChatterboxTTSProviderModel
     ) -> ComposeResult:
+        """Part of compose(). The Chatterbox block changes chatterbox_provider
+        through this container's on_value_changed()."""
         yield WidgetChatterboxTTSSettingsVertical(chatterbox_provider)
 
-    def mount_edge_tts_settings(
+    def compose_edge_tts_settings(
         self, edge_provider: EdgeTTSProviderModel
     ) -> ComposeResult:
+        """Part of compose(). The Edge block changes edge_provider through this
+        container's on_value_changed()."""
         yield WidgetEdgeTTSSettingsVertical(edge_provider)

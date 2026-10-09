@@ -51,6 +51,7 @@ class LocationProjection(Projection):
     )
 
     def __init__(self):
+        """Everything starts as None or False, which means "not known yet"."""
         self.current_star_system = None
         self.target_star_system = None
         self.is_docked = False
@@ -73,6 +74,33 @@ class LocationProjection(Projection):
         self.system_population = None
 
     def process_event(self, event: BaseModel) -> None:
+        """Tracks where the ship is: system, station, body, settlement, landing
+        pad, supercruise drop place, the next hop of the route and the system
+        facts (security, allegiance, government, economy, population).
+
+        - Status (Status.json) -> docked, supercruise and FSD jump flags.
+        - StartJump -> only for Hyperspace (supercruise charging is skipped).
+          Remembers the target system and forgets the current system,
+          station, body, settlement, drop place and landing pad.
+        - FSDTarget -> next hop of the plotted route.
+        - FSDJump -> new current system and its facts. Clears the target
+          system, and the route hop when we arrived at it.
+        - Docked -> system and station. Clears body, settlement, drop place.
+        - DockingGranted -> landing pad and its station.
+        - Undocked -> forgets the landing pad. The station stays, so the
+          prompt can say "flying nearby".
+        - Location -> system and station. System facts are updated only when
+          the event has them, a blank value keeps the old one.
+        - SupercruiseEntry -> system. Forgets station, body, settlement, drop
+          place and landing pad.
+        - SupercruiseExit -> system and body.
+        - SupercruiseDestinationDrop -> readable drop place.
+        - ApproachBody -> system and body.
+        - LeaveBody -> clears the body (only when it is the one we left) and
+          the settlement.
+        - ApproachSettlement -> settlement, and the body when the event has it.
+        Any other event is skipped.
+        """
         if isinstance(event, StatusEvent):
             logger.debug("Received location event: %s", event)
             self.is_docked = bool(event.Flags & StatusFlags.Docked)
@@ -202,6 +230,10 @@ class LocationProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
+        """Adds one sentence for every known fact and skips the unknown ones,
+        so the text is empty before the first location event. A station while
+        not docked becomes "un-docked from ... flying nearby". The system facts
+        are not in the text, only the dashboard shows them."""
         projection_string = ""
 
         if self.current_star_system:
@@ -253,5 +285,7 @@ class LocationProjection(Projection):
         return projection_string
 
     def __forget_landing_pad(self) -> None:
+        """A landing pad is only valid until we undock or leave for supercruise
+        or hyperspace."""
         self.assigned_landing_pad = None
         self.assigned_landing_pad_station = None

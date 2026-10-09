@@ -24,3 +24,4 @@ LOG.md
 /mutation_testing/report
 /allure-results
 /allure-report
+/signature_check/stripped

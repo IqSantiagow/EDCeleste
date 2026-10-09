@@ -23,7 +23,7 @@ class TestStreamShipStatsUseCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(view_models), 1)
         view_model = view_models[0]
-        self.assertEqual(view_model.hull_pe, 0.87)
+        self.assertEqual(view_model.hull_health_fraction, 0.87)
         self.assertFalse(view_model.gear)
         self.assertFalse(view_model.hardpoints)
         self.assertFalse(view_model.lights)
@@ -84,7 +84,8 @@ class TestStreamShipStatsUseCase(unittest.IsolatedAsyncioTestCase):
         view_models = [view_model async for view_model in use_case()]
 
         self.assertEqual(
-            [view_model.hull_pe for view_model in view_models], [1.0, 0.6, 0.2]
+            [view_model.hull_health_fraction for view_model in view_models],
+            [1.0, 0.6, 0.2],
         )
 
     async def test_yields_nothing_when_stream_is_empty(self):

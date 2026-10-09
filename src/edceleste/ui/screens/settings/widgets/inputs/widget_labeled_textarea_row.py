@@ -23,12 +23,16 @@ class WidgetLabeledTextAreaRow(WidgetBaseInput):
         on_submit: Callable,
         **kwargs,
     ) -> None:
+        """on_submit is called with the whole text after every single change,
+        there is no Enter to confirm a multi line text."""
         super().__init__(value=value, initial_value=value, **kwargs)
         self.label = label
         self.on_submit = on_submit
         assert self.id is not None, "WidgetLabeledTextAreaRow must have an id"
 
     def compose(self) -> ComposeResult:
+        """The label sits on its own line above the text area, because prompts
+        are long and need the full width."""
         with VerticalGroup():
             with HorizontalGroup(classes="textarea-row-label-line"):
                 yield Label(self.label, classes="entry-label")
@@ -40,6 +44,9 @@ class WidgetLabeledTextAreaRow(WidgetBaseInput):
             )
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Runs on every key typed in the text area. Stores the whole text,
+        calls on_submit with it and posts ValueChanged to the section
+        container."""
         new_value = event.text_area.text
         self.value = new_value
         self.on_submit(new_value)

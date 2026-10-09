@@ -44,6 +44,12 @@ class GameStateService:
     MARKET_CARD_EVENTS = (MarketEvent, DockedEvent, UndockedEvent, LocationEvent)
 
     def __init__(self, event_bus: EventBus) -> None:
+        """Builds one of every projection, all empty, and subscribes to the
+        event bus. Nothing is known about the game until the first event.
+
+        Subscriptions:
+        - GameEvent -> process_event
+        """
         self.event_bus = event_bus
         self.__game_state_projection = None
         self.__player_projection = PlayerProjection()
@@ -69,6 +75,18 @@ class GameStateService:
         event_bus.subscribe(GameEvent, self.process_event)
 
     async def process_event(self, event: GameEvent):
+        """Runs for every game event on the event bus.
+
+        1. Gives the event to every projection, each keeps its part of the
+           game state.
+        2. Wakes up the UI streams that wait on it:
+           - journal events -> stream_journal_events,
+           - side file events (Status.json, Market.json) -> stream_game_stats,
+           - market card events -> stream_market.
+        3. Rebuilds the game state text from all projections.
+        4. Publishes GameStateChangedEvent with that text, so LLMService has it
+           for the next prompt.
+        """
         for projection in self.__projections:
             projection.process_event(event)
 
@@ -94,12 +112,18 @@ class GameStateService:
         )
 
     def get_game_state_projection(self) -> str:
+        """The game state text for the LLM, as built by the last event, with
+        "Current game state is: " in front. Does not rebuild anything.
+        An empty string means no event came yet (or every projection is empty),
+        and a warning is logged."""
         if not self.__game_state_projection:
             logger.warning("Game state projection is empty. Does the game started?")
             return ""
         return self.GAME_PROJECTION.format(self.__game_state_projection)
 
     def __refresh_state(self):
+        """Glues the text of every projection into one string. The projections
+        sit in a frozenset, so the order of the parts is not fixed."""
         self.__game_state_projection = "".join(
             [projection.create_projection() for projection in self.__projections]
         )
@@ -108,6 +132,9 @@ class GameStateService:
         )
 
     def __build_game_stats_snapshot(self) -> GameStatsSnapshot:
+        """Copies the current values out of the projections for the dashboard
+        cards. A value the game has not sent yet becomes "" or 0 for the fields
+        that cannot be None."""
         return GameStatsSnapshot(
             player=PlayerStats(
                 name=self.__player_projection.player_name or "",
@@ -161,6 +188,14 @@ class GameStateService:
     async def stream_game_stats(
         self,
     ) -> AsyncGenerator[GameStatsSnapshot, None]:
+        """Never ends on its own. Yields the current stats right away, then a
+        fresh snapshot after every Status.json or Market.json event. Journal
+        events do not wake it, but Status.json comes often, so the stats catch
+        up soon.
+
+        Every caller gets its own queue, removed again when the caller stops
+        iterating.
+        """
         queue: asyncio.Queue = asyncio.Queue()
         self.__status_queue_watchers.append(queue)
 
@@ -173,6 +208,13 @@ class GameStateService:
             self.__status_queue_watchers.remove(queue)
 
     async def stream_journal_events(self) -> AsyncGenerator[GameEvent, None]:
+        """Never ends on its own. Yields every journal event that comes after
+        the caller started iterating, older events are not replayed. Side file
+        events (Status.json, Market.json) are left out.
+
+        Every caller gets its own queue, removed again when the caller stops
+        iterating.
+        """
         queue: asyncio.Queue = asyncio.Queue()
         self.__journal_queue_watchers.append(queue)
         try:
@@ -183,6 +225,9 @@ class GameStateService:
             self.__journal_queue_watchers.remove(queue)
 
     def __build_market_snapshot(self) -> MarketSnapshot:
+        """Copies the station market card values out of the market projection.
+        The ship counts as docked while the projection knows a docked market
+        id."""
         market = self.__market_projection
         return MarketSnapshot(
             station_name=market.station_name or "",
@@ -193,6 +238,13 @@ class GameStateService:
         )
 
     async def stream_market(self) -> AsyncGenerator[MarketSnapshot, None]:
+        """Never ends on its own. Yields the current station market right away,
+        then a fresh snapshot only after MARKET_CARD_EVENTS, so the commodity
+        table is not rebuilt every second by Status.json.
+
+        Every caller gets its own queue, removed again when the caller stops
+        iterating.
+        """
         queue: asyncio.Queue = asyncio.Queue()
         self.__market_queue_watchers.append(queue)
         try:

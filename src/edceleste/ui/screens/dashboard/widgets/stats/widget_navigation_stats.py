@@ -9,16 +9,21 @@ NO_VALUE = "-"
 
 
 def value_or_dash(value: str) -> str:
+    """An empty value is shown as "-", so the row never looks broken."""
     return value or NO_VALUE
 
 
 def security_badge_text(security: str) -> str:
+    """Example: "High" -> "● HIGH". Unknown security gives an empty badge, not
+    a dash."""
     if not security:
         return ""
     return f"● {security.upper()}"
 
 
 def economy_text(economy: str, second_economy: str) -> str:
+    """Joins the known economies with " / ", e.g. "Industrial / Refinery".
+    Empty ones are skipped, none known gives "-"."""
     known_economies = [name for name in (economy, second_economy) if name]
     if not known_economies:
         return NO_VALUE
@@ -26,12 +31,16 @@ def economy_text(economy: str, second_economy: str) -> str:
 
 
 def population_text(population: int) -> str:
+    """Spaces between thousands: 1234567 -> "1 234 567". 0 means unknown or
+    no people, shown as "-"."""
     if not population:
         return NO_VALUE
     return f"{population:,}".replace(",", " ")
 
 
 def jumps_left_text(remaining_jumps: int) -> str:
+    """Example: "3 jumps left". No route (0) gives an empty text, not a
+    dash."""
     if not remaining_jumps:
         return ""
     return f"{remaining_jumps} jumps left"
@@ -44,10 +53,15 @@ class WidgetNavigationStats(Vertical):
     def __init__(
         self, ed_dashboard_repository: EdDashboardRepository, **kwargs
     ) -> None:
+        """Only stores the repository. The stats start streaming in
+        on_mount()."""
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
+        """Label rows for system and security, body, status, next route
+        system and jumps left, allegiance and government, economy and
+        population. All start as "-" or empty until the first stats arrive."""
         with HorizontalGroup(classes="stat-row"):
             yield Label("SYSTEM", classes="stat-label")
             yield Label(NO_VALUE, classes="stat-value", id="navigation-system")
@@ -76,10 +90,14 @@ class WidgetNavigationStats(Vertical):
             yield Label(NO_VALUE, classes="stat-value", id="navigation-population")
 
     def on_mount(self) -> None:
+        """Starts the worker that keeps this panel up to date."""
         self.stream_navigation_stats()
 
     @work
     async def stream_navigation_stats(self) -> None:
+        """Textual worker that runs as long as the widget lives. For every new
+        stats from the repository it rewrites every label. Empty values become
+        "-", except the security badge and jumps left, which stay empty."""
         async for stats in self.ed_dashboard_repository.stream_navigation_stats():
             self.query_one("#navigation-system", Label).update(
                 value_or_dash(stats.system)

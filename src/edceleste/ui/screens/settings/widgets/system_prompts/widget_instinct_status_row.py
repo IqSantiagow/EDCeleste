@@ -32,11 +32,15 @@ class WidgetInstinctStatusRow(HorizontalGroup):
     DEFAULT_CLASSES = "entry-row-full"
 
     def __init__(self, settings_repository: SettingsRepository, **kwargs) -> None:
+        """download_size stays None until fetch_download_size() gets it, or for
+        good when the Hub cannot be reached."""
         super().__init__(**kwargs)
         self.settings_repository = settings_repository
         self.download_size: int | None = None
 
     def compose(self) -> ComposeResult:
+        """Spinner, status text, progress bar, download figures and one button.
+        All are drawn empty here, show_status() fills and hides them."""
         yield Label("Status:", classes="entry-label")
         with HorizontalGroup(id="instinct-status-content"):
             yield WidgetSpinner(id="instinct-status-spinner")
@@ -48,6 +52,8 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         yield WidgetButton("Download", id="instinct-status-button")
 
     def on_mount(self) -> None:
+        """Draws the status once, then redraws it every 0.1 s for as long as
+        the row lives, and starts fetching the download size."""
         self.show_status()
         # the download runs in the Instinct service, the row only draws it,
         # so it keeps going when the pilot leaves the settings
@@ -56,9 +62,18 @@ class WidgetInstinctStatusRow(HorizontalGroup):
 
     @work
     async def fetch_download_size(self) -> None:
-        self.download_size = await self.settings_repository.get_instinct_download_size()
+        """Worker. Asks the Hugging Face Hub for the model size over the
+        network. The size shows up on the next redraw of a "Not downloaded"
+        status."""
+        self.download_size = (
+            await self.settings_repository.fetch_instinct_download_size()
+        )
 
     def show_status(self) -> None:
+        """Reads the current Instinct status from the repository and redraws
+        the whole row: spinner while downloading or loading, progress bar only
+        while downloading, the status text and its colour class, and the
+        button label (hidden when there is nothing to press)."""
         status = self.settings_repository.get_instinct_status()
         self.show_spinner(status.state in BUSY_STATES)
         self.show_download_progress(
@@ -76,6 +91,8 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         button.label = Content(f"[{status_line.button_name}]")
 
     def show_spinner(self, is_busy: bool) -> None:
+        """Shows and runs the spinner when busy, hides and stops it
+        otherwise."""
         spinner = self.query_one("#instinct-status-spinner", WidgetSpinner)
         spinner.display = is_busy
         if is_busy:
@@ -84,6 +101,8 @@ class WidgetInstinctStatusRow(HorizontalGroup):
             spinner.stop()
 
     def show_download_progress(self, progress: DownloadProgress | None) -> None:
+        """None hides the progress bar and the figures. A progress shows both,
+        with done / total bytes as text."""
         progress_bar = self.query_one("#instinct-download-bar", ProgressBar)
         figures_label = self.query_one("#instinct-download-figures", Label)
         progress_bar.display = progress is not None
@@ -95,6 +114,14 @@ class WidgetInstinctStatusRow(HorizontalGroup):
             figures_label.update(describe_download_progress(progress))
 
     def build_status_line(self, status: InstinctStatus) -> StatusLine:
+        """Text, colour class and button for each state:
+        - DOWNLOADING -> "Downloading", busy, [Cancel]
+        - LOADING -> "Loading the model", busy, no button
+        - READY -> "✓ Ready", plus the device when known, no button
+        - FAILED with a failure -> "✗ <step> failed: <reason>", [Retry]
+        - anything else -> "○ Not downloaded", plus the size when known,
+          [Download]
+        """
         match status.state:
             case InstinctModelState.DOWNLOADING:
                 return StatusLine("Downloading", "busy", "Cancel")
@@ -119,7 +146,10 @@ class WidgetInstinctStatusRow(HorizontalGroup):
                 return StatusLine(f"○ Not downloaded · {size}", "", "Download")
 
     @on(Button.Pressed, "#instinct-status-button")
-    def handle_button_pressed(self, event: Button.Pressed) -> None:
+    def start_or_cancel_instinct_download(self, event: Button.Pressed) -> None:
+        """[Cancel] while downloading cancels the download. [Download] and
+        [Retry] start the download and load of the model in the background.
+        The press is stopped here and the row is redrawn at once."""
         event.stop()
         # [Download], [Cancel] and [Retry] act on the fixed model, not on the
         # values on screen, so they never mark the settings as modified

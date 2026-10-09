@@ -36,13 +36,19 @@ class SttService:
     _recording_stream: sd.InputStream | None = None
     _recorded_frames: list[np.ndarray]
 
-    def __init__(self, settings_handler: SettingsService) -> None:
-        self.__settings_handler = settings_handler
+    def __init__(self, settings_service: SettingsService) -> None:
+        """Only stores the settings service. The settings are applied in
+        reload_service() and Whisper is loaded in cold_start() or on the first
+        transcription."""
+        self.__settings_service = settings_service
         self._recorded_frames = []
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        """Only checks that a Whisper model name is set, even when STT is
+        disabled. Does not check that the name exists or that the input device
+        works."""
         if not new_settings.stt.model:
             return SettingsIssueModel(
                 section="stt",
@@ -52,6 +58,13 @@ class SttService:
         return None
 
     def start_recording(self) -> None:
+        """Opens the microphone and returns at once. sounddevice records in
+        its own thread and hands every chunk to _audio_recording_callback().
+        Mono, 16 kHz, the format Whisper wants.
+
+        Raises SttException when STT is disabled or a recording already runs.
+        Frames left from an earlier recording are dropped.
+        """
         import sounddevice as sd
 
         if not self.enabled:
@@ -74,13 +87,30 @@ class SttService:
     def _audio_recording_callback(
         self, indata: np.ndarray, frames: int, time, status
     ) -> None:
+        """Called by sounddevice from its audio thread for every chunk. Keeps a
+        copy of the first channel, because sounddevice reuses the buffer.
+        Problems such as lost input are only logged, recording goes on."""
         if status:
             logger.warning("Audio recording status: %s", status)
         self._recorded_frames.append(indata[:, 0].copy())
 
-    def stop_recording(self) -> str | None:
+    def stop_recording_and_transcribe(self) -> str | None:
+        """Stops the microphone AND turns the recording into text. Blocking
+        and slow: it may load Whisper first and then transcribes on this
+        thread.
+
+        1. Raises SttException when no recording runs.
+        2. Stops and closes the microphone stream.
+        3. No audio captured -> returns None, Whisper is not called.
+        4. Loads Whisper if needed (raises SttException when no model is set).
+        5. Transcribes with GAME_VOCABULARY_PROMPT, so Whisper spells game
+           words like "FSD" and "hardpoints" right.
+        Returns None also when Whisper heard no words.
+        """
         if self._recording_stream is None:
-            logger.warning("stop_recording called but no recording is in progress.")
+            logger.warning(
+                "stop_recording_and_transcribe called but no recording is in progress."
+            )
             raise SttException("No recording is in progress.")
         self._recording_stream.stop()
         self._recording_stream.close()
@@ -102,7 +132,12 @@ class SttService:
         return text.strip() or None
 
     def reload_service(self):
-        new_settings = self.__settings_handler.get_settings()
+        """Applies the saved STT settings. Called by cold_start() and after
+        the settings change. A new model name or a changed enabled flag drops
+        the loaded Whisper model, it is loaded again on the next use. A new
+        input device is used from the next recording on. Does not load
+        anything itself."""
+        new_settings = self.__settings_service.get_settings()
         new_model = new_settings.stt.model
         new_enabled = new_settings.stt.enabled
         new_input_device = new_settings.stt.input_device
@@ -113,12 +148,19 @@ class SttService:
         self.input_device = new_input_device
 
     def is_stt_enabled(self) -> bool:
+        """Reads the value applied by the last reload_service(), not the
+        settings file. True before the first reload."""
         return self.enabled
 
     def get_stt_models(self) -> list[str]:
+        """Every model name Whisper knows, downloaded or not. No network."""
         return whisper.available_models()
 
     def get_stt_input_devices(self) -> list[tuple[str, int]]:
+        """Microphones as (name, sounddevice index), for the settings
+        dropdown. Output only devices are left out. The same microphone can
+        show up many times (once per Windows audio API), only the first index
+        of each name is kept."""
         import sounddevice as sd
 
         all_devices = sd.query_devices()
@@ -129,6 +171,10 @@ class SttService:
         return list(seen.items())
 
     def load_stt_model(self) -> whisper.Whisper:
+        """Loads Whisper on the first call and keeps it, later calls return
+        the same one. The first load is slow and blocking, and whisper
+        downloads the model files from the internet when they are not cached
+        yet. Raises SttException when no model name is set."""
         if not self.model:
             logger.warning("STT model is not set. Cannot load model.")
             raise SttException("STT model is not set. Cannot load model.")
@@ -140,6 +186,14 @@ class SttService:
         return self.whisper_model
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        """Startup check shown in the system check screen.
+
+        1. Yields a "not completed" status, so the UI shows a spinner.
+        2. Applies the settings and, when STT is enabled, loads Whisper now,
+           so the first push to talk is fast. The load blocks the event loop.
+        3. Yields completed. Never raises, an error ends up in the status
+           message.
+        """
         status = ColdStartStatus(
             service="stt",
             message=None,

@@ -70,18 +70,18 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         service.reload_service()
         return service
 
-    async def test_process_event_does_not_publish_when_setting_disabled(self):
+    async def test_no_reaction_when_setting_disabled(self):
         self.settings_service.get_settings.return_value = _make_settings(
             event_reactions={"LoadGame": False}
         )
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
 
-        await service.process_event(_loaded_game_event())
+        await service.publish_reaction_if_enabled(_loaded_game_event())
 
         event_bus.publish.assert_not_called()
 
-    async def test_process_event_does_not_publish_when_event_type_missing(self):
+    async def test_no_reaction_when_event_type_missing(self):
         # An event type absent from the mapping defaults to False (opt-in
         # behavior), same as an explicit False.
         self.settings_service.get_settings.return_value = _make_settings(
@@ -90,11 +90,11 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
 
-        await service.process_event(_loaded_game_event())
+        await service.publish_reaction_if_enabled(_loaded_game_event())
 
         event_bus.publish.assert_not_called()
 
-    async def test_process_event_publishes_event_reaction_when_setting_enabled(self):
+    async def test_reaction_published_when_setting_enabled(self):
         loaded_game_event = _loaded_game_event()
         self.settings_service.get_settings.return_value = _make_settings(
             event_reactions={"LoadGame": True}
@@ -102,7 +102,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
         event_bus = Mock(spec=EventBus)
         service = self._make_service(event_bus)
 
-        await service.process_event(loaded_game_event)
+        await service.publish_reaction_if_enabled(loaded_game_event)
 
         event_bus.publish.assert_called_once_with(
             EventReactionEvent(event=loaded_game_event)
@@ -141,7 +141,7 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_publishing_game_event_on_real_bus_triggers_reaction(self):
         # Same scenario as
-        # test_process_event_publishes_event_reaction_when_setting_enabled above,
+        # test_reaction_published_when_setting_enabled above,
         # exercised end-to-end through a real EventBus.
         self.settings_service.get_settings.return_value = _make_settings(
             event_reactions={"LoadGame": True}

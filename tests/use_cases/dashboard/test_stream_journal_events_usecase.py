@@ -19,7 +19,7 @@ async def _async_gen(items) -> AsyncGenerator:
         yield item
 
 
-class FakeGameStateReader:
+class FakeGameStateProtocol:
     def __init__(self, events=None, error=None):
         self._events = events or []
         self._error = error
@@ -75,7 +75,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_map_loaded_game_event_to_view_model(self):
-        reader = FakeGameStateReader(events=[self.loaded_game_event])
+        reader = FakeGameStateProtocol(events=[self.loaded_game_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -84,7 +84,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].details, "TestCommander · Test Ship · 1 000 000 CR")
 
     async def test_should_map_start_jump_event_to_view_model(self):
-        reader = FakeGameStateReader(events=[self.start_jump_event])
+        reader = FakeGameStateProtocol(events=[self.start_jump_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -94,7 +94,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].system, "Sol")
 
     async def test_should_map_docked_event_to_view_model(self):
-        reader = FakeGameStateReader(events=[self.docked_event])
+        reader = FakeGameStateProtocol(events=[self.docked_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -107,7 +107,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         unknown_event = UnknownCheckedEvent(
             event="SomeBrandNewEvent", timestamp=datetime(2026, 1, 1, 12, 4, 0)
         )
-        reader = FakeGameStateReader(events=[unknown_event])
+        reader = FakeGameStateProtocol(events=[unknown_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -116,7 +116,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].details, "")
 
     async def test_should_preserve_event_timestamp(self):
-        reader = FakeGameStateReader(events=[self.start_jump_event])
+        reader = FakeGameStateProtocol(events=[self.start_jump_event])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -124,7 +124,9 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].timestamp, self.start_jump_event.timestamp)
 
     async def test_should_yield_multiple_events_in_order(self):
-        reader = FakeGameStateReader(events=[self.loaded_game_event, self.docked_event])
+        reader = FakeGameStateProtocol(
+            events=[self.loaded_game_event, self.docked_event]
+        )
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -134,7 +136,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_complete_when_stream_is_empty(self):
-        reader = FakeGameStateReader(events=[])
+        reader = FakeGameStateProtocol(events=[])
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         results = [view_model async for view_model in use_case()]
@@ -142,7 +144,7 @@ class TestStreamJournalEventsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results, [])
 
     async def test_should_propagate_exception_from_underlying_stream(self):
-        reader = FakeGameStateReader(events=[], error=RuntimeError("boom"))
+        reader = FakeGameStateProtocol(events=[], error=RuntimeError("boom"))
         use_case = StreamJournalEventsUseCase(reader)  # type: ignore
 
         with self.assertRaises(RuntimeError):

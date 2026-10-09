@@ -27,13 +27,30 @@ VOLUME_CORRECTION_DB = -2.0
 
 
 class VoiceLabService:
-    def __init__(self, settings_handler: SettingsService) -> None:
-        self.__settings_handler = settings_handler
+    def __init__(self, settings_service: SettingsService) -> None:
+        """Keeps no settings of its own. apply_effects() reads them on every
+        call, so a slider change is heard on the next sentence without a
+        reload."""
+        self.__settings_service = settings_service
 
     def apply_effects(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
         """Mono or stereo samples in. Out: mono, or stereo (samples x 2) when stereo
-        width is above 0, longer by the time the reverb rings after the last word."""
-        voice_lab = self.__settings_handler.get_settings().tts.voice_lab
+        width is above 0, longer by the time the reverb rings after the last word.
+
+        Voice Lab switched off -> the very same samples come back untouched.
+        Otherwise, in this order:
+        1. mixes stereo down to mono,
+        2. with reverb above 0, adds silence at the end, so the reverb has time
+           to ring out,
+        3. boosts the bass, then the treble (as much as clarity says),
+        4. compresses the loud parts,
+        5. adds reverb and spreads to stereo, each only when its slider is
+           above 0,
+        6. turns the volume down by VOLUME_CORRECTION_DB and clips to -1..1 as
+           float32.
+        Called by the TTS service right before the audio is played.
+        """
+        voice_lab = self.__settings_service.get_settings().tts.voice_lab
         if not voice_lab.enabled:
             return samples
 
@@ -71,7 +88,8 @@ class VoiceLabService:
         self, voice: np.ndarray, kind: str, hz: float, gain_db: float, sample_rate: int
     ) -> np.ndarray:
         """Makes everything below ("bass") or above ("treble") `hz` louder
-        by `gain_db`."""
+        by `gain_db`. When `hz` is too high for the sample rate the voice comes
+        back unchanged."""
         if hz >= sample_rate / 2:
             return voice  # no such tone at this sample rate
         return sosfilt(self.shelf_filter(kind, hz, gain_db, sample_rate), voice)
@@ -79,7 +97,8 @@ class VoiceLabService:
     def shelf_filter(
         self, kind: str, hz: float, gain_db: float, sample_rate: int
     ) -> np.ndarray:
-        """Shelf from the Audio EQ Cookbook (R. Bristow-Johnson), slope 1, as "sos"."""
+        """Shelf from the Audio EQ Cookbook (R. Bristow-Johnson), slope 1, as "sos".
+        "treble" gives a high shelf, any other kind gives a low (bass) shelf."""
         a = 10 ** (gain_db / 40)
         angle = 2 * math.pi * hz / sample_rate
         cos = math.cos(angle)
@@ -123,7 +142,9 @@ class VoiceLabService:
         self, voice: np.ndarray, seconds: float, mix: float, sample_rate: int
     ) -> np.ndarray:
         """The voice ringing in a small metal room: convolved with noise that fades
-        by 60 dB over `seconds`; the walls swallow only the very highs."""
+        by 60 dB over `seconds`; the walls swallow only the very highs.
+        The noise has a fixed seed, so the room sounds the same every time.
+        The output keeps the input length, the tail is cut off."""
         times = np.arange(int(seconds * sample_rate)) / sample_rate
         room_echo = np.random.default_rng(0).standard_normal(len(times))
         room_echo *= np.exp(-6.9 * times / seconds)
@@ -141,7 +162,8 @@ class VoiceLabService:
         """A few very short reflections (0.5-4 ms, like cabin walls next to the head)
         are added to the left ear and subtracted from the right one. Each ear sounds
         a bit different, so the voice is wide, and left + right is still the plain
-        voice: a mono speaker does not sound hollow."""
+        voice: a mono speaker does not sound hollow. The reflections come from a
+        fixed seed, so the cabin is the same every time."""
         random = np.random.default_rng(1)
         reflections = np.zeros(round(0.004 * sample_rate) + 1)
         for delay_ms in random.uniform(0.5, 4.0, 12):

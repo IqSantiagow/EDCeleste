@@ -21,9 +21,18 @@ class PerformGameAction(ToolProtocol):
         keybind_service: KeybindService,
         settings_service: SettingsService,
     ):
+        """Only stores the dependencies. The game_actions switch is read on
+        every execute(), so turning it off works without a reload."""
         self.keybind_service = keybind_service
         self.settings_service = settings_service
 
+    # pydantic_ai sends the docstring below to the LLM as the tool description,
+    # so it is written for the LLM, not for us. How it works: presses the key
+    # bound to the action in the game. Three failures come back as a ToolReturn
+    # with is_error=True in the metadata, so the LLM can tell the pilot: game
+    # actions switched off in the settings, action without a keyboard key, or
+    # game window not found (then nothing is pressed). Any other error from
+    # KeybindService is raised as it is.
     async def execute(self, action: EdAction) -> ToolReturn:
         """Perform a game action based on the provided type of action"""
         if not self.settings_service.get_settings().game_actions.enabled:
@@ -39,7 +48,7 @@ class PerformGameAction(ToolProtocol):
             )
 
         try:
-            await self.keybind_service.perform_action(action)
+            await self.keybind_service.press_keys_for_action(action)
         except GameWindowNotFoundException:
             return ToolReturn(
                 return_value="Game window not found, nothing was pressed.",

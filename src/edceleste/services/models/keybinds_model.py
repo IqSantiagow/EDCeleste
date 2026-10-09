@@ -67,6 +67,8 @@ class MissingKeybindsError(Exception):
     """Raised when a loaded ``.binds`` file does not cover every ``EdAction``."""
 
     def __init__(self, missing: set[EdAction]) -> None:
+        """Keeps the missing actions in self.missing for the caller and puts
+        their names, sorted A-Z, into the error message."""
         self.missing = missing
         names = ", ".join(sorted(action.value for action in missing))
         super().__init__(f"Missing required keybinds: {names}")
