@@ -1330,3 +1330,18 @@ WidgetInstinctStatusRow {
 .system-check-disabled {
     color: $font-muted-color;
 }
+
+/* Voice Lab: one label width, so the sliders line up under the switch */
+WidgetVoiceLabSettingsVertical {
+    height: auto;
+    margin-top: 1;
+}
+
+/* the switch row already ends with an empty line, so only the sliders need a gap */
+WidgetVoiceLabSettingsVertical WidgetLabeledSliderRow {
+    margin-bottom: 1;
+}
+
+WidgetVoiceLabSettingsVertical .entry-label {
+    width: 16;
+}

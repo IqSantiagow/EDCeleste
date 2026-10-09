@@ -27,6 +27,10 @@ from edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical
     EdgeTTSInputWidgetIds,
     WidgetEdgeTTSSettingsVertical,
 )
+from edceleste.ui.screens.settings.widgets.tts.widget_voice_lab_settings_vertical import (  # noqa: E501
+    VoiceLabInputWidgetIds,
+    WidgetVoiceLabSettingsVertical,
+)
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
 )
@@ -92,6 +96,7 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 step=0.05,
                 id=TTSInputWidgetIds.VOLUME_INPUT,
             )
+            yield WidgetVoiceLabSettingsVertical(self.tts_model.voice_lab)
 
     def on_value_changed(self, message: ValueChanged) -> None:
         provider = self.provider
@@ -139,6 +144,14 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
             case ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT:
                 if isinstance(provider, ChatterboxTTSProviderModel):
                     provider.nano = message.new_value
+            case VoiceLabInputWidgetIds.VOICE_LAB_ENABLED_INPUT:
+                self.tts_model.voice_lab.enabled = message.new_value
+            case VoiceLabInputWidgetIds.VOICE_LAB_CLARITY_INPUT:
+                self.tts_model.voice_lab.clarity = message.new_value
+            case VoiceLabInputWidgetIds.VOICE_LAB_REVERB_INPUT:
+                self.tts_model.voice_lab.reverb = message.new_value
+            case VoiceLabInputWidgetIds.VOICE_LAB_STEREO_WIDTH_INPUT:
+                self.tts_model.voice_lab.stereo_width = message.new_value
 
         self.post_message(
             SectionSettingsChanged(

@@ -43,6 +43,9 @@ Two independent, both-gitignored config sources:
   - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
   - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`,
     `cfg_weight`, `device`, `nano`); `tts.volume` is `0.0`–`1.0`
+  - `tts.voice_lab` — voice effects for either engine (`VoiceLabService` in `services/voice_lab_service.py`, applied
+    right before `sd.play`): `enabled`, `clarity`, `reverb`, `stereo_width`, each `0.0`–`1.0`,
+    `0.5` = fitted to Celeste's voice clip
   - `stt.enabled` / `stt.model` / `stt.input_device`
   - `event_reactions.reactions` — per-journal-event booleans for automatic replies
   - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)

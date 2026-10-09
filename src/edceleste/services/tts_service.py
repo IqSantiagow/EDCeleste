@@ -17,6 +17,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
     VoiceCloningState,
 )
 from edceleste.services.tts_providers.tts_provider_protocol import TTSProviderProtocol
+from edceleste.services.voice_lab_service import VoiceLabService
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +36,20 @@ class TTSService:
     provider_type: str | None = None
     provider: TTSProviderProtocol | None = None
 
-    def __init__(self, event_bus: EventBus, settings_handler: SettingsService) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        settings_handler: SettingsService,
+        voice_lab_service: VoiceLabService,
+    ) -> None:
         self.__event_bus = event_bus
         self.__settings_handler = settings_handler
+        self.__voice_lab_service = voice_lab_service
         self.__event_bus.subscribe(TTSEvent, self.handle_tts_request)
 
     def build_provider(self, settings: SettingsModel) -> TTSProviderProtocol:
         provider_class = TTS_PROVIDER_CLASSES[settings.tts.provider.type]
-        return provider_class(settings)
+        return provider_class(settings, self.__voice_lab_service)
 
     async def synthesize(self, text):
         logger.info("Synthesizing TTS for text: %s", text)

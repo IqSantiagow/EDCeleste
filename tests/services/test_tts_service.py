@@ -23,6 +23,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_service import TTSEvent, TTSService
+from edceleste.services.voice_lab_service import VoiceLabService
 
 VOICE = "en-US-AriaNeural"
 
@@ -55,8 +56,11 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             api_key="sk-ant-test"
         )
 
+        self.voice_lab_service = Mock(spec=VoiceLabService)
         self.service = TTSService(
-            event_bus=EventBus(), settings_handler=self.settings_handler
+            event_bus=EventBus(),
+            settings_handler=self.settings_handler,
+            voice_lab_service=self.voice_lab_service,
         )
         # TTSService no longer builds its provider in __init__ - that now
         # happens in reload_service(), driven by the cold-start flow. Call it
@@ -66,7 +70,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_event_bus_publish_of_tts_event_triggers_synthesize(self):
         event_bus = EventBus()
         service = TTSService(
-            event_bus=event_bus, settings_handler=self.settings_handler
+            event_bus=event_bus,
+            settings_handler=self.settings_handler,
+            voice_lab_service=self.voice_lab_service,
         )
         service.synthesize = AsyncMock()
 
@@ -83,6 +89,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_edge_provider_is_built_for_the_edge_provider_type(self):
         self.assertIsInstance(self.service.provider, EdgeTTSProvider)
+
+    def test_the_provider_plays_through_the_shared_voice_lab_service(self):
+        self.assertIs(self.service.provider.voice_lab_service, self.voice_lab_service)
 
     def test_chatterbox_provider_is_built_for_the_chatterbox_provider_type(self):
         self.settings_handler.get_settings.return_value = _make_settings(

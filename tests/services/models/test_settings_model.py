@@ -13,6 +13,7 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
     SttModel,
     TTSModel,
+    VoiceLabModel,
 )
 
 
@@ -77,6 +78,26 @@ class TestTTSModel(unittest.TestCase):
             ChatterboxTTSProviderModel(
                 type="chatterbox", profile="celeste-v3", cfg_weight=1.5
             )
+
+    def test_voice_lab_is_on_with_the_fitted_sound_when_key_absent(self):
+        tts_model = TTSModel.model_validate(
+            {"provider": {"type": "edge", "voice": "en-GB-SoniaNeural"}, "volume": 1.0}
+        )
+
+        self.assertTrue(tts_model.voice_lab.enabled)
+        self.assertEqual(tts_model.voice_lab.clarity, 0.5)
+        self.assertEqual(tts_model.voice_lab.reverb, 0.5)
+        self.assertEqual(tts_model.voice_lab.stereo_width, 0.5)
+
+    def test_voice_lab_rejects_a_slider_above_one(self):
+        with self.assertRaises(ValidationError):
+            VoiceLabModel(clarity=1.5)
+
+    def test_voice_lab_rejects_assigning_a_negative_slider(self):
+        tts_model = _make_tts_model()
+
+        with self.assertRaises(ValidationError):
+            tts_model.voice_lab.reverb = -0.1
 
 
 class TestSttModel(unittest.TestCase):

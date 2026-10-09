@@ -50,6 +50,7 @@ dependencies = [
     "edge-tts==7.2.8",
     "soundfile==0.14.0",
     "sounddevice==0.5.6",
+    "scipy==1.18.1",
     "openai-whisper==20250625",
     "chatterbox-tts==0.1.7",
     "textual-slider==0.2.0",
@@ -108,7 +109,7 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type information
-module = ["chatterbox.*", "decider.*", "sounddevice", "soundfile", "whisper", "yaml"]
+module = ["chatterbox.*", "decider.*", "scipy.*", "sounddevice", "soundfile", "whisper", "yaml"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
