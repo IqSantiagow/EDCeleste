@@ -61,6 +61,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+    "allure-pytest==2.16.2",
     "coverage==7.16.2",
     "mock==5.2.0",
     "mypy==2.3.1",

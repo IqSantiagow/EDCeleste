@@ -1,0 +1,18 @@
+{
+  "name": "EDCeleste tests",
+  "output": "allure-report",
+  "historyPath": "allure-report/history.jsonl",
+  "historyLimit": 50,
+  "plugins": {
+    "awesome": {
+      "options": {
+        "reportName": "EDCeleste tests"
+      }
+    },
+    "dashboard": {
+      "options": {
+        "reportName": "EDCeleste test history"
+      }
+    }
+  }
+}

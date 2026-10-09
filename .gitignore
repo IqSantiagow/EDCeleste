@@ -22,3 +22,5 @@ LOG.md
 /.dev-data
 /mutants
 /mutation_testing/report
+/allure-results
+/allure-report
