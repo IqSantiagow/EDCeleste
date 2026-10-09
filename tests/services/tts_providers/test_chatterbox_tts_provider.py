@@ -10,6 +10,7 @@ import numpy as np
 import torch  # noqa: F401  (kept in sys.modules while chatterbox is faked)
 import soundfile as sf
 
+from edceleste.services.voice_lab_service import VoiceLabService
 from edceleste.services.models.settings_model import (
     ChatterboxTTSProviderModel,
     LLMModel,
@@ -25,6 +26,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
 
 PROFILE_NAME = "celeste"
 CLIP_SAMPLERATE = 8000
+VOICE_LAB_OUTPUT = np.array([[0.4, -0.4], [0.5, -0.5]])
 
 
 def _make_settings(
@@ -47,6 +49,13 @@ def _make_settings(
         llm=LLMModel(system_prompt="sp", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )
+
+
+def _make_voice_lab_service() -> Mock:
+    """Passes the samples through untouched, like Voice Lab switched off."""
+    voice_lab_service = Mock(spec=VoiceLabService)
+    voice_lab_service.apply_effects.side_effect = lambda samples, sample_rate: samples
+    return voice_lab_service
 
 
 def _make_model_mock(generated_samples: np.ndarray) -> Mock:
@@ -104,7 +113,9 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         self.generated_samples = np.array([0.1, 0.2, 0.3])
         self.model = _make_model_mock(self.generated_samples)
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.is_profile_prepared = True
 
@@ -132,6 +143,20 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
 
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.generated_samples * 0.5)
+
+    async def test_synthesize_plays_the_voice_through_voice_lab_scaled_by_volume(self):
+        self.provider.config = _make_settings(volume=0.5)
+        apply_effects = self.provider.voice_lab_service.apply_effects
+        apply_effects.side_effect = None
+        apply_effects.return_value = VOICE_LAB_OUTPUT
+
+        await self.provider.synthesize("Hello Commander")
+
+        samples, samplerate = apply_effects.call_args.args
+        np.testing.assert_allclose(samples, self.generated_samples)
+        self.assertEqual(samplerate, self.model.sr)
+        played_samples, _ = self.mock_sd_play.call_args.args
+        np.testing.assert_allclose(played_samples, VOICE_LAB_OUTPUT * 0.5)
 
     async def test_synthesize_prepares_the_voice_profile_only_once(self):
         self.provider.is_profile_prepared = False
@@ -197,7 +222,9 @@ class ChatterboxTTSProviderVoiceProfileTest(unittest.TestCase):
         self.model = Mock()
         self.model.device = "cpu"
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name)
 
@@ -232,7 +259,9 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
 
         self.model = Mock()
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name) / "voices"
         self.provider.prepare_sample_voice = AsyncMock()
@@ -335,7 +364,9 @@ class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCa
             self.loaded_conditionals
         )
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name)
 
@@ -404,7 +435,9 @@ class ChatterboxTTSProviderPreviewVoiceSampleTest(unittest.IsolatedAsyncioTestCa
             self.loaded_conditionals
         )
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name)
 
@@ -433,6 +466,19 @@ class ChatterboxTTSProviderPreviewVoiceSampleTest(unittest.IsolatedAsyncioTestCa
         np.testing.assert_allclose(played_samples, self.generated_samples)
         self.assertEqual(played_samplerate, self.model.sr)
 
+    async def test_plays_the_preview_through_voice_lab(self):
+        apply_effects = self.provider.voice_lab_service.apply_effects
+        apply_effects.side_effect = None
+        apply_effects.return_value = VOICE_LAB_OUTPUT
+
+        await self.provider.preview_voice_sample(PROFILE_NAME, "Ahoy Commander.")
+
+        samples, samplerate = apply_effects.call_args.args
+        np.testing.assert_allclose(samples, self.generated_samples)
+        self.assertEqual(samplerate, self.model.sr)
+        played_samples, _ = self.mock_sd_play.call_args.args
+        np.testing.assert_allclose(played_samples, VOICE_LAB_OUTPUT)
+
     async def test_does_not_write_anything_to_disk(self):
         # This is the whole point of preview_voice_sample vs
         # prepare_sample_voice - trying out text must never overwrite the
@@ -448,7 +494,9 @@ class ChatterboxTTSProviderRenameProfileTest(unittest.TestCase):
         self.voices_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.voices_directory.cleanup)
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.VOICES_DIR = Path(self.voices_directory.name)
 
     def _touch(self, file_name: str) -> Path:
@@ -559,7 +607,9 @@ class ChatterboxTTSProviderAnalyzeSampleTest(unittest.TestCase):
         self.source_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.source_directory.cleanup)
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
 
     def _clip_path(self, name: str = "reference.wav") -> str:
         return os.path.join(self.source_directory.name, name)
@@ -631,7 +681,9 @@ class ChatterboxTTSProviderPlayAudioFileTest(unittest.IsolatedAsyncioTestCase):
         self.source_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.source_directory.cleanup)
 
-        self.provider = ChatterboxTTSProvider(_make_settings(volume=0.5))
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(volume=0.5), _make_voice_lab_service()
+        )
 
     async def test_play_audio_file_plays_the_given_file_scaled_by_volume(self):
         clip_path = os.path.join(self.source_directory.name, "reference.wav")
@@ -661,7 +713,9 @@ class ChatterboxTTSProviderPlayAudioFileTest(unittest.IsolatedAsyncioTestCase):
 
 class ChatterboxTTSProviderValidationTest(unittest.TestCase):
     def setUp(self):
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
 
     def test_validate_settings_reports_issue_when_profile_is_empty(self):
         issue = self.provider.validate_settings(_make_settings(profile=""))
@@ -680,7 +734,9 @@ class ChatterboxTTSProviderReloadTest(unittest.TestCase):
     def setUp(self):
         self.model = Mock()
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.model = self.model
         self.provider.is_profile_prepared = True
 
@@ -709,7 +765,9 @@ class ChatterboxTTSProviderReloadTest(unittest.TestCase):
 
 class ChatterboxTTSProviderGetAvailableDeviceTest(unittest.TestCase):
     def setUp(self):
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
 
     def test_get_available_device_returns_cuda_when_cuda_is_available(self):
         with patch("torch.cuda.is_available", return_value=True):
@@ -729,7 +787,9 @@ class ChatterboxTTSProviderGetAvailableProfilesTest(unittest.TestCase):
         self.voices_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.voices_directory.cleanup)
 
-        self.provider = ChatterboxTTSProvider(_make_settings())
+        self.provider = ChatterboxTTSProvider(
+            _make_settings(), _make_voice_lab_service()
+        )
         self.provider.VOICES_DIR = Path(self.voices_directory.name) / "voices"
 
     def test_get_available_profiles_returns_empty_list_when_voices_directory_does_not_exist(  # noqa: E501

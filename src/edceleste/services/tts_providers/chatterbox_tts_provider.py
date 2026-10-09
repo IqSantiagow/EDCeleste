@@ -11,6 +11,7 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
 )
 from edceleste.services.tts_providers.tts_provider_protocol import TTSProviderProtocol
+from edceleste.services.voice_lab_service import VoiceLabService
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -128,8 +129,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
 
     VOICES_DIR = find_voices_directory()
 
-    def __init__(self, config: SettingsModel):
+    def __init__(self, config: SettingsModel, voice_lab_service: VoiceLabService):
         self.config = config
+        self.voice_lab_service = voice_lab_service
 
     @property
     def provider_settings(self) -> ChatterboxTTSProviderModel:
@@ -151,7 +153,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             cfg_weight=self.provider_settings.cfg_weight,
         )
 
-        output_numpy = output.squeeze(0).cpu().numpy()
+        output_numpy = self.voice_lab_service.apply_effects(
+            output.squeeze(0).cpu().numpy(), model.sr
+        )
 
         sd.play(output_numpy * self.config.tts.volume, model.sr)
 
@@ -378,6 +382,7 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         samples, sample_rate = await self.__generate_speech_for_profile(
             profile_name, text
         )
+        samples = self.voice_lab_service.apply_effects(samples, sample_rate)
 
         sd.play(samples * self.config.tts.volume, sample_rate)
         await asyncio.sleep(len(samples) / sample_rate)

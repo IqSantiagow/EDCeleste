@@ -1,9 +1,10 @@
 import sys
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import numpy as np
 
+from edceleste.services.voice_lab_service import VoiceLabService
 from edceleste.services.models.settings_model import (
     EdgeTTSProviderModel,
     LLMModel,
@@ -15,6 +16,7 @@ from edceleste.services.models.settings_model import (
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 
 VOICE = "en-US-AriaNeural"
+VOICE_LAB_OUTPUT = np.array([[0.4, -0.4], [0.5, -0.5]])
 
 
 def _make_settings(voice: str = VOICE, volume: float = 1.0) -> SettingsModel:
@@ -27,6 +29,13 @@ def _make_settings(voice: str = VOICE, volume: float = 1.0) -> SettingsModel:
         llm=LLMModel(system_prompt="sp", user_prompt=""),
         stt=SttModel(model="tiny.en"),
     )
+
+
+def _make_voice_lab_service() -> Mock:
+    """Passes the samples through untouched, like Voice Lab switched off."""
+    voice_lab_service = Mock(spec=VoiceLabService)
+    voice_lab_service.apply_effects.side_effect = lambda samples, sample_rate: samples
+    return voice_lab_service
 
 
 class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
@@ -66,7 +75,7 @@ class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
         self.samplerate = 24000
         self.mock_sf_read.return_value = (self.audio_data, self.samplerate)
 
-        self.provider = EdgeTTSProvider(_make_settings())
+        self.provider = EdgeTTSProvider(_make_settings(), _make_voice_lab_service())
 
     async def test_synthesize_saves_audio_using_the_configured_voice(self):
         await self.provider.synthesize("Hello Commander")
@@ -85,12 +94,27 @@ class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(played_samplerate, self.samplerate)
 
     async def test_synthesize_scales_played_audio_by_configured_volume(self):
-        provider = EdgeTTSProvider(_make_settings(volume=0.5))
+        provider = EdgeTTSProvider(
+            _make_settings(volume=0.5), _make_voice_lab_service()
+        )
 
         await provider.synthesize("Hello Commander")
 
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.audio_data * 0.5)
+
+    async def test_synthesize_plays_the_voice_through_voice_lab_scaled_by_volume(self):
+        voice_lab_service = Mock(spec=VoiceLabService)
+        voice_lab_service.apply_effects.return_value = VOICE_LAB_OUTPUT
+        provider = EdgeTTSProvider(_make_settings(volume=0.5), voice_lab_service)
+
+        await provider.synthesize("Hello Commander")
+
+        samples, samplerate = voice_lab_service.apply_effects.call_args.args
+        np.testing.assert_allclose(samples, self.audio_data)
+        self.assertEqual(samplerate, self.samplerate)
+        played_samples, _ = self.mock_sd_play.call_args.args
+        np.testing.assert_allclose(played_samples, VOICE_LAB_OUTPUT * 0.5)
 
     async def test_synthesize_removes_temporary_file_after_playback(self):
         await self.provider.synthesize("Hello Commander")
