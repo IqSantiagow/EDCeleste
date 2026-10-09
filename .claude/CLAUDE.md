@@ -35,6 +35,14 @@ the pytest results into an Allure 3 report (`allurerc.json`) and publishes it to
 branch, with the last 50 runs in `history.jsonl`: https://iqsantiagow.github.io/EDCeleste/.
 Pull requests publish nothing.
 
+End-to-end tests (`tests/e2e/`) read like scenarios in that report: every test has an
+`@allure.title` in plain words, every file an `allure.feature`, and the body is split into
+`with allure.step("Given / When / Then ...")` blocks. Use `with`, not the `@allure.step`
+decorator, which does not wait for an `async def`. Unit tests need no steps.
+Before `allure generate`, the `report` job runs `tests/allure_report/hide_empty_fixtures.py`,
+which drops every fixture without steps that did not fail (`tmp_path`, `monkeypatch`, pytest's
+cleanup lambdas), so "Set up" and "Tear down" show only the steps of the `edceleste` fixture.
+
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
 
 ## Configuration
