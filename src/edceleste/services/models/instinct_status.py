@@ -32,12 +32,16 @@ class InstinctStatus:
 
 
 def describe_size(byte_count: int) -> str:
+    """Decimal units for the UI: "1.6 GB" from 1 GB up (one decimal), whole
+    "MB" below that, so a small size can show as "0 MB"."""
     if byte_count >= 1_000_000_000:
         return f"{byte_count / 1_000_000_000:.1f} GB"
     return f"{byte_count / 1_000_000:.0f} MB"
 
 
 def describe_download_progress(progress: DownloadProgress) -> str:
+    """Text like "42% · 680 MB of 1.6 GB". The percent is rounded down, and a
+    total of 0 does not divide by zero, it just shows 0%."""
     percent = progress.bytes_done * 100 // max(progress.bytes_total, 1)
     done = describe_size(progress.bytes_done)
     total = describe_size(progress.bytes_total)

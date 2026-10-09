@@ -34,6 +34,9 @@ class WidgetLabeledSliderRow(WidgetBaseInput):
         *args,
         **kwargs,
     ) -> None:
+        """minimum, maximum and value are real decimal values. step is the
+        smallest move of the slider and must divide 1 evenly (0.1, 0.05, ...),
+        otherwise the scaling rounds."""
         super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.label = label
         self.minimum = minimum
@@ -42,15 +45,20 @@ class WidgetLabeledSliderRow(WidgetBaseInput):
         assert self.id is not None, "WidgetLabeledSliderRow must have an id"
 
     def _steps_per_unit(self) -> int:
+        """How many slider steps make 1.0, e.g. 20 for step 0.05."""
         return round(1 / self.step)
 
     def _to_slider_steps(self, value: float) -> int:
+        """0.35 with step 0.05 -> 7. Rounds to the nearest whole step."""
         return round(value * self._steps_per_unit())
 
     def _from_slider_steps(self, steps: int) -> float:
+        """7 with step 0.05 -> 0.35, the way back of _to_slider_steps()."""
         return steps / self._steps_per_unit()
 
     def compose(self) -> ComposeResult:
+        """Label, the Slider in whole steps, and a label with the decimal value
+        that on_slider_changed() keeps up to date."""
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             yield Slider(
@@ -66,6 +74,11 @@ class WidgetLabeledSliderRow(WidgetBaseInput):
             )
 
     def on_slider_changed(self, event: Slider.Changed) -> None:
+        """Runs on every slider move:
+        1. scales the whole step back to a decimal and stores it,
+        2. redraws the value label next to the slider,
+        3. posts ValueChanged with the decimal to the section container.
+        """
         self.value = self._from_slider_steps(event.value)
         self.query_one("#slider-value-label", Label).update(f"{self.value:g}")
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore

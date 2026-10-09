@@ -81,7 +81,7 @@ class FakeTtsProvider:
     def __init__(self, spoken_texts: list[str]) -> None:
         self.spoken_texts = spoken_texts
 
-    async def synthesize(self, text: str) -> None:
+    async def synthesize_and_play(self, text: str) -> None:
         self.spoken_texts.append(text)
 
     def validate_settings(self, new_settings: SettingsModel) -> None:
@@ -166,7 +166,7 @@ class EdCelesteTestEnvironment:
             instinct_download_service = DecisionModelDownloadService(
                 models_directory=temp_folder / "models"
             )
-            instinct_download_service.get_download_size = lambda: INSTINCT_MODEL_BYTES
+            instinct_download_service.fetch_download_size = lambda: INSTINCT_MODEL_BYTES
             self.container.decision_model_download_service.override(
                 providers.Object(instinct_download_service)
             )
@@ -186,10 +186,12 @@ class EdCelesteTestEnvironment:
             fake_tts_provider = FakeTtsProvider(self.spoken_texts)
             tts_service = self.container.tts_service()
             tts_service.build_provider = lambda settings: fake_tts_provider
-            tts_service.get_tts_voices = self.edge_voices_without_network
+            tts_service.fetch_edge_tts_voice_names = self.edge_voices_without_network
 
         with allure.step("LLM models and microphones listed without network"):
-            self.container.llm_service().get_models = self.llm_models_without_network
+            self.container.llm_service().fetch_available_model_names = (
+                self.llm_models_without_network
+            )
             self.container.stt_service().get_stt_input_devices = lambda: [
                 ("Test microphone", 0)
             ]

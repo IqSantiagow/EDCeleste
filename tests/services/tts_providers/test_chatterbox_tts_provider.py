@@ -119,8 +119,8 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         self.provider.model = self.model
         self.provider.is_profile_prepared = True
 
-    async def test_synthesize_generates_speech_from_the_given_text(self):
-        await self.provider.synthesize("Hello Commander")
+    async def test_synthesize_and_play_generates_speech_from_the_given_text(self):
+        await self.provider.synthesize_and_play("Hello Commander")
 
         self.model.generate.assert_called_once_with(
             text="Hello Commander",
@@ -129,28 +129,34 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
             cfg_weight=self.provider.provider_settings.cfg_weight,
         )
 
-    async def test_synthesize_plays_generated_samples_at_model_samplerate(self):
-        await self.provider.synthesize("Hello Commander")
+    async def test_synthesize_and_play_plays_generated_samples_at_model_samplerate(
+        self,
+    ):
+        await self.provider.synthesize_and_play("Hello Commander")
 
         played_samples, played_samplerate = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.generated_samples)
         self.assertEqual(played_samplerate, self.model.sr)
 
-    async def test_synthesize_scales_generated_samples_by_configured_volume(self):
+    async def test_synthesize_and_play_scales_generated_samples_by_configured_volume(
+        self,
+    ):
         self.provider.config = _make_settings(volume=0.5)
 
-        await self.provider.synthesize("Hello Commander")
+        await self.provider.synthesize_and_play("Hello Commander")
 
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.generated_samples * 0.5)
 
-    async def test_synthesize_plays_the_voice_through_voice_lab_scaled_by_volume(self):
+    async def test_synthesize_and_play_plays_voice_through_voice_lab_scaled_by_volume(
+        self,
+    ):
         self.provider.config = _make_settings(volume=0.5)
         apply_effects = self.provider.voice_lab_service.apply_effects
         apply_effects.side_effect = None
         apply_effects.return_value = VOICE_LAB_OUTPUT
 
-        await self.provider.synthesize("Hello Commander")
+        await self.provider.synthesize_and_play("Hello Commander")
 
         samples, samplerate = apply_effects.call_args.args
         np.testing.assert_allclose(samples, self.generated_samples)
@@ -158,18 +164,18 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, VOICE_LAB_OUTPUT * 0.5)
 
-    async def test_synthesize_prepares_the_voice_profile_only_once(self):
+    async def test_synthesize_and_play_prepares_the_voice_profile_only_once(self):
         self.provider.is_profile_prepared = False
-        self.provider.prepare_model_with_profile = Mock(
+        self.provider.load_voice_profile_into_model = Mock(
             side_effect=lambda: setattr(self.provider, "is_profile_prepared", True)
         )
 
-        await self.provider.synthesize("Hello Commander")
-        await self.provider.synthesize("Fuel level low")
+        await self.provider.synthesize_and_play("Hello Commander")
+        await self.provider.synthesize_and_play("Fuel level low")
 
-        self.provider.prepare_model_with_profile.assert_called_once()
+        self.provider.load_voice_profile_into_model.assert_called_once()
 
-    async def test_synthesize_loads_the_model_on_the_configured_device(self):
+    async def test_synthesize_and_play_loads_the_model_on_the_configured_device(self):
         fake_tts_turbo_module = _install_fake_chatterbox_module(self)
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.return_value = (
             self.model
@@ -177,13 +183,13 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         self.provider.config = _make_settings(device="cpu", nano=False)
         self.provider.model = None
 
-        await self.provider.synthesize("Hello Commander")
+        await self.provider.synthesize_and_play("Hello Commander")
 
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.assert_called_once_with(
             device="cpu", nano=False
         )
 
-    async def test_synthesize_falls_back_to_cpu_when_cuda_is_unavailable(self):
+    async def test_synthesize_and_play_falls_back_to_cpu_when_cuda_is_unavailable(self):
         fake_tts_turbo_module = _install_fake_chatterbox_module(self)
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.return_value = (
             self.model
@@ -191,13 +197,13 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         self.provider.model = None
 
         with patch("torch.cuda.is_available", return_value=False):
-            await self.provider.synthesize("Hello Commander")
+            await self.provider.synthesize_and_play("Hello Commander")
 
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.assert_called_once_with(
             device="cpu", nano=True
         )
 
-    async def test_synthesize_picks_cuda_when_it_is_available(self):
+    async def test_synthesize_and_play_picks_cuda_when_it_is_available(self):
         fake_tts_turbo_module = _install_fake_chatterbox_module(self)
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.return_value = (
             self.model
@@ -205,7 +211,7 @@ class ChatterboxTTSProviderSynthesizeTest(unittest.IsolatedAsyncioTestCase):
         self.provider.model = None
 
         with patch("torch.cuda.is_available", return_value=True):
-            await self.provider.synthesize("Hello Commander")
+            await self.provider.synthesize_and_play("Hello Commander")
 
         fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.assert_called_once_with(
             device="cuda", nano=True
@@ -228,19 +234,19 @@ class ChatterboxTTSProviderVoiceProfileTest(unittest.TestCase):
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name)
 
-    def test_prepare_model_with_profile_raises_when_the_profile_does_not_exist(self):
+    def test_load_voice_profile_into_model_raises_when_the_profile_does_not_exist(self):
         with self.assertRaises(FileNotFoundError):
-            self.provider.prepare_model_with_profile()
+            self.provider.load_voice_profile_into_model()
 
         self.assertFalse(self.provider.is_profile_prepared)
 
-    def test_prepare_model_with_profile_loads_the_saved_conditionals(self):
+    def test_load_voice_profile_into_model_loads_the_saved_conditionals(self):
         profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
         profile_path.touch()
         loaded_conditionals = Mock()
         self.fake_tts_turbo_module.Conditionals.load.return_value = loaded_conditionals
 
-        self.provider.prepare_model_with_profile()
+        self.provider.load_voice_profile_into_model()
 
         self.fake_tts_turbo_module.Conditionals.load.assert_called_once_with(
             profile_path, "cpu"
@@ -264,7 +270,7 @@ class ChatterboxTTSProviderCloneVoiceTest(unittest.TestCase):
         )
         self.provider.model = self.model
         self.provider.VOICES_DIR = Path(self.voices_directory.name) / "voices"
-        self.provider.prepare_sample_voice = AsyncMock()
+        self.provider.generate_and_save_voice_sample = AsyncMock()
 
     def _make_source_clip(self, seconds: float) -> str:
         source_clip_path = os.path.join(self.source_directory.name, "recording.wav")
@@ -377,7 +383,7 @@ class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCa
         # Guards against the model.conds swap-out bug: something else in the
         # app (background narration) could have loaded a different profile's
         # conditionals onto the model in the meantime.
-        await self.provider.prepare_sample_voice(PROFILE_NAME)
+        await self.provider.generate_and_save_voice_sample(PROFILE_NAME)
 
         profile_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}.pt"
         self.fake_tts_turbo_module.Conditionals.load.assert_called_once_with(
@@ -386,7 +392,7 @@ class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCa
         self.assertIs(self.model.conds, self.loaded_conditionals)
 
     async def test_uses_the_default_text_when_none_is_given(self):
-        await self.provider.prepare_sample_voice(PROFILE_NAME)
+        await self.provider.generate_and_save_voice_sample(PROFILE_NAME)
 
         self.model.generate.assert_called_once_with(
             text=chatterbox_tts_provider.DEFAULT_VOICE_SAMPLE_TEXT,
@@ -396,7 +402,9 @@ class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCa
         )
 
     async def test_uses_the_given_text_instead_of_the_default(self):
-        await self.provider.prepare_sample_voice(PROFILE_NAME, text="Ahoy Commander.")
+        await self.provider.generate_and_save_voice_sample(
+            PROFILE_NAME, text="Ahoy Commander."
+        )
 
         self.model.generate.assert_called_once_with(
             text="Ahoy Commander.",
@@ -406,7 +414,7 @@ class ChatterboxTTSProviderPrepareSampleVoiceTest(unittest.IsolatedAsyncioTestCa
         )
 
     async def test_writes_the_generated_sample_to_disk(self):
-        await self.provider.prepare_sample_voice(PROFILE_NAME)
+        await self.provider.generate_and_save_voice_sample(PROFILE_NAME)
 
         sample_path = Path(self.voices_directory.name) / f"{PROFILE_NAME}_sample.wav"
         self.assertTrue(sample_path.exists())
@@ -481,7 +489,7 @@ class ChatterboxTTSProviderPreviewVoiceSampleTest(unittest.IsolatedAsyncioTestCa
 
     async def test_does_not_write_anything_to_disk(self):
         # This is the whole point of preview_voice_sample vs
-        # prepare_sample_voice - trying out text must never overwrite the
+        # generate_and_save_voice_sample - trying out text must never overwrite the
         # profile's saved demo sample.
         await self.provider.preview_voice_sample(PROFILE_NAME, "Ahoy Commander.")
 

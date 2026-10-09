@@ -12,12 +12,16 @@ CLEAN_LEGAL_STATUS = "Clean"
 
 
 def cargo_percent(cargo: float, cargo_capacity: float) -> float:
+    """0-100 for the cargo bar. A ship without a cargo rack (capacity 0) gives
+    an empty bar instead of a division by zero."""
     if not cargo_capacity:
         return EMPTY_HOLD_PERCENT
     return cargo / cargo_capacity * 100
 
 
 def credits_text(credits: float) -> str:
+    """Whole credits with spaces between thousands: 1234567.8 ->
+    "1 234 568 CR"."""
     return f"{credits:,.0f} CR".replace(",", " ")
 
 
@@ -25,10 +29,13 @@ class WidgetShipFlag(Label):
     DEFAULT_CLASSES = "ship-flag"
 
     def __init__(self, flag_name: str, **kwargs) -> None:
+        """Starts switched off: "○ <flag_name>"."""
         super().__init__(f"○ {flag_name}", **kwargs)
         self.flag_name = flag_name
 
     def update_flag(self, is_flag_on: bool) -> None:
+        """On shows a filled dot and adds the "-active" CSS class, off shows an
+        empty dot and removes it."""
         self.update(f"{'●' if is_flag_on else '○'} {self.flag_name}")
         self.set_class(is_flag_on, "-active")
 
@@ -40,10 +47,16 @@ class WidgetShipStats(Vertical):
     def __init__(
         self, ed_dashboard_repository: EdDashboardRepository, **kwargs
     ) -> None:
+        """Only stores the repository. The stats start streaming in
+        on_mount()."""
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
+        """Hull and shield bars, modules, pips, the four ship flags (gear,
+        hardpoints, lights, shields), mass with the cargo bar, legal status and
+        rebuy cost. Everything starts at zero / "-" until the first stats
+        arrive."""
         with HorizontalGroup(classes="stat-row"):
             yield WidgetStatBar("HULL", id="hull-bar")
             yield WidgetStatBar("SHIELDS", id="shields-bar")
@@ -71,13 +84,24 @@ class WidgetShipStats(Vertical):
             yield Label("0 CR", classes="stat-value", id="ship-rebuy")
 
     def on_mount(self) -> None:
+        """Starts the worker that keeps this panel up to date."""
         self.stream_ship_stats()
 
     @work
     async def stream_ship_stats(self) -> None:
+        """Textual worker that runs as long as the widget lives. For every new
+        stats from the repository it rewrites the whole panel:
+        - hull comes as 0-1 and is turned into percent here, shields already
+          come in percent,
+        - ship name goes to the border subtitle,
+        - damaged modules and any legal status other than "Clean" get the
+          "-alert" CSS class,
+        - empty legal status is shown as "-".
+        """
         async for stats in self.ed_dashboard_repository.stream_ship_stats():
             self.query_one("#hull-bar", WidgetStatBar).update_bar(
-                stats.hull_pe * 100, f"{stats.hull_pe * 100:.0f}%"
+                stats.hull_health_fraction * 100,
+                f"{stats.hull_health_fraction * 100:.0f}%",
             )
             self.query_one("#shields-bar", WidgetStatBar).update_bar(
                 stats.shields_percent, f"{stats.shields_percent:.0f}%"

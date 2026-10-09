@@ -77,38 +77,40 @@ class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
 
         self.provider = EdgeTTSProvider(_make_settings(), _make_voice_lab_service())
 
-    async def test_synthesize_saves_audio_using_the_configured_voice(self):
-        await self.provider.synthesize("Hello Commander")
+    async def test_synthesize_and_play_saves_audio_using_the_configured_voice(self):
+        await self.provider.synthesize_and_play("Hello Commander")
 
         self.mock_communicate_cls.assert_called_once_with(
             "Hello Commander", voice=VOICE
         )
         self.mock_communicate.save.assert_awaited_once_with("output.mp3")
 
-    async def test_synthesize_plays_audio_data_read_from_saved_file(self):
-        await self.provider.synthesize("Hello Commander")
+    async def test_synthesize_and_play_plays_audio_data_read_from_saved_file(self):
+        await self.provider.synthesize_and_play("Hello Commander")
 
         self.mock_sf_read.assert_called_once_with("output.mp3")
         played_samples, played_samplerate = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.audio_data)
         self.assertEqual(played_samplerate, self.samplerate)
 
-    async def test_synthesize_scales_played_audio_by_configured_volume(self):
+    async def test_synthesize_and_play_scales_played_audio_by_configured_volume(self):
         provider = EdgeTTSProvider(
             _make_settings(volume=0.5), _make_voice_lab_service()
         )
 
-        await provider.synthesize("Hello Commander")
+        await provider.synthesize_and_play("Hello Commander")
 
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, self.audio_data * 0.5)
 
-    async def test_synthesize_plays_the_voice_through_voice_lab_scaled_by_volume(self):
+    async def test_synthesize_and_play_plays_voice_through_voice_lab_scaled_by_volume(
+        self,
+    ):
         voice_lab_service = Mock(spec=VoiceLabService)
         voice_lab_service.apply_effects.return_value = VOICE_LAB_OUTPUT
         provider = EdgeTTSProvider(_make_settings(volume=0.5), voice_lab_service)
 
-        await provider.synthesize("Hello Commander")
+        await provider.synthesize_and_play("Hello Commander")
 
         samples, samplerate = voice_lab_service.apply_effects.call_args.args
         np.testing.assert_allclose(samples, self.audio_data)
@@ -116,16 +118,16 @@ class EdgeTTSProviderTest(unittest.IsolatedAsyncioTestCase):
         played_samples, _ = self.mock_sd_play.call_args.args
         np.testing.assert_allclose(played_samples, VOICE_LAB_OUTPUT * 0.5)
 
-    async def test_synthesize_removes_temporary_file_after_playback(self):
-        await self.provider.synthesize("Hello Commander")
+    async def test_synthesize_and_play_removes_temporary_file_after_playback(self):
+        await self.provider.synthesize_and_play("Hello Commander")
 
         self.mock_os_remove.assert_called_once_with("output.mp3")
 
-    async def test_synthesize_propagates_error_when_saving_audio_fails(self):
+    async def test_synthesize_and_play_propagates_error_when_saving_audio_fails(self):
         self.mock_communicate.save.side_effect = RuntimeError("network down")
 
         with self.assertRaises(RuntimeError):
-            await self.provider.synthesize("Hello Commander")
+            await self.provider.synthesize_and_play("Hello Commander")
 
         self.mock_sd_play.assert_not_called()
         self.mock_os_remove.assert_not_called()

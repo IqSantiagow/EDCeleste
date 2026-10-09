@@ -56,7 +56,9 @@ from edceleste.use_cases.settings.get_available_device_use_case import (
 from edceleste.use_cases.settings.get_available_voice_profiles_use_case import (
     GetAvailableVoiceProfilesUseCase,
 )
-from edceleste.use_cases.settings.get_llm_models_use_case import GetLlmModelsUseCase
+from edceleste.use_cases.settings.fetch_llm_model_names_use_case import (
+    FetchLlmModelNamesUseCase,
+)
 from edceleste.use_cases.settings.cancel_instinct_download_use_case import (
     CancelInstinctDownloadUseCase,
 )
@@ -69,8 +71,8 @@ from edceleste.use_cases.settings.get_instinct_download_size_use_case import (
 from edceleste.use_cases.settings.get_instinct_status_use_case import (
     GetInstinctStatusUseCase,
 )
-from edceleste.use_cases.settings.test_llm_connection_use_case import (
-    TestLlmConnectionUseCase,
+from edceleste.use_cases.settings.find_llm_connection_error_use_case import (
+    FindLlmConnectionErrorUseCase,
 )
 from edceleste.use_cases.settings.get_settings_use_case import GetSettingsUseCase
 from edceleste.use_cases.settings.get_stt_models_use_case import GetSttModelsUseCase
@@ -124,6 +126,11 @@ MODULES_USING_PROVIDE = [
 
 
 def _build_loaded_settings_service() -> SettingsService:
+    """Reads config.yaml the first time the container resolves
+    settings_service, because other providers (journal_path, keybinds_path)
+    need the settings while they are built. A missing or broken config.yaml
+    raises here (see SettingsService.load_settings) and the app does not
+    start."""
     # TODO: Add initial setting to further load it during the app settings screen
     settings_service = SettingsService()
     settings_service.load_settings()
@@ -144,7 +151,7 @@ class Container(containers.DeclarativeContainer):
         GameWatcherService,
         journal_path=settings_service.provided.get_settings.call().paths.journal_path,
         event_bus=event_bus,
-        settings_handler=settings_service,
+        settings_service=settings_service,
     )
 
     game_state_service = providers.Singleton(GameStateService, event_bus=event_bus)
@@ -157,7 +164,7 @@ class Container(containers.DeclarativeContainer):
             settings_service.provided.get_settings.call().paths.keybindings_path
         ),
         event_bus=event_bus,
-        settings_handler=settings_service,
+        settings_service=settings_service,
         game_window=game_window,
     )
 
@@ -186,19 +193,19 @@ class Container(containers.DeclarativeContainer):
 
     voice_lab_service = providers.Singleton(
         VoiceLabService,
-        settings_handler=settings_service,
+        settings_service=settings_service,
     )
 
     tts_service = providers.Singleton(
         TTSService,
         event_bus=event_bus,
-        settings_handler=settings_service,
+        settings_service=settings_service,
         voice_lab_service=voice_lab_service,
     )
 
     stt_service = providers.Singleton(
         SttService,
-        settings_handler=settings_service,
+        settings_service=settings_service,
     )
 
     event_reactions_service = providers.Singleton(
@@ -214,7 +221,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     stream_journal_events_use_case = providers.Factory(
-        StreamJournalEventsUseCase, game_state_reader=game_state_service
+        StreamJournalEventsUseCase, game_state_protocol=game_state_service
     )
 
     stream_navigation_stats_use_case = providers.Factory(
@@ -282,12 +289,12 @@ class Container(containers.DeclarativeContainer):
         GetTTSVoicesUseCase, tts_protocol=tts_service
     )
 
-    get_llm_models_use_case = providers.Factory(
-        GetLlmModelsUseCase, llm_protocol=llm_service
+    fetch_llm_model_names_use_case = providers.Factory(
+        FetchLlmModelNamesUseCase, llm_protocol=llm_service
     )
 
-    test_llm_connection_use_case = providers.Factory(
-        TestLlmConnectionUseCase, llm_protocol=llm_service
+    find_llm_connection_error_use_case = providers.Factory(
+        FindLlmConnectionErrorUseCase, llm_protocol=llm_service
     )
 
     get_instinct_status_use_case = providers.Factory(
@@ -386,8 +393,8 @@ class Container(containers.DeclarativeContainer):
         update_settings_use_case=update_settings_use_case,
         get_settings_use_case=get_settings_use_case,
         get_tts_voices_use_case=get_tts_voices_use_case,
-        get_llm_models_use_case=get_llm_models_use_case,
-        test_llm_connection_use_case=test_llm_connection_use_case,
+        fetch_llm_model_names_use_case=fetch_llm_model_names_use_case,
+        find_llm_connection_error_use_case=find_llm_connection_error_use_case,
         get_instinct_status_use_case=get_instinct_status_use_case,
         get_instinct_download_size_use_case=get_instinct_download_size_use_case,
         download_instinct_model_use_case=download_instinct_model_use_case,

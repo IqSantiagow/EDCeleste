@@ -48,6 +48,9 @@ class WidgetLabeledSelectRow(WidgetBaseInput):
         assert self.id is not None, "WidgetLabeledSelectRow must have an id"
 
     def compose(self) -> ComposeResult:
+        """With values, the Select shows the options as labels but holds the
+        matching values. Without values, the options are labels and values at
+        the same time."""
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             # The persisted value may not be among the live-fetched options
@@ -75,5 +78,8 @@ class WidgetLabeledSelectRow(WidgetBaseInput):
                 )
 
     def on_select_changed(self, event: Select.Changed) -> None:
+        """Stores the picked item as text and posts ValueChanged to the section
+        container. A blank Select (Select.NULL) becomes the text "Select.NULL",
+        not None."""
         self.value = str(event.value)
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore

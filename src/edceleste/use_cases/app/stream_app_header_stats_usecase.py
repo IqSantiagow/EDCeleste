@@ -14,6 +14,9 @@ class StreamAppHeaderStatsUseCase:
         self.game_state_protocol = game_state_protocol
 
     async def __call__(self) -> AsyncGenerator[AppHeaderViewModel, None]:
+        """Never ends. Listens to the game stats stream and keeps only the
+        pilot name, ship and credits for the app header. The current values
+        come at once, then again after every Status.json update."""
         async for game_stats in self.game_state_protocol.stream_game_stats():
             yield AppHeaderViewModel(
                 player_name=game_stats.player.name,

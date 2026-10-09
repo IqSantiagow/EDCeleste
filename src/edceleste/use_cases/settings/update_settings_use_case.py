@@ -34,6 +34,18 @@ class UpdateSettingsUseCase:
         self.settings_service = settings_service
 
     async def __call__(self, new_settings: SettingsModel):
+        """Save button of the settings screen.
+
+        1. Asks every service to validate new_settings. All of them run, so
+           the pilot sees every issue at once. The LLM check goes to the
+           network.
+        2. Any issue -> raises SettingsValidationException with all issues,
+           nothing is saved and no service changes.
+        3. No issue -> writes config.yaml, then reloads every service, one
+           after another, so each reads the new settings.
+        A reload that raises stops the rest: the settings are already saved,
+        but the services after it still run on the old settings.
+        """
         tts_issues = self.tts_service.validate_settings(new_settings)
         stt_issues = self.stt_service.validate_settings(new_settings)
         game_watcher_issues = self.game_watcher_service.validate_settings(new_settings)
@@ -59,7 +71,7 @@ class UpdateSettingsUseCase:
         if issues:
             raise SettingsValidationException(issues)
 
-        self.settings_service.update_settings(new_settings)
+        self.settings_service.save_settings(new_settings)
 
         self.tts_service.reload_service()
         self.stt_service.reload_service()

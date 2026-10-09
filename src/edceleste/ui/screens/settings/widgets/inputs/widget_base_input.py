@@ -10,6 +10,10 @@ class WidgetBaseInput(Widget):
         initial_value: Any = None,
         **kwargs,
     ) -> None:
+        """value is what the row shows now, initial_value is the last saved
+        value. The section container compares the two to show the
+        "modified" marker. Both an id and a value are required, the asserts
+        fail otherwise."""
         super().__init__(*args, **kwargs)
         assert self.id is not None, "WidgetBaseInput must have an id"
         self.value = value
@@ -17,7 +21,10 @@ class WidgetBaseInput(Widget):
         assert self.value is not None, "WidgetBaseInput must have a value"
 
     def is_modified(self) -> bool:
+        """True when the pilot changed the value since the last save."""
         return self.value != self.initial_value
 
-    def reset_current_value(self) -> None:
+    def mark_current_value_as_saved(self) -> None:
+        """Called after a successful save. The value on screen stays as it is,
+        it only becomes the new saved value, so is_modified() turns False."""
         self.initial_value = self.value

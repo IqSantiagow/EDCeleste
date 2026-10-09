@@ -15,17 +15,21 @@ class _WindowsApiStub:
     """Used outside Windows: the game can't run there, so its window is never found."""
 
     def FindWindowW(self, class_name: str | None, window_title: str) -> int | None:
+        """Always None, so GameWindow reports "game window not found"."""
         return None
 
     def GetForegroundWindow(self) -> int | None:
+        """Always None, there is no game window to be in front."""
         return None
 
     def SetForegroundWindow(self, window: int) -> bool:
+        """Does nothing and reports that the switch failed."""
         return False
 
 
 def load_windows_api():
-    """The user32 window calls on Windows, the stub everywhere else."""
+    """The user32 window calls on Windows, the stub everywhere else.
+    Called once, when GameWindow is built without a fake windows_api."""
     if sys.platform != "win32":
         return _WindowsApiStub()
 
@@ -42,11 +46,20 @@ class GameWindow:
     """Brings the game window to the front, so a key press lands in the game."""
 
     def __init__(self, windows_api=None) -> None:
+        """Without windows_api the real user32 is loaded (the stub outside
+        Windows)."""
         # Tests pass a fake here instead of the real user32
         self.windows_api = windows_api or load_windows_api()
 
     async def bring_to_front(self) -> bool:
-        """True when the game window has focus and a key press will land in it."""
+        """True when the game window has focus and a key press will land in it.
+
+        1. Finds the game window by its title. Not found -> False.
+        2. Already in front -> True right away, no waiting.
+        3. Asks Windows to switch to it and waits WAIT_AFTER_SWITCH_SECONDS.
+        4. Checks again, Windows can refuse the switch -> False.
+        Never raises, every failure is logged as a warning and gives False.
+        """
         game_window = self.windows_api.FindWindowW(None, GAME_WINDOW_TITLE)
         if not game_window:
             logger.warning("Game window not found, is the game running?")

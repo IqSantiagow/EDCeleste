@@ -32,9 +32,9 @@ def rms(audio: np.ndarray) -> float:
 def apply_effects_with(
     samples: np.ndarray, sample_rate: int, voice_lab: VoiceLabModel
 ) -> np.ndarray:
-    settings_handler = Mock(spec=SettingsService)
-    settings_handler.get_settings.return_value.tts.voice_lab = voice_lab
-    return VoiceLabService(settings_handler).apply_effects(samples, sample_rate)
+    settings_service = Mock(spec=SettingsService)
+    settings_service.get_settings.return_value.tts.voice_lab = voice_lab
+    return VoiceLabService(settings_service).apply_effects(samples, sample_rate)
 
 
 def make_service() -> VoiceLabService:

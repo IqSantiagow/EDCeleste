@@ -9,7 +9,7 @@ Perform a code review on the provided code changes. Focus on identifying potenti
 
 #### 1. Does the app run?
 1. Ensure that the application runs without errors after the changes. Check for any runtime exceptions or issues during startup.
-2. Verify that the `JournalWatcherService` starts correctly in a separate thread and that it is able to monitor the journal files as expected. You will need probably to create dummy journal files in the expected directory to test this functionality.
+2. Verify that the `GameWatcherService` starts its watcher tasks correctly and that it is able to monitor the journal files as expected. You will need probably to create dummy journal files in the expected directory to test this functionality.
 
 #### 2. Are tests passing?
 1. Run the test suite to ensure that all tests pass after the changes. If any tests fail, investigate the cause and note the issues.

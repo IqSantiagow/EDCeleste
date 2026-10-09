@@ -6,4 +6,7 @@ class RemoveVoiceProfileUseCase:
         self.voice_cloning_protocol = voice_cloning_protocol
 
     def __call__(self, profile_name: str) -> None:
+        """Deletes the profile file and its sample from disk. A missing file is
+        not an error. The settings are not touched, even when this is the
+        active profile."""
         self.voice_cloning_protocol.remove_profile(profile_name)

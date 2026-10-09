@@ -78,19 +78,34 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         *args,
         **kwargs,
     ) -> None:
+        """llm_model is part of the screen's working copy of the settings and
+        is changed in place. provider is set without triggering a recompose,
+        because nothing is composed yet."""
         super().__init__(*args, **kwargs)
         self.llm_model = llm_model
         self.settings_repository = settings_repository
         self.set_reactive(WidgetSystemPromptsContainer.provider, llm_model.provider)
 
     def on_mount(self) -> None:
+        """Starts loading the model list of the provider on screen. Until it is
+        in, the model row shows a loading indicator."""
         self.call_later(self.fetch_models)
 
     async def fetch_models(self) -> None:
+        """Asks the provider on screen (with its key and base URL, not the saved
+        ones) for its model names over the network. Not a worker, it runs in
+        this widget's message loop, so the widget waits for the answer.
+
+        On error it shows a notification and sets an empty list, which makes
+        compose_model_row() offer a text input for the model name. Setting
+        models recomposes the section.
+        """
         provider = self.provider
         assert provider is not None, "provider must be set before fetch_models runs"
         try:
-            self.models = await self.settings_repository.get_llm_models(provider)
+            self.models = await self.settings_repository.fetch_available_model_names(
+                provider
+            )
         except Exception as e:
             self.log(f"Error fetching models for {provider.type}: {e}")
             self.notify(
@@ -100,21 +115,41 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
 
     def refetch_models(self) -> None:
         """The old list belongs to the old provider, key or endpoint - drop it so
-        the loading indicator shows instead of the wrong models."""
+        the loading indicator shows instead of the wrong models.
+
+        Then fetches the list again and clears the connection test result,
+        which also described the old values."""
         self.models = None
         self.call_later(self.fetch_models)
         self.clear_connection_test_result()
 
     async def test_llm_connection(self) -> str | None:
-        """Tests the values on screen, not the saved ones."""
+        """Tests the values on screen, not the saved ones. Passed to
+        WidgetTestConnectionRow as its button callback. Sends one real request
+        to the LLM, which costs a few tokens. Returns None when it works,
+        otherwise a short error text."""
         provider = self.provider
         assert provider is not None, "provider must be set before testing it"
-        return await self.settings_repository.test_llm_connection(provider)
+        return await self.settings_repository.find_llm_connection_error(provider)
 
     def clear_connection_test_result(self) -> None:
+        """Called when the provider, key, endpoint or model changes, so an old
+        "✓ Connected" does not stay next to new values. Also cancels a test
+        that is still running."""
         self.query_one(WidgetTestConnectionRow).clear_result()
 
     def compose(self) -> ComposeResult:
+        """Runs again when provider or models change. Three groups:
+
+        1. CELESTE: provider select, API key (hidden), base URL, the model row
+           (see compose_model_row) and the test connection row.
+        2. INSTINCT: enabled switch, device select, the fixed model name and
+           the download status row.
+        3. PROMPTS: system prompt and user prompt text areas.
+
+        The on_submit callbacks of the rows only log, the values reach
+        llm_model through on_value_changed().
+        """
         yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("CELESTE")
@@ -142,7 +177,7 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 type="text",
                 id=SystemPromptsInputWidgetIds.LLM_BASE_URL_INPUT,
             )
-            yield from self.mount_model_settings(provider)
+            yield from self.compose_model_row(provider)
             yield WidgetTestConnectionRow(self.test_llm_connection)
 
             yield WidgetSectionHeader("INSTINCT · FAST COMMANDS")
@@ -177,7 +212,14 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 id=SystemPromptsInputWidgetIds.LLM_USER_PROMPT_INPUT,
             )
 
-    def mount_model_settings(self, provider: LLMProviderModel) -> ComposeResult:
+    def compose_model_row(self, provider: LLMProviderModel) -> ComposeResult:
+        """Part of compose(), it does not mount anything by itself.
+
+        - models None (still loading) -> a loading indicator,
+        - models empty (the provider has no model list or the request failed)
+          -> a hint and a text input to type the model name,
+        - otherwise -> a select with the model names.
+        """
         if self.models is None:
             yield LoadingIndicator(id="loading-llm-models-indicator")
             return
@@ -202,6 +244,16 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         )
 
     def on_value_changed(self, message: ValueChanged) -> None:
+        """Runs when a row posts ValueChanged. Writes the new value into
+        llm_model and always posts SectionSettingsChanged(LLM) to the settings
+        screen. Nothing is saved here.
+
+        Extra steps for some rows:
+        - provider type changed -> a new provider with an empty model, API key
+          and base URL, then the model list is fetched again,
+        - API key or base URL -> the model list is fetched again (network),
+        - model -> the connection test result is cleared.
+        """
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
 

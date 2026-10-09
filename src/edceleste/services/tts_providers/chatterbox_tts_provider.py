@@ -55,7 +55,8 @@ class VoiceAnalysisResult(TypedDict):
 
 
 def calculate_peak_dbfs(audio_samples: np.ndarray) -> float:
-    """Loudest single sample in the clip, in dBFS (0 dBFS = full scale)."""
+    """Loudest single sample in the clip, in dBFS (0 dBFS = full scale).
+    A fully silent clip gives SILENCE_FLOOR_DBFS."""
     peak_amplitude = float(np.max(np.abs(audio_samples)))
     if peak_amplitude == 0:
         return SILENCE_FLOOR_DBFS
@@ -63,7 +64,9 @@ def calculate_peak_dbfs(audio_samples: np.ndarray) -> float:
 
 
 def calculate_noise_floor_dbfs(audio_samples: np.ndarray, sample_rate: int) -> float:
-    """Background noise level: RMS loudness of the quietest 100ms window."""
+    """Background noise level: RMS loudness of the quietest 100ms window.
+    Stereo is mixed to mono first. A fully silent window gives
+    SILENCE_FLOOR_DBFS."""
     mono_samples = (
         audio_samples if audio_samples.ndim == 1 else audio_samples.mean(axis=1)
     )
@@ -94,7 +97,9 @@ def calculate_waveform_envelope(
     sample_rate: int,
     window_seconds: float = WAVEFORM_ENVELOPE_WINDOW_SECONDS,
 ) -> list[float]:
-    """Peak amplitude per short window, for drawing a waveform sparkline."""
+    """Peak amplitude per short window, for drawing a waveform sparkline.
+    Stereo is mixed to mono first. A last window shorter than the others is
+    left out."""
     mono_samples = (
         audio_samples if audio_samples.ndim == 1 else audio_samples.mean(axis=1)
     )
@@ -108,13 +113,18 @@ def calculate_waveform_envelope(
 
 
 def add_pt_file_extension_if_missing(profile_file_name: str) -> str:
+    """Profile names in settings and the UI come without ".pt", the files on
+    disk have it. Safe to call twice, "x.pt" stays "x.pt"."""
     if profile_file_name.endswith(".pt"):
         return profile_file_name
     return profile_file_name + ".pt"
 
 
 def find_voices_directory(operating_system_name: str = os.name) -> Path:
-    """Voice profiles are stored in the per-user application data directory."""
+    """Voice profiles are stored in the per-user application data directory:
+    %LOCALAPPDATA%\\EDCeleste\\voices on Windows ("nt"), otherwise
+    ~/.local/share/EDCeleste/voices. Only builds the path, the folder is
+    created later by clone_voice()."""
     if operating_system_name == "nt":
         application_data_directory = Path(os.environ["LOCALAPPDATA"])
     else:
@@ -130,20 +140,37 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
     VOICES_DIR = find_voices_directory()
 
     def __init__(self, config: SettingsModel, voice_lab_service: VoiceLabService):
+        """Only stores the settings. The model is loaded on the first use, not
+        here, because loading takes seconds and a lot of memory. config is the
+        whole SettingsModel, because the volume lives in config.tts."""
         self.config = config
         self.voice_lab_service = voice_lab_service
 
     @property
     def provider_settings(self) -> ChatterboxTTSProviderModel:
+        """config.tts.provider narrowed to the Chatterbox model. TTSService
+        builds this provider only when the type is "chatterbox", so the cast
+        is safe."""
         return self.config.tts.provider  # type: ignore[return-value]
 
-    async def synthesize(self, text: str) -> None:
+    async def synthesize_and_play(self, text: str) -> None:
+        """Speaks the text with the voice profile from settings.
+
+        1. Loads the model if needed. This blocks the event loop and may
+           download it from the Hugging Face Hub the first time.
+        2. Loads the voice profile into the model once, in a worker thread.
+        3. Generates the speech in a worker thread with the exaggeration and
+           cfg_weight from settings.
+        4. Adds the Voice Lab effects, plays it at the configured volume and
+           waits until it has played.
+        Errors are raised, e.g. FileNotFoundError for a missing profile.
+        """
         import sounddevice as sd
 
-        model = self.__get_prepared_model()
+        model = self.__get_or_load_model()
 
         if not self.is_profile_prepared:
-            await asyncio.to_thread(self.prepare_model_with_profile)
+            await asyncio.to_thread(self.load_voice_profile_into_model)
 
         output = await asyncio.to_thread(
             model.generate,
@@ -164,6 +191,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        """Only checks that a profile name is set. Does not check that the
+        profile file exists, a missing file shows up on the first sentence."""
         if not new_settings.tts.provider.profile:  # type: ignore[union-attr]
             return SettingsIssueModel(
                 section="tts",
@@ -173,11 +202,18 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         return None
 
     def get_available_device(self) -> Literal["cuda", "cpu"]:
+        """What the "auto" device setting turns into: "cuda" when torch sees a
+        GPU, otherwise "cpu"."""
         import torch
 
         return "cuda" if torch.cuda.is_available() else "cpu"
 
-    def __prepare_model(self):
+    def __load_model(self):
+        """Loads Chatterbox Turbo on the device from settings ("auto" -> see
+        get_available_device) and with the nano flag. Slow and blocking. The
+        first time, from_pretrained downloads the model from the Hugging Face
+        Hub. Does not load the voice profile and does not reset
+        is_profile_prepared."""
         from chatterbox.tts_turbo import ChatterboxTurboTTS
 
         logger.info("Preparing Chatterbox TTS model...")
@@ -189,19 +225,25 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             device=device, nano=self.provider_settings.nano
         )
 
-    def __get_prepared_model(self) -> "ChatterboxTurboTTS":
+    def __get_or_load_model(self) -> "ChatterboxTurboTTS":
+        """Loads the model on the first call (slow, blocking), later calls
+        return the same one. Raises RuntimeError when loading left no model."""
         if self.model is None:
-            self.__prepare_model()
+            self.__load_model()
 
         if self.model is None:
             raise RuntimeError("Chatterbox TTS model could not be prepared.")
 
         return self.model
 
-    def prepare_model_with_profile(self):
+    def load_voice_profile_into_model(self):
+        """Makes the model speak with the profile from settings: reads the
+        profile's .pt file from the voices folder into model.conds and marks
+        the profile as prepared. Blocking, loads the model first if needed.
+        Raises FileNotFoundError when the profile file does not exist."""
         from chatterbox.tts_turbo import Conditionals
 
-        model = self.__get_prepared_model()
+        model = self.__get_or_load_model()
         voice_profile_path = self.__build_profile_path(
             add_pt_file_extension_if_missing(self.provider_settings.profile)
         )
@@ -218,7 +260,25 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
     async def clone_voice(
         self, path_to_audio_file: str, profile_name: str
     ) -> AsyncGenerator[VoiceCloningState, None]:
-        model = await asyncio.to_thread(self.__get_prepared_model)
+        """Makes a new voice profile from a recording. Writes files to the
+        voices folder and yields after every step, so the UI can show
+        progress.
+
+        1. Loads the model in a worker thread and creates the voices folder.
+           Raises FileNotFoundError when the audio file does not exist.
+           Yields DIRECTORY_CREATED.
+        2. Raises ValueError when the clip is shorter than 10 s. Reads only
+           the first 10 s of it. Yields AUDIO_PROCESSED.
+        3. Writes those 10 s next to the profiles and lets the model learn the
+           voice from them. Yields COMPLETED, but the profile is not saved yet.
+        4. Saves the profile as <name>.pt and generates <name>_sample.wav with
+           DEFAULT_VOICE_SAMPLE_TEXT. Yields SAMPLE_CREATED.
+
+        Side effect: the model now speaks with the cloned voice (model.conds),
+        but is_profile_prepared is not changed. Any error in steps 3 and 4 is
+        raised again as RuntimeError. The trimmed 10 s clip is always deleted.
+        """
+        model = await asyncio.to_thread(self.__get_or_load_model)
         voices_path = self.VOICES_DIR
 
         if not voices_path.exists():
@@ -266,7 +326,7 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
             )
             model.conds.save(self.__build_profile_path(profile_file_name))
 
-            await self.prepare_sample_voice(profile_name)
+            await self.generate_and_save_voice_sample(profile_name)
 
             yield VoiceCloningState.SAMPLE_CREATED
 
@@ -281,6 +341,10 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
                 os.remove(trimmed_clip_path)
 
     def reload_provider(self, new_settings: SettingsModel):
+        """Stores the new settings and throws away only what they make stale:
+        - a new profile -> the profile is loaded again before the next sentence,
+        - a new device or nano flag -> the model is loaded again on next use.
+        Anything else, e.g. volume or exaggeration, keeps the loaded model."""
         previous_provider_settings = self.provider_settings
         self.config = new_settings
 
@@ -298,6 +362,7 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         The ".pt" extension is just how profile files happen to be stored on
         disk, the UI should never see it. Voice profile names shown to the
         user (and stored in settings) are always without ".pt".
+        Reads the voices folder. Empty when the folder does not exist yet.
         """
         voices_path = self.VOICES_DIR
 
@@ -313,6 +378,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         return profiles
 
     def remove_profile(self, profile_name: str) -> None:
+        """Deletes <name>.pt and <name>_sample.wav from the voices folder. A
+        file that is not there is skipped, so removing a missing profile does
+        not fail. The settings are not changed, they may still point at it."""
         profile_file_name = add_pt_file_extension_if_missing(profile_name)
         profile_file_sample_name = profile_name + "_sample.wav"
         profile_path = self.__build_profile_path(profile_file_name)
@@ -326,7 +394,10 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
 
     def rename_profile(self, old_profile_name: str, new_profile_name: str) -> None:
         """Cheap rename on disk - the expensive part (the embeddings) is
-        already done and saved, this just moves 2 small files."""
+        already done and saved, this just moves 2 small files.
+        Raises FileExistsError when the new name is taken and
+        FileNotFoundError when the old profile does not exist. A missing sample
+        is skipped. The settings are not changed."""
         old_profile_path = self.__build_profile_path(
             add_pt_file_extension_if_missing(old_profile_name)
         )
@@ -347,9 +418,17 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
     async def __generate_speech_for_profile(
         self, profile_name: str, text: str
     ) -> tuple[np.ndarray, int]:
+        """Generates speech with any saved profile, not only the one from
+        settings. Returns the samples and the sample rate, plays nothing.
+
+        Side effect: loads that profile into model.conds, so the model keeps
+        speaking with it afterwards. is_profile_prepared is not changed, so
+        when it was True, synthesize_and_play() does not switch back to the profile
+        from settings.
+        """
         from chatterbox.tts_turbo import Conditionals
 
-        model = self.__get_prepared_model()
+        model = self.__get_or_load_model()
 
         profile_path = self.__build_profile_path(
             add_pt_file_extension_if_missing(profile_name)
@@ -365,9 +444,12 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         )
         return output.squeeze(0).cpu().numpy(), model.sr
 
-    async def prepare_sample_voice(
+    async def generate_and_save_voice_sample(
         self, profile_name: str, text: str = DEFAULT_VOICE_SAMPLE_TEXT
     ) -> None:
+        """Generates the text with the profile's voice and writes it to
+        <name>_sample.wav in the voices folder, replacing an older sample.
+        Plays nothing and adds no Voice Lab effects."""
         samples, sample_rate = await self.__generate_speech_for_profile(
             profile_name, text
         )
@@ -377,6 +459,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         sf.write(sample_path, samples, sample_rate)
 
     async def preview_voice_sample(self, profile_name: str, text: str) -> None:
+        """Speaks the text with the profile's voice, the Voice Lab effects and
+        the configured volume, and waits until it has played. Nothing is
+        written to disk, so the saved sample stays as it is."""
         import sounddevice as sd
 
         samples, sample_rate = await self.__generate_speech_for_profile(
@@ -388,6 +473,8 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         await asyncio.sleep(len(samples) / sample_rate)
 
     async def play_sample_voice(self, profile_name: str) -> None:
+        """Plays the saved <name>_sample.wav, no speech is generated and no
+        model is loaded. Raises FileNotFoundError when there is no sample."""
         profile_file_name = profile_name + "_sample.wav"
         profile_path = self.__build_profile_path(profile_file_name)
 
@@ -399,6 +486,9 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         await self.play_audio_file(str(profile_path))
 
     async def play_audio_file(self, path_to_audio_file: str) -> None:
+        """Plays the file at the configured volume, without Voice Lab effects,
+        and waits until it has played. Reading the file blocks the event
+        loop."""
         import sounddevice as sd
 
         audio_samples, sample_rate = sf.read(path_to_audio_file)
@@ -408,12 +498,24 @@ class ChatterboxTTSProvider(TTSProviderProtocol):
         await asyncio.sleep(len(audio_samples) / sample_rate)
 
     def __build_profile_path(self, profile_name: str) -> Path:
+        """Takes a file name, e.g. "x.pt" or "x_sample.wav", and puts it in the
+        voices folder. Any folder part of the name is dropped, so a name like
+        "../x" cannot reach outside the voices folder. Does not check that the
+        file exists."""
         voices_path = self.VOICES_DIR
         return Path(voices_path) / Path(profile_name).name
 
     def perform_sample_voice_analysis_and_validate(
         self, path_to_audio_file: str
     ) -> VoiceAnalysisResult:
+        """Reads the whole file and measures it for the clone screen: length,
+        sample rate, channels, peak and noise floor in dBFS, clipping (peak at
+        0 dBFS or more) and a waveform for the sparkline. Loads no model.
+
+        Only the length decides is_valid: shorter than 10 s -> is_valid False
+        with a message. Clipping, stereo or noise never make it invalid, the UI
+        only shows them as hints. A missing or broken file raises.
+        """
         audio_info = sf.info(path_to_audio_file)
         audio_duration_seconds = audio_info.frames / audio_info.samplerate
         audio_samples, _ = sf.read(path_to_audio_file, always_2d=False)

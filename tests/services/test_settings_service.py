@@ -109,24 +109,24 @@ class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             service.load_settings()
 
-    def test_update_settings_writes_yaml_when_one_section_changed(self):
+    def test_save_settings_writes_yaml_when_one_section_changed(self):
         Path("config.yaml").write_text(VALID_CONFIG_YAML)
         service = SettingsService()
         service.settings = _make_settings(system_prompt="old")
         new_settings = _make_settings(system_prompt="new")
 
-        service.update_settings(new_settings)
+        service.save_settings(new_settings)
 
         self.assertEqual(_read_saved_system_prompt(), "new")
         self.assertEqual(service.get_settings().llm.system_prompt, "new")
 
-    def test_update_settings_creates_config_yaml_from_example_when_missing(self):
+    def test_save_settings_creates_config_yaml_from_example_when_missing(self):
         Path("config-example.yaml").write_text(VALID_CONFIG_YAML)
         service = SettingsService()
         service.settings = _make_settings(system_prompt="old")
         new_settings = _make_settings(system_prompt="new")
 
-        service.update_settings(new_settings)
+        service.save_settings(new_settings)
 
         self.assertEqual(_read_saved_system_prompt(), "new")
 
@@ -141,13 +141,13 @@ class SettingsServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(service.get_settings().paths.journal_path, "C:/j")
 
-    def test_update_settings_writes_only_to_the_given_config_path(self):
+    def test_save_settings_writes_only_to_the_given_config_path(self):
         Path("other").mkdir()
         Path("other/my-config.yaml").write_text(VALID_CONFIG_YAML)
         service = SettingsService(config_path=Path("other/my-config.yaml"))
         service.settings = _make_settings(system_prompt="old")
 
-        service.update_settings(_make_settings(system_prompt="new"))
+        service.save_settings(_make_settings(system_prompt="new"))
 
         saved_config = yaml.safe_load(Path("other/my-config.yaml").read_text())
         self.assertEqual(saved_config["llm"]["system_prompt"], "new")

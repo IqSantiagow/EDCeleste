@@ -57,7 +57,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         return GameWatcherService(
             journal_path=JOURNAL_PATH,
             event_bus=self.mock_event_bus,
-            settings_handler=Mock(),
+            settings_service=Mock(),
         )
 
     def test_get_latest_journal_filepath(self):
@@ -99,7 +99,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
+            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -121,7 +121,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
+            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
 
             self.mock_event_bus.publish.assert_awaited_once_with(event1)
 
@@ -146,7 +146,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             mock_open_file.readline.side_effect = readline_side_effect()
 
-            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
+            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -154,7 +154,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             )
 
             watcher.exit_signal = False
-            await watcher._GameWatcherService__generate_journal_events(JOURNAL_FILE)  # type: ignore
+            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
 
             self.assertEqual(
                 self.mock_event_bus.publish.await_args_list,
@@ -179,13 +179,13 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(issue)
 
     async def test_reload_service_restarts_watcher_with_settings_from_handler(self):
-        settings_handler = Mock()
+        settings_service = Mock()
         new_settings = _make_settings(journal_path="C:/new-journals")
-        settings_handler.get_settings.return_value = new_settings
+        settings_service.get_settings.return_value = new_settings
         watcher = GameWatcherService(
             journal_path=JOURNAL_PATH,
             event_bus=Mock(),
-            settings_handler=settings_handler,
+            settings_service=settings_service,
         )
         watcher.stop_watcher_service = Mock()
         watcher.start_watcher_service = Mock()
@@ -196,7 +196,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         watcher.stop_watcher_service.assert_called_once()
         watcher.start_watcher_service.assert_called_once()
 
-    # --- watch_status_file_and_generate_event ---
+    # --- watch_status_file_and_publish_event ---
 
     async def test_watch_status_file_waits_until_status_file_appears(self):
         status_event = StatusEvent(
@@ -222,7 +222,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_generate_event()
+            await watcher.watch_status_file_and_publish_event()
 
         # First pass finds no file and only waits; the event is only
         # published once Status.json actually shows up on disk.
@@ -245,7 +245,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_generate_event()
+            await watcher.watch_status_file_and_publish_event()
 
         self.mock_event_bus.publish.assert_not_awaited()
 
@@ -279,7 +279,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_generate_event()
+            await watcher.watch_status_file_and_publish_event()
 
         self.mock_event_bus.publish.assert_awaited_once_with(status_event)
 
@@ -322,7 +322,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "no journal path")
 
-    # --- watch_market_file_and_generate_event ---
+    # --- watch_market_file_and_publish_event ---
 
     def _make_market_event(self):
         return MarketEvent(
@@ -356,7 +356,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_generate_event()
+            await watcher.watch_market_file_and_publish_event()
 
         # The game only writes Market.json once the player opens the commodity
         # screen, so an absent file is normal and must not raise.
@@ -379,7 +379,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_generate_event()
+            await watcher.watch_market_file_and_publish_event()
 
         self.mock_event_bus.publish.assert_not_awaited()
 
@@ -411,7 +411,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_generate_event()
+            await watcher.watch_market_file_and_publish_event()
 
         self.mock_event_bus.publish.assert_awaited_once_with(market_event)
 
@@ -421,10 +421,10 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         watcher = self._make_watcher()
 
         with (
-            patch.object(GameWatcherService, "watch_status_file_and_generate_event"),
-            patch.object(GameWatcherService, "watch_market_file_and_generate_event"),
+            patch.object(GameWatcherService, "watch_status_file_and_publish_event"),
+            patch.object(GameWatcherService, "watch_market_file_and_publish_event"),
             patch.object(
-                GameWatcherService, "_GameWatcherService__generate_journal_events"
+                GameWatcherService, "_GameWatcherService__publish_new_journal_lines"
             ),
         ):
             watcher.start_watcher_service()

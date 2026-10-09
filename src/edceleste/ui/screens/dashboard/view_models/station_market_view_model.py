@@ -25,7 +25,10 @@ STOCK_BRACKET_NOTES = {1: "low stock", 2: "steady stock", 3: "high stock"}
 
 def vs_galactic_average_bar(price: int, mean_price: int) -> str:
     """'       ███▏' / '▏██████████' - the zero axis always sits in the same
-    column, so the bars of every row line up under each other."""
+    column, so the bars of every row line up under each other.
+
+    Left of the axis = cheaper than average, right = dearer. Capped at
+    MAX_BLOCKS each side. Only the axis when either price is 0."""
     blocks = 0
     if price and mean_price:
         percent_off = (price - mean_price) / mean_price * 100
@@ -38,10 +41,14 @@ def vs_galactic_average_bar(price: int, mean_price: int) -> str:
 
 
 def format_price(value: int) -> str:
+    """1284 -> "1 284". Used for prices, stock and demand. 0 means the
+    station does not trade it, so it shows NO_VALUE ("-")."""
     return format_thousands(value) if value else NO_VALUE
 
 
 def format_delta(value: int) -> str:
+    """Always with a sign: 300 -> "+300", -1284 -> "-1 284". 0 shows NO_VALUE
+    ("-")."""
     if not value:
         return NO_VALUE
     return (
@@ -50,6 +57,9 @@ def format_delta(value: int) -> str:
 
 
 def note_text(item: MarketItemModel) -> str:
+    """The NOTE column, e.g. "high demand · rare". The demand bracket wins: the
+    stock bracket is shown only when there is no demand bracket. NO_VALUE
+    ("-") when there is nothing to say."""
     notes = []
     if item.DemandBracket:
         notes.append(DEMAND_BRACKET_NOTES.get(item.DemandBracket, ""))
@@ -75,6 +85,10 @@ class StationMarketRowViewModel:
 
     @classmethod
     def from_item(cls, item: MarketItemModel) -> "StationMarketRowViewModel":
+        """One table row, every cell already a text. Localised names win over
+        the raw ones. The bar and the delta compare the SELL price with the
+        galactic average. When the station does not buy the item (SellPrice
+        0) the delta is "-" and the bar is empty."""
         return cls(
             commodity=item.Name_Localised or item.Name,
             category=item.Category_Localised or item.Category,
@@ -100,6 +114,13 @@ class StationMarketViewModel:
 
     @classmethod
     def from_snapshot(cls, snapshot: MarketSnapshot) -> "StationMarketViewModel":
+        """Checks in order and stops at the first problem:
+        1. not docked -> no header, NO_STATION_MESSAGE,
+        2. station has no commodity market -> NO_MARKET_MESSAGE,
+        3. no Market.json for this station yet -> STALE_MARKET_MESSAGE.
+        In these cases there are no rows. Otherwise the header says the station
+        and the number of commodities, the message is empty and there is one
+        row per commodity."""
         if not snapshot.is_docked:
             return cls("", NO_STATION_MESSAGE, ())
 
