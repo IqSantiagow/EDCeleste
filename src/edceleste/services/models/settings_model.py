@@ -100,6 +100,31 @@ class ChatterboxTTSProviderModel(BaseModel, validate_assignment=True):
     )
 
 
+class VoiceLabModel(BaseModel, validate_assignment=True):
+    enabled: bool = Field(
+        default=True,
+        description="Whether the voice effects are applied to the speech",
+    )
+    clarity: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="How much the high tones are boosted, for a sharp and clear voice",
+    )
+    reverb: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="How much and how long the voice rings in the ship's cabin",
+    )
+    stereo_width: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="How wide the voice sounds (0 is mono)",
+    )
+
+
 class TTSModel(BaseModel, validate_assignment=True):
     provider: Union[EdgeTTSProviderModel, ChatterboxTTSProviderModel] = Field(
         default_factory=lambda: EdgeTTSProviderModel(
@@ -112,6 +137,10 @@ class TTSModel(BaseModel, validate_assignment=True):
         ge=0.0,
         le=1.0,
         description="The volume of speech for text-to-speech",
+    )
+    voice_lab: VoiceLabModel = Field(
+        default_factory=VoiceLabModel,
+        description="The voice effects applied to the speech of every provider",
     )
 
 

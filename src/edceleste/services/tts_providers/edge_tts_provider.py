@@ -11,6 +11,7 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
 )
 from edceleste.services.tts_providers.tts_provider_protocol import TTSProviderProtocol
+from edceleste.services.voice_lab_service import VoiceLabService
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,9 @@ SYNTHESIZED_SPEECH_FILE = "output.mp3"
 
 
 class EdgeTTSProvider(TTSProviderProtocol):
-    def __init__(self, config: SettingsModel):
+    def __init__(self, config: SettingsModel, voice_lab_service: VoiceLabService):
         self.config = config
+        self.voice_lab_service = voice_lab_service
 
     @property
     def provider_settings(self) -> EdgeTTSProviderModel:
@@ -37,6 +39,9 @@ class EdgeTTSProvider(TTSProviderProtocol):
         await audio_output.save(SYNTHESIZED_SPEECH_FILE)
 
         speech_samples, sample_rate = sf.read(SYNTHESIZED_SPEECH_FILE)
+        speech_samples = self.voice_lab_service.apply_effects(
+            speech_samples, sample_rate
+        )
 
         sd.play(speech_samples * self.config.tts.volume, sample_rate)
 

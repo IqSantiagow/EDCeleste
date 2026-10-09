@@ -15,6 +15,7 @@ from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
+from edceleste.services.voice_lab_service import VoiceLabService
 from edceleste.ui.screens.app.app_header_repository import AppHeaderRepository
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.system_check.system_check_repository import (
@@ -183,10 +184,16 @@ class Container(containers.DeclarativeContainer):
         download_service=decision_model_download_service,
     )
 
+    voice_lab_service = providers.Singleton(
+        VoiceLabService,
+        settings_handler=settings_service,
+    )
+
     tts_service = providers.Singleton(
         TTSService,
         event_bus=event_bus,
         settings_handler=settings_service,
+        voice_lab_service=voice_lab_service,
     )
 
     stt_service = providers.Singleton(

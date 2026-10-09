@@ -45,6 +45,13 @@ tts:
   #   device: "auto"
   #   nano: true
   volume: 1.0
+  # Voice Lab makes Celeste sound like she speaks inside the ship, with either engine.
+  # Every slider goes from 0 to 1; 0.5 is the sound fitted to Celeste's voice clip.
+  voice_lab:
+    enabled: true
+    clarity: 0.5       # boost of the high tones: a sharp, clear voice
+    reverb: 0.5        # how much and how long the voice rings in the cabin
+    stereo_width: 0.5  # 0 is mono
 
 llm:
   provider:
