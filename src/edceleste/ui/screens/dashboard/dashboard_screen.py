@@ -48,6 +48,8 @@ class DashboardScreen(Screen):
         game_watcher_service,
         **kwargs,
     ):
+        """Only keeps the dependencies. UIApp passes them in, they are not
+        injected. game_watcher_service is kept only to stop it on unmount."""
         self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
         self.game_watcher_service = game_watcher_service
@@ -55,11 +57,19 @@ class DashboardScreen(Screen):
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
+        """1. Loads the keybinds. A missing keybinds file only logs a warning.
+        2. Starts the LLM worker (show_llm_replies_and_status).
+        3. Starts the journal worker (show_journal_entries_in_ship_log).
+        """
         self.__load_keybinds()
-        self.set_up_llm_stream_worker()
-        self.set_up_journal_stream_worker()
+        self.show_llm_replies_and_status()
+        self.show_journal_entries_in_ship_log()
 
     def compose(self) -> ComposeResult:
+        """Header on top, footer at the bottom, and in between one grid with
+        the three stats panels, both ship log panels (wide and rail), COMMS
+        and the input row. The stats panels and the input get the repository,
+        the log panels and COMMS are fed by this screen's workers."""
         yield AppHeader()
         with Grid(id="app-container", classes="screen-grid"):
             yield WidgetNavigationStats(
@@ -87,12 +97,17 @@ class DashboardScreen(Screen):
     def handle_user_command_submitted(
         self, event: WidgetCommsInput.UserCommandSubmitted
     ) -> None:
+        """WidgetCommsInput posts it when the pilot sends a command. Shows the
+        command in COMMS as the pilot's line. Sending it to the LLM is done by
+        the input widget, not here."""
         logger.debug("User command submitted: %s", event.command)
         self.query_one(
             "#comms-col", WidgetCommsCol
         ).response_state = CommsMessageViewModel.from_user_message(event.command)
 
     def __load_keybinds(self):
+        """A missing keybinds file is not fatal: it logs a warning and the
+        dashboard opens anyway. Other errors are not caught."""
         # Will be as separate method, maybe in future will be used to retry
         try:
             self.settings_repository.load_keybinds()
@@ -101,6 +116,14 @@ class DashboardScreen(Screen):
 
     @on(TabbedContent.TabActivated)
     def handle_ship_log_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Runs when a tab is picked in either ship log panel.
+
+        1. A tab with no id is ignored.
+        2. Switches every TabbedContent on the screen to the same tab, so the
+           wide and the rail panel always show the same card.
+        3. Sets the "-ship-log-expanded" class on the grid when the card is in
+           ALWAYS_EXPANDED_TABS, and removes it otherwise.
+        """
         tab_id = event.pane.id
         if not tab_id:
             return
@@ -128,11 +151,17 @@ class DashboardScreen(Screen):
         self.query_one("#app-container", Grid).toggle_class("-ship-log-expanded")
 
     def active_ship_log_tab(self) -> str:
+        """Id of the open card, read from the wide panel. Both panels always
+        show the same card (see handle_ship_log_tab_activated)."""
         return self.query_one("#ship-log-wide TabbedContent", TabbedContent).active
 
     @work
-    async def set_up_journal_stream_worker(self) -> None:
-        """The only consumer of the journal stream - feeds both log panels."""
+    async def show_journal_entries_in_ship_log(self) -> None:
+        """The only consumer of the journal stream - feeds both log panels.
+
+        Textual worker that never ends. Every journal entry is added to the
+        rail panel and to the wide panel, so the hidden one is always up to
+        date when the pilot toggles the layout."""
         async for entry in self.dashboard_repository.stream_journal_events():
             self.query_one("#ship-log-rail", WidgetShipLogPanel).add_entry(entry)
             self.query_one("#ship-log-wide", WidgetShipLogExtendedPanel).add_entry(
@@ -140,8 +169,13 @@ class DashboardScreen(Screen):
             )
 
     @work
-    async def set_up_llm_stream_worker(self) -> None:
-        """The only consumer of the LLM queue - status to input, entries to COMMS."""
+    async def show_llm_replies_and_status(self) -> None:
+        """The only consumer of the LLM queue - status to input, entries to COMMS.
+
+        Textual worker that never ends. An LLMStatus (thinking / idle) goes to
+        the input row, every other item is a COMMS message and goes to COMMS.
+        Messages typed by the pilot and replies to journal events both come
+        through here."""
         logger.debug("Starting to stream LLM items")
         async for item in self.dashboard_repository.stream_llm_responses():
             if isinstance(item, LLMStatus):
@@ -150,4 +184,6 @@ class DashboardScreen(Screen):
                 self.query_one("#comms-col", WidgetCommsCol).response_state = item
 
     def on_unmount(self) -> None:
+        """Stops the game watcher (journal and status file polling) when the
+        dashboard goes away, so no tasks keep running after the app closes."""
         self.game_watcher_service.stop_watcher_service()

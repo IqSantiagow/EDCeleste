@@ -55,6 +55,8 @@ def read_system_name(event: GameEvent) -> str:
 
     Only events that actually carry a system name fill it in. We do not
     remember the last known system - this view model is stateless.
+    FSDTarget gives the system we jump to next, not the one we are in.
+    Empty string when the event has no system.
     """
     if isinstance(event, FSDTargetEvent):
         return event.Name
@@ -62,10 +64,14 @@ def read_system_name(event: GameEvent) -> str:
 
 
 def _details_fsd_jump(event: FSDJumpEvent) -> str:
+    """Like "Arrived · 8.42 ly travelled"."""
     return f"Arrived · {event.JumpDist:.2f} ly travelled"
 
 
 def _details_start_jump(event: StartJumpEvent) -> str:
+    """Like "Hyperspace charging → Sol · class G". Without a star class the
+    " · class" part is left out. A supercruise jump only says
+    "Supercruise charging"."""
     if event.JumpType != "Hyperspace":
         return "Supercruise charging"
     if event.StarClass:
@@ -74,22 +80,28 @@ def _details_start_jump(event: StartJumpEvent) -> str:
 
 
 def _details_fsd_target(event: FSDTargetEvent) -> str:
+    """Like "Class K · 3 jumps left" - the next hop of the plotted route."""
     return f"Class {event.StarClass} · {event.RemainingJumpsInRoute} jumps left"
 
 
 def _details_docked(event: DockedEvent) -> str:
+    """Like "Jameson Memorial · Orbis"."""
     return f"{event.StationName} · {event.StationType}"
 
 
 def _details_undocked(event: UndockedEvent) -> str:
+    """Only the station name."""
     return event.StationName
 
 
 def _details_docking_granted(event: DockingGrantedEvent) -> str:
+    """Like "Jameson Memorial · pad 12"."""
     return f"{event.StationName} · pad {event.LandingPad}"
 
 
 def _details_location(event: LocationEvent) -> str:
+    """Docked at a known station -> "Docked · <station>". Near a body ->
+    "At <body>". Otherwise "In open space"."""
     if event.Docked and event.StationName:
         return f"Docked · {event.StationName}"
     if event.Body:
@@ -98,16 +110,20 @@ def _details_location(event: LocationEvent) -> str:
 
 
 def _details_supercruise_entry(event: SupercruiseEntryEvent) -> str:
+    """Always the same text, the event has nothing else worth showing."""
     return "Left normal space"
 
 
 def _details_supercruise_exit(event: SupercruiseExitEvent) -> str:
+    """Like "Dropped at <body>"."""
     return f"Dropped at {event.Body}"
 
 
 def _details_supercruise_destination_drop(
     event: SupercruiseDestinationDropEvent,
 ) -> str:
+    """Readable drop place (raw Type when there is no localised name),
+    plus " · threat 2" when the place has a threat level."""
     place = event.Type_Localised or event.Type
     if event.Threat:
         return f"{place} · threat {event.Threat}"
@@ -115,30 +131,37 @@ def _details_supercruise_destination_drop(
 
 
 def _details_approach_body(event: ApproachBodyEvent) -> str:
+    """Like "Approaching <body>"."""
     return f"Approaching {event.Body}"
 
 
 def _details_leave_body(event: LeaveBodyEvent) -> str:
+    """Like "Leaving <body>"."""
     return f"Leaving {event.Body}"
 
 
 def _details_approach_settlement(event: ApproachSettlementEvent) -> str:
+    """Only the settlement name."""
     return event.Name
 
 
 def _details_fuel_scoop(event: FuelScoopEvent) -> str:
+    """Like "+5.00 T scooped · total 32.0 T"."""
     return f"+{event.Scooped:.2f} T scooped · total {event.Total:.1f} T"
 
 
 def _details_refuel_all(event: RefuelAllEvent) -> str:
+    """Like "Topped off · 1 284 CR"."""
     return f"Topped off · {format_thousands(event.Cost)} CR"
 
 
 def _details_reservoir_replenished(event: ReservoirReplenishedEvent) -> str:
+    """Like "Main 30.5 T · reservoir 0.63 T"."""
     return f"Main {event.FuelMain:.1f} T · reservoir {event.FuelReservoir:.2f} T"
 
 
 def _details_loadout(event: LoadoutEvent) -> str:
+    """Like "<ship name> · hull 100% · jump 32.15 ly"."""
     return (
         f"{event.ShipName} · hull {event.HullHealth:.0%} · "
         f"jump {event.MaxJumpRange:.2f} ly"
@@ -146,16 +169,20 @@ def _details_loadout(event: LoadoutEvent) -> str:
 
 
 def _details_loaded_game(event: LoadedGameEvent) -> str:
+    """Like "<commander> · <ship name> · 1 284 CR"."""
     return (
         f"{event.Commander} · {event.ShipName} · {format_thousands(event.Credits)} CR"
     )
 
 
 def _details_commander(event: CommanderEvent) -> str:
+    """Like "CMDR <name>"."""
     return f"CMDR {event.Name}"
 
 
 def _details_rank(event: RankEvent) -> str:
+    """Like "Combat Harmless · Trade Broker · Explore Scout" - rank numbers
+    turned into names."""
     return (
         f"Combat {rank_name(COMBAT_RANKS, event.Combat)} · "
         f"Trade {rank_name(TRADE_RANKS, event.Trade)} · "
@@ -184,6 +211,9 @@ _PROMOTION_LADDERS = {
 
 
 def _details_promotion(event: PromotionEvent) -> str:
+    """Only the ranks the event carries, in _PROMOTION_RANK_FIELDS
+    order, e.g. "Combat rank → Expert". The three main ladders get a
+    name, the others a bare "rank 4". Empty when no rank is set."""
     promoted_texts = []
     for field_name in _PROMOTION_RANK_FIELDS:
         new_rank = getattr(event, field_name)
@@ -196,6 +226,7 @@ def _details_promotion(event: PromotionEvent) -> str:
 
 
 def _details_reputation(event: ReputationEvent) -> str:
+    """Like "Emp 12.0% · Fed 3.5% · Ind 0.0% · Ali 40.2%"."""
     return (
         f"Emp {event.Empire:.1f}% · Fed {event.Federation:.1f}% · "
         f"Ind {event.Independent:.1f}% · Ali {event.Alliance:.1f}%"
@@ -203,12 +234,15 @@ def _details_reputation(event: ReputationEvent) -> str:
 
 
 def _details_died(event: DiedEvent) -> str:
+    """Like "Destroyed by <killer>", or just "Destroyed" when the game does not
+    name the killer."""
     if event.KillerName:
         return f"Destroyed by {event.KillerName}"
     return "Destroyed"
 
 
 def _details_resurrect(event: ResurrectEvent) -> str:
+    """Like "<rebuy option> · 1 284 CR"."""
     return f"{event.Option} · {format_thousands(event.Cost)} CR"
 
 
@@ -284,6 +318,10 @@ class JournalLogViewModel:
 
     @classmethod
     def from_event(cls, event: GameEvent) -> "JournalLogViewModel":
+        """One ship log row for any journal event. The DETAILS text comes from
+        the event's _details_* builder, or is empty when the event has none.
+        The category comes from _CATEGORIES, unknown event types fall into
+        CATEGORY_OTHER. Never raises for an unknown event type."""
         build_details = _DETAILS_BUILDERS.get(type(event))
         return cls(
             timestamp=event.timestamp,

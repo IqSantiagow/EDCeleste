@@ -22,6 +22,10 @@ ALWAYS_EXPANDED_TABS = (SHIP_LOG_TAB_STATION,)
 def compose_placeholder_tab_panes(
     real_cards: dict[str, Widget] | None = None,
 ) -> ComposeResult:
+    """Yields one TabPane for every card in SHIP_LOG_PLACEHOLDER_TABS, in that
+    order. real_cards maps a tab id to the widget that card already has, e.g.
+    the station market. A tab without a real card gets a "NO DATA" label.
+    None or an empty dict means every tab is a placeholder."""
     real_cards = real_cards or {}
     for tab_title, tab_id in SHIP_LOG_PLACEHOLDER_TABS:
         content = real_cards.get(tab_id) or Label("NO DATA", classes="ship-log-no-data")

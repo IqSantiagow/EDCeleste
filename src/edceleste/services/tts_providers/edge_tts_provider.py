@@ -20,14 +20,28 @@ SYNTHESIZED_SPEECH_FILE = "output.mp3"
 
 class EdgeTTSProvider(TTSProviderProtocol):
     def __init__(self, config: SettingsModel, voice_lab_service: VoiceLabService):
+        """config is the whole SettingsModel, not only the TTS part, because
+        the volume lives in config.tts."""
         self.config = config
         self.voice_lab_service = voice_lab_service
 
     @property
     def provider_settings(self) -> EdgeTTSProviderModel:
+        """config.tts.provider narrowed to the Edge model. TTSService builds
+        this provider only when the type is "edge", so the cast is safe."""
         return self.config.tts.provider  # type: ignore[return-value]
 
-    async def synthesize(self, text: str) -> None:
+    async def synthesize_and_play(self, text: str) -> None:
+        """Speaks the text with the configured Edge voice. Goes to the
+        network.
+
+        1. Sends the text to the Microsoft Edge voice service and saves the
+           mp3 as output.mp3 in the current working folder.
+        2. Reads it back, adds the Voice Lab effects and plays it at the
+           configured volume.
+        3. Waits until the audio has played, then deletes the file.
+        Errors are raised. When playing fails, output.mp3 stays on disk.
+        """
         import sounddevice as sd
 
         logger.info(
@@ -52,6 +66,8 @@ class EdgeTTSProvider(TTSProviderProtocol):
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        """Only checks that a voice is set. Does not ask the network if the
+        voice exists."""
         if not new_settings.tts.provider.voice:  # type: ignore[union-attr]
             return SettingsIssueModel(
                 section="tts",
@@ -61,4 +77,6 @@ class EdgeTTSProvider(TTSProviderProtocol):
         return None
 
     def reload_provider(self, new_settings: SettingsModel) -> None:
+        """Edge keeps nothing loaded, so the new settings are only stored and
+        used from the next sentence on."""
         self.config = new_settings

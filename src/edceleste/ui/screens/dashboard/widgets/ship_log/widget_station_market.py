@@ -39,15 +39,21 @@ class WidgetStationMarket(Vertical):
         ],
         **kwargs,
     ) -> None:
+        """The repository comes from the DI container, because the ship log
+        panel creates this widget without arguments."""
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
+        """Empty station header, empty message label and an empty table. The
+        columns are added in on_mount(), the content in show_market()."""
         yield Label("", id=HEADER_ID)
         yield Label("", id=MESSAGE_ID, classes="ship-log-no-data")
         yield DataTable(id=TABLE_ID, cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
+        """Adds the STATION_MARKET_COLUMNS to the table and starts the worker
+        that keeps the market up to date."""
         table = self.query_one(f"#{TABLE_ID}", DataTable)
         for column_heading, column_width in STATION_MARKET_COLUMNS:
             table.add_column(column_heading, width=column_width)
@@ -55,10 +61,16 @@ class WidgetStationMarket(Vertical):
 
     @work
     async def stream_station_market(self) -> None:
+        """Textual worker that runs as long as the widget lives. Every new
+        market from the repository is drawn at once by show_market()."""
         async for market in self.ed_dashboard_repository.stream_station_market():
             self.show_market(market)
 
     def show_market(self, market: StationMarketViewModel) -> None:
+        """Puts the market header (station name, commodity count) on top. A
+        market with a message (not docked, no commodities market, old market
+        data) shows only the message and hides the table. Without a message
+        the table is shown and all its rows are replaced with the new ones."""
         self.query_one(f"#{HEADER_ID}", Label).update(market.header)
 
         message_label = self.query_one(f"#{MESSAGE_ID}", Label)

@@ -15,19 +15,23 @@ class StreamNavigationStatsUseCase:
         self.game_state_protocol = game_state_protocol
 
     async def __call__(self) -> AsyncGenerator[NavigationStatsViewModel, None]:
-        async for game_state in self.game_state_protocol.stream_game_stats():
+        """Never ends. Listens to the game stats stream and keeps only the
+        star system, body, route and the supercruise flag, shown as
+        "Supercruise" or "Normal space". The current values come at once, then
+        again after every Status.json update."""
+        async for game_stats in self.game_state_protocol.stream_game_stats():
             yield NavigationStatsViewModel(
-                system=game_state.navigation.current_star_system,
-                security=game_state.navigation.system_security_level,
-                body=game_state.navigation.current_body,
+                system=game_stats.navigation.current_star_system,
+                security=game_stats.navigation.system_security_level,
+                body=game_stats.navigation.current_body,
                 status=SUPERCRUISE_STATUS
-                if game_state.navigation.is_in_supercruise
+                if game_stats.navigation.is_in_supercruise
                 else NORMAL_SPACE_STATUS,
-                allegiance=game_state.navigation.system_allegiance,
-                government=game_state.navigation.system_government,
-                economy=game_state.navigation.system_economy,
-                second_economy=game_state.navigation.system_second_economy,
-                population=game_state.navigation.system_population,
-                route_next_system=game_state.navigation.route_next_star_system,
-                route_remaining_jumps=game_state.navigation.route_remaining_jumps,
+                allegiance=game_stats.navigation.system_allegiance,
+                government=game_stats.navigation.system_government,
+                economy=game_stats.navigation.system_economy,
+                second_economy=game_stats.navigation.system_second_economy,
+                population=game_stats.navigation.system_population,
+                route_next_system=game_stats.navigation.route_next_star_system,
+                route_remaining_jumps=game_stats.navigation.route_remaining_jumps,
             )

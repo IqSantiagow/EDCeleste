@@ -28,7 +28,7 @@ class NavigationStatsViewModel:
 
 @dataclass
 class ShipStatsViewModel:
-    hull_pe: float
+    hull_health_fraction: float
     shields_percent: float
     pips: tuple
     gear: bool

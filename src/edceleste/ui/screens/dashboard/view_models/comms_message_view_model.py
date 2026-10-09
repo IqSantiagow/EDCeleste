@@ -23,10 +23,22 @@ class CommsMessageViewModel:
 
     @classmethod
     def from_user_message(cls, message: str) -> "CommsMessageViewModel":
+        """The pilot's own line in COMMS, shown by DashboardScreen right after
+        the pilot sends it, before the LLM answers."""
         return cls(content=message, entry_type=USER_COMMAND_ENTRY)
 
     @classmethod
     def from_message_block(cls, block: LLMStreamItem) -> "CommsMessageViewModel | None":
+        """Picks the COMMS entry type for one block from the LLM stream.
+
+        - AgentText -> Celeste's reply.
+        - SystemMessage -> system line (e.g. "Game state is not set").
+        - ToolCall -> action line: the readable tool name, plus " -> <value>"
+          of the tool's main parameter when the tool has one.
+        - ToolResult with is_error -> error line.
+        - Anything else (Thinking, a good ToolResult, LLMStatus) -> None, so
+          the caller shows nothing.
+        """
         if isinstance(block, AgentText):
             return cls(content=block.content, entry_type=LLM_RESPONSE_ENTRY)
 

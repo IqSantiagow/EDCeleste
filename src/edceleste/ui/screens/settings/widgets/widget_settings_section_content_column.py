@@ -22,12 +22,18 @@ class WidgetSettingsSectionContentColumn(Vertical):
     def __init__(
         self, settings: SettingsModel, keybinds: list[Keybind], *args, **kwargs
     ):
+        """settings is the screen's working copy. The section containers change
+        it in place when the pilot edits a value. keybinds are only shown."""
         # TODO: Think about how to handle keybinds better
         super().__init__(*args, **kwargs)
         self.settings = settings
         self.keybinds = keybinds
 
     def compose(self) -> ComposeResult:
+        """One container per section inside a ContentSwitcher, keybinds shown
+        first. Each container id is "settings-<section>", the same id as its
+        item in WidgetSettingsSectionsColumn, so selecting an item switches to
+        the container with that id."""
         with ContentSwitcher(
             initial="settings-keybinds",
             id="settings-content-switcher",

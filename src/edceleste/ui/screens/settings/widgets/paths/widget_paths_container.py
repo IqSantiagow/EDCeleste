@@ -32,10 +32,15 @@ class WidgetPathsContainer(WidgetBaseSettingsContainer):
     BORDER_TITLE = "PATHS"
 
     def __init__(self, path_model: PathModel, *args, **kwargs) -> None:
+        """path_model is part of the screen's working copy of the settings and
+        is changed in place."""
         super().__init__(*args, **kwargs)
         self.path_model = path_model
 
     def compose(self) -> ComposeResult:
+        """Two click to edit text rows, the journal folder and the keybinds
+        file. Their on_submit callbacks only log, the paths are not checked.
+        The "APP SETTINGS" header has no rows under it yet."""
         yield from super().compose()
         with Vertical():
             yield WidgetSectionHeader("GAME DATA")
@@ -58,6 +63,9 @@ class WidgetPathsContainer(WidgetBaseSettingsContainer):
             yield WidgetSectionHeader("APP SETTINGS")
 
     def on_value_changed(self, message: ValueChanged) -> None:
+        """Runs when a path row posts ValueChanged. Writes the new text into
+        journal_path or keybindings_path and posts SectionSettingsChanged(PATHS)
+        to the settings screen. Nothing is saved here."""
         if message.sender_id == PathsInputWidgetIds.JOURNAL_PATH_INPUT:
             self.path_model.journal_path = message.new_value
         elif message.sender_id == PathsInputWidgetIds.KEYBINDS_PATH_INPUT:

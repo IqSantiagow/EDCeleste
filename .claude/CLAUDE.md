@@ -30,6 +30,17 @@ subagent (`.claude/agents/mutation-tester.md`) to check the changed files, then 
 for the gaps it reports. The `mutation` job in `.github/workflows/pr-pipeline.yml` runs the same
 check on the source files a PR changes and fails below `MIN_MUTATION_SCORE` (75%).
 
+Every function and method has a docstring that describes its logic: the steps, side effects
+(event bus, network, files, stored state, UI messages, audio, tokens), error handling and what
+`None` or an empty result means. Never a docstring that only repeats the name. An `__init__`
+that only stores its dependencies needs none, `__call__` of a use case carries the description.
+A name that lies or is vague gets renamed first (`process_game_state_change` that only stores →
+`remember_latest_game_state`). Before a PR, run the `blind-check` skill
+(`.claude/skills/blind-check/SKILL.md`): the `blind-signature-reader` subagent first guesses the
+changed methods from names alone (wrong guesses → rename), then from names plus docstrings what
+they return, raise and change (wrong guesses → better docstrings). It sees only stripped copies
+made by `signature_check/strip_method_bodies.py`, a hook blocks every other read.
+
 Every push to `main` runs `lint` and `test` again, and the `report` job of the same workflow turns
 the pytest results into an Allure 3 report (`allurerc.json`) and publishes it to the `gh-pages`
 branch, with the last 50 runs in `history.jsonl`: https://iqsantiagow.github.io/EDCeleste/.
@@ -78,11 +89,11 @@ Two independent, both-gitignored config sources:
 
 **Data flow:**
 ```
-ED journal files → JournalWatcherService → EventBus → Projections → GameStateService
-                                                                          ↓
-                                        UIApp (Textual TUI) ← EdDashboard ← EdDashboardRepository
-                                                                          ↓
-                                                                     LLMService
+ED journal files → GameWatcherService → EventBus → Projections → GameStateService
+                                                                       ↓
+                         UIApp (Textual TUI) ← DashboardScreen ← EdDashboardRepository
+                                                                       ↓
+                                                                  LLMService
 ```
 
 **Key layers:**
@@ -90,13 +101,13 @@ ED journal files → JournalWatcherService → EventBus → Projections → Game
 All source lives under `src/edceleste/`; the paths below are relative to that package root.
 
 - `services/event_bus.py` — simple pub/sub by event type; subscribers registered via `subscribe(EventType, callback)`
-- `services/journal_watcher_service.py` — polls latest `Journal*.log` from the ED directory, parses lines with Pydantic, publishes to `EventBus`
+- `services/game_watcher_service.py` — `GameWatcherService` follows the newest `Journal*.log` (plus `Status.json` and `Market.json`) in the ED directory, parses lines with Pydantic, publishes to `EventBus`
 - `services/models/journal_event.py` — Pydantic discriminated union (`JournalEvent`) that maps raw JSON `event` field to typed models; unknown events become `UnknownCheckedEvent`
 - `projection/` — each `Projection` (protocol in `projection/event_projections/projection.py`) processes events and returns a text snippet for the LLM; `GameStateService` orchestrates all projections
 - `protocols/game_state_protocol.py` — `GameStateProtocol` is a structural Protocol that `GameStateService` implements; the UI depends only on this protocol, not the concrete class
-- `use_cases/` — thin callable classes that bridge `GameStateReader` → `DashboardViewModel`
+- `use_cases/` — thin callable classes that depend on service protocols from `protocols/` (e.g. `GameStateProtocol`, `LLMProtocol`) and turn their data into UI view models (e.g. `ShipStatsViewModel`)
 - `containers/main_container.py` — single `dependency-injector` `DeclarativeContainer`; wires everything together; UI widgets are injected via `@inject` + `Provide[Container.*]`; every module that does this must be listed in `MODULES_USING_PROVIDE` (same file) — `tests/containers/test_wired_modules.py` fails otherwise
-- `ui/` — Textual TUI app; `UIApp` starts `JournalWatcherService` as an `asyncio` task on its own event loop on mount
+- `ui/` — Textual TUI app; `UIApp` pushes `SystemCheckScreen` on mount, which runs every service's `cold_start()`; `GameWatcherService.cold_start()` starts its own `asyncio` watcher tasks, and `DashboardScreen.on_unmount()` stops them
 - `__main__.py` — `main()`, exposed as the `edceleste` console script in `pyproject.toml`
 
 **Adding a new game event:**
@@ -108,7 +119,7 @@ All source lives under `src/edceleste/`; the paths below are relative to that pa
 
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
-- The LLM runs through `pydantic-ai`. `LLMService` builds an `Agent` in `reload_service()` and streams it with `run_stream_events`. Providers are not hand wired: `determine_provider` calls `infer_provider_class(type)(api_key=...)` and `build_model` calls `infer_model("<type>:<model>")` with that provider, so every provider `pydantic_ai` supports works from config alone. Default: `openrouter` with `anthropic/claude-haiku-4.5`. Tools are plain objects implementing `ToolProtocol` and are wrapped with `pydantic_ai.Tool` in `LLMService.build_tools()` — `pydantic_ai` derives the arguments from the `execute` signature and the description from its docstring, so a tool never hand writes a JSON schema
+- The LLM runs through `pydantic-ai`. `LLMService` builds an `Agent` in `reload_service()` and streams it with `run_stream_events`. Providers are not hand wired: `build_provider` calls `infer_provider_class(type)(api_key=...)` and `build_model` calls `infer_model("<type>:<model>")` with that provider, so every provider `pydantic_ai` supports works from config alone. Default: `openrouter` with `anthropic/claude-haiku-4.5`. Tools are plain objects implementing `ToolProtocol` and are wrapped with `pydantic_ai.Tool` in `LLMService.build_tools()` — `pydantic_ai` derives the arguments from the `execute` signature and the description from its docstring, so a tool never hand writes a JSON schema
 
 ## UI rules
 - Widgets used only within specific widgets should be kept in one file. F.e `WidgetCommsInput` is only used within the dashboard screen, so it stays in `ui/screens/dashboard/widgets/comms/widget_comms_input.py`.

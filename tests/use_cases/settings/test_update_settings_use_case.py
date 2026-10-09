@@ -62,7 +62,7 @@ class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
         )
 
     def _assert_no_service_reloaded(self):
-        self.settings_service.update_settings.assert_not_called()
+        self.settings_service.save_settings.assert_not_called()
         self.tts_service.reload_service.assert_not_called()
         self.stt_service.reload_service.assert_not_called()
         self.game_watcher_service.reload_service.assert_not_called()
@@ -78,7 +78,7 @@ class TestUpdateSettingsUseCase(unittest.IsolatedAsyncioTestCase):
 
         await self.use_case(new_settings)
 
-        self.settings_service.update_settings.assert_called_once_with(new_settings)
+        self.settings_service.save_settings.assert_called_once_with(new_settings)
         self.tts_service.reload_service.assert_called_once_with()
         self.stt_service.reload_service.assert_called_once_with()
         self.game_watcher_service.reload_service.assert_called_once_with()

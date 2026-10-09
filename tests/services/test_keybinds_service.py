@@ -69,9 +69,9 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_glob.return_value = [str(TEST_BINDS_FILE_LOCATION)]
         self.mock_getmtime.return_value = 100
 
-        self.settings_handler = Mock(spec=SettingsService)
+        self.settings_service = Mock(spec=SettingsService)
 
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             api_key="sk-ant-test"
         )
 
@@ -86,7 +86,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         return KeybindService(
             keybinds_path=KEYBINDS_PATH,
             event_bus=EventBus(),
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_service,
             game_window=self.game_window,
             key_presser=self.keyboard,
         )
@@ -174,7 +174,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        keybind = service.resolve(EdAction.TOGGLE_FLIGHT_ASSIST)
+        keybind = service.find_keybind_for_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.assertIsInstance(keybind, Keybind)
         self.assertEqual(keybind.action, EdAction.TOGGLE_FLIGHT_ASSIST)
@@ -187,7 +187,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service.load_keybinds()
 
         for action in EdAction:
-            self.assertIsInstance(service.resolve(action), Keybind)
+            self.assertIsInstance(service.find_keybind_for_action(action), Keybind)
 
     def test_load_raises_missing_keybinds_error_when_action_absent(self):
         root = etree.fromstring(
@@ -216,7 +216,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        keybind = service.resolve(EdAction.LANDING_GEAR_TOGGLE)
+        keybind = service.find_keybind_for_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(keybind.key, "L")
         self.assertEqual(keybind.modifiers, ["LeftShift"])
@@ -225,7 +225,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        keybind = service.resolve(EdAction.NIGHT_VISION_TOGGLE)
+        keybind = service.find_keybind_for_action(EdAction.NIGHT_VISION_TOGGLE)
 
         self.assertEqual(keybind.key, "L")
         self.assertEqual(keybind.modifiers, ["LeftControl", "LeftShift"])
@@ -234,7 +234,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self._make_service()
         service.load_keybinds()
 
-        keybind = service.resolve(EdAction.TOGGLE_FLIGHT_ASSIST)
+        keybind = service.find_keybind_for_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.assertEqual(keybind.key, "Z")
         self.assertEqual(keybind.modifiers, [])
@@ -249,7 +249,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             b"</LandingGearToggle>"
         )
 
-        keybind = service.resolve(EdAction.LANDING_GEAR_TOGGLE)
+        keybind = service.find_keybind_for_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(keybind.key, "G")
         self.assertEqual(keybind.modifiers, ["LeftAlt"])
@@ -258,7 +258,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         # Loading must not fail: the action is in the file, just not on the keyboard
         service = self._load_service_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
 
-        self.assertIsNone(service.resolve(EdAction.USE_SHIELD_CELL).key)
+        self.assertIsNone(service.find_keybind_for_action(EdAction.USE_SHIELD_CELL).key)
         self.assertFalse(service.is_bound(EdAction.USE_SHIELD_CELL))
 
     def test_should_mark_action_unbound_when_keyboard_key_needs_joystick_modifier(
@@ -328,30 +328,32 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service._normalize_key("Z"), "z")
         self.assertEqual(service._normalize_key("Home"), "home")
 
-    async def test_perform_action_presses_normalized_key_for_resolved_action(self):
+    async def test_press_keys_for_action_presses_normalized_key_for_resolved_action(
+        self,
+    ):
         service = self._make_service()
         service.load_keybinds()
 
-        await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+        await service.press_keys_for_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.keyboard.press.assert_called_once_with("z")
 
-    async def test_perform_action_holds_modifier_while_pressing_key(self):
+    async def test_press_keys_for_action_holds_modifier_while_pressing_key(self):
         service = self._make_service()
         service.load_keybinds()
 
-        await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+        await service.press_keys_for_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(
             self.keyboard.mock_calls,
             [call.keyDown("shiftleft"), call.press("l"), call.keyUp("shiftleft")],
         )
 
-    async def test_perform_action_releases_two_modifiers_in_reverse_order(self):
+    async def test_press_keys_for_action_releases_two_modifiers_in_reverse_order(self):
         service = self._make_service()
         service.load_keybinds()
 
-        await service.perform_action(EdAction.NIGHT_VISION_TOGGLE)
+        await service.press_keys_for_action(EdAction.NIGHT_VISION_TOGGLE)
 
         self.assertEqual(
             self.keyboard.mock_calls,
@@ -364,27 +366,29 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_perform_action_releases_modifier_when_key_press_fails(self):
+    async def test_press_keys_for_action_releases_modifier_when_key_press_fails(self):
         service = self._make_service()
         service.load_keybinds()
 
         self.keyboard.press.side_effect = RuntimeError("press failed")
         with self.assertRaises(RuntimeError):
-            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+            await service.press_keys_for_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.keyboard.keyUp.assert_called_once_with("shiftleft")
 
-    async def test_perform_action_presses_nothing_when_action_is_unbound(self):
+    async def test_press_keys_for_action_presses_nothing_when_action_is_unbound(self):
         service = self._load_service_with(SHIELD_CELL_ONLY_ON_JOYSTICK)
 
-        await service.perform_action(EdAction.USE_SHIELD_CELL)
+        await service.press_keys_for_action(EdAction.USE_SHIELD_CELL)
 
         self.assertEqual(self.keyboard.mock_calls, [])
         self.game_window.bring_to_front.assert_not_awaited()
 
     # --- game window: keys go to the game, never to the terminal ---
 
-    async def test_perform_action_brings_game_window_to_front_before_pressing(self):
+    async def test_press_keys_for_action_brings_game_window_to_front_before_pressing(
+        self,
+    ):
         service = self._make_service()
         service.load_keybinds()
         steps = []
@@ -393,26 +397,28 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.keyboard.press.side_effect = lambda key: steps.append(f"press {key}")
-        await service.perform_action(EdAction.TOGGLE_FLIGHT_ASSIST)
+        await service.press_keys_for_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.assertEqual(steps, ["bring game to front", "press z"])
 
-    async def test_perform_action_presses_nothing_when_game_window_not_found(self):
+    async def test_press_keys_for_action_presses_nothing_when_game_window_not_found(
+        self,
+    ):
         service = self._make_service()
         service.load_keybinds()
         self.game_window.bring_to_front.return_value = False
 
         with self.assertRaises(GameWindowNotFoundException):
-            await service.perform_action(EdAction.LANDING_GEAR_TOGGLE)
+            await service.press_keys_for_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(self.keyboard.mock_calls, [])
 
-    async def test_event_bus_publish_of_ed_action_triggers_perform_action(self):
+    async def test_event_bus_publish_of_ed_action_triggers_press_keys_for_action(self):
         event_bus = EventBus()
         service = KeybindService(
             keybinds_path=KEYBINDS_PATH,
             event_bus=event_bus,
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_service,
             game_window=self.game_window,
             key_presser=self.keyboard,
         )
@@ -426,7 +432,7 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
         service = KeybindService(
             keybinds_path=KEYBINDS_PATH,
             event_bus=EventBus(),
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_service,
             game_window=self.game_window,
         )
 
@@ -473,10 +479,10 @@ class KeybindServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(issue)
 
-    def test_reload_service_reloads_keybinds_from_settings_handler(self):
+    def test_reload_service_reloads_keybinds_from_settings_service(self):
         service = self._make_service()
         new_settings = _make_settings(api_key="sk-ant-new")
-        self.settings_handler.get_settings.return_value = new_settings
+        self.settings_service.get_settings.return_value = new_settings
 
         service.reload_service()
 

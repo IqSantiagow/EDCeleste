@@ -18,7 +18,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         # pydantic_ai validates the arguments against the signature, so the tool
         # is called with a real EdAction instead of a raw dict.
         self.keybind_service = Mock(spec=KeybindService)
-        self.keybind_service.perform_action = AsyncMock()
+        self.keybind_service.press_keys_for_action = AsyncMock()
         self.keybind_service.is_bound.return_value = True
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = Mock(
@@ -30,10 +30,10 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
             settings_service=self.settings_service,
         )
 
-    async def test_should_perform_action_for_known_action_value(self):
+    async def test_should_press_keys_for_known_action_value(self):
         result = await self.tool.execute(EdAction.TOGGLE_FLIGHT_ASSIST)
 
-        self.keybind_service.perform_action.assert_awaited_once_with(
+        self.keybind_service.press_keys_for_action.assert_awaited_once_with(
             EdAction.TOGGLE_FLIGHT_ASSIST
         )
         self.assertFalse(result.metadata["is_error"])
@@ -50,7 +50,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
 
         result = await self.tool.execute(EdAction.TOGGLE_FLIGHT_ASSIST)
 
-        self.keybind_service.perform_action.assert_not_awaited()
+        self.keybind_service.press_keys_for_action.assert_not_awaited()
         self.assertTrue(result.metadata["is_error"])
         self.assertEqual(
             result.return_value,
@@ -63,7 +63,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         result = await self.tool.execute(EdAction.USE_SHIELD_CELL)
 
         self.keybind_service.is_bound.assert_called_once_with(EdAction.USE_SHIELD_CELL)
-        self.keybind_service.perform_action.assert_not_awaited()
+        self.keybind_service.press_keys_for_action.assert_not_awaited()
         self.assertTrue(result.metadata["is_error"])
         self.assertEqual(
             result.return_value,
@@ -71,7 +71,9 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_return_error_when_game_window_not_found(self):
-        self.keybind_service.perform_action.side_effect = GameWindowNotFoundException()
+        self.keybind_service.press_keys_for_action.side_effect = (
+            GameWindowNotFoundException()
+        )
 
         result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
 

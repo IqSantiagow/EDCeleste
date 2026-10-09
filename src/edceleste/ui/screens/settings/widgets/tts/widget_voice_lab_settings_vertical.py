@@ -25,10 +25,15 @@ class VoiceLabInputWidgetIds(enum.StrEnum):
 
 class WidgetVoiceLabSettingsVertical(Vertical):
     def __init__(self, voice_lab: VoiceLabModel, *args, **kwargs) -> None:
+        """Only reads voice_lab. The changes go up as ValueChanged and
+        WidgetTTSContainer writes them."""
         super().__init__(*args, **kwargs)
         self.voice_lab = voice_lab
 
     def compose(self) -> ComposeResult:
+        """The on/off switch and three 0.0-1.0 sliders (clarity, reverb, stereo
+        width). The sliders get the "voice-lab-slider" class, so show_sliders()
+        can find them."""
         yield WidgetSectionHeader("VOICE LAB")
         yield WidgetLabeledSwitchRow(
             "Voice effects:",
@@ -56,12 +61,17 @@ class WidgetVoiceLabSettingsVertical(Vertical):
             )
 
     def on_mount(self) -> None:
+        """Hides the sliders at the start when the effects are off."""
         self.show_sliders(self.voice_lab.enabled)
 
     def on_value_changed(self, message: ValueChanged) -> None:
+        """Shows or hides the sliders when the switch flips. It does not stop
+        the message, WidgetTTSContainer still gets it and writes the
+        values."""
         if message.sender_id == VoiceLabInputWidgetIds.VOICE_LAB_ENABLED_INPUT:
             self.show_sliders(message.new_value)
 
     def show_sliders(self, visible: bool) -> None:
+        """Hidden sliders keep their values, they are only not displayed."""
         for slider_row in self.query(".voice-lab-slider"):
             slider_row.display = visible

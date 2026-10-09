@@ -217,21 +217,21 @@ class InstinctServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_download_size_is_none_when_the_hub_cannot_be_reached(self):
         download_service = FakeDownloadService()
-        download_service.get_download_size = Mock(side_effect=OSError("offline"))
+        download_service.fetch_download_size = Mock(side_effect=OSError("offline"))
         service = self.make_service(enabled=True, download_service=download_service)
 
-        self.assertIsNone(service.get_download_size())
+        self.assertIsNone(service.fetch_download_size())
 
     async def test_download_size_is_asked_from_the_hub_only_once(self):
         download_service = FakeDownloadService()
-        download_service.get_download_size = Mock(return_value=MODEL_BYTES)
+        download_service.fetch_download_size = Mock(return_value=MODEL_BYTES)
         service = self.make_service(enabled=True, download_service=download_service)
 
-        service.get_download_size()
-        size = service.get_download_size()
+        service.fetch_download_size()
+        size = service.fetch_download_size()
 
         self.assertEqual(size, MODEL_BYTES)
-        download_service.get_download_size.assert_called_once_with()
+        download_service.fetch_download_size.assert_called_once_with()
 
 
 class InstinctColdStartTest(unittest.IsolatedAsyncioTestCase):
@@ -361,11 +361,13 @@ class InstinctModelLoadingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.service.running_device(), "cuda")
 
     def test_warm_up_asks_one_question_so_the_first_command_is_fast(self):
-        self.service.ask = MagicMock(return_value={"warm_up": {"noul": 0.9}})
+        self.service.ask_decision_model = MagicMock(
+            return_value={"warm_up": {"noul": 0.9}}
+        )
 
         self.service.warm_up()
 
-        self.service.ask.assert_called_once()
+        self.service.ask_decision_model.assert_called_once()
 
     def test_unload_model_frees_the_model(self):
         self.service.decider = MagicMock()

@@ -58,10 +58,10 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_stream = MagicMock()
         self.mock_input_stream_cls.return_value = self.mock_stream
 
-        self.settings_handler = Mock(spec=SettingsService)
-        self.settings_handler.get_settings.return_value = _make_settings(model=MODEL)
+        self.settings_service = Mock(spec=SettingsService)
+        self.settings_service.get_settings.return_value = _make_settings(model=MODEL)
 
-        self.service = SttService(settings_handler=self.settings_handler)
+        self.service = SttService(settings_service=self.settings_service)
         # SttService no longer loads its settings in __init__ - that now
         # happens in reload_service(), driven by the cold-start flow. Call it
         # here so self.model/self.enabled reflect the settings above before
@@ -97,93 +97,95 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.service._recorded_frames, [])
 
-    # --- stop_recording ---
+    # --- stop_recording_and_transcribe ---
 
-    def test_stop_recording_raises_when_no_recording_in_progress(self):
+    def test_stop_recording_and_transcribe_raises_when_no_recording_in_progress(self):
         with self.assertRaises(SttException):
-            self.service.stop_recording()
+            self.service.stop_recording_and_transcribe()
 
-    def test_stop_recording_stops_and_closes_stream(self):
+    def test_stop_recording_and_transcribe_stops_and_closes_stream(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
 
         self.mock_stream.stop.assert_called_once()
         self.mock_stream.close.assert_called_once()
 
-    def test_stop_recording_clears_stream_reference(self):
+    def test_stop_recording_and_transcribe_clears_stream_reference(self):
         self.service.start_recording()
 
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
 
         self.assertIsNone(self.service._recording_stream)
 
-    def test_stop_recording_returns_none_when_no_frames_captured(self):
+    def test_stop_recording_and_transcribe_returns_none_when_no_frames_captured(self):
         self.service.start_recording()
         # _recorded_frames already empty after start_recording
 
-        result = self.service.stop_recording()
+        result = self.service.stop_recording_and_transcribe()
 
         self.assertIsNone(result)
         self.mock_whisper_model.transcribe.assert_not_called()
 
-    def test_stop_recording_raises_when_model_not_set(self):
+    def test_stop_recording_and_transcribe_raises_when_model_not_set(self):
         self.service.model = None
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
         with self.assertRaises(SttException):
-            self.service.stop_recording()
+            self.service.stop_recording_and_transcribe()
 
         self.mock_whisper_model.transcribe.assert_not_called()
 
-    def test_stop_recording_returns_transcribed_text(self):
+    def test_stop_recording_and_transcribe_returns_transcribed_text(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-        result = self.service.stop_recording()
+        result = self.service.stop_recording_and_transcribe()
 
         self.assertEqual(result, "Turn on the engines")
         self.mock_whisper_model.transcribe.assert_called_once()
 
-    def test_stop_recording_prompts_whisper_with_game_vocabulary(self):
+    def test_stop_recording_and_transcribe_prompts_whisper_with_game_vocabulary(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
 
         transcribe_arguments = self.mock_whisper_model.transcribe.call_args.kwargs
         self.assertEqual(transcribe_arguments["initial_prompt"], GAME_VOCABULARY_PROMPT)
 
-    def test_stop_recording_returns_none_when_transcription_empty(self):
+    def test_stop_recording_and_transcribe_returns_none_when_transcription_empty(self):
         self.mock_whisper_model.transcribe.return_value = {"text": ""}
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-        result = self.service.stop_recording()
+        result = self.service.stop_recording_and_transcribe()
 
         self.assertIsNone(result)
 
-    def test_stop_recording_loads_whisper_model_lazily_on_first_call(self):
+    def test_stop_recording_and_transcribe_loads_whisper_model_lazily_on_first_call(
+        self,
+    ):
         self.mock_load_model.assert_not_called()  # not loaded during __init__
 
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
 
         self.mock_load_model.assert_called_once_with(MODEL)
 
-    def test_stop_recording_caches_whisper_model_across_calls(self):
+    def test_stop_recording_and_transcribe_caches_whisper_model_across_calls(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
         self.mock_load_model.reset_mock()
 
         self.mock_input_stream_cls.return_value = MagicMock()
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
 
         self.mock_load_model.assert_not_called()
 
@@ -223,17 +225,17 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
     # --- reload_service ---
 
-    def test_reload_service_updates_model_from_settings_handler(self):
+    def test_reload_service_updates_model_from_settings_service(self):
         new_settings = _make_settings(model="base.en")
-        self.settings_handler.get_settings.return_value = new_settings
+        self.settings_service.get_settings.return_value = new_settings
 
         self.service.reload_service()
 
         self.assertEqual(self.service.model, "base.en")
 
-    def test_reload_service_updates_enabled_from_settings_handler(self):
+    def test_reload_service_updates_enabled_from_settings_service(self):
         new_settings = _make_settings(model=MODEL, enabled=False)
-        self.settings_handler.get_settings.return_value = new_settings
+        self.settings_service.get_settings.return_value = new_settings
 
         self.service.reload_service()
 
@@ -242,10 +244,10 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_reload_service_invalidates_cache_when_model_changes(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
         self.assertIsNotNone(self.service.whisper_model)
 
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             model="base.en"
         )
         self.service.reload_service()
@@ -255,10 +257,10 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_reload_service_invalidates_cache_when_enabled_changes(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
         self.assertIsNotNone(self.service.whisper_model)
 
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             model=MODEL, enabled=False
         )
         self.service.reload_service()
@@ -268,7 +270,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_reload_service_keeps_cache_when_settings_unchanged(self):
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
-        self.service.stop_recording()
+        self.service.stop_recording_and_transcribe()
         cached = self.service.whisper_model
 
         self.service.reload_service()  # same settings
@@ -276,7 +278,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.service.whisper_model, cached)
 
     def test_reload_service_does_not_load_model_eagerly(self):
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             model="base.en"
         )
         self.mock_load_model.reset_mock()
@@ -287,7 +289,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.service.whisper_model)
 
     def test_reload_service_sets_whisper_model_none_when_model_absent(self):
-        self.settings_handler.get_settings.return_value = _make_settings(model="")
+        self.settings_service.get_settings.return_value = _make_settings(model="")
         self.mock_load_model.reset_mock()
 
         self.service.reload_service()
@@ -320,7 +322,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_load_model.assert_called_once_with(MODEL)
 
     async def test_cold_start_skips_model_load_when_stt_disabled(self):
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             model=MODEL, enabled=False
         )
         self.mock_load_model.reset_mock()
@@ -333,7 +335,7 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_load_model.assert_not_called()
 
     async def test_cold_start_yields_error_message_when_model_load_fails(self):
-        self.settings_handler.get_settings.return_value = _make_settings(model="")
+        self.settings_service.get_settings.return_value = _make_settings(model="")
 
         statuses = [status async for status in self.service.cold_start()]
 

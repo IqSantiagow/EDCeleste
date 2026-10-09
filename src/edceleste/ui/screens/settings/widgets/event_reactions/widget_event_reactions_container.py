@@ -123,10 +123,15 @@ class WidgetEventReactionsContainer(WidgetBaseSettingsContainer):
     BORDER_TITLE = "EVENT REACTIONS"
 
     def __init__(self, settings_model: SettingsModel, *args, **kwargs) -> None:
+        """Takes the whole settings model, not only event_reactions, but reads
+        and changes only settings_model.event_reactions, in place."""
         super().__init__(*args, **kwargs)
         self.settings_model = settings_model
 
     def compose(self) -> ComposeResult:
+        """One switch per journal event, grouped under six headers (critical,
+        navigation, docking, fuel, progression, session). The row label is the
+        journal event name, e.g. "FSDJump"."""
         yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("CRITICAL")
@@ -179,6 +184,13 @@ class WidgetEventReactionsContainer(WidgetBaseSettingsContainer):
                 )
 
     def on_value_changed(self, message: ValueChanged) -> None:
+        """Runs when a switch posts ValueChanged.
+        1. Turns the row id back into the journal event type. An unknown id is
+           logged and ignored.
+        2. Sets reactions[<event name>] to the new on/off.
+        3. Posts SectionSettingsChanged(EVENT_REACTIONS) to the settings
+           screen. Nothing is saved here.
+        """
         try:
             event_input_widget_id = EventReactionsInputWidgetIds(message.sender_id)
         except ValueError:

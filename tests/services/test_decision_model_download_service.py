@@ -69,7 +69,7 @@ class DecisionModelDownloadServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_download_size_is_the_sum_of_files_on_hub(self):
         self.assertEqual(
-            self.service.get_download_size(),
+            self.service.fetch_download_size(),
             sum(len(content) for content in FILES_ON_HUB.values()),
         )
 

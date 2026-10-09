@@ -1,7 +1,9 @@
 import unittest
 
 from edceleste.services.models.settings_model import LLMProviderModel
-from edceleste.use_cases.settings.get_llm_models_use_case import GetLlmModelsUseCase
+from edceleste.use_cases.settings.fetch_llm_model_names_use_case import (
+    FetchLlmModelNamesUseCase,
+)
 
 
 class FakeLlmProtocol:
@@ -21,18 +23,18 @@ class FakeLlmProtocol:
     def reload_service(self) -> None:
         raise NotImplementedError
 
-    async def get_models(self, provider=None) -> list[str]:
+    async def fetch_available_model_names(self, provider=None) -> list[str]:
         self.asked_for_provider = provider
         return self._models
 
 
-class TestGetLlmModelsUseCase(unittest.IsolatedAsyncioTestCase):
+class TestFetchLlmModelNamesUseCase(unittest.IsolatedAsyncioTestCase):
     async def test_should_pass_the_edited_provider_through_and_return_models(self):
         # The pilot may still be editing the provider, so the not yet saved one
         # has to reach the service - otherwise the list belongs to the old one.
         models = ["anthropic/claude-haiku-4.5", "openai/gpt-4o"]
         fake_llm_protocol = FakeLlmProtocol(models)
-        use_case = GetLlmModelsUseCase(fake_llm_protocol)  # type: ignore
+        use_case = FetchLlmModelNamesUseCase(fake_llm_protocol)  # type: ignore
         provider = LLMProviderModel(type="openai", model="gpt-4o", api_key="key")
 
         result = await use_case(provider)
@@ -41,7 +43,7 @@ class TestGetLlmModelsUseCase(unittest.IsolatedAsyncioTestCase):
         self.assertIs(fake_llm_protocol.asked_for_provider, provider)
 
     async def test_should_return_empty_list_when_no_models_available(self):
-        use_case = GetLlmModelsUseCase(FakeLlmProtocol([]))  # type: ignore
+        use_case = FetchLlmModelNamesUseCase(FakeLlmProtocol([]))  # type: ignore
 
         result = await use_case()
 

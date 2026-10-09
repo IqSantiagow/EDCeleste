@@ -18,12 +18,17 @@ class SettingsService:
         config_path: Path = Path("config.yaml"),
         example_config_path: Path = Path("config-example.yaml"),
     ) -> None:
+        """Does not read any file. The settings stay None until load_settings()
+        runs. The container calls it right away, before any other service is
+        built."""
         # Tests point these at a temp folder, so the real config.yaml stays untouched
         self.config_path = config_path
         self.example_config_path = example_config_path
         self.settings: SettingsModel | None = None
 
     def get_settings(self) -> SettingsModel:
+        """Gives the settings kept in memory, it does not read the file again.
+        Raises RuntimeError when load_settings() has not run yet or failed."""
         if not self.settings:
             raise RuntimeError(
                 "Settings have not been loaded yet. "
@@ -32,7 +37,17 @@ class SettingsService:
 
         return self.settings
 
-    def update_settings(self, settings: SettingsModel) -> None:
+    def save_settings(self, settings: SettingsModel) -> None:
+        """Writes the settings to config.yaml and then keeps them in memory, so
+        get_settings() gives the new ones right away.
+
+        1. When config.yaml is missing, copies config-example.yaml to it first.
+           Raises RuntimeError when the copy did not appear.
+        2. Overwrites the whole config.yaml with the new settings as YAML.
+           Comments in the file are lost.
+        3. Replaces the settings in memory.
+        It does not reload the other services, the caller does that.
+        """
         if not self.config_path.exists():
             logger.warning(
                 "No config.yaml file found while updating settings. "
@@ -50,6 +65,16 @@ class SettingsService:
         self.settings = settings
 
     def load_settings(self) -> None:
+        """Reads config.yaml from disk into memory.
+
+        1. When config.yaml is missing, copies config-example.yaml to it and
+           raises FileNotFoundError asking the pilot to edit it and restart.
+           RuntimeError when even the copy did not appear.
+        2. Reads the YAML and validates it as SettingsModel.
+        3. A file that does not match the model raises RuntimeError and the old
+           settings in memory stay as they were. A broken YAML file raises the
+           yaml error as it is.
+        """
         if not self.config_path.exists():
             shutil.copyfile(self.example_config_path, self.config_path)
 
@@ -73,6 +98,15 @@ class SettingsService:
             raise RuntimeError("Failed to load settings from config.yaml.") from e
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        """Startup check shown in the system check screen.
+
+        1. Yields a "not completed" status, so the UI shows a spinner.
+        2. Reads config.yaml again (load_settings).
+        3. Yields the status again with completed=True, and the error text in
+           message when reading failed.
+        Never raises. It is critical: when it fails the system check stops and
+        the dashboard does not open.
+        """
         status = ColdStartStatus(
             service="settings",
             message=None,

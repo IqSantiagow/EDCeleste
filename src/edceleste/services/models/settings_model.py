@@ -265,6 +265,14 @@ class EventReactionModel(BaseModel):
         cls,
         events: dict[str, Any],
     ) -> dict[str, Any]:
+        """Makes old or hand edited config.yaml files work, instead of failing.
+
+        1. Drops event names that are not in KNOWN_EVENTS, with a warning.
+        2. Adds every known event that is missing, switched off (False).
+        3. Raises ValueError if the result still does not hold exactly the
+           known events.
+        So after loading, reactions always has one entry per known event.
+        """
         if not isinstance(events, dict):
             raise ValueError("Event reaction settings must be a dictionary")
         for event in list(events):

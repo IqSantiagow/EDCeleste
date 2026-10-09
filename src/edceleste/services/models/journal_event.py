@@ -71,6 +71,10 @@ KNOWN_EVENTS: frozenset[JournalEventType] = frozenset(
 
 
 def event_discriminator(raw: dict) -> JournalEventType:
+    """Tells pydantic which model of the JournalEvent union to parse a raw
+    journal line into, by its "event" field. A missing or unknown event name
+    gives JournalEventType.Unknown, so the line becomes UnknownCheckedEvent
+    instead of a validation error."""
     event_name = raw.get("event", "")
     try:
         return JournalEventType(event_name)

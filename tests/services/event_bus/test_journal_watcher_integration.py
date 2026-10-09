@@ -29,12 +29,12 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         # files happen to exist under JOURNAL_PATH.
         watch_status_file_patcher = patch.object(
             GameWatcherService,
-            "watch_status_file_and_generate_event",
+            "watch_status_file_and_publish_event",
             new=AsyncMock(),
         )
         watch_market_file_patcher = patch.object(
             GameWatcherService,
-            "watch_market_file_and_generate_event",
+            "watch_market_file_and_publish_event",
             new=AsyncMock(),
         )
 
@@ -86,7 +86,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
             watcher = GameWatcherService(
                 journal_path=JOURNAL_PATH,
                 event_bus=mock_event_bus,
-                settings_handler=Mock(),
+                settings_service=Mock(),
             )
 
             await self._run_watcher_task(watcher)
@@ -102,7 +102,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         mock_event_bus = _make_mock_event_bus()
 
         watcher = GameWatcherService(
-            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
+            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_service=Mock()
         )
 
         def readline_side_effect():
@@ -131,7 +131,7 @@ class JournalWatcherEventBusTest(unittest.IsolatedAsyncioTestCase):
         mock_event_bus = _make_mock_event_bus()
 
         watcher = GameWatcherService(
-            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_handler=Mock()
+            journal_path=JOURNAL_PATH, event_bus=mock_event_bus, settings_service=Mock()
         )
 
         def readline_side_effect():

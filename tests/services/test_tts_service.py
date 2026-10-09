@@ -50,16 +50,16 @@ async def _cloning_states():
 
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.settings_handler = Mock(spec=SettingsService)
+        self.settings_service = Mock(spec=SettingsService)
 
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             api_key="sk-ant-test"
         )
 
         self.voice_lab_service = Mock(spec=VoiceLabService)
         self.service = TTSService(
             event_bus=EventBus(),
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_service,
             voice_lab_service=self.voice_lab_service,
         )
         # TTSService no longer builds its provider in __init__ - that now
@@ -67,25 +67,27 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         # here so self.service.provider is wired in before each test runs.
         self.service.reload_service()
 
-    async def test_event_bus_publish_of_tts_event_triggers_synthesize(self):
+    async def test_event_bus_publish_of_tts_event_triggers_synthesize_and_play(self):
         event_bus = EventBus()
         service = TTSService(
             event_bus=event_bus,
-            settings_handler=self.settings_handler,
+            settings_service=self.settings_service,
             voice_lab_service=self.voice_lab_service,
         )
-        service.synthesize = AsyncMock()
+        service.synthesize_and_play = AsyncMock()
 
         await event_bus.publish(TTSEvent("Hello Commander"))
 
-        service.synthesize.assert_called_once_with("Hello Commander")
+        service.synthesize_and_play.assert_called_once_with("Hello Commander")
 
-    async def test_handle_tts_request_calls_synthesize_with_event_text(self):
-        self.service.synthesize = AsyncMock()
+    async def test_speak_text_from_tts_event_calls_synthesize_and_play_with_event_text(
+        self,
+    ):
+        self.service.synthesize_and_play = AsyncMock()
 
-        await self.service.handle_tts_request(TTSEvent("Fuel level low"))
+        await self.service.speak_text_from_tts_event(TTSEvent("Fuel level low"))
 
-        self.service.synthesize.assert_called_once_with("Fuel level low")
+        self.service.synthesize_and_play.assert_called_once_with("Fuel level low")
 
     def test_edge_provider_is_built_for_the_edge_provider_type(self):
         self.assertIsInstance(self.service.provider, EdgeTTSProvider)
@@ -94,7 +96,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.service.provider.voice_lab_service, self.voice_lab_service)
 
     def test_chatterbox_provider_is_built_for_the_chatterbox_provider_type(self):
-        self.settings_handler.get_settings.return_value = _make_settings(
+        self.settings_service.get_settings.return_value = _make_settings(
             api_key="sk-ant-test", provider=_make_chatterbox_provider()
         )
 
@@ -102,22 +104,24 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(self.service.provider, ChatterboxTTSProvider)
 
-    async def test_synthesize_delegates_to_the_active_provider(self):
+    async def test_synthesize_and_play_delegates_to_the_active_provider(self):
         self.service.provider = Mock()
-        self.service.provider.synthesize = AsyncMock()
+        self.service.provider.synthesize_and_play = AsyncMock()
 
-        await self.service.synthesize("Hello Commander")
+        await self.service.synthesize_and_play("Hello Commander")
 
-        self.service.provider.synthesize.assert_awaited_once_with("Hello Commander")
+        self.service.provider.synthesize_and_play.assert_awaited_once_with(
+            "Hello Commander"
+        )
 
-    async def test_synthesize_propagates_error_raised_by_the_provider(self):
+    async def test_synthesize_and_play_propagates_error_raised_by_the_provider(self):
         self.service.provider = Mock()
-        self.service.provider.synthesize = AsyncMock(
+        self.service.provider.synthesize_and_play = AsyncMock(
             side_effect=RuntimeError("network down")
         )
 
         with self.assertRaises(RuntimeError):
-            await self.service.synthesize("Hello Commander")
+            await self.service.synthesize_and_play("Hello Commander")
 
     def test_validate_settings_reports_issue_when_edge_voice_missing(self):
         new_settings = _make_settings(api_key="sk-ant-test")
@@ -146,10 +150,10 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(issue)
         self.assertEqual(issue.field, "profile")
 
-    def test_reload_service_rebuilds_provider_from_settings_handler(self):
+    def test_reload_service_rebuilds_provider_from_settings_service(self):
         new_settings = _make_settings(api_key="sk-ant-test")
         new_settings.tts.provider.voice = "en-US-GuyNeural"
-        self.settings_handler.get_settings.return_value = new_settings
+        self.settings_service.get_settings.return_value = new_settings
 
         self.service.reload_service()
 
@@ -193,7 +197,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "provider down")
 
-    async def test_get_tts_voices_returns_short_names_from_edge_tts_list_voices(self):
+    async def test_fetch_edge_tts_voice_names_returns_short_names_from_list_voices(
+        self,
+    ):
         available_voices = [
             {"ShortName": "en-US-AriaNeural", "Locale": "en-US"},
             {"ShortName": "en-GB-SoniaNeural", "Locale": "en-GB"},
@@ -202,20 +208,22 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             "edceleste.services.tts_service.edge_tts.list_voices",
             new=AsyncMock(return_value=available_voices),
         ):
-            result = await self.service.get_tts_voices()
+            result = await self.service.fetch_edge_tts_voice_names()
 
         self.assertEqual(result, ["en-US-AriaNeural", "en-GB-SoniaNeural"])
 
-    async def test_get_tts_voices_returns_empty_list_when_no_voices_available(self):
+    async def test_fetch_edge_tts_voice_names_returns_empty_list_when_no_voices(
+        self,
+    ):
         with patch(
             "edceleste.services.tts_service.edge_tts.list_voices",
             new=AsyncMock(return_value=[]),
         ):
-            result = await self.service.get_tts_voices()
+            result = await self.service.fetch_edge_tts_voice_names()
 
         self.assertEqual(result, [])
 
-    async def test_get_tts_voices_propagates_error_when_edge_tts_list_voices_fails(
+    async def test_fetch_edge_tts_voice_names_propagates_error_when_list_voices_fails(
         self,
     ):
         with patch(
@@ -223,7 +231,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             new=AsyncMock(side_effect=RuntimeError("network down")),
         ):
             with self.assertRaises(RuntimeError):
-                await self.service.get_tts_voices()
+                await self.service.fetch_edge_tts_voice_names()
 
     async def test_clone_voice_delegates_to_the_chatterbox_provider(self):
         self.service.provider = Mock(spec=ChatterboxTTSProvider)

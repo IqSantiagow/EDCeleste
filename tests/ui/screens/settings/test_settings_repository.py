@@ -37,8 +37,8 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         update_settings_use_case=None,
         get_settings_use_case=None,
         get_tts_voices_use_case=None,
-        get_llm_models_use_case=None,
-        test_llm_connection_use_case=None,
+        fetch_llm_model_names_use_case=None,
+        find_llm_connection_error_use_case=None,
         get_instinct_status_use_case=None,
         get_instinct_download_size_use_case=None,
         download_instinct_model_use_case=None,
@@ -61,8 +61,9 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             update_settings_use_case=update_settings_use_case or Mock(),
             get_settings_use_case=get_settings_use_case or Mock(),
             get_tts_voices_use_case=get_tts_voices_use_case or Mock(),
-            get_llm_models_use_case=get_llm_models_use_case or Mock(),
-            test_llm_connection_use_case=test_llm_connection_use_case or AsyncMock(),
+            fetch_llm_model_names_use_case=fetch_llm_model_names_use_case or Mock(),
+            find_llm_connection_error_use_case=find_llm_connection_error_use_case
+            or AsyncMock(),
             get_instinct_status_use_case=get_instinct_status_use_case or Mock(),
             get_instinct_download_size_use_case=get_instinct_download_size_use_case
             or AsyncMock(),
@@ -103,14 +104,14 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         load_keybinds_use_case.assert_called_once()
 
-    async def test_should_delegate_update_settings_to_use_case(self):
+    async def test_should_delegate_validate_and_save_settings_to_use_case(self):
         update_settings_use_case = AsyncMock()
         repository = self._make_repository(
             update_settings_use_case=update_settings_use_case
         )
         new_settings = _make_settings()
 
-        await repository.update_settings(new_settings)
+        await repository.validate_and_save_settings(new_settings)
 
         update_settings_use_case.assert_awaited_once_with(new_settings)
 
@@ -124,43 +125,43 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, settings)
         get_settings_use_case.assert_called_once()
 
-    async def test_should_delegate_get_voices_to_use_case(self):
+    async def test_should_delegate_fetch_edge_tts_voice_names_to_use_case(self):
         voices = ["en-US-AriaNeural", "en-GB-SoniaNeural"]
         get_tts_voices_use_case = AsyncMock(return_value=voices)
         repository = self._make_repository(
             get_tts_voices_use_case=get_tts_voices_use_case
         )
 
-        result = await repository.get_voices()
+        result = await repository.fetch_edge_tts_voice_names()
 
         self.assertEqual(result, voices)
         get_tts_voices_use_case.assert_awaited_once()
 
-    async def test_should_delegate_get_llm_models_to_use_case(self):
+    async def test_should_delegate_fetch_available_model_names_to_use_case(self):
         models = ["anthropic/claude-haiku-4.5", "openai/gpt-4o"]
-        get_llm_models_use_case = AsyncMock(return_value=models)
+        fetch_llm_model_names_use_case = AsyncMock(return_value=models)
         repository = self._make_repository(
-            get_llm_models_use_case=get_llm_models_use_case
+            fetch_llm_model_names_use_case=fetch_llm_model_names_use_case
         )
 
         provider = _make_settings().llm.provider
 
-        result = await repository.get_llm_models(provider)
+        result = await repository.fetch_available_model_names(provider)
 
         self.assertEqual(result, models)
-        get_llm_models_use_case.assert_awaited_once_with(provider)
+        fetch_llm_model_names_use_case.assert_awaited_once_with(provider)
 
-    async def test_should_delegate_test_llm_connection_to_use_case(self):
-        test_llm_connection_use_case = AsyncMock(return_value="401 Unauthorized")
+    async def test_should_delegate_find_llm_connection_error_to_use_case(self):
+        find_llm_connection_error_use_case = AsyncMock(return_value="401 Unauthorized")
         repository = self._make_repository(
-            test_llm_connection_use_case=test_llm_connection_use_case
+            find_llm_connection_error_use_case=find_llm_connection_error_use_case
         )
         provider = _make_settings().llm.provider
 
-        result = await repository.test_llm_connection(provider)
+        result = await repository.find_llm_connection_error(provider)
 
         self.assertEqual(result, "401 Unauthorized")
-        test_llm_connection_use_case.assert_awaited_once_with(provider)
+        find_llm_connection_error_use_case.assert_awaited_once_with(provider)
 
     def test_should_delegate_get_instinct_status_to_use_case(self):
         instinct_status = InstinctStatus(
@@ -176,13 +177,13 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(repository.get_instinct_status(), instinct_status)
 
-    async def test_should_delegate_get_instinct_download_size_to_use_case(self):
+    async def test_should_delegate_fetch_instinct_download_size_to_use_case(self):
         get_instinct_download_size_use_case = AsyncMock(return_value=1_524_827_608)
         repository = self._make_repository(
             get_instinct_download_size_use_case=get_instinct_download_size_use_case
         )
 
-        self.assertEqual(await repository.get_instinct_download_size(), 1_524_827_608)
+        self.assertEqual(await repository.fetch_instinct_download_size(), 1_524_827_608)
 
     def test_should_delegate_download_instinct_model_to_use_case(self):
         download_instinct_model_use_case = Mock()

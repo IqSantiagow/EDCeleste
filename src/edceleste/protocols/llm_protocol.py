@@ -12,22 +12,48 @@ from edceleste.services.models.settings_model import (
 
 
 class LLMProtocol(BaseServiceProtocol, Protocol):
-    def add_llm_request_to_queue(self, message: str) -> None: ...
+    def add_llm_request_to_queue(self, message: str) -> None:
+        """Only puts the message in the queue and returns at once. The reply
+        comes later out of consume_llm_queue()."""
+        ...
 
     def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:
-        """The stream has exactly one consumer - a queue does not duplicate items."""
+        """Never ends. For every queued message it yields LLMStatus.THINKING,
+        the reply blocks and LLMStatus.IDLE. A failed turn comes as a
+        SystemMessage, the stream goes on.
+
+        The stream has exactly one consumer - a queue does not duplicate items.
+        """
         ...
 
     async def validate_settings(
         self, new_settings: SettingsModel
-    ) -> SettingsIssueModel | None: ...
+    ) -> SettingsIssueModel | None:
+        """Checks the provider type and model of settings that are not saved
+        yet. Goes to the network for the model list. Changes nothing in the
+        service. None means fine."""
+        ...
 
-    def reload_service(self) -> None: ...
+    def reload_service(self) -> None:
+        """Builds a new agent from the saved settings. Keeps the conversation
+        history and the queue. Does not go to the network, so a wrong API key
+        shows up only on the first request."""
+        ...
 
-    async def get_models(
-        self, provider: LLMProviderModel | None = None
-    ) -> list[str]: ...
+    async def fetch_available_model_names(
+        self, provider_settings: LLMProviderModel | None = None
+    ) -> list[str]:
+        """Asks the provider for its models over the network. Without
+        provider_settings the saved provider is used. An empty list means "we
+        do not know", not "no models"."""
+        ...
 
-    async def test_connection(self, provider: LLMProviderModel) -> str | None:
-        """Returns None when the provider answers, otherwise a short error text."""
+    async def find_connection_error(
+        self, provider_settings: LLMProviderModel
+    ) -> str | None:
+        """Sends one real test request to the provider (costs a few tokens).
+        Uses provider_settings, not the saved settings, so values can be tested
+        before saving. Returns None when the provider answers, otherwise a
+        short error text for the screen, with the API key hidden. Never
+        raises."""
         ...

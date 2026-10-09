@@ -44,15 +44,21 @@ class SystemCheckScreen(Screen[bool]):
 
     @inject
     def __init__(self, system_check_repository: SystemCheckRepository, **kwargs):
+        """Reads the service names here, because compose() needs them to build
+        one row per service. Nothing is checked yet."""
         self.system_check_repository = system_check_repository
         self.service_names = self.system_check_repository.get_service_names()
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
+        """Puts the "PREFLIGHT" title on the panel border and starts the
+        start_system_check worker."""
         self.query_one("#system-check-panel").border_title = "PREFLIGHT"
         self.start_system_check()
 
     def compose(self):
+        """Celeste's logo on the left. On the right the EDCELESTE banner, one
+        "pending" row per service, and a progress bar that starts at 0."""
         with Horizontal(id="system-check-panel"):
             yield Static(CELESTE_LOGO, id="system-check-logo")
             with Vertical(id="system-check-checks"):
@@ -71,6 +77,25 @@ class SystemCheckScreen(Screen[bool]):
 
     @work
     async def start_system_check(self) -> None:
+        """Textual worker. Turns every status from the services into a row
+        state and moves the progress bar.
+
+        For every status:
+        1. the row shows its progress text and goes to "in_progress",
+        2. then the status decides the final row state:
+           - disabled -> "disabled", counts as done,
+           - completed with no message -> "completed", counts as done,
+           - completed with a warning -> "warning" + message, counts as done,
+           - any other message -> "failed" + message. A critical failure stops
+             the whole check at once, a normal one counts as done,
+           - anything else (still running) -> stays "in_progress".
+        3. the progress bar is set to the percent of done services.
+
+        When every service is done, it waits SECONDS_BEFORE_DASHBOARD so the
+        pilot can read the results and dismisses the screen with True, which
+        opens the dashboard. After a critical failure the screen stays open and
+        is never dismissed, the pilot quits with ctrl+c.
+        """
         progress_bar = self.query_one("#system-check-progress", ProgressBar)
         total_services = len(self.service_names)
         completed_services = 0
@@ -113,10 +138,20 @@ class SystemCheckRow(HorizontalGroup):
     warning_message: str | None = None
 
     def __init__(self, service_name: str, **kwargs):
+        """A new row is always "pending" with no messages."""
         super().__init__(**kwargs)
         self.service_name = service_name
 
     def compose(self):
+        """Runs again every time state or progress_text changes (recompose).
+
+        Always: the state marker ("[ok]", "[!!]", ...) and the readable
+        service name, both colored by the state class from ui/css.tcss.
+        Only when there is something to show:
+        - the progress text while "in_progress",
+        - "Error: ..." / "Warning: ..." when a message was set,
+        - "Disabled" for a disabled service.
+        """
         marker, state_class = STATE_MARKERS[self.state]
         yield Label(Content(marker), classes=f"system-check-marker {state_class}")
         yield Label(
@@ -139,6 +174,9 @@ class SystemCheckRow(HorizontalGroup):
 
 
 def row_name_for(service_name: str) -> str:
+    """Readable row name: game_watcher -> GAME WATCHER and
+    llm__instinct -> └ INSTINCT. A double underscore marks a child service,
+    only the child part is shown, indented under its parent row."""
     # "llm__instinct" is a service of its own, drawn as a child row of LLM
     parent_service, _, child_service = service_name.partition("__")
     if child_service:

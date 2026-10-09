@@ -15,10 +15,13 @@ class WidgetKeybindsContainer(WidgetBaseSettingsContainer):
     BORDER_TITLE = "KEYBINDS"
 
     def __init__(self, keybinds: list[Keybind], *args, **kwargs) -> None:
+        """Read only section. keybinds are only shown, nothing here can change
+        them, so this section never posts SectionSettingsChanged."""
         super().__init__(*args, **kwargs)
         self.keybinds = keybinds
 
     def compose(self):
+        """A scrollable list with one "action  key combo" row per keybind."""
         yield from super().compose()
         yield WidgetSectionHeader("LOADED KEYBINDS")
         with VerticalScroll(id="keybinds-entry-container"):

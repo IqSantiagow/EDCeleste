@@ -133,8 +133,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_agent_class.return_value.run = AsyncMock()
 
         # Building the provider and the model both need a reachable OpenRouter.
-        provider_patcher = patch.object(LLMService, "determine_provider")
-        self.mock_determine_provider = provider_patcher.start()
+        provider_patcher = patch.object(LLMService, "build_provider")
+        self.mock_build_provider = provider_patcher.start()
         self.addCleanup(provider_patcher.stop)
 
         model_patcher = patch.object(LLMService, "build_model")
@@ -152,11 +152,11 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.test_game_state = "Test game state"
         self.event_bus = EventBus()
-        self.settings_handler = Mock(spec=SettingsService)
-        self.settings_handler.get_settings.return_value = _make_settings()
+        self.settings_service = Mock(spec=SettingsService)
+        self.settings_service.get_settings.return_value = _make_settings()
         self.llm_service = LLMService(
             event_bus=self.event_bus,
-            settings_service=self.settings_handler,
+            settings_service=self.settings_service,
             tools=[],
         )
         # The agent is built in reload_service(), driven by the cold-start flow.
@@ -302,8 +302,8 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_process_game_state_change_updates_cached_game_state(self):
-        await self.llm_service.process_game_state_change(
+    async def test_remember_latest_game_state_stores_the_game_state_text(self):
+        await self.llm_service.remember_latest_game_state(
             GameStateChangedEvent(game_state="Docked at Jameson Memorial")
         )
 
@@ -314,15 +314,15 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         # Confirms the subscription wired up in __init__: LLMService should
         # pick up a GameStateChangedEvent published by anyone on the bus, not
-        # just via a direct call to process_game_state_change.
+        # just via a direct call to remember_latest_game_state.
         await self.event_bus.publish(GameStateChangedEvent(game_state="In supercruise"))
 
         self.assertEqual(self.llm_service.game_state, "In supercruise")
 
-    async def test_process_event_reaction_queues_event_description_prompt(self):
+    async def test_queue_reply_to_journal_event_puts_event_description_prompt(self):
         loaded_game_event = _make_loaded_game_event()
 
-        await self.llm_service.process_event_reaction(
+        await self.llm_service.queue_reply_to_journal_event(
             EventReactionEvent(event=loaded_game_event)
         )
         await self._collect_stream_items(3)
@@ -341,7 +341,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_validate_settings_reports_no_issues_for_a_known_model(self):
         settings = _make_settings()
         settings.llm.provider.model = "anthropic/claude-haiku-4.5"
-        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+        self.mock_build_provider.return_value.client.models.list = AsyncMock(
             return_value=_make_models_listing(["anthropic/claude-haiku-4.5"])
         )
 
@@ -352,7 +352,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_validate_settings_rejects_a_model_openrouter_does_not_serve(self):
         settings = _make_settings()
         settings.llm.provider.model = "not/a-real-model"
-        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+        self.mock_build_provider.return_value.client.models.list = AsyncMock(
             return_value=_make_models_listing(["anthropic/claude-haiku-4.5"])
         )
 
@@ -377,7 +377,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         # whatever the pilot typed has to pass.
         settings = _make_settings()
         settings.llm.provider.model = "some-local-model"
-        self.mock_determine_provider.return_value = Mock(spec=[])
+        self.mock_build_provider.return_value = Mock(spec=[])
 
         issue = await self.llm_service.validate_settings(settings)
 
@@ -387,7 +387,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         # Picking groq without its package installed must come back as a
         # validation issue instead of crashing the save.
         settings = _make_settings()
-        self.mock_determine_provider.side_effect = ImportError(
+        self.mock_build_provider.side_effect = ImportError(
             "Please install the `groq` package"
         )
 
@@ -397,17 +397,21 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(issue.field, "llm.provider.type")
         self.assertIn("groq", issue.message)
 
-    async def test_get_models_returns_nothing_when_the_provider_has_no_listing(self):
-        self.mock_determine_provider.return_value = Mock(spec=[])
+    async def test_fetch_model_names_is_empty_when_the_provider_has_no_listing(
+        self,
+    ):
+        self.mock_build_provider.return_value = Mock(spec=[])
 
-        self.assertEqual(await self.llm_service.get_models(), [])
+        self.assertEqual(await self.llm_service.fetch_available_model_names(), [])
 
-    async def test_get_models_returns_the_ids_the_provider_serves(self):
-        self.mock_determine_provider.return_value.client.models.list = AsyncMock(
+    async def test_fetch_available_model_names_returns_the_ids_the_provider_serves(
+        self,
+    ):
+        self.mock_build_provider.return_value.client.models.list = AsyncMock(
             return_value=_make_models_listing(["openai/gpt-4o", "google/gemini-pro"])
         )
 
-        result = await self.llm_service.get_models()
+        result = await self.llm_service.fetch_available_model_names()
 
         self.assertEqual(result, ["openai/gpt-4o", "google/gemini-pro"])
 
@@ -444,55 +448,59 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "agent unreachable")
 
-    async def test_connection_redacts_api_keys_from_provider_errors(self):
+    async def test_find_connection_error_redacts_api_keys_from_provider_errors(self):
         provider = _make_settings().llm.provider
         provider.api_key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz123456"
         self.mock_agent_class.return_value.run.side_effect = RuntimeError(
             f"request failed for {provider.api_key}"
         )
 
-        error_message = await self.llm_service.test_connection(provider)
+        error_message = await self.llm_service.find_connection_error(provider)
 
         self.assertEqual(
             error_message,
             "request failed for [REDACTED API KEY]",
         )
 
-    async def test_connection_keeps_error_message_when_api_key_is_empty(self):
+    async def test_find_connection_error_keeps_error_message_when_api_key_is_empty(
+        self,
+    ):
         self.mock_agent_class.return_value.run.side_effect = RuntimeError(
             "Connection refused by the provider"
         )
 
-        error_message = await self.llm_service.test_connection(
+        error_message = await self.llm_service.find_connection_error(
             _make_settings().llm.provider
         )
 
         self.assertEqual(error_message, "Connection refused by the provider")
 
-    async def test_connection_returns_status_code_and_provider_reason(self):
+    async def test_find_connection_error_returns_status_code_and_provider_reason(self):
         self.mock_agent_class.return_value.run.side_effect = ModelHTTPError(
             401, "some-model", body={"error": {"message": "Invalid API key"}}
         )
 
-        error_message = await self.llm_service.test_connection(
+        error_message = await self.llm_service.find_connection_error(
             _make_settings().llm.provider
         )
 
         self.assertEqual(error_message, "HTTP 401: Invalid API key")
 
-    async def test_connection_says_no_answer_when_the_provider_times_out(self):
+    async def test_find_connection_error_says_no_answer_when_the_provider_times_out(
+        self,
+    ):
         self.mock_agent_class.return_value.run.side_effect = TimeoutError()
 
-        error_message = await self.llm_service.test_connection(
+        error_message = await self.llm_service.find_connection_error(
             _make_settings().llm.provider
         )
 
         self.assertEqual(error_message, "No answer within 15 s")
 
-    async def test_connection_cuts_long_errors_to_200_characters(self):
+    async def test_find_connection_error_cuts_long_errors_to_200_characters(self):
         self.mock_agent_class.return_value.run.side_effect = RuntimeError("x" * 500)
 
-        error_message = await self.llm_service.test_connection(
+        error_message = await self.llm_service.find_connection_error(
             _make_settings().llm.provider
         )
 
@@ -500,7 +508,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_reload_service_rebuilds_agent_with_updated_system_prompt(self):
         new_settings = _make_settings(system_prompt="New system prompt")
-        self.settings_handler.get_settings.return_value = new_settings
+        self.settings_service.get_settings.return_value = new_settings
 
         self.llm_service.reload_service()
 
@@ -521,7 +529,7 @@ class TestLLMServiceProvider(unittest.TestCase):
         )
 
     def test_should_build_the_provider_class_pydantic_ai_knows_for_that_name(self):
-        provider = self.llm_service.determine_provider(
+        provider = self.llm_service.build_provider(
             LLMProviderModel(
                 type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
             )
@@ -532,14 +540,14 @@ class TestLLMServiceProvider(unittest.TestCase):
     def test_should_build_any_other_supported_provider_the_same_way(self):
         # Nothing about openrouter is hard wired - every provider goes through
         # the same infer_provider_class call.
-        provider = self.llm_service.determine_provider(
+        provider = self.llm_service.build_provider(
             LLMProviderModel(type="openai", model="gpt-4o", api_key="key-123")
         )
 
         self.assertIsInstance(provider, OpenAIProvider)
 
     def test_should_pass_a_custom_base_url_to_the_provider(self):
-        provider = self.llm_service.determine_provider(
+        provider = self.llm_service.build_provider(
             LLMProviderModel(
                 type="openai",
                 model="qwen2.5",
@@ -552,7 +560,7 @@ class TestLLMServiceProvider(unittest.TestCase):
 
     def test_should_reject_a_provider_type_pydantic_ai_does_not_serve(self):
         with self.assertRaises(ValueError):
-            self.llm_service.determine_provider(
+            self.llm_service.build_provider(
                 LLMProviderModel(type="lm_studio", model="llama-3", api_key="k")
             )
 
@@ -570,7 +578,7 @@ class TestLLMServiceProvider(unittest.TestCase):
 
         self.assertIsInstance(self.llm_service.build_model(provider), AnthropicModel)
 
-    def test_connection_test_should_build_the_model_and_reach_the_request(self):
+    def test_find_connection_error_should_build_the_model_and_reach_the_request(self):
         # Blocked requests fail only at the request itself, so this error proves
         # the model got built from the provider
         provider = LLMProviderModel(
@@ -578,7 +586,9 @@ class TestLLMServiceProvider(unittest.TestCase):
         )
 
         with patch.object(models, "ALLOW_MODEL_REQUESTS", False):
-            error_message = asyncio.run(self.llm_service.test_connection(provider))
+            error_message = asyncio.run(
+                self.llm_service.find_connection_error(provider)
+            )
 
         self.assertEqual(
             error_message,
@@ -710,7 +720,7 @@ class TestLLMServiceStreamsFromAgent(unittest.IsolatedAsyncioTestCase):
             tools=[FakeTool()],
         )
         with (
-            patch.object(LLMService, "determine_provider"),
+            patch.object(LLMService, "build_provider"),
             patch.object(LLMService, "build_model", return_value=TestModel()),
         ):
             llm_service.reload_service()

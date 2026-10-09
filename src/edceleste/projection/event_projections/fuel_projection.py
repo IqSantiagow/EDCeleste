@@ -24,6 +24,8 @@ class FuelProjection(Projection):
     LOW_FUEL_PROJECTION = "Warning: fuel is low."
 
     def __init__(self):
+        """Everything starts at 0 and False. A fuel level of 0.0 means no fuel
+        event has arrived yet, not an empty tank."""
         self.fuel_level = 0.0
         self.fuel_capacity = 0.0
         self.fuel_reservoir = 0.0
@@ -31,6 +33,18 @@ class FuelProjection(Projection):
         self.is_low_fuel = False
 
     def process_event(self, event: BaseModel):
+        """Tracks the main tank, the tank capacity and the reservoir.
+
+        - FSDJump -> main tank level after the jump.
+        - LoadGame -> main tank level and capacity. The only event with the
+          capacity.
+        - FuelScoop -> main tank level after the scoop.
+        - ReservoirReplenished -> main tank and reservoir.
+        - RefuelAll -> adds the bought amount, clamped to the capacity.
+        - Status (Status.json) -> scooping and low fuel flags, plus both tanks
+          when the file has a Fuel block.
+        Any other event is skipped.
+        """
         if isinstance(event, FSDJumpEvent):
             logger.debug("Received fuel event: %s", event)
             self.fuel_level = event.FuelLevel
@@ -78,6 +92,9 @@ class FuelProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
+        """The fuel level sentence is always there, the scooping and low fuel
+        sentences are added only when their flag is on. A level of 0.0 only
+        logs a warning, because it usually means the game has not started."""
         if self.fuel_level == 0.0:
             logger.warning("Fuel level is at 0. Does the game started?")
 

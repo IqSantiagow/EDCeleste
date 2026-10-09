@@ -53,7 +53,7 @@ class TestLLMServiceToolRegistration(unittest.TestCase):
     def test_should_hand_the_tools_to_the_agent_on_reload(self):
         with (
             patch("edceleste.services.llm_service.Agent") as mock_agent,
-            patch.object(LLMService, "determine_provider"),
+            patch.object(LLMService, "build_provider"),
             patch.object(LLMService, "build_model"),
         ):
             self.llm_service.reload_service()

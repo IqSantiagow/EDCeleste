@@ -44,7 +44,9 @@ EXPLORATION_RANKS = (
 
 
 def rank_name(ladder: tuple[str, ...], rank_value: int | None) -> str:
-    """Turn a rank number into its name. An unknown number gives "Unranked"."""
+    """The game sends ranks as numbers from 0, the position on the ladder.
+    None, a negative number or one past the top of the ladder gives
+    "Unranked" instead of an error."""
     if rank_value is not None and 0 <= rank_value < len(ladder):
         return ladder[rank_value]
     return UNKNOWN_RANK

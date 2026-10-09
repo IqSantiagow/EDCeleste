@@ -24,6 +24,8 @@ class ShipProjection(Projection):
     FSD_COOLDOWN_PROJECTION = "FSD is cooling down."
 
     def __init__(self):
+        """Every flag starts off and every number at 0, except the shields (see
+        below)."""
         self.is_landed = False
         self.is_landing_gear_down = False
         # ShieldsUp defaults to True so a "shields down" warning never fires
@@ -47,6 +49,10 @@ class ShipProjection(Projection):
         self.legal_status = None
 
     def process_event(self, event: BaseModel) -> None:
+        """Only Status events (Status.json, rewritten by the game on every
+        change) count. Every flag is overwritten from the Flags bit field.
+        Pips, cargo and legal status are updated only when the file has them,
+        otherwise the last value stays. Any other event is skipped."""
         if isinstance(event, StatusEvent):
             logger.debug("Received ship state event: %s", event)
             self.is_landed = bool(event.Flags & StatusFlags.Landed)
@@ -79,6 +85,10 @@ class ShipProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
+        """One sentence per flag that is worth saying, so a ship in plain
+        flight gives an empty string. Lights, pips, cargo and legal status
+        never go to the LLM, only the dashboard shows them. Overheating,
+        interdiction and danger come last."""
         projection_string = ""
 
         if self.is_landed:

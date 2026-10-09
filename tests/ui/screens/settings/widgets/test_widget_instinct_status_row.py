@@ -27,7 +27,7 @@ class FakeSettingsRepository:
     def get_instinct_status(self) -> InstinctStatus:
         return self.status
 
-    async def get_instinct_download_size(self) -> int | None:
+    async def fetch_instinct_download_size(self) -> int | None:
         return self.download_size
 
     def download_instinct_model(self) -> None:

@@ -7,4 +7,6 @@ class GetSettingsUseCase:
         self.settings_protocol = settings_protocol
 
     def __call__(self) -> SettingsModel:
+        """The saved settings kept in memory, config.yaml is not read again.
+        Raises RuntimeError when the settings were never loaded."""
         return self.settings_protocol.get_settings()

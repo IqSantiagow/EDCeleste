@@ -32,14 +32,17 @@ except ImportError:  # pydirectinput needs ctypes.WinDLL, so it only imports on 
     class _PydirectinputStub:
         @staticmethod
         def press(key: str) -> None:
+            """Lets the module import outside Windows. Pressing a key still fails."""
             raise RuntimeError("pydirectinput is only available on Windows")
 
         @staticmethod
         def keyDown(key: str) -> None:
+            """Lets the module import outside Windows. Holding a key still fails."""
             raise RuntimeError("pydirectinput is only available on Windows")
 
         @staticmethod
         def keyUp(key: str) -> None:
+            """Lets the module import outside Windows. Letting go still fails."""
             raise RuntimeError("pydirectinput is only available on Windows")
 
     pydirectinput = _PydirectinputStub()  # type: ignore[assignment]
@@ -50,20 +53,39 @@ class KeybindService:
         self,
         keybinds_path: str,
         event_bus: EventBus,
-        settings_handler: SettingsService,
+        settings_service: SettingsService,
         game_window: GameWindow,
         key_presser=None,
     ) -> None:
-        self.__settings_handler = settings_handler
+        """Only stores the dependencies and subscribes to the event bus. The
+        .binds file is not read here, that happens in reload_service().
+
+        key_presser is pydirectinput by default, tests pass a fake, so no real
+        key is pressed.
+
+        Subscriptions:
+        - EdAction -> press_keys_for_action
+        """
+        self.__settings_service = settings_service
         self.keybinds_path = keybinds_path
         self.game_window = game_window
         # used for tests
         self.key_presser = key_presser or pydirectinput
         self._keybinds_by_action: dict[EdAction, Keybind] = {}
         self._event_bus = event_bus
-        self._event_bus.subscribe(EdAction, self.perform_action)
+        self._event_bus.subscribe(EdAction, self.press_keys_for_action)
 
     def load_keybinds(self):
+        """Reads the game's keybinds from disk.
+
+        1. Finds every .binds file in keybinds_path, raises FileNotFoundError
+           when there is none.
+        2. Takes the newest file, the one the game wrote last.
+        3. Parses it and raises MissingKeybindsError when an action we use is
+           not in the file.
+        4. Only then replaces the loaded keybinds, so a failed load keeps the
+           old ones.
+        """
         found_binds_files = self._get_bind_files_or_throw_if_none(self.keybinds_path)
 
         latest_file = max(found_binds_files, key=os.path.getmtime)
@@ -79,16 +101,33 @@ class KeybindService:
         )
 
     def get_keybinds(self) -> list[Keybind]:
+        """A copy of the loaded keybinds, unbound actions included (key None).
+        Empty before load_keybinds() ran."""
         return list(self._keybinds_by_action.values())
 
-    def resolve(self, action: EdAction) -> Keybind:
+    def find_keybind_for_action(self, action: EdAction) -> Keybind:
+        """Looks the action up in the loaded keybinds, nothing is read from
+        disk. Raises KeyError when the keybinds are not loaded yet."""
         return self._keybinds_by_action[action]
 
     def is_bound(self, action: EdAction) -> bool:
-        return self.resolve(action).key is not None
+        """False when the action has no keyboard key, e.g. it is bound only
+        to a joystick. Raises KeyError when the keybinds are not loaded yet."""
+        return self.find_keybind_for_action(action).key is not None
 
-    async def perform_action(self, action: EdAction) -> None:
-        keybind = self.resolve(action)
+    async def press_keys_for_action(self, action: EdAction) -> None:
+        """Presses the action's keys in the game. Runs when an EdAction is
+        published on the event bus and when the PerformGameAction tool calls it.
+
+        1. No keyboard key -> logs a warning and presses nothing.
+        2. Brings the game window to the front, otherwise the key would be
+           typed into our terminal. Raises GameWindowNotFoundException when
+           the game is not running.
+        3. Holds the modifiers down, presses the key, then lets the modifiers
+           go in reverse order. The modifiers are let go even when the press
+           fails, the error is raised after that.
+        """
+        keybind = self.find_keybind_for_action(action)
         if keybind.key is None:
             logger.warning(
                 f"Action '{action.value}' has no keyboard key, nothing is pressed"
@@ -119,6 +158,11 @@ class KeybindService:
         )
 
     def _normalize_key(self, key: str) -> str:
+        """Translates a key name from the .binds file (without "Key_") into the
+        name pydirectinput understands, e.g. "UpArrow" -> "up",
+        "LeftShift" -> "shiftleft", "Comma" -> ",". Any other key is just
+        lowercased. The first matching rule wins, so the order matters:
+        "BackSlash" must be checked before "Slash"."""
         if "Arrow" in key:
             return key.replace("Arrow", "").lower()
         if "LeftShift" in key:
@@ -149,6 +193,16 @@ class KeybindService:
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
+        """Checks the keybindings path of new settings before they are saved.
+        Reads the disk.
+
+        Checks in order and returns the first issue:
+        1. the path is set,
+        2. the folder has at least one .binds file,
+        3. that file has every action we use.
+        Returns None when everything is fine. Other errors, e.g. a broken XML
+        file, are not caught and are raised.
+        """
         if not new_settings.paths.keybindings_path:
             return SettingsIssueModel(
                 section="paths",
@@ -182,6 +236,8 @@ class KeybindService:
         return None
 
     def _get_bind_files_or_throw_if_none(self, path: str) -> list[str]:
+        """Only looks directly in path, not in subfolders. The files come in
+        no particular order."""
         found_binds_files = glob.glob(path + "/*.binds")
 
         if not found_binds_files:
@@ -191,6 +247,9 @@ class KeybindService:
         return found_binds_files
 
     def _parse_keybinds(self, file) -> dict[EdAction, Keybind]:
+        """Reads the .binds XML file. Keeps only the actions listed in
+        EdAction, every other tag and XML comment is skipped. An action
+        without a keyboard binding is still kept, with key None."""
         tree = etree.parse(file)
         root = tree.getroot()
         loaded: dict[EdAction, Keybind] = {}
@@ -203,8 +262,10 @@ class KeybindService:
         return loaded
 
     def _read_keyboard_keybind(self, action: EdAction, action_element) -> Keybind:
-        # The primary binding if it is on the keyboard, otherwise the secondary one.
-        # With no keyboard binding at all the action is unbound (key None).
+        """The primary binding if it is on the keyboard, otherwise the
+        secondary one. A binding with a joystick modifier is skipped too. With
+        no keyboard binding at all the action is unbound (key None). The
+        "Key_" prefix is cut from every key name."""
         primary = action_element.find("Primary")
         secondary = action_element.find("Secondary")
         for binding in (primary, secondary):
@@ -224,18 +285,33 @@ class KeybindService:
         return Keybind(action=action, key=None)
 
     def _validate_missing_keybinds(self, loaded: dict[EdAction, Keybind]) -> None:
+        """Raises MissingKeybindsError with every EdAction that is not in the
+        file at all. An action that is in the file but has no keyboard key is
+        not missing."""
         missing = set(EdAction) - loaded.keys()
         if missing:
             raise MissingKeybindsError(missing)
 
     def reload_service(self):
-        new_settings = self.__settings_handler.get_settings()
+        """Reads the keybinds again from the path in the saved settings.
+        Called by cold_start() and after the settings change.
+        The old keybinds are dropped first, so when loading fails no action is
+        known any more. Errors from load_keybinds() are raised."""
+        new_settings = self.__settings_service.get_settings()
         self.keybinds_path = new_settings.paths.keybindings_path
         self._keybinds_by_action.clear()
 
         self.load_keybinds()
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
+        """Startup check shown in the system check screen.
+
+        1. Yields a "not completed" status, so the UI shows a spinner.
+        2. Loads the keybinds (reload_service).
+        3. Yields completed. Actions without a keyboard key make it a warning
+           that lists them in plain words. Never raises, a failed load ends up
+           in the status message.
+        """
         status = ColdStartStatus(
             service="keybinds",
             message=None,
