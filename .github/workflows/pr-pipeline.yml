@@ -128,6 +128,7 @@ jobs:
           if [ -f gh-pages/history.jsonl ]; then
             cp gh-pages/history.jsonl allure-report/history.jsonl
           fi
+          python3 tests/allure_report/hide_empty_fixtures.py allure-results
           npx --yes allure@3.20.1 generate allure-results
 
       - name: Publish to gh-pages

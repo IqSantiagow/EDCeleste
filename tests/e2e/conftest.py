@@ -8,6 +8,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
+import allure
 import pytest
 import yaml
 from dependency_injector import providers
@@ -126,67 +127,75 @@ StreamFunction = Callable[[list[ModelMessage], AgentInfo], AsyncIterator]
 
 class EdCelesteTestEnvironment:
     def __init__(self, temp_folder: Path) -> None:
-        journal_folder = temp_folder / "journal"
-        journal_folder.mkdir()
-        self.journal_file = journal_folder / "Journal.2026-10-05T120000.01.log"
-        self.status_file = journal_folder / "Status.json"
-        self.journal_file.touch()
+        with allure.step("An empty journal and the test keybindings in a temp folder"):
+            journal_folder = temp_folder / "journal"
+            journal_folder.mkdir()
+            self.journal_file = journal_folder / "Journal.2026-10-05T120000.01.log"
+            self.status_file = journal_folder / "Status.json"
+            self.journal_file.touch()
 
-        bindings_folder = temp_folder / "bindings"
-        bindings_folder.mkdir()
-        shutil.copy(TEST_BINDS_FILE_LOCATION, bindings_folder / "Custom.4.2.binds")
+            bindings_folder = temp_folder / "bindings"
+            bindings_folder.mkdir()
+            shutil.copy(TEST_BINDS_FILE_LOCATION, bindings_folder / "Custom.4.2.binds")
 
-        self.settings = SettingsModel(
-            paths=PathModel(
-                journal_path=str(journal_folder),
-                keybindings_path=str(bindings_folder),
-            ),
-            tts=TTSModel(volume=1.0),
-            llm=LLMModel(
-                system_prompt="You are Celeste, a ship computer.", user_prompt=""
-            ),
-            stt=SttModel(enabled=False, model="tiny.en"),
-            # An empty dict turns every reaction off - an automatic LLM answer to
-            # LoadGame would show up in the middle of a test
-            event_reactions=EventReactionModel(reactions={}),
-        )
-        self.config_file = temp_folder / "config.yaml"
-        self.save_config()
+        with allure.step("A config.yaml pointing at them, every event reaction off"):
+            self.settings = SettingsModel(
+                paths=PathModel(
+                    journal_path=str(journal_folder),
+                    keybindings_path=str(bindings_folder),
+                ),
+                tts=TTSModel(volume=1.0),
+                llm=LLMModel(
+                    system_prompt="You are Celeste, a ship computer.", user_prompt=""
+                ),
+                stt=SttModel(enabled=False, model="tiny.en"),
+                # An empty dict turns every reaction off - an automatic LLM answer
+                # to LoadGame would show up in the middle of a test
+                event_reactions=EventReactionModel(reactions={}),
+            )
+            self.config_file = temp_folder / "config.yaml"
+            self.save_config()
 
-        settings_service = SettingsService(config_path=self.config_file)
-        settings_service.load_settings()
+            settings_service = SettingsService(config_path=self.config_file)
+            settings_service.load_settings()
 
-        self.container = Container()
-        self.container.settings_service.override(providers.Object(settings_service))
+            self.container = Container()
+            self.container.settings_service.override(providers.Object(settings_service))
 
-        # The Instinct model stays in the temp folder and its size never asks the Hub
-        instinct_download_service = DecisionModelDownloadService(
-            models_directory=temp_folder / "models"
-        )
-        instinct_download_service.get_download_size = lambda: INSTINCT_MODEL_BYTES
-        self.container.decision_model_download_service.override(
-            providers.Object(instinct_download_service)
-        )
+        with allure.step("The Instinct model in the temp folder, no Hugging Face Hub"):
+            instinct_download_service = DecisionModelDownloadService(
+                models_directory=temp_folder / "models"
+            )
+            instinct_download_service.get_download_size = lambda: INSTINCT_MODEL_BYTES
+            self.container.decision_model_download_service.override(
+                providers.Object(instinct_download_service)
+            )
 
-        self.fake_keyboard = FakeKeyboard()
-        keybinds_service = self.container.keybinds_service()
-        keybinds_service.key_presser = self.fake_keyboard
-        keybinds_service.game_window = GameWindow(
-            windows_api=FakeWindowsApiWithGameInFront()
-        )
+        with allure.step("A fake keyboard and a game window that is always in front"):
+            self.fake_keyboard = FakeKeyboard()
+            keybinds_service = self.container.keybinds_service()
+            keybinds_service.key_presser = self.fake_keyboard
+            keybinds_service.game_window = GameWindow(
+                windows_api=FakeWindowsApiWithGameInFront()
+            )
 
-        self.spoken_texts: list[str] = []
-        fake_tts_provider = FakeTtsProvider(self.spoken_texts)
-        tts_service = self.container.tts_service()
-        tts_service.build_provider = lambda settings: fake_tts_provider
-        tts_service.get_tts_voices = self.edge_voices_without_network
+        with allure.step(
+            "A fake speaker that remembers what Celeste says, voices without network"
+        ):
+            self.spoken_texts: list[str] = []
+            fake_tts_provider = FakeTtsProvider(self.spoken_texts)
+            tts_service = self.container.tts_service()
+            tts_service.build_provider = lambda settings: fake_tts_provider
+            tts_service.get_tts_voices = self.edge_voices_without_network
 
-        self.container.llm_service().get_models = self.llm_models_without_network
-        self.container.stt_service().get_stt_input_devices = lambda: [
-            ("Test microphone", 0)
-        ]
+        with allure.step("LLM models and microphones listed without network"):
+            self.container.llm_service().get_models = self.llm_models_without_network
+            self.container.stt_service().get_stt_input_devices = lambda: [
+                ("Test microphone", 0)
+            ]
 
-        self.use_scripted_model(answer_not_scripted)
+        with allure.step("An LLM that answers only what the test scripts"):
+            self.use_scripted_model(answer_not_scripted)
 
         self.container.wire(modules=MODULES_USING_PROVIDE)
 
@@ -236,30 +245,37 @@ class EdCelesteTestEnvironment:
     ) -> None:
         # Not app.workers.wait_for_complete(): the dashboard workers stream
         # forever and never complete
-        give_up_at = time.monotonic() + timeout_seconds
-        while not condition():
-            if time.monotonic() > give_up_at:
-                pytest.fail(f"Waited {timeout_seconds} s for: {description}")
-            await pilot.pause(0.05)
+        with allure.step(f"Wait for {description}"):
+            give_up_at = time.monotonic() + timeout_seconds
+            while not condition():
+                if time.monotonic() > give_up_at:
+                    pytest.fail(f"Waited {timeout_seconds} s for: {description}")
+                await pilot.pause(0.05)
 
-    async def boot_to_dashboard(self, pilot: Pilot) -> None:
-        await self.wait_until(
-            pilot,
-            lambda: isinstance(pilot.app.screen, DashboardScreen),
-            "the dashboard after the preflight",
-        )
-        # Lets the dashboard finish mounting and its workers start listening
-        # before the game writes
-        await pilot.pause()
+    async def boot_to_dashboard(
+        self, pilot: Pilot, step_keyword: str = "Given"
+    ) -> None:
+        # step_keyword is "And" when the test already has its own Given steps
+        with allure.step(
+            f"{step_keyword} Celeste is on the dashboard and the game is loaded"
+        ):
+            await self.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, DashboardScreen),
+                "the dashboard after the preflight",
+            )
+            # Lets the dashboard finish mounting and its workers start listening
+            # before the game writes
+            await pilot.pause()
 
-        # Without a game state the LLM only answers "Game state is not set"
-        self.append_journal_event("LoadGame")
-        llm_service = self.container.llm_service()
-        await self.wait_until(
-            pilot,
-            lambda: llm_service.game_state is not None,
-            "the game state after LoadGame",
-        )
+            # Without a game state the LLM only answers "Game state is not set"
+            self.append_journal_event("LoadGame")
+            llm_service = self.container.llm_service()
+            await self.wait_until(
+                pilot,
+                lambda: llm_service.game_state is not None,
+                "the game state after LoadGame",
+            )
 
 
 @pytest.fixture
@@ -269,11 +285,16 @@ def anyio_backend():
 
 
 @pytest.fixture
+@allure.title("EDCeleste with everything that leaves the computer faked")
 async def edceleste(tmp_path, monkeypatch):
-    monkeypatch.setattr(SystemCheckScreen, "SECONDS_BEFORE_DASHBOARD", 0)
-    # A test can never reach a real LLM by mistake
-    monkeypatch.setattr(models, "ALLOW_MODEL_REQUESTS", False)
+    with allure.step("The preflight opens the dashboard without waiting"):
+        monkeypatch.setattr(SystemCheckScreen, "SECONDS_BEFORE_DASHBOARD", 0)
+
+    with allure.step("No request can reach a real LLM by mistake"):
+        monkeypatch.setattr(models, "ALLOW_MODEL_REQUESTS", False)
 
     environment = EdCelesteTestEnvironment(tmp_path)
     yield environment
-    environment.container.unwire()
+
+    with allure.step("EDCeleste's services are unwired for the next test"):
+        environment.container.unwire()
