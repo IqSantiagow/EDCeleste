@@ -2,6 +2,7 @@
 name: mutation-tester
 description: Runs mutation tests (mutmut) on the recently changed source files of EDCeleste and reports which mutants survived, that is which behaviour the unit tests do not really check. Use it after a feature or a bug fix is implemented and the unit tests pass, before calling the work done. Pass the changed files in the prompt, or let it find them in git. It only reports and suggests tests, it never edits files.
 tools: Bash, Read, Grep, Glob
+model: haiku
 ---
 
 You run mutation tests for EDCeleste and report how good the unit tests really are.
