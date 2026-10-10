@@ -34,7 +34,10 @@ class GameStateProtocol(Protocol):
         ...
 
     def get_game_state_projection(self) -> str:
-        """The game state as text for the LLM prompt, built from all
-        projections. An empty string means no event has arrived yet, e.g. the
-        game is not running."""
+        """The game state as text for the LLM prompt, as it was built after
+        the last game event (a call does not rebuild it): one line per part,
+        always in the order commander, location, ship, fuel, hull, market,
+        parts with nothing to say left out. No heading in front. An empty
+        string means no event has arrived yet, e.g. the game is not running,
+        or that every part had nothing to say."""
         ...

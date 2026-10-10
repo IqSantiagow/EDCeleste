@@ -58,7 +58,7 @@ class ShipProjectionTest(unittest.TestCase):
         )
 
         expected_projection = (
-            "Ship is currently landed on the surface.Landing gear is down."
+            "Ship is currently landed on the surface. Landing gear is down."
         )
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
@@ -74,7 +74,7 @@ class ShipProjectionTest(unittest.TestCase):
             )
         )
 
-        expected_projection = "Hardpoints are deployed.Cargo scoop is deployed."
+        expected_projection = "Hardpoints are deployed. Cargo scoop is deployed."
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
 
@@ -89,7 +89,7 @@ class ShipProjectionTest(unittest.TestCase):
             )
         )
 
-        expected_projection = "Ship is running silent.Flight assist is off."
+        expected_projection = "Ship is running silent. Flight assist is off."
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
 
@@ -106,7 +106,7 @@ class ShipProjectionTest(unittest.TestCase):
         )
 
         expected_projection = (
-            "FSD is mass locked and cannot jump.FSD is charging.FSD is cooling down."
+            "FSD is mass locked and cannot jump. FSD is charging. FSD is cooling down."
         )
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
@@ -125,8 +125,8 @@ class ShipProjectionTest(unittest.TestCase):
 
         expected_projection = (
             "Warning: ship is overheating."
-            "Warning: ship is being interdicted."
-            "Warning: ship is in danger."
+            " Warning: ship is being interdicted."
+            " Warning: ship is in danger."
         )
 
         self.assertEqual(expected_projection, ship_projection.create_projection())

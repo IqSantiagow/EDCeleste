@@ -36,8 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 class GameStateService:
-    GAME_PROJECTION = "Current game state is: {0}"
-
     # Only these can change the station market card. Status.json is deliberately
     # left out - it arrives every second and would rebuild the whole commodity
     # table that often, losing the scroll position while the player reads it.
@@ -51,23 +49,23 @@ class GameStateService:
         - GameEvent -> process_event
         """
         self.event_bus = event_bus
-        self.__game_state_projection = None
+        self.__game_state_projection = ""
         self.__player_projection = PlayerProjection()
         self.__fuel_projection = FuelProjection()
         self.__location_projection = LocationProjection()
         self.__ship_projection = ShipProjection()
         self.__loadout_projection = LoadoutProjection()
         self.__market_projection = MarketProjection()
-        self.__projections: frozenset[Projection] = frozenset(
-            [
-                self.__player_projection,
-                self.__fuel_projection,
-                self.__location_projection,
-                self.__ship_projection,
-                self.__loadout_projection,
-                self.__market_projection,
-            ]
-        )
+        # The order of the parts in the game state text. "Who and where" first,
+        # it is the context for everything else.
+        self.__projections: list[Projection] = [
+            self.__player_projection,
+            self.__location_projection,
+            self.__ship_projection,
+            self.__fuel_projection,
+            self.__loadout_projection,
+            self.__market_projection,
+        ]
         self.__journal_queue_watchers: list[asyncio.Queue[GameEvent]] = []
         self.__status_queue_watchers: list[asyncio.Queue[GameEvent]] = []
         self.__market_queue_watchers: list[asyncio.Queue[GameEvent]] = []
@@ -105,27 +103,33 @@ class GameStateService:
             for watcher in self.__market_queue_watchers:
                 watcher.put_nowait(event)
 
-        self.__refresh_state()
+        self.__rebuild_game_state_text()
 
         await self.event_bus.publish(
             GameStateChangedEvent(game_state=self.get_game_state_projection())
         )
 
     def get_game_state_projection(self) -> str:
-        """The game state text for the LLM, as built by the last event, with
-        "Current game state is: " in front. Does not rebuild anything.
-        An empty string means no event came yet (or every projection is empty),
-        and a warning is logged."""
+        """The game state text for the LLM, as built by the last event: one
+        line per projection, without any heading (LLMService adds it). Does
+        not rebuild anything. An empty string means no event came yet (or
+        every projection is empty), and then every call logs a warning."""
         if not self.__game_state_projection:
             logger.warning("Game state projection is empty. Does the game started?")
             return ""
-        return self.GAME_PROJECTION.format(self.__game_state_projection)
+        return self.__game_state_projection
 
-    def __refresh_state(self):
-        """Glues the text of every projection into one string. The projections
-        sit in a frozenset, so the order of the parts is not fixed."""
-        self.__game_state_projection = "".join(
-            [projection.create_projection() for projection in self.__projections]
+    def __rebuild_game_state_text(self) -> None:
+        """Asks every projection for its text and puts each one on its own
+        line, in the order of the projections list: commander, location, ship,
+        fuel, hull, market. A projection with nothing to say is left out, so
+        there are no empty lines. Returns nothing: the result is stored and
+        get_game_state_projection hands it out until the next rebuild."""
+        projection_texts = [
+            projection.create_projection() for projection in self.__projections
+        ]
+        self.__game_state_projection = "\n".join(
+            text for text in projection_texts if text
         )
         logger.debug(
             "Game state projection refreshed: %s", self.__game_state_projection

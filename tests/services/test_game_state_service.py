@@ -5,7 +5,11 @@ from unittest.mock import Mock
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.game_state_service import GameStateService
-from edceleste.services.models.game_events import LoadedGameEvent, StatusEvent
+from edceleste.services.models.game_events import (
+    LoadedGameEvent,
+    StatusEvent,
+    StatusFlags,
+)
 from tests.projection.test_market_projection import (
     make_docked_event,
     make_market_event,
@@ -295,6 +299,58 @@ class TestGameStateServiceMarketStream(unittest.IsolatedAsyncioTestCase):
         projection = service.get_game_state_projection()
         self.assertIn("Fan Horizons", projection)
         self.assertIn("Platinum", projection)
+
+
+class TestGameStateServiceProjectionText(unittest.IsolatedAsyncioTestCase):
+    async def test_game_state_parts_go_commander_location_ship_fuel_hull_market(self):
+        service = GameStateService(Mock(spec=EventBus))
+        # Docked, but no ShieldsUp flag, so the ship part has a sentence too.
+        status_event_docked = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.Docked,
+            Flags2=0,
+        )
+
+        await service.process_event(_loaded_game_event())
+        await service.process_event(make_docked_event())
+        await service.process_event(make_market_event())
+        await service.process_event(status_event_docked)
+
+        expected_game_state = (
+            "Commander name is TestCommander. Commander has 1000000 of credits. "
+            "Commander ship is Sidewinder. Commander plays in Solo game mode.\n"
+            "Player is currently in the Beta Sculptoris system. "
+            "Player is currently docked at station: Fan Horizons.\n"
+            "Warning: ship shields are down.\n"
+            "Current fuel level is: 1.0.\n"
+            "Ship hull health is at 100%.\n"
+            "Station Fan Horizons sells 1 commodities. The best prices against "
+            "the galactic average: Platinum at 42220 (+22464 per tonne)."
+        )
+        self.assertEqual(expected_game_state, service.get_game_state_projection())
+
+    async def test_game_state_leaves_out_parts_with_nothing_to_say(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        # Before any Status.json the ship part is empty, and without a location
+        # or a market event those parts are empty too.
+        await service.process_event(_loaded_game_event())
+
+        expected_game_state = (
+            "Commander name is TestCommander. Commander has 1000000 of credits. "
+            "Commander ship is Sidewinder. Commander plays in Solo game mode.\n"
+            "Current fuel level is: 1.0.\n"
+            "Ship hull health is at 100%."
+        )
+        self.assertEqual(expected_game_state, service.get_game_state_projection())
+
+    async def test_game_state_text_has_no_current_game_state_heading(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        await service.process_event(_loaded_game_event())
+
+        self.assertNotIn("Current game state is", service.get_game_state_projection())
 
 
 if __name__ == "__main__":

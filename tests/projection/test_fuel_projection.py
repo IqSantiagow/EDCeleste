@@ -140,9 +140,21 @@ class FuelProjectionTest(unittest.TestCase):
 
         fuel_projection.process_event(event)
 
-        expected_projection = "Current fuel level is: {0}".format(event.Total)
+        expected_projection = "Current fuel level is: {0}.".format(event.Total)
 
         self.assertEqual(expected_projection, fuel_projection.create_projection())
+
+    def test_should_warn_only_when_fuel_level_is_zero(self):
+        fuel_projection = FuelProjection()
+        fuel_logger = "edceleste.projection.event_projections.fuel_projection"
+
+        with self.assertLogs(fuel_logger, level="WARNING"):
+            fuel_projection.create_projection()
+
+        fuel_projection.process_event(self.fuel_scoop_event)
+
+        with self.assertNoLogs(fuel_logger, level="WARNING"):
+            fuel_projection.create_projection()
 
     def test_should_set_scooping_fuel_from_status_event(self):
         fuel_projection = FuelProjection()
@@ -158,8 +170,8 @@ class FuelProjectionTest(unittest.TestCase):
         fuel_projection.process_event(self.status_event_scooping_fuel)
 
         expected_projection = (
-            "Current fuel level is: {0}".format(self.fuel_scoop_event.Total)
-            + "Player is currently scooping fuel from a star."
+            "Current fuel level is: {0}.".format(self.fuel_scoop_event.Total)
+            + " Player is currently scooping fuel from a star."
         )
 
         self.assertEqual(expected_projection, fuel_projection.create_projection())
@@ -186,8 +198,30 @@ class FuelProjectionTest(unittest.TestCase):
         fuel_projection.process_event(self.status_event_low_fuel)
 
         expected_projection = (
-            "Current fuel level is: {0}".format(self.fuel_scoop_event.Total)
-            + "Warning: fuel is low."
+            "Current fuel level is: {0}.".format(self.fuel_scoop_event.Total)
+            + " Warning: fuel is low."
+        )
+
+        self.assertEqual(expected_projection, fuel_projection.create_projection())
+
+    def test_should_separate_fuel_scooping_and_low_fuel_sentences_with_one_space(
+        self,
+    ):
+        fuel_projection = FuelProjection()
+        status_event_scooping_on_low_fuel = StatusEvent(
+            event="Status",
+            timestamp=datetime.now(),
+            Flags=StatusFlags.ScoopingFuel | StatusFlags.LowFuel,
+            Flags2=0,
+        )
+
+        fuel_projection.process_event(self.fuel_scoop_event)
+        fuel_projection.process_event(status_event_scooping_on_low_fuel)
+
+        expected_projection = (
+            "Current fuel level is: {0}.".format(self.fuel_scoop_event.Total)
+            + " Player is currently scooping fuel from a star."
+            + " Warning: fuel is low."
         )
 
         self.assertEqual(expected_projection, fuel_projection.create_projection())
