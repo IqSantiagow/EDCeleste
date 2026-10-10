@@ -1,0 +1,1 @@
+{"id":"83d6702224d1e3a2d4e1da769b4ac14a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.settings.test_settings_repository.TestSettingsRepository#test_should_delegate_validate_and_save_settings_to_use_case","name":"test_should_delegate_validate_and_save_settings_to_use_case","status":"passed","testResultsByEnv":{"default":"b69b9fd6a211b95ad69ad2afe5c7e313"}}

@@ -1,0 +1,1 @@
+{"id":"581bc357514ccf037bfb67e4f6d0fc69.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_market_event.TestMarketEvent#test_items_default_to_empty_when_the_station_sells_nothing","name":"test_items_default_to_empty_when_the_station_sells_nothing","status":"passed","testResultsByEnv":{"default":"78fe835cf1dc758a45c49a68cc7fbea7"}}

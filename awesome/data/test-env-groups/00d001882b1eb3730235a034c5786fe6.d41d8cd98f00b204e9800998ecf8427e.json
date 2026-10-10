@@ -1,0 +1,1 @@
+{"id":"00d001882b1eb3730235a034c5786fe6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_validate_settings_returns_no_issues_for_valid_binds_file","name":"test_validate_settings_returns_no_issues_for_valid_binds_file","status":"passed","testResultsByEnv":{"default":"c6fd9ef3c40ef6c32f722c71fcfbc24e"}}

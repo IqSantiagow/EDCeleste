@@ -1,0 +1,1 @@
+{"id":"06ca88e13a0315324127c9402367c803.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_journal_events_usecase.TestStreamJournalEventsUseCase#test_should_yield_multiple_events_in_order","name":"test_should_yield_multiple_events_in_order","status":"passed","testResultsByEnv":{"default":"6cd23357a0b3edfa08a0b45c108ad8d1"}}

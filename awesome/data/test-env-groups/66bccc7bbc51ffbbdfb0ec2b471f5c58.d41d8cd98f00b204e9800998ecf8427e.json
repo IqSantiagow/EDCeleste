@@ -1,0 +1,1 @@
+{"id":"66bccc7bbc51ffbbdfb0ec2b471f5c58.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_instinct_status.DescribeDownloadProgressTest#test_empty_total_does_not_divide_by_zero","name":"test_empty_total_does_not_divide_by_zero","status":"passed","testResultsByEnv":{"default":"4cfc74bac11ba37df16f8f4d631eb26e"}}

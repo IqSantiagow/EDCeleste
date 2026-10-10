@@ -1,0 +1,1 @@
+{"id":"f2debc20336e5b3ad9330514a73fa619.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.InstinctModelLoadingTest#test_load_model_auto_falls_back_to_cpu_without_a_gpu","name":"test_load_model_auto_falls_back_to_cpu_without_a_gpu","status":"passed","testResultsByEnv":{"default":"1d1f9a10ffddb50c9c99ca9d46dee5a9"}}

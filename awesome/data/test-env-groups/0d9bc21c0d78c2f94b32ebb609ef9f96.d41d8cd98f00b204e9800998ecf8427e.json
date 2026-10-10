@@ -1,0 +1,1 @@
+{"id":"0d9bc21c0d78c2f94b32ebb609ef9f96.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.settings.test_settings_repository.TestSettingsRepository#test_should_delegate_find_llm_connection_error_to_use_case","name":"test_should_delegate_find_llm_connection_error_to_use_case","status":"passed","testResultsByEnv":{"default":"7b2d3d0ccabe8748ef419c3231fbe8b6"}}

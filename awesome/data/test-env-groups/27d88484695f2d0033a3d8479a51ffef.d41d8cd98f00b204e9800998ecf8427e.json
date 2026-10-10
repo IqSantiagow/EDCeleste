@@ -1,0 +1,1 @@
+{"id":"27d88484695f2d0033a3d8479a51ffef.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_raises_when_no_recording_in_progress","name":"test_stop_recording_and_transcribe_raises_when_no_recording_in_progress","status":"passed","testResultsByEnv":{"default":"4b7294da5c4f1cfa776b55704509af10"}}

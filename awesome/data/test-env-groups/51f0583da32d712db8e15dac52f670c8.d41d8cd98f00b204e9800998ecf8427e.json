@@ -1,0 +1,1 @@
+{"id":"51f0583da32d712db8e15dac52f670c8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalWatcherTest#test_validate_settings_returns_no_issues_when_journal_path_present","name":"test_validate_settings_returns_no_issues_when_journal_path_present","status":"passed","testResultsByEnv":{"default":"843740fc8677bdd4bdc070570c811ea5"}}

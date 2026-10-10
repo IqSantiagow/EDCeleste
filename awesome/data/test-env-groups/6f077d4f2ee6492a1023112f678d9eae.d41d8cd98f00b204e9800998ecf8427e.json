@@ -1,0 +1,1 @@
+{"id":"6f077d4f2ee6492a1023112f678d9eae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_reload_service_keeps_cache_when_settings_unchanged","name":"test_reload_service_keeps_cache_when_settings_unchanged","status":"passed","testResultsByEnv":{"default":"72a485d19c1c089184689d5464ea8f52"}}

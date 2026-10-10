@@ -1,0 +1,1 @@
+{"id":"2206b15efb9e537da151b5cc4ea58736.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_comms#test_should_press_the_bound_key_when_celeste_performs_a_game_action","name":"Celeste toggles the landing gear by pressing its key in the game","status":"passed","testResultsByEnv":{"default":"34db3d8e1a311e59ecede8fe118541fa"}}

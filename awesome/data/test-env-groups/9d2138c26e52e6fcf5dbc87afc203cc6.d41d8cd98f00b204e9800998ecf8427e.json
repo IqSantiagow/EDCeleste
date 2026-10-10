@@ -1,0 +1,1 @@
+{"id":"9d2138c26e52e6fcf5dbc87afc203cc6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_find_connection_error_returns_status_code_and_provider_reason","name":"test_find_connection_error_returns_status_code_and_provider_reason","status":"passed","testResultsByEnv":{"default":"1f84e4f9c2c5fbcf7f44e334174c4d25"}}

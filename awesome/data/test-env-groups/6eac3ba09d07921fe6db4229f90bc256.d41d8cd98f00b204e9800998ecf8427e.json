@@ -1,0 +1,1 @@
+{"id":"6eac3ba09d07921fe6db4229f90bc256.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.event_bus.test_journal_watcher_integration.JournalWatcherEventBusTest#test_should_start_emitting_events","name":"test_should_start_emitting_events","status":"passed","testResultsByEnv":{"default":"07cbc46903e89001a25c3f7f6820760d"}}

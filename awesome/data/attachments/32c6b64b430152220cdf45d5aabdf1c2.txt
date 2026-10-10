@@ -1,0 +1,1 @@
+WARNING  edceleste.services.stt_service:stt_service.py:121 No audio data was captured during the recording.

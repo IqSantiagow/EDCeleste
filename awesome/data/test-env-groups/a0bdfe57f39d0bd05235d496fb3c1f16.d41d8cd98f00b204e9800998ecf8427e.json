@@ -1,0 +1,1 @@
+{"id":"a0bdfe57f39d0bd05235d496fb3c1f16.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_load_stt_model_raises_when_model_not_set","name":"test_load_stt_model_raises_when_model_not_set","status":"passed","testResultsByEnv":{"default":"beed740ffe34968a5119645fada6a811"}}

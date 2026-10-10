@@ -1,0 +1,1 @@
+{"id":"fc55a6b6b9bf5b900861f1c32ef511fd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_voice_lab_service.VoiceLabServiceTest#test_gives_float32_samples_ready_for_the_speaker","name":"test_gives_float32_samples_ready_for_the_speaker","status":"passed","testResultsByEnv":{"default":"ae11267e871ef229392e16c523fb02b7"}}

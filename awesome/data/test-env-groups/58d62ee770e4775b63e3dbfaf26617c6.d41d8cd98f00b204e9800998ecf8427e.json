@@ -1,0 +1,1 @@
+{"id":"58d62ee770e4775b63e3dbfaf26617c6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_market_event.TestMarketEvent#test_ignores_fields_the_model_does_not_know","name":"test_ignores_fields_the_model_does_not_know","status":"passed","testResultsByEnv":{"default":"8b16f831f883b6dfe374493ced8ff999"}}

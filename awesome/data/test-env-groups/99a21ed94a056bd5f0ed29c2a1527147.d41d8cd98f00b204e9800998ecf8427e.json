@@ -1,0 +1,1 @@
+{"id":"99a21ed94a056bd5f0ed29c2a1527147.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.settings.test_settings_repository.TestSettingsRepository#test_should_delegate_fetch_edge_tts_voice_names_to_use_case","name":"test_should_delegate_fetch_edge_tts_voice_names_to_use_case","status":"passed","testResultsByEnv":{"default":"89c2e746ba62aeddedf25037e7d94a85"}}

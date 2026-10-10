@@ -1,0 +1,1 @@
+{"id":"bd41a99c762c0f8a3d0f9005d3ae1793.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_should_mark_action_unbound_when_bound_only_to_joystick","name":"test_should_mark_action_unbound_when_bound_only_to_joystick","status":"passed","testResultsByEnv":{"default":"faf9f5e000f93b0426bae8026b931d46"}}

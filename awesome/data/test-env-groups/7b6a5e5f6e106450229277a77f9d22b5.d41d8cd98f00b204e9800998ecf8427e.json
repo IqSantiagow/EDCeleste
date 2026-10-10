@@ -1,0 +1,1 @@
+{"id":"7b6a5e5f6e106450229277a77f9d22b5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_play_sample_voice_delegates_to_the_chatterbox_provider","name":"test_play_sample_voice_delegates_to_the_chatterbox_provider","status":"passed","testResultsByEnv":{"default":"c72f8e72b84227752f21b8525bd2f0f2"}}

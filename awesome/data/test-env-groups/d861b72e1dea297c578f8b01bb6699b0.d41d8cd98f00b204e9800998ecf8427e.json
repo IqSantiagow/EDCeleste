@@ -1,0 +1,1 @@
+{"id":"d861b72e1dea297c578f8b01bb6699b0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_station_market_use_case.TestStreamStationMarketUseCase#test_maps_a_snapshot_without_a_station_to_a_message","name":"test_maps_a_snapshot_without_a_station_to_a_message","status":"passed","testResultsByEnv":{"default":"2b83b90fad76a963c3275e3d82cdef3b"}}

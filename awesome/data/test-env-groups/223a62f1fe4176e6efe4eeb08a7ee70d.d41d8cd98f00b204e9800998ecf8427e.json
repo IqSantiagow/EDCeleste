@@ -1,0 +1,1 @@
+{"id":"223a62f1fe4176e6efe4eeb08a7ee70d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_normalize_key_strips_arrow_prefix_and_lowercases_direction","name":"test_normalize_key_strips_arrow_prefix_and_lowercases_direction","status":"passed","testResultsByEnv":{"default":"79c78b87c4e55d60010257a0f62d14c0"}}

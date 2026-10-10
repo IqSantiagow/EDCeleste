@@ -1,0 +1,1 @@
+{"id":"1cd4b9b78d43fd3943f93cda48d4beae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_comms#test_should_show_an_error_and_press_nothing_when_game_actions_are_off","name":"Celeste presses no key when game actions are turned off","status":"passed","testResultsByEnv":{"default":"4b862784b838f76edadf109f6c5f0347"}}

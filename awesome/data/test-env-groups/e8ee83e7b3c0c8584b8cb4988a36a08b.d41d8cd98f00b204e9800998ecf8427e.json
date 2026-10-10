@@ -1,0 +1,1 @@
+{"id":"e8ee83e7b3c0c8584b8cb4988a36a08b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.SwitchQwenKernelsToDeviceTest#test_cuda_gets_the_gpu_kernels_back_after_cpu","name":"test_cuda_gets_the_gpu_kernels_back_after_cpu","status":"passed","testResultsByEnv":{"default":"81ce0ba498a43174d9cabfa7e144a78b"}}

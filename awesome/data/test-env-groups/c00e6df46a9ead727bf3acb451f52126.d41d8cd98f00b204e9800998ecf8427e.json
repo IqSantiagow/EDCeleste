@@ -1,0 +1,1 @@
+{"id":"c00e6df46a9ead727bf3acb451f52126.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_event_bus_publish_of_tts_event_triggers_synthesize_and_play","name":"test_event_bus_publish_of_tts_event_triggers_synthesize_and_play","status":"passed","testResultsByEnv":{"default":"62154db105f4e90e770585dfb9a4ca85"}}

@@ -1,0 +1,1 @@
+{"id":"08863eac5984fe62c94577649c694a9e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_find_connection_error_cuts_long_errors_to_200_characters","name":"test_find_connection_error_cuts_long_errors_to_200_characters","status":"passed","testResultsByEnv":{"default":"50ddbdf2fee0439d018035fd34aeccfb"}}

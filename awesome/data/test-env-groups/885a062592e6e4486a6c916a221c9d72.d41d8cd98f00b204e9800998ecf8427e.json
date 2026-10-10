@@ -1,0 +1,1 @@
+{"id":"885a062592e6e4486a6c916a221c9d72.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_speak_text_from_tts_event_calls_synthesize_and_play_with_event_text","name":"test_speak_text_from_tts_event_calls_synthesize_and_play_with_event_text","status":"passed","testResultsByEnv":{"default":"cb3a8bce176a6872e91533ba0a215d5f"}}

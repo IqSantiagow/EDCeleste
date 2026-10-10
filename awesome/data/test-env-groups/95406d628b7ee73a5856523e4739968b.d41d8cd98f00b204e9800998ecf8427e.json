@@ -1,0 +1,1 @@
+{"id":"95406d628b7ee73a5856523e4739968b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_save_settings_writes_only_to_the_given_config_path","name":"test_save_settings_writes_only_to_the_given_config_path","status":"passed","testResultsByEnv":{"default":"2664c504f5ad58427a7c9d7708ac451f"}}

@@ -1,0 +1,1 @@
+{"id":"4b693a32a4e7536b0e013412ecd18f35.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_loads_whisper_model_lazily_on_first_call","name":"test_stop_recording_and_transcribe_loads_whisper_model_lazily_on_first_call","status":"passed","testResultsByEnv":{"default":"09725b9cc1d18462c98f5a524d7a614c"}}

@@ -1,0 +1,1 @@
+{"id":"7e64dadb783c9d334b76f3ba6718be62.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_reload_service_invalidates_cache_when_model_changes","name":"test_reload_service_invalidates_cache_when_model_changes","status":"passed","testResultsByEnv":{"default":"d29ecc9b17292bfb260986c96d64bed6"}}

@@ -1,0 +1,1 @@
+{"id":"6d067bf3f1b82ede7779fd08625f4b08.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_validate_settings_returns_issue_when_keybindings_path_empty","name":"test_validate_settings_returns_issue_when_keybindings_path_empty","status":"passed","testResultsByEnv":{"default":"9de28f45bd48a8ab95f099ce12bfec55"}}

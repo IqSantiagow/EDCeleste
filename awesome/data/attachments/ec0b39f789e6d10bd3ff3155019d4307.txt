@@ -1,0 +1,12 @@
+ERROR    edceleste.services.llm_service:llm_service.py:176 Error while processing LLM response: agent down
+ERROR    edceleste.services.llm_service:llm_service.py:435 LLM turn failed: agent down
+Traceback (most recent call last):
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 430, in consume_llm_queue
+    async for response in self.__stream_reply_speak_it_and_save_to_history(
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 179, in __stream_reply_speak_it_and_save_to_history
+    raise e
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 159, in __stream_reply_speak_it_and_save_to_history
+    async for response in self.stream_agent_response(prompt):
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/services/llm/test_llm_service.py", line 79, in stream_agent_response
+    raise error
+RuntimeError: agent down

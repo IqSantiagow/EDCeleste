@@ -1,0 +1,1 @@
+{"id":"8c2d32530f4546b1fe557b1ea910f9af.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_llm_send_message_use_case.TestLLMSendMessageUseCase#test_should_propagate_exception_from_llm_protocol","name":"test_should_propagate_exception_from_llm_protocol","status":"passed","testResultsByEnv":{"default":"eb262ec726ca95f0fac4b8361b595ea8"}}

@@ -1,0 +1,1 @@
+{"id":"7e8cb4cae492b3186531541dcd3d0c85.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalWatcherTest#test_validate_settings_reports_issue_when_journal_path_missing","name":"test_validate_settings_reports_issue_when_journal_path_missing","status":"passed","testResultsByEnv":{"default":"c6462532ef62d7afb317a4b9a17a7539"}}

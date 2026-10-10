@@ -1,0 +1,1 @@
+{"id":"fdb3ef9de8c98e2a0771b5b058f77567.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_ship_stats_use_case.TestStreamShipStatsUseCase#test_yields_one_view_model_per_streamed_snapshot","name":"test_yields_one_view_model_per_streamed_snapshot","status":"passed","testResultsByEnv":{"default":"2911932f45bc461841edeac7f5300617"}}

@@ -1,0 +1,1 @@
+WARNING  edceleste.services.game_window:game_window.py:77 Windows did not bring the game window to the front

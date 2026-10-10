@@ -1,0 +1,1 @@
+{"id":"51aaad4d1b7431006bcc5350daf9c3d3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.settings.test_settings_repository.TestSettingsRepository#test_should_delegate_get_available_voice_profiles_to_use_case","name":"test_should_delegate_get_available_voice_profiles_to_use_case","status":"passed","testResultsByEnv":{"default":"8ad3ef4f356f2c61be2def6c8296a960"}}

@@ -1,0 +1,1 @@
+{"id":"dbada196472a09ebc0f0751ff97173e8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_should_press_keys_with_pydirectinput_when_no_key_presser_is_given","name":"test_should_press_keys_with_pydirectinput_when_no_key_presser_is_given","status":"passed","testResultsByEnv":{"default":"639ea54d40a64600b22c76b644f1765b"}}

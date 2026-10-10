@@ -1,0 +1,1 @@
+{"id":"0c6f3da1a46302b10d32af0b37104f2b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_load_settings_raises_runtime_error_when_copy_from_example_fails","name":"test_load_settings_raises_runtime_error_when_copy_from_example_fails","status":"passed","testResultsByEnv":{"default":"0f3d29b72f5e1122b78b68ff8d5797ed"}}

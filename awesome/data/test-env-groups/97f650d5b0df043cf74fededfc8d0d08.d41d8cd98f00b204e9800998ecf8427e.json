@@ -1,0 +1,1 @@
+{"id":"97f650d5b0df043cf74fededfc8d0d08.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceStreams#test_stream_game_stats_yields_snapshot_reflecting_processed_event","name":"test_stream_game_stats_yields_snapshot_reflecting_processed_event","status":"passed","testResultsByEnv":{"default":"36d5b147d4951638f64eb7e114b42f76"}}

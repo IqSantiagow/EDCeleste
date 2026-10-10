@@ -1,0 +1,1 @@
+{"id":"185cbd94ced83a89b766dd8858153fea.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_event_bus_publish_of_ed_action_triggers_press_keys_for_action","name":"test_event_bus_publish_of_ed_action_triggers_press_keys_for_action","status":"passed","testResultsByEnv":{"default":"aa71c7a0a482f41f30025635f7c7b447"}}

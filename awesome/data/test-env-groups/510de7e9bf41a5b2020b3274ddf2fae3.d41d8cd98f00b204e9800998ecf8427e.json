@@ -1,0 +1,1 @@
+{"id":"510de7e9bf41a5b2020b3274ddf2fae3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderPrepareSampleVoiceTest#test_uses_the_given_text_instead_of_the_default","name":"test_uses_the_given_text_instead_of_the_default","status":"passed","testResultsByEnv":{"default":"04fcaac192ce6efa5fc80cc7a6cd2bf6"}}

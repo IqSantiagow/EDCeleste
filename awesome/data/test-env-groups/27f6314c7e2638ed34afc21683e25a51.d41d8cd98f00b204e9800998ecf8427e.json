@@ -1,0 +1,1 @@
+{"id":"27f6314c7e2638ed34afc21683e25a51.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_cold_start_yields_completed_status_when_reload_and_model_load_succeed","name":"test_cold_start_yields_completed_status_when_reload_and_model_load_succeed","status":"passed","testResultsByEnv":{"default":"8c63603e007097552daba30059f32f5a"}}

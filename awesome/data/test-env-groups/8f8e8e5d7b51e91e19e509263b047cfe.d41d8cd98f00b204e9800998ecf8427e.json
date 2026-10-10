@@ -1,0 +1,1 @@
+{"id":"8f8e8e5d7b51e91e19e509263b047cfe.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_raises_when_model_not_set","name":"test_stop_recording_and_transcribe_raises_when_model_not_set","status":"passed","testResultsByEnv":{"default":"ec67690e85ad7d6732ec402eb19b3729"}}

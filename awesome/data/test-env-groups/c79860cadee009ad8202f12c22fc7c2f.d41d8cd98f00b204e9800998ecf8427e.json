@@ -1,0 +1,1 @@
+{"id":"c79860cadee009ad8202f12c22fc7c2f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_settings_get_keybinds_use_case.TestSettingsGetKeybindsUseCase#test_should_return_keybinds_from_protocol","name":"test_should_return_keybinds_from_protocol","status":"passed","testResultsByEnv":{"default":"a3bd06a5e22c89efd0c52d610b699fcf"}}

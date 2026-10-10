@@ -1,0 +1,1 @@
+{"id":"0dc07c440624e8d362025d5d85320ee6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_get_stt_models_use_case.TestGetSttModelsUseCase#test_should_return_empty_list_when_no_models_available","name":"test_should_return_empty_list_when_no_models_available","status":"passed","testResultsByEnv":{"default":"5d220adb9f12d89d634f29bdaf0602a6"}}

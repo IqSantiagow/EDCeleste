@@ -1,0 +1,1 @@
+{"id":"0ff58aa610f74da242f40dbf02c06f8f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalWatcherTest#test_watch_status_file_waits_until_status_file_appears","name":"test_watch_status_file_waits_until_status_file_appears","status":"passed","testResultsByEnv":{"default":"3d629e734f790e4731fa22f4a7f5b462"}}

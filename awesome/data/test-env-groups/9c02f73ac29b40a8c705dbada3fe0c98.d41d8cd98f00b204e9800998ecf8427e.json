@@ -1,0 +1,1 @@
+{"id":"9c02f73ac29b40a8c705dbada3fe0c98.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_event_reactions_service.EventReactionsServiceTest#test_publishing_game_event_on_real_bus_triggers_reaction","name":"test_publishing_game_event_on_real_bus_triggers_reaction","status":"passed","testResultsByEnv":{"default":"e14ea4e2a2dcb57b487207dce4c3ed81"}}

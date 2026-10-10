@@ -1,0 +1,1 @@
+{"id":"304b483b189baefe72724c9c05909859.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_normalize_key_maps_left_shift_and_left_control_to_modifier_names","name":"test_normalize_key_maps_left_shift_and_left_control_to_modifier_names","status":"passed","testResultsByEnv":{"default":"e8761ce5dfc0610fcd4fe674c525653c"}}

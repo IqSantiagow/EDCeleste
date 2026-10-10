@@ -1,0 +1,1 @@
+{"id":"57194e8158cd904205cae26a065998b4.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceProvider#test_should_build_a_different_model_class_for_a_different_provider","name":"test_should_build_a_different_model_class_for_a_different_provider","status":"passed","testResultsByEnv":{"default":"d90f120042f5daa2515756c49b0ea07a"}}

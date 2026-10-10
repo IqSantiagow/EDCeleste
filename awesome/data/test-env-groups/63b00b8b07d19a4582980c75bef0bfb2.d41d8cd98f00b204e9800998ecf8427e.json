@@ -1,0 +1,1 @@
+{"id":"63b00b8b07d19a4582980c75bef0bfb2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_get_tts_voices_use_case.TestGetTTSVoicesUseCase#test_should_return_voices_from_tts_protocol","name":"test_should_return_voices_from_tts_protocol","status":"passed","testResultsByEnv":{"default":"d80aa4633a113bc5587afd8ce884f136"}}

@@ -1,0 +1,1 @@
+{"id":"990dd90b5c90987705ed2b5681612081.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_journal_events_usecase.TestStreamJournalEventsUseCase#test_should_map_start_jump_event_to_view_model","name":"test_should_map_start_jump_event_to_view_model","status":"passed","testResultsByEnv":{"default":"7a671a919acd9270e16f8addb33d8218"}}

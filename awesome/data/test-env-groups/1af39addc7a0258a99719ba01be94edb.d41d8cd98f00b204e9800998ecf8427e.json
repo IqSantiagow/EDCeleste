@@ -1,0 +1,1 @@
+{"id":"1af39addc7a0258a99719ba01be94edb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_stops_and_closes_stream","name":"test_stop_recording_and_transcribe_stops_and_closes_stream","status":"passed","testResultsByEnv":{"default":"2504a1ad149ef2f7453f946ea804dd8f"}}

@@ -1,0 +1,1 @@
+{"id":"f73f0948d52a784c8c20ba7ec4839152.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_update_settings_use_case.TestUpdateSettingsUseCase#test_should_raise_and_not_persist_when_keybinds_has_issues","name":"test_should_raise_and_not_persist_when_keybinds_has_issues","status":"passed","testResultsByEnv":{"default":"828cb95db5e4683c1c73a3092d8faf6d"}}

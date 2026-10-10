@@ -1,0 +1,1 @@
+WARNING  edceleste.services.llm_service:llm_service.py:143 Game state is not set. Cannot send message to LLM.

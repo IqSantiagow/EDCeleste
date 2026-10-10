@@ -1,0 +1,1 @@
+{"id":"9c7ad953af5c71b39841474799b9393c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_queue_reply_to_journal_event_puts_event_description_prompt","name":"test_queue_reply_to_journal_event_puts_event_description_prompt","status":"passed","testResultsByEnv":{"default":"05aaf8d75640abe84cb673737ae4ce85"}}

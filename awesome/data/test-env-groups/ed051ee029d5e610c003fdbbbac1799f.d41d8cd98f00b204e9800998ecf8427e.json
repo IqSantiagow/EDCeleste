@@ -1,0 +1,1 @@
+{"id":"ed051ee029d5e610c003fdbbbac1799f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_fuel_projection.FuelProjectionTest#test_should_clamp_to_capacity_on_refuel_all_when_capacity_known","name":"test_should_clamp_to_capacity_on_refuel_all_when_capacity_known","status":"passed","testResultsByEnv":{"default":"13d7e0bfdf6e20e34ddd3c326109c7e8"}}

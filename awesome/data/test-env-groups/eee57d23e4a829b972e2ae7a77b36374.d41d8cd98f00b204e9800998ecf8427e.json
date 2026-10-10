@@ -1,0 +1,1 @@
+{"id":"eee57d23e4a829b972e2ae7a77b36374.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_reload_service_sets_whisper_model_none_when_model_absent","name":"test_reload_service_sets_whisper_model_none_when_model_absent","status":"passed","testResultsByEnv":{"default":"556dc2dc6752e2ec450aaa1057b072fb"}}

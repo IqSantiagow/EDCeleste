@@ -1,0 +1,1 @@
+{"id":"bcd1db6ab51913dacda8ecf1aea719f1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_validate_settings_rejects_an_unsupported_provider_type","name":"test_validate_settings_rejects_an_unsupported_provider_type","status":"passed","testResultsByEnv":{"default":"98b95740395b51d8915add04ca15cf97"}}

@@ -1,0 +1,1 @@
+{"id":"9e5bd91f1490388fdb48cd2d90288be1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceMarketStream#test_stream_market_is_not_woken_by_status_events","name":"test_stream_market_is_not_woken_by_status_events","status":"passed","testResultsByEnv":{"default":"470d06f3f40a41c977b9f710369868b4"}}

@@ -1,0 +1,1 @@
+WARNING  edceleste.services.game_state_service:game_state_service.py:120 Game state projection is empty. Does the game started?

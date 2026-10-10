@@ -1,0 +1,1 @@
+{"id":"8b5dbd152d8ca20b8a2d4202520e464e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_journal_to_dashboard_stats#test_should_show_the_commander_ship_and_credits_in_the_header","name":"The header shows the Commander, the ship and the credits","status":"passed","testResultsByEnv":{"default":"eb84347f21fa884127a771946d27cde4"}}

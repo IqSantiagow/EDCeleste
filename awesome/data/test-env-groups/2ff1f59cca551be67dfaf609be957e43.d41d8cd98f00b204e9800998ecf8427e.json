@@ -1,0 +1,1 @@
+{"id":"2ff1f59cca551be67dfaf609be957e43.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_update_settings_use_case.TestUpdateSettingsUseCase#test_should_raise_and_not_persist_when_stt_has_issues","name":"test_should_raise_and_not_persist_when_stt_has_issues","status":"passed","testResultsByEnv":{"default":"9ebb9142cf39dd5f5ca63c32f890599e"}}

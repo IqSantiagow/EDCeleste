@@ -1,0 +1,1 @@
+{"id":"b4911b672d6f971fdd42ffaf617fe0ad.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_get_stt_enabled_use_case.TestGetSttEnabledUseCase#test_should_return_false_when_stt_disabled","name":"test_should_return_false_when_stt_disabled","status":"passed","testResultsByEnv":{"default":"b86f5e84eac2e3ebc074d89870c672d3"}}

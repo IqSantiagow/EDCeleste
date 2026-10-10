@@ -1,0 +1,1 @@
+{"id":"2abbe642a88bca467490caae31c393a3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceProvider#test_should_pass_a_custom_base_url_to_the_provider","name":"test_should_pass_a_custom_base_url_to_the_provider","status":"passed","testResultsByEnv":{"default":"80f4bda3c8e0668c9bb7d519a5f49eaf"}}

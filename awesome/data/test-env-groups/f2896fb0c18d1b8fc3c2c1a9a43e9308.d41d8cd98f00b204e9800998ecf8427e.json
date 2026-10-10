@@ -1,0 +1,1 @@
+{"id":"f2896fb0c18d1b8fc3c2c1a9a43e9308.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.event_bus.test_event_bus.EventBusTest#test_should_add_callback_when_existing_type_already_registered","name":"test_should_add_callback_when_existing_type_already_registered","status":"passed","testResultsByEnv":{"default":"9c2c1dcdd194167c3485e5e13a6d82e2"}}

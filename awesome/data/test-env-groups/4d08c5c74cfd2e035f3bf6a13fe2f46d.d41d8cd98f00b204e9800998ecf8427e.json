@@ -1,0 +1,1 @@
+{"id":"4d08c5c74cfd2e035f3bf6a13fe2f46d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_validate_settings_rejects_a_model_openrouter_does_not_serve","name":"test_validate_settings_rejects_a_model_openrouter_does_not_serve","status":"passed","testResultsByEnv":{"default":"7ad5c4e9b25aca21da033b4ca18ee0c9"}}

@@ -1,0 +1,1 @@
+{"id":"799148e12b644877a73817c555cd95f3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_journal_events_usecase.TestStreamJournalEventsUseCase#test_should_propagate_exception_from_underlying_stream","name":"test_should_propagate_exception_from_underlying_stream","status":"passed","testResultsByEnv":{"default":"7335e10672e2eed8385b4f383afd4d6d"}}

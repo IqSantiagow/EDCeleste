@@ -1,0 +1,1 @@
+{"id":"2ac07280f7f3c92d20480315d16d0383.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.allure_report.test_hide_empty_fixtures.TestHideEmptyFixtures#test_should_hide_pytest_cleanup_lambdas_without_a_status","name":"test_should_hide_pytest_cleanup_lambdas_without_a_status","status":"passed","testResultsByEnv":{"default":"d04191f7583e596f2fa7f73a91fa3d37"}}

@@ -1,0 +1,1 @@
+{"id":"7b90198459b613af9d4115388a6394e4.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_settings_model.TestSettingsModelEventReaction#test_direct_validator_call_rejects_non_dict_input","name":"test_direct_validator_call_rejects_non_dict_input","status":"passed","testResultsByEnv":{"default":"6c83a1413f6435e3e62a01354e359d52"}}

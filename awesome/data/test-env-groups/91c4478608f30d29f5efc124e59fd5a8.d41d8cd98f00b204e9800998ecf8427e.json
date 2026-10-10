@@ -1,0 +1,1 @@
+{"id":"91c4478608f30d29f5efc124e59fd5a8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceProvider#test_should_build_the_model_belonging_to_the_chosen_provider","name":"test_should_build_the_model_belonging_to_the_chosen_provider","status":"passed","testResultsByEnv":{"default":"e7ce9569cd1780d4aeddf60e1403564e"}}

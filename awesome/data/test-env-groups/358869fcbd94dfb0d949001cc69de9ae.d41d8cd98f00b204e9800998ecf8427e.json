@@ -1,0 +1,1 @@
+{"id":"358869fcbd94dfb0d949001cc69de9ae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_journal_events_usecase.TestStreamJournalEventsUseCase#test_should_map_loaded_game_event_to_view_model","name":"test_should_map_loaded_game_event_to_view_model","status":"passed","testResultsByEnv":{"default":"c009969ea83a01ab3c8329b13ca49429"}}

@@ -1,0 +1,1 @@
+{"id":"e68d59e08231816420dbf5f2c3813d0d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceProvider#test_should_reject_a_provider_type_pydantic_ai_does_not_serve","name":"test_should_reject_a_provider_type_pydantic_ai_does_not_serve","status":"passed","testResultsByEnv":{"default":"fa30442c30c188cd1de6b74f4a036eb0"}}

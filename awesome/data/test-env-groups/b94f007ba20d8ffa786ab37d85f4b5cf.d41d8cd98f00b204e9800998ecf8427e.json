@@ -1,0 +1,1 @@
+{"id":"b94f007ba20d8ffa786ab37d85f4b5cf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.event_bus.test_event_bus.EventBusTest#test_should_call_only_callables_for_types","name":"test_should_call_only_callables_for_types","status":"passed","testResultsByEnv":{"default":"90d401f2e0b2d73a2dfaddbc3939126e"}}

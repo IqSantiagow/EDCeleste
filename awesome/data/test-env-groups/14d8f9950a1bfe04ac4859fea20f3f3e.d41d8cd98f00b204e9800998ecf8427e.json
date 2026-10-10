@@ -1,0 +1,1 @@
+{"id":"14d8f9950a1bfe04ac4859fea20f3f3e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_synthesize_and_play_delegates_to_the_active_provider","name":"test_synthesize_and_play_delegates_to_the_active_provider","status":"passed","testResultsByEnv":{"default":"345dc5c4be474f406d82f654f73000e1"}}

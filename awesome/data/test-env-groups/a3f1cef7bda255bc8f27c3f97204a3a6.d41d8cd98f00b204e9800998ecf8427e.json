@@ -1,0 +1,1 @@
+{"id":"a3f1cef7bda255bc8f27c3f97204a3a6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderTest#test_synthesize_and_play_plays_audio_data_read_from_saved_file","name":"test_synthesize_and_play_plays_audio_data_read_from_saved_file","status":"passed","testResultsByEnv":{"default":"9d495ccfc6caa8cb174091b62e201bcc"}}

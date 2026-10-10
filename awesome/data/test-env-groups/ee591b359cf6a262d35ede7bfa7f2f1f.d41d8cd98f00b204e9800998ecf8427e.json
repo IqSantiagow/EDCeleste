@@ -1,0 +1,1 @@
+{"id":"ee591b359cf6a262d35ede7bfa7f2f1f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_save_a_changed_setting_to_config_yaml_and_go_back_on_escape","name":"A changed setting is saved to config.yaml and Escape goes back","status":"passed","testResultsByEnv":{"default":"d28de38a0cef2536d27b0275c4ecfbda"}}

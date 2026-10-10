@@ -1,0 +1,1 @@
+{"id":"bc5e3ab8717ef42df0d07839c87efb47.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_normalize_key_lowercases_unmapped_keys_by_default","name":"test_normalize_key_lowercases_unmapped_keys_by_default","status":"passed","testResultsByEnv":{"default":"6278d406fb965deb054e26ef2828f512"}}

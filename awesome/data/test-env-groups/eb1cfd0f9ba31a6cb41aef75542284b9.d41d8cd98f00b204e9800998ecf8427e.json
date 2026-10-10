@@ -1,0 +1,1 @@
+{"id":"eb1cfd0f9ba31a6cb41aef75542284b9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_load_stt_model_loads_once_and_caches_across_calls","name":"test_load_stt_model_loads_once_and_caches_across_calls","status":"passed","testResultsByEnv":{"default":"c1e3818d1d2c303169e0260e47074b55"}}

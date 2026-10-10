@@ -1,0 +1,1 @@
+{"id":"115506bfb760f2d2b8abb1d422168bb8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceEventMapping#test_should_map_a_tool_call_to_the_readable_name_of_a_known_tool","name":"test_should_map_a_tool_call_to_the_readable_name_of_a_known_tool","status":"passed","testResultsByEnv":{"default":"ac740503686cbc1e706981b1fa478802"}}

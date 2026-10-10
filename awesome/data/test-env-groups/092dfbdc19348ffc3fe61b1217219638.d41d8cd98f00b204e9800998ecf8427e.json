@@ -1,0 +1,1 @@
+{"id":"092dfbdc19348ffc3fe61b1217219638.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_find_connection_error_keeps_error_message_when_api_key_is_empty","name":"test_find_connection_error_keeps_error_message_when_api_key_is_empty","status":"passed","testResultsByEnv":{"default":"dfa02ef972b9e3f3003d59c05266e15c"}}

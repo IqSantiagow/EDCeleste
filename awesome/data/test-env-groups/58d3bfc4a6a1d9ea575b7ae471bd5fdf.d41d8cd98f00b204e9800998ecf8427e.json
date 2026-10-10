@@ -1,0 +1,1 @@
+{"id":"58d3bfc4a6a1d9ea575b7ae471bd5fdf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_load_settings_creates_config_from_example_and_raises_when_missing","name":"test_load_settings_creates_config_from_example_and_raises_when_missing","status":"passed","testResultsByEnv":{"default":"6f8dd6020626d9b6c443399a8e3f38de"}}

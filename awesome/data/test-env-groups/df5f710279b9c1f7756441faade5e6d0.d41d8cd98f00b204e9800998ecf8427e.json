@@ -1,0 +1,1 @@
+{"id":"df5f710279b9c1f7756441faade5e6d0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_boot#test_should_stop_the_preflight_when_the_journal_folder_is_missing","name":"The preflight stops when the journal folder is missing","status":"passed","testResultsByEnv":{"default":"9c4e4771b8d7f4f7dd7a2343b452b1b7"}}

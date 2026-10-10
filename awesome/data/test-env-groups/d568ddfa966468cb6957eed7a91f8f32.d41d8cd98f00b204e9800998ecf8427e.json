@@ -1,0 +1,1 @@
+{"id":"d568ddfa966468cb6957eed7a91f8f32.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_llm_responses_use_case.TestStreamLLMResponsesUseCase#test_should_map_tool_call_and_failed_tool_result","name":"test_should_map_tool_call_and_failed_tool_result","status":"passed","testResultsByEnv":{"default":"f6c5c54c103db50b1d0681246293f03c"}}

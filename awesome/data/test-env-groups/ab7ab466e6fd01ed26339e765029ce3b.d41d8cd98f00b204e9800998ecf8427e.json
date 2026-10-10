@@ -1,0 +1,1 @@
+{"id":"ab7ab466e6fd01ed26339e765029ce3b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_perform_game_action.TestPerformGameAction#test_should_return_error_when_action_has_no_keyboard_key","name":"test_should_return_error_when_action_has_no_keyboard_key","status":"passed","testResultsByEnv":{"default":"c6d5139340593b6fb243df6170f25ae8"}}

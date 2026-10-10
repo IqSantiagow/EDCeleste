@@ -1,0 +1,2 @@
+WARNING  edceleste.projection.event_projections.player_projection:player_projection.py:146 Player state not set. Does the game started?
+WARNING  edceleste.projection.event_projections.fuel_projection:fuel_projection.py:99 Fuel level is at 0. Does the game started?

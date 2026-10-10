@@ -1,0 +1,1 @@
+{"id":"ebe3054be24bf6e36d87d78ca3c05ef5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_journal_events_usecase.TestStreamJournalEventsUseCase#test_should_map_docked_event_to_view_model","name":"test_should_map_docked_event_to_view_model","status":"passed","testResultsByEnv":{"default":"551343aec2354c0b5da6b26c624f37ac"}}

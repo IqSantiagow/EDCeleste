@@ -1,0 +1,1 @@
+{"id":"6926add76b50da00560b049230c5a72d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_settings_get_keybinds_use_case.TestSettingsGetKeybindsUseCase#test_should_return_empty_list_when_no_keybinds_loaded","name":"test_should_return_empty_list_when_no_keybinds_loaded","status":"passed","testResultsByEnv":{"default":"d3f863c00c3e11d2aec62f4f31399bf4"}}

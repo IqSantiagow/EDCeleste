@@ -1,0 +1,1 @@
+{"id":"abe63501cd36c3d422a2e50a27dd596c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_save_settings_creates_config_yaml_from_example_when_missing","name":"test_save_settings_creates_config_yaml_from_example_when_missing","status":"passed","testResultsByEnv":{"default":"34d2da8aaa9537a0dacd164d280a0b51"}}

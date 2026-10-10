@@ -1,0 +1,1 @@
+{"id":"726a7fa9553dd16e82ba4834f2f9ea14.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_clears_stream_reference","name":"test_stop_recording_and_transcribe_clears_stream_reference","status":"passed","testResultsByEnv":{"default":"c117ba1d4c995d32a7de8a3a3884a1ef"}}

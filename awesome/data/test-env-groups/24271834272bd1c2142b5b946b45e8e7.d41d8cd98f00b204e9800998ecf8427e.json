@@ -1,0 +1,1 @@
+{"id":"24271834272bd1c2142b5b946b45e8e7.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.event_bus.test_game_state_integration.GameStateIntegration#test_should_receive_event_from_bus","name":"test_should_receive_event_from_bus","status":"passed","testResultsByEnv":{"default":"cd38750a689d568652a1d3fef6b98fe2"}}

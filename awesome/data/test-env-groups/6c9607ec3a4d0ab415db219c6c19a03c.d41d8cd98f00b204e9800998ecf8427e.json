@@ -1,0 +1,1 @@
+{"id":"6c9607ec3a4d0ab415db219c6c19a03c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_fuel_projection.FuelProjectionTest#test_should_clear_low_fuel_when_status_event_flag_unset","name":"test_should_clear_low_fuel_when_status_event_flag_unset","status":"passed","testResultsByEnv":{"default":"994a1c8935236132cbb087ed9eade6b5"}}

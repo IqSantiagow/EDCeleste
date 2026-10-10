@@ -1,0 +1,1 @@
+{"id":"67e109e28cc806e71ef1154f185b3244.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_find_llm_connection_error_use_case.TestFindLlmConnectionErrorUseCase#test_should_return_none_when_the_connection_works","name":"test_should_return_none_when_the_connection_works","status":"passed","testResultsByEnv":{"default":"2c94efdaf5d9090bc81121d1cc644040"}}

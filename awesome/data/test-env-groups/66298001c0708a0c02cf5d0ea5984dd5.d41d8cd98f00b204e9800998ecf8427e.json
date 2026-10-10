@@ -1,0 +1,1 @@
+{"id":"66298001c0708a0c02cf5d0ea5984dd5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_settings_load_keybinds_use_case.TestSettingsLoadKeybindsUseCase#test_should_propagate_exception_from_protocol","name":"test_should_propagate_exception_from_protocol","status":"passed","testResultsByEnv":{"default":"be51b8137832f9ead531495e9159f252"}}

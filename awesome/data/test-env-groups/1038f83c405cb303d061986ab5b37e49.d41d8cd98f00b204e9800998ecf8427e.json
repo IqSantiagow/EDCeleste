@@ -1,0 +1,1 @@
+{"id":"1038f83c405cb303d061986ab5b37e49.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_cold_start_skips_model_load_when_stt_disabled","name":"test_cold_start_skips_model_load_when_stt_disabled","status":"passed","testResultsByEnv":{"default":"8639c3854cfefd1f7403d0701a4be192"}}

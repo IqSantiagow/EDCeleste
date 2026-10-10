@@ -1,0 +1,1 @@
+{"id":"c35004472ce2a90c8c08d1a4d294ea93.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_start_recording_raises_when_already_recording","name":"test_start_recording_raises_when_already_recording","status":"passed","testResultsByEnv":{"default":"87f0a295acd490caa4ff4bd65620b514"}}

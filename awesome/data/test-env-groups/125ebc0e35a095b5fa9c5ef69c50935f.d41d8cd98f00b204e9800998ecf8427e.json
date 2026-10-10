@@ -1,0 +1,1 @@
+{"id":"125ebc0e35a095b5fa9c5ef69c50935f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderTest#test_validate_settings_returns_no_issues_when_voice_present","name":"test_validate_settings_returns_no_issues_when_voice_present","status":"passed","testResultsByEnv":{"default":"c60488442c5d66ab5edc834f9289f812"}}

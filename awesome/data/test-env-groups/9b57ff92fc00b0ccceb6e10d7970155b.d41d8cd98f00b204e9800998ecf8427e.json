@@ -1,0 +1,1 @@
+{"id":"9b57ff92fc00b0ccceb6e10d7970155b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalWatcherTest#test_should_stop_emitting_events_on_stop_signal","name":"test_should_stop_emitting_events_on_stop_signal","status":"passed","testResultsByEnv":{"default":"4f7a9ab4b7ec7551aff12dda80b8bedc"}}

@@ -1,0 +1,1 @@
+{"id":"40a52a209ab40a06fa08779c5f6daabd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_should_answer_with_system_message_when_game_state_not_set","name":"test_should_answer_with_system_message_when_game_state_not_set","status":"passed","testResultsByEnv":{"default":"89a9362f3cfd7538ef5dc4f2a38a4518"}}

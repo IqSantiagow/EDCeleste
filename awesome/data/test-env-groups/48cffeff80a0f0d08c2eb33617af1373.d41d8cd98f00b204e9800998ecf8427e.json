@@ -1,0 +1,1 @@
+{"id":"48cffeff80a0f0d08c2eb33617af1373.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderTest#test_synthesize_and_play_removes_temporary_file_after_playback","name":"test_synthesize_and_play_removes_temporary_file_after_playback","status":"passed","testResultsByEnv":{"default":"76cc1d04cba80819c11b2f6e2f1f25f9"}}

@@ -1,0 +1,1 @@
+{"id":"8504fb21a3ea808b1f47116026f49f5e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_save_settings_writes_yaml_when_one_section_changed","name":"test_save_settings_writes_yaml_when_one_section_changed","status":"passed","testResultsByEnv":{"default":"2d1dd1573653ac9c002cc8b70ea90680"}}

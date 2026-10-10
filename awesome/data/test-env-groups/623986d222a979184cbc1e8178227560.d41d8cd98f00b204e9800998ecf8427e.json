@@ -1,0 +1,1 @@
+{"id":"623986d222a979184cbc1e8178227560.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_load_settings_raises_runtime_error_on_invalid_yaml_schema","name":"test_load_settings_raises_runtime_error_on_invalid_yaml_schema","status":"passed","testResultsByEnv":{"default":"a2f6187709110783e6d1815899b3004a"}}

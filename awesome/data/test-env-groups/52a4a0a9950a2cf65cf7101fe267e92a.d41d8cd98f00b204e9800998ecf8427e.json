@@ -1,0 +1,1 @@
+{"id":"52a4a0a9950a2cf65cf7101fe267e92a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stt_start_recording_use_case.TestSttStartRecordingUseCase#test_should_delegate_to_stt_protocol","name":"test_should_delegate_to_stt_protocol","status":"passed","testResultsByEnv":{"default":"b9a8b424be1835a7d96ebc5652e1dbc6"}}

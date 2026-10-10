@@ -1,0 +1,1 @@
+{"id":"3fd7a2bdc2140cc9bb5a8eb7a5ef40fb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_cold_start_yields_error_message_when_load_settings_fails","name":"test_cold_start_yields_error_message_when_load_settings_fails","status":"passed","testResultsByEnv":{"default":"cb05ed385aedd17d0c76d2703798b37e"}}

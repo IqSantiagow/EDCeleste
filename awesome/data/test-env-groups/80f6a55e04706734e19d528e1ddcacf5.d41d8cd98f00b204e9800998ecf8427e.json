@@ -1,0 +1,1 @@
+{"id":"80f6a55e04706734e19d528e1ddcacf5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_ship_stats_use_case.TestStreamShipStatsUseCase#test_yields_nothing_when_stream_is_empty","name":"test_yields_nothing_when_stream_is_empty","status":"passed","testResultsByEnv":{"default":"fae072ba0086c545e9a0806a14bdf874"}}

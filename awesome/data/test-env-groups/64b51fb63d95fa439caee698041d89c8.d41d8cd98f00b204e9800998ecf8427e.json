@@ -1,0 +1,1 @@
+{"id":"64b51fb63d95fa439caee698041d89c8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_get_stt_models_use_case.TestGetSttModelsUseCase#test_should_delegate_to_stt_protocol_and_return_models","name":"test_should_delegate_to_stt_protocol_and_return_models","status":"passed","testResultsByEnv":{"default":"c81dfe19dfbd889e6499bcafd42d86d0"}}

@@ -1,0 +1,1 @@
+{"id":"4958654fafb2838b4effe7e5f34d5bb8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_returns_transcribed_text","name":"test_stop_recording_and_transcribe_returns_transcribed_text","status":"passed","testResultsByEnv":{"default":"81d3499fde9f7cfdd20c8728024d5237"}}

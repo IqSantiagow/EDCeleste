@@ -1,0 +1,1 @@
+ERROR    edceleste.services.game_watcher_service:game_watcher_service.py:229 Error during validation for Status.json event: not valid json

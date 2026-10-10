@@ -1,0 +1,1 @@
+{"id":"756e060623f1ffef0e08f62592b6fe11.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_returns_none_when_transcription_empty","name":"test_stop_recording_and_transcribe_returns_none_when_transcription_empty","status":"passed","testResultsByEnv":{"default":"a007b7637e4fe1a4167db702b22cf2b9"}}

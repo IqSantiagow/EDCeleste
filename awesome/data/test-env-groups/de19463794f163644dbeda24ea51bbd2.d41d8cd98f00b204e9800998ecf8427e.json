@@ -1,0 +1,1 @@
+{"id":"de19463794f163644dbeda24ea51bbd2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_ship_projection.ShipProjectionTest#test_should_keep_last_known_legal_status_when_status_event_omits_it","name":"test_should_keep_last_known_legal_status_when_status_event_omits_it","status":"passed","testResultsByEnv":{"default":"a71fbbc24227850c8ea26310294bc1a4"}}

@@ -1,0 +1,1 @@
+{"id":"99e87d0b57d580215a1df55bd64be19b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_fuel_projection.FuelProjectionTest#test_should_keep_last_known_fuel_when_status_event_omits_it","name":"test_should_keep_last_known_fuel_when_status_event_omits_it","status":"passed","testResultsByEnv":{"default":"64f315d78cd0c8e885c4beb28ccd7511"}}

@@ -1,0 +1,1 @@
+{"id":"42d2b349051f2493ef514372a89efec5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_prompts_whisper_with_game_vocabulary","name":"test_stop_recording_and_transcribe_prompts_whisper_with_game_vocabulary","status":"passed","testResultsByEnv":{"default":"613e7bbf69060459574cb1f97a7ada17"}}

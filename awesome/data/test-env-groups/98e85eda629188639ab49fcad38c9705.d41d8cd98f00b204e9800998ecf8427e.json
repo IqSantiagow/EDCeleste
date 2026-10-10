@@ -1,0 +1,1 @@
+{"id":"98e85eda629188639ab49fcad38c9705.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_clone_voice_use_case.TestCloneVoiceUseCase#test_should_propagate_error_raised_by_voice_cloning_protocol","name":"test_should_propagate_error_raised_by_voice_cloning_protocol","status":"passed","testResultsByEnv":{"default":"a9cd0e95a3e5d855efc91bd3c81db442"}}

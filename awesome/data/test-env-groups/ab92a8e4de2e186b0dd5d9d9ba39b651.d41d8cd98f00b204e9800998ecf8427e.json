@@ -1,0 +1,1 @@
+{"id":"ab92a8e4de2e186b0dd5d9d9ba39b651.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_get_available_profiles_delegates_to_the_chatterbox_provider","name":"test_get_available_profiles_delegates_to_the_chatterbox_provider","status":"passed","testResultsByEnv":{"default":"77f0ad755d95396f0288007c1d05f0da"}}

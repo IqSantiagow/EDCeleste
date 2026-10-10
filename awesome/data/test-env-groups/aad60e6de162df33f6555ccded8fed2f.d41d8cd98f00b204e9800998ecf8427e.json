@@ -1,0 +1,1 @@
+{"id":"aad60e6de162df33f6555ccded8fed2f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_returns_none_when_no_frames_captured","name":"test_stop_recording_and_transcribe_returns_none_when_no_frames_captured","status":"passed","testResultsByEnv":{"default":"bb6115ec4407bb1785c39c090022a228"}}

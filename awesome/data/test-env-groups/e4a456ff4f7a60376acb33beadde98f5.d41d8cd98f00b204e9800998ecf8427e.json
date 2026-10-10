@@ -1,0 +1,1 @@
+{"id":"e4a456ff4f7a60376acb33beadde98f5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_market_projection.TestMarketProjectionStaleness#test_market_data_is_stale_when_no_market_file_was_read","name":"test_market_data_is_stale_when_no_market_file_was_read","status":"passed","testResultsByEnv":{"default":"6f6342e94b8bfe95763ab3b13ec00e92"}}

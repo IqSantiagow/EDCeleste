@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+<head>
+    <meta charset="utf-8">
+    <title> EDCeleste tests </title>
+    <link rel="icon" href="favicon.ico">
+    
+    <script>
+      window.allureReportOptions = {"reportName":"EDCeleste tests","logo":"","theme":"light","reportLanguage":"en","createdAt":1791628477573,"reportUuid":"d56e18a0-47bd-4373-9e7a-1771fc55bf37","allureVersion":"3.20.1"}
+    </script>
+</head>
+<body>
+    <div id="app"></div>
+    
+    <script>
+      const { origin, pathname } = window.location; 
+      const url = new URL(pathname, origin);
+      const baseEl = document.createElement("base");
+      
+      baseEl.href = url.toString();
+      
+      window.document.head.appendChild(baseEl);
+    </script>
+  
+    <script>
+      window.allure = window.allure || {};
+    </script>
+    <script   src="app-f71b0c6222e298725816.js"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-LNDJ3J7WT0"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-LNDJ3J7WT0', {
+          "report": "dashboard",
+          "allureVersion": "3.20.1",
+          "reportUuid": "d56e18a0-47bd-4373-9e7a-1771fc55bf37",
+          "single_file": ""
+        });
+    </script>
+    
+      <script async>
+        window.allureReportDataReady = true;
+      </script>
+    
+</body>
+</html>

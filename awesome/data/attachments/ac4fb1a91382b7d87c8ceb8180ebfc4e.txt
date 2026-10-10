@@ -1,0 +1,7 @@
+ERROR    edceleste.services.instinct_service:instinct_service.py:175 Instinct model download failed
+Traceback (most recent call last):
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/instinct_service.py", line 167, in download_and_load_model
+    async for progress in self.download_service.download_model():
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/services/test_instinct_service.py", line 73, in download_model
+    raise self.error
+RuntimeError: disk full

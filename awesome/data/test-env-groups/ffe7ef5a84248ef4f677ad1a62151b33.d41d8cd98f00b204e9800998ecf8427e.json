@@ -1,0 +1,1 @@
+{"id":"ffe7ef5a84248ef4f677ad1a62151b33.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_show_the_validation_error_in_the_section_and_keep_config_yaml","name":"An invalid journal path shows an error and config.yaml stays as it was","status":"passed","testResultsByEnv":{"default":"4beb6acbacf88da5115bf8855b4dff77"}}

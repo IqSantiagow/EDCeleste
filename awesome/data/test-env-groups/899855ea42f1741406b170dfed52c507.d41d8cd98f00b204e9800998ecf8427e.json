@@ -1,0 +1,1 @@
+{"id":"899855ea42f1741406b170dfed52c507.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_boot#test_should_stop_watching_the_journal_when_the_app_closes","name":"EDCeleste stops watching the journal when the Commander quits","status":"passed","testResultsByEnv":{"default":"31d3d2e33241d989035d085bc757d852"}}

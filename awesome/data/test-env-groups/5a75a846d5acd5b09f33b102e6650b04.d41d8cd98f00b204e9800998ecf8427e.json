@@ -1,0 +1,1 @@
+{"id":"5a75a846d5acd5b09f33b102e6650b04.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderTest#test_synthesize_and_play_saves_audio_using_the_configured_voice","name":"test_synthesize_and_play_saves_audio_using_the_configured_voice","status":"passed","testResultsByEnv":{"default":"c1a8bfff28be7018851d131aff079d7a"}}

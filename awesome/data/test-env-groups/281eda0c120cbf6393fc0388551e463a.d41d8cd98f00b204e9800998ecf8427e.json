@@ -1,0 +1,1 @@
+{"id":"281eda0c120cbf6393fc0388551e463a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_fuel_projection.FuelProjectionTest#test_should_set_fuel_level_and_reservoir_from_status_event_fuel","name":"test_should_set_fuel_level_and_reservoir_from_status_event_fuel","status":"passed","testResultsByEnv":{"default":"bf511069ff8cd5c77209c5aa3ea9151b"}}

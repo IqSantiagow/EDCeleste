@@ -1,0 +1,1 @@
+{"id":"ae2ec46374d9ea42660ced70b987950d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_stop_recording_and_transcribe_caches_whisper_model_across_calls","name":"test_stop_recording_and_transcribe_caches_whisper_model_across_calls","status":"passed","testResultsByEnv":{"default":"11fd7ee66282c3ebb57fce24d8b1e616"}}

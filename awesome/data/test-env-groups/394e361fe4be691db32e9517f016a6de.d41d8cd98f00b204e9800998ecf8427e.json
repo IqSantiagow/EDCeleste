@@ -1,0 +1,1 @@
+{"id":"394e361fe4be691db32e9517f016a6de.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_station_market_use_case.TestStreamStationMarketUseCase#test_yields_one_view_model_per_streamed_snapshot","name":"test_yields_one_view_model_per_streamed_snapshot","status":"passed","testResultsByEnv":{"default":"2b3be1aa3539ea624f94f2a716a37175"}}

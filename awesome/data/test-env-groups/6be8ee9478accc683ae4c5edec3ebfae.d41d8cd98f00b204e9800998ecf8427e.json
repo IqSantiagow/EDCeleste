@@ -1,0 +1,1 @@
+{"id":"6be8ee9478accc683ae4c5edec3ebfae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_validate_settings_reports_a_provider_that_cannot_be_built","name":"test_validate_settings_reports_a_provider_that_cannot_be_built","status":"passed","testResultsByEnv":{"default":"56f63b2e12cdf3adc82f0195c9293ff6"}}

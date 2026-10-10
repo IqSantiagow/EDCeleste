@@ -1,0 +1,1 @@
+{"id":"27444013432524510717ade0c8b7aeef.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_validate_settings_accepts_any_model_when_no_list_is_published","name":"test_validate_settings_accepts_any_model_when_no_list_is_published","status":"passed","testResultsByEnv":{"default":"5e9c3ef49bbd6d4bcb17c80c60faffc4"}}

@@ -1,0 +1,1 @@
+{"id":"2d682211e32c6f5658616065903ecd19.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_get_available_device_returns_cpu_when_active_provider_is_not_chatterbox","name":"test_get_available_device_returns_cpu_when_active_provider_is_not_chatterbox","status":"passed","testResultsByEnv":{"default":"4c67a785a4dd1c432f047cd2261b0660"}}

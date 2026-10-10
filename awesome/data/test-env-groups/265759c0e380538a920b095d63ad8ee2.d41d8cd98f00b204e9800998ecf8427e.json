@@ -1,0 +1,1 @@
+{"id":"265759c0e380538a920b095d63ad8ee2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_llm_send_message_use_case.TestLLMSendMessageUseCase#test_should_forward_message_to_llm_protocol","name":"test_should_forward_message_to_llm_protocol","status":"passed","testResultsByEnv":{"default":"081d1155820dafb63a8508e1cbf71477"}}

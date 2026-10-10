@@ -1,0 +1,1 @@
+{"id":"eb99f794885edad52a7aca847989c9b7.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_settings_service.SettingsServiceTest#test_load_settings_copies_the_given_example_when_config_is_missing","name":"test_load_settings_copies_the_given_example_when_config_is_missing","status":"passed","testResultsByEnv":{"default":"dd0126108999e9df816105b7f8aaa95c"}}

@@ -1,0 +1,1 @@
+{"id":"f96e6d69da9bf84fb24b5d7b9a4529af.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceStreams#test_stream_game_stats_unregisters_queue_when_closed","name":"test_stream_game_stats_unregisters_queue_when_closed","status":"passed","testResultsByEnv":{"default":"beeffbfd798e45723c22e669ffbd2704"}}

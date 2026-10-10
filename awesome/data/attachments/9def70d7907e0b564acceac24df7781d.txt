@@ -1,0 +1,1 @@
+WARNING  edceleste.services.stt_service:stt_service.py:179 STT model is not set. Cannot load model.

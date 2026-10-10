@@ -1,0 +1,1 @@
+{"id":"8a0ce985209ae517ad5f66221a482e21.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_decision_model_download_service.DecisionModelDownloadServiceTest#test_download_size_is_the_sum_of_files_on_hub","name":"test_download_size_is_the_sum_of_files_on_hub","status":"passed","testResultsByEnv":{"default":"2b365e6272d4caf48e0b39c6afa81567"}}

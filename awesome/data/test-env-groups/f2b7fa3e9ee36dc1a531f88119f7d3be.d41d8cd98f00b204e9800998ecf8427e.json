@@ -1,0 +1,1 @@
+{"id":"f2b7fa3e9ee36dc1a531f88119f7d3be.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_ship_projection.ShipProjectionTest#test_should_not_warn_about_shields_before_any_status_event","name":"test_should_not_warn_about_shields_before_any_status_event","status":"passed","testResultsByEnv":{"default":"ebdbc31826ca5560efcfe0b73ccc94fe"}}

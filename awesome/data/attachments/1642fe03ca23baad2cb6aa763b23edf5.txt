@@ -1,0 +1,1 @@
+WARNING  edceleste.services.stt_service:stt_service.py:111 stop_recording_and_transcribe called but no recording is in progress.
