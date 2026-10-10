@@ -4,8 +4,9 @@ from pydantic import ValidationError
 
 from edceleste.services.models.journal_event import KNOWN_EVENTS
 from edceleste.services.models.settings_model import (
-    ChatterboxTTSProviderModel,
-    EdgeTTSProviderModel,
+    DEFAULT_EDGE_VOICE,
+    ChatterboxParamsModel,
+    EdgeParamsModel,
     EventReactionModel,
     GameActionsModel,
     LLMModel,
@@ -19,7 +20,8 @@ from edceleste.services.models.settings_model import (
 
 def _make_tts_model() -> TTSModel:
     return TTSModel(
-        provider=EdgeTTSProviderModel(type="edge", voice="en-GB-SoniaNeural"),
+        provider="edge",
+        params=EdgeParamsModel(type="edge", voice="en-GB-SoniaNeural"),
         volume=1.0,
     )
 
@@ -38,50 +40,121 @@ class TestTTSModel(unittest.TestCase):
         with self.assertRaises(ValidationError):
             tts_model.volume = 1.5
 
-    def test_provider_defaults_to_edge_when_key_absent(self):
+    def test_provider_defaults_to_edge_with_the_default_voice_when_keys_absent(self):
         tts_model = TTSModel(volume=1.0)
 
-        self.assertIsInstance(tts_model.provider, EdgeTTSProviderModel)
+        self.assertEqual(tts_model.provider, "edge")
+        self.assertIsInstance(tts_model.params, EdgeParamsModel)
+        self.assertEqual(tts_model.params.voice, DEFAULT_EDGE_VOICE)
 
-    def test_chatterbox_provider_is_picked_by_the_type_discriminator(self):
+    def test_edge_params_are_picked_by_the_provider_type(self):
+        tts_model = TTSModel.model_validate(
+            {"provider": "edge", "params": {"voice": "en-US-AriaNeural"}, "volume": 1.0}
+        )
+
+        self.assertIsInstance(tts_model.params, EdgeParamsModel)
+        self.assertEqual(tts_model.params.voice, "en-US-AriaNeural")
+
+    def test_chatterbox_params_are_picked_by_the_provider_type(self):
         tts_model = TTSModel.model_validate(
             {
-                "provider": {
-                    "type": "chatterbox",
+                "provider": "chatterbox",
+                "params": {
                     "profile": "celeste-v3",
                     "exaggeration": 0.7,
-                    "cfg_weight": 0.5,
-                    "device": "auto",
+                    "cfg_weight": 0.4,
+                    "device": "cuda",
                 },
                 "volume": 1.0,
             }
         )
 
-        self.assertIsInstance(tts_model.provider, ChatterboxTTSProviderModel)
-        self.assertEqual(tts_model.provider.profile, "celeste-v3")
+        self.assertEqual(tts_model.provider, "chatterbox")
+        self.assertIsInstance(tts_model.params, ChatterboxParamsModel)
+        self.assertEqual(tts_model.params.profile, "celeste-v3")
+        self.assertEqual(tts_model.params.exaggeration, 0.7)
+        self.assertEqual(tts_model.params.cfg_weight, 0.4)
+        self.assertEqual(tts_model.params.device, "cuda")
 
-    def test_chatterbox_provider_uses_defaults_for_optional_knobs(self):
-        provider = ChatterboxTTSProviderModel(type="chatterbox", profile="celeste-v3")
+    def test_chatterbox_params_use_defaults_for_optional_knobs(self):
+        params = ChatterboxParamsModel(type="chatterbox", profile="celeste-v3")
 
-        self.assertEqual(provider.exaggeration, 0.5)
-        self.assertEqual(provider.cfg_weight, 0.5)
-        self.assertEqual(provider.device, "auto")
+        self.assertEqual(params.exaggeration, 0.5)
+        self.assertEqual(params.cfg_weight, 0.5)
+        self.assertEqual(params.device, "auto")
+        self.assertTrue(params.nano)
 
-    def test_chatterbox_provider_rejects_unknown_device(self):
+    def test_chatterbox_params_reject_unknown_device(self):
         with self.assertRaises(ValidationError):
-            ChatterboxTTSProviderModel(
-                type="chatterbox", profile="celeste-v3", device="tpu"
-            )
+            ChatterboxParamsModel(type="chatterbox", profile="celeste-v3", device="tpu")
 
-    def test_chatterbox_provider_rejects_out_of_range_cfg_weight(self):
+    def test_chatterbox_params_reject_out_of_range_cfg_weight(self):
         with self.assertRaises(ValidationError):
-            ChatterboxTTSProviderModel(
+            ChatterboxParamsModel(
                 type="chatterbox", profile="celeste-v3", cfg_weight=1.5
             )
 
+    def test_chatterbox_params_reject_out_of_range_exaggeration(self):
+        with self.assertRaises(ValidationError):
+            ChatterboxParamsModel(
+                type="chatterbox", profile="celeste-v3", exaggeration=-0.1
+            )
+
+    def test_edge_params_reject_keys_of_another_provider(self):
+        with self.assertRaises(ValidationError):
+            TTSModel.model_validate(
+                {
+                    "provider": "edge",
+                    "params": {"voice": "en-US-AriaNeural", "nano": True},
+                    "volume": 1.0,
+                }
+            )
+
+    def test_chatterbox_params_reject_keys_of_another_provider(self):
+        with self.assertRaises(ValidationError):
+            TTSModel.model_validate(
+                {
+                    "provider": "chatterbox",
+                    "params": {"profile": "celeste-v3", "voice": "en-US-AriaNeural"},
+                    "volume": 1.0,
+                }
+            )
+
+    def test_assigning_invalid_value_to_a_params_field_raises_validation_error(self):
+        params = ChatterboxParamsModel(type="chatterbox", profile="celeste-v3")
+
+        with self.assertRaises(ValidationError):
+            params.cfg_weight = 2.0
+
+    def test_assigning_valid_value_to_a_params_field_updates_it(self):
+        params = ChatterboxParamsModel(type="chatterbox", profile="celeste-v3")
+
+        params.cfg_weight = 0.2
+
+        self.assertEqual(params.cfg_weight, 0.2)
+
+    def test_model_dump_has_no_type_key_inside_params(self):
+        edge_dump = _make_tts_model().model_dump()
+        chatterbox_dump = TTSModel.model_validate(
+            {
+                "provider": "chatterbox",
+                "params": {"profile": "celeste-v3"},
+                "volume": 1.0,
+            }
+        ).model_dump()
+
+        self.assertNotIn("type", edge_dump["params"])
+        self.assertNotIn("type", chatterbox_dump["params"])
+        self.assertEqual(edge_dump["provider"], "edge")
+        self.assertEqual(chatterbox_dump["provider"], "chatterbox")
+
     def test_voice_lab_is_on_with_the_fitted_sound_when_key_absent(self):
         tts_model = TTSModel.model_validate(
-            {"provider": {"type": "edge", "voice": "en-GB-SoniaNeural"}, "volume": 1.0}
+            {
+                "provider": "edge",
+                "params": {"voice": "en-GB-SoniaNeural"},
+                "volume": 1.0,
+            }
         )
 
         self.assertTrue(tts_model.voice_lab.enabled)

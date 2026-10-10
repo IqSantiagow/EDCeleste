@@ -7,6 +7,7 @@ from edceleste.services.models.instinct_status import (
 )
 from edceleste.services.models.keybinds_model import Keybind
 from edceleste.services.models.settings_model import (
+    ChatterboxParamsModel,
     LLMModel,
     PathModel,
     SettingsModel,
@@ -18,6 +19,10 @@ from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 
 async def _cloning_states():
     yield "completed"
+
+
+def _params() -> ChatterboxParamsModel:
+    return ChatterboxParamsModel(type="chatterbox", profile="celeste")
 
 
 def _make_settings() -> SettingsModel:
@@ -218,6 +223,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         get_stt_models_use_case.assert_called_once()
 
     async def test_should_delegate_clone_voice_to_use_case(self):
+        params = _params()
         clone_voice_use_case = Mock(return_value=_cloning_states())
         repository = self._make_repository(
             clone_voice_use_case=clone_voice_use_case,
@@ -225,44 +231,51 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
 
         result = [
             state
-            async for state in repository.clone_voice("C:/audio/celeste.wav", "celeste")
+            async for state in repository.clone_voice(
+                "C:/audio/celeste.wav", "celeste", params
+            )
         ]
 
         self.assertEqual(result, ["completed"])
-        clone_voice_use_case.assert_called_once_with("C:/audio/celeste.wav", "celeste")
+        clone_voice_use_case.assert_called_once_with(
+            "C:/audio/celeste.wav", "celeste", params
+        )
 
     def test_should_delegate_get_available_voice_profiles_to_use_case(self):
+        params = _params()
         profiles = ["celeste.pt"]
         get_available_voice_profiles_use_case = Mock(return_value=profiles)
         repository = self._make_repository(
             get_available_voice_profiles_use_case=get_available_voice_profiles_use_case
         )
 
-        result = repository.get_available_voice_profiles()
+        result = repository.get_available_voice_profiles(params)
 
         self.assertEqual(result, profiles)
-        get_available_voice_profiles_use_case.assert_called_once()
+        get_available_voice_profiles_use_case.assert_called_once_with(params)
 
     def test_should_delegate_get_available_device_to_use_case(self):
+        params = _params()
         get_available_device_use_case = Mock(return_value="cuda")
         repository = self._make_repository(
             get_available_device_use_case=get_available_device_use_case
         )
 
-        result = repository.get_available_device()
+        result = repository.get_available_device(params)
 
         self.assertEqual(result, "cuda")
-        get_available_device_use_case.assert_called_once()
+        get_available_device_use_case.assert_called_once_with(params)
 
     def test_should_delegate_remove_voice_profile_to_use_case(self):
+        params = _params()
         remove_voice_profile_use_case = Mock()
         repository = self._make_repository(
             remove_voice_profile_use_case=remove_voice_profile_use_case
         )
 
-        repository.remove_voice_profile("celeste")
+        repository.remove_voice_profile("celeste", params)
 
-        remove_voice_profile_use_case.assert_called_once_with("celeste")
+        remove_voice_profile_use_case.assert_called_once_with("celeste", params)
 
     async def test_should_delegate_play_sample_voice_to_use_case(self):
         play_sample_voice_use_case = AsyncMock()
@@ -285,37 +298,42 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         play_audio_file_use_case.assert_awaited_once_with("C:/ref.wav")
 
     def test_should_delegate_analyze_voice_sample_to_use_case(self):
+        params = _params()
         analysis = {"is_valid": True}
         analyze_voice_sample_use_case = Mock(return_value=analysis)
         repository = self._make_repository(
             analyze_voice_sample_use_case=analyze_voice_sample_use_case
         )
 
-        result = repository.analyze_voice_sample("C:/ref.wav")
+        result = repository.analyze_voice_sample("C:/ref.wav", params)
 
         self.assertEqual(result, analysis)
-        analyze_voice_sample_use_case.assert_called_once_with("C:/ref.wav")
+        analyze_voice_sample_use_case.assert_called_once_with("C:/ref.wav", params)
 
     def test_should_delegate_rename_voice_profile_to_use_case(self):
+        params = _params()
         rename_voice_profile_use_case = Mock()
         repository = self._make_repository(
             rename_voice_profile_use_case=rename_voice_profile_use_case
         )
 
-        repository.rename_voice_profile("celeste", "celeste-v2")
+        repository.rename_voice_profile("celeste", "celeste-v2", params)
 
-        rename_voice_profile_use_case.assert_called_once_with("celeste", "celeste-v2")
+        rename_voice_profile_use_case.assert_called_once_with(
+            "celeste", "celeste-v2", params
+        )
 
     async def test_should_delegate_preview_voice_sample_to_use_case(self):
+        params = _params()
         preview_voice_sample_use_case = AsyncMock()
         repository = self._make_repository(
             preview_voice_sample_use_case=preview_voice_sample_use_case
         )
 
-        await repository.preview_voice_sample("celeste", "Hello there.")
+        await repository.preview_voice_sample("celeste", "Hello there.", params)
 
         preview_voice_sample_use_case.assert_awaited_once_with(
-            "celeste", "Hello there."
+            "celeste", "Hello there.", params
         )
 
 
