@@ -35,7 +35,7 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
             event="FuelScoop", timestamp=datetime.now(), Scooped=1.0, Total=1.0
         )
 
-    async def test_should_process_event_and_refresh_state_soft_assert(self):
+    async def test_should_process_event_and_rebuild_game_state_text_soft_assert(self):
         # spec=EventBus makes `publish` an AsyncMock automatically (it's an
         # `async def` on the real class), so `await event_bus.publish(...)`
         # in process_event doesn't blow up on a plain Mock.
@@ -62,7 +62,7 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
             game_state.get_game_state_projection(),
         )
 
-    async def test_should_refresh_state_with_new_event(self):
+    async def test_should_rebuild_game_state_text_with_new_event(self):
         mock_event_bus = Mock(spec=EventBus)
 
         game_state = GameStateService(mock_event_bus)
@@ -80,7 +80,7 @@ class TestGameState(unittest.IsolatedAsyncioTestCase):
             game_state.get_game_state_projection(),
         )
 
-    async def test_should_refresh_state_with_new_event_and_keep_old_data_not_in_event(
+    async def test_should_rebuild_game_state_text_and_keep_old_data_not_in_event(
         self,
     ):
         mock_event_bus = Mock(spec=EventBus)

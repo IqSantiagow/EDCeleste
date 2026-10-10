@@ -217,7 +217,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player is currently docked at station: Galileo."
+            " Player is currently docked at station: Galileo."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -231,7 +231,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player is currently un-docked from station: Galileo flying nearby."
+            " Player is currently un-docked from station: Galileo flying nearby."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -244,7 +244,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player is currently docked at station: Galileo."
+            " Player is currently docked at station: Galileo."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -289,7 +289,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player is currently docked at station: Galileo."
+            " Player is currently docked at station: Galileo."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -312,7 +312,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player is currently docked at station: Galileo."
+            " Player is currently docked at station: Galileo."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -324,7 +324,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.status_event_in_supercruise)
 
         expected_projection = (
-            "Player is currently in the Sol system.Player is currently in supercruise."
+            "Player is currently in the Sol system. Player is currently in supercruise."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -336,7 +336,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.supercruise_exit_event)
 
         expected_projection = (
-            "Player is currently in the Sol system.Player is currently near Sol 3 c."
+            "Player is currently in the Sol system. Player is currently near Sol 3 c."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -347,7 +347,7 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.approach_body_event)
 
         expected_projection = (
-            "Player is currently in the Sol system.Player is currently near Sol 3 c."
+            "Player is currently in the Sol system. Player is currently near Sol 3 c."
         )
         self.assertEqual(expected_projection, location_projection.create_projection())
 
@@ -434,7 +434,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently near Sol 3 c."
-            "Player is close to the settlement: Jameson Memorial."
+            " Player is close to the settlement: Jameson Memorial."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())
@@ -503,7 +503,7 @@ class TestLocationProjection(unittest.TestCase):
 
         expected_projection = (
             "Player is currently in the Sol system."
-            "Player dropped out of supercruise at Resource Extraction Site [Low]."
+            " Player dropped out of supercruise at Resource Extraction Site [Low]."
         )
 
         self.assertEqual(expected_projection, location_projection.create_projection())

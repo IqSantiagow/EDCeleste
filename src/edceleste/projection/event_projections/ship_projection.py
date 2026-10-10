@@ -85,49 +85,53 @@ class ShipProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
-        """One sentence per flag that is worth saying, so a ship in plain
-        flight gives an empty string. Lights, pips, cargo and legal status
-        never go to the LLM, only the dashboard shows them. Overheating,
-        interdiction and danger come last."""
-        projection_string = ""
+        """One sentence per flag that is worth saying, joined with one space,
+        in this order: landed, landing gear down, shields down, hardpoints
+        deployed, cargo scoop deployed, silent running, flight assist off,
+        FSD mass locked, FSD charging, FSD cooling down, and the warnings last:
+        overheating, being interdicted, in danger. A ship in plain flight, or
+        before the first Status.json, gives an empty string. Lights, pips,
+        cargo and legal status never go to the LLM, only the dashboard shows
+        them. Reads the fields only, changes nothing."""
+        sentences = []
 
         if self.is_landed:
-            projection_string += self.LANDED_PROJECTION
+            sentences.append(self.LANDED_PROJECTION)
 
         if self.is_landing_gear_down:
-            projection_string += self.LANDING_GEAR_DOWN_PROJECTION
+            sentences.append(self.LANDING_GEAR_DOWN_PROJECTION)
 
         if not self.are_shields_up:
-            projection_string += self.SHIELDS_DOWN_PROJECTION
+            sentences.append(self.SHIELDS_DOWN_PROJECTION)
 
         if self.are_hardpoints_deployed:
-            projection_string += self.HARDPOINTS_DEPLOYED_PROJECTION
+            sentences.append(self.HARDPOINTS_DEPLOYED_PROJECTION)
 
         if self.is_cargo_scoop_deployed:
-            projection_string += self.CARGO_SCOOP_DEPLOYED_PROJECTION
+            sentences.append(self.CARGO_SCOOP_DEPLOYED_PROJECTION)
 
         if self.is_silent_running:
-            projection_string += self.SILENT_RUNNING_PROJECTION
+            sentences.append(self.SILENT_RUNNING_PROJECTION)
 
         if self.is_flight_assist_off:
-            projection_string += self.FLIGHT_ASSIST_OFF_PROJECTION
+            sentences.append(self.FLIGHT_ASSIST_OFF_PROJECTION)
 
         if self.is_fsd_mass_locked:
-            projection_string += self.FSD_MASS_LOCKED_PROJECTION
+            sentences.append(self.FSD_MASS_LOCKED_PROJECTION)
 
         if self.is_fsd_charging:
-            projection_string += self.FSD_CHARGING_PROJECTION
+            sentences.append(self.FSD_CHARGING_PROJECTION)
 
         if self.is_fsd_in_cooldown:
-            projection_string += self.FSD_COOLDOWN_PROJECTION
+            sentences.append(self.FSD_COOLDOWN_PROJECTION)
 
         if self.is_overheating:
-            projection_string += self.OVERHEATING_PROJECTION
+            sentences.append(self.OVERHEATING_PROJECTION)
 
         if self.is_being_interdicted:
-            projection_string += self.BEING_INTERDICTED_PROJECTION
+            sentences.append(self.BEING_INTERDICTED_PROJECTION)
 
         if self.is_in_danger:
-            projection_string += self.IN_DANGER_PROJECTION
+            sentences.append(self.IN_DANGER_PROJECTION)
 
-        return projection_string
+        return " ".join(sentences)

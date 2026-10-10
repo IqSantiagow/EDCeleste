@@ -5,21 +5,14 @@ import pytest
 from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.function import DeltaToolCall
 from textual.app import App
-from textual.pilot import Pilot
 
-from tests.e2e.conftest import comms_entries
+from tests.e2e.conftest import comms_entries, send_comms_message
 
 pytestmark = [pytest.mark.anyio, allure.feature("COMMS conversation with Celeste")]
 
 
 def thinking_indicator_is_visible(app: App) -> bool:
     return not app.screen.query_one("#comms-thinking-indicator").has_class("hidden")
-
-
-async def send_comms_message(pilot: Pilot, message: str) -> None:
-    await pilot.click("#comms-input")
-    await pilot.press(*message)
-    await pilot.press("enter")
 
 
 async def answer_with_landing_gear_toggle(messages, agent_info):

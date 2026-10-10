@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class FuelProjection(Projection):
-    PROJECTION_STRING = "Current fuel level is: {0}"
+    PROJECTION_STRING = "Current fuel level is: {0}."
 
     SCOOPING_FUEL_PROJECTION = "Player is currently scooping fuel from a star."
 
@@ -92,18 +92,25 @@ class FuelProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
-        """The fuel level sentence is always there, the scooping and low fuel
-        sentences are added only when their flag is on. A level of 0.0 only
-        logs a warning, because it usually means the game has not started."""
+        """Never empty. The text is, joined with one space:
+        1. Always the main tank level, the number of tonnes as the game sends
+           it and no unit, e.g. "Current fuel level is: 12.0." The capacity
+           and the reservoir never go to the LLM.
+        2. "Player is currently scooping fuel from a star." while the scooping
+           flag is on.
+        3. "Warning: fuel is low." while the low fuel flag is on.
+        Before any fuel event the level is still 0.0 and the sentence says
+        "0.0", the same as an empty tank. Every call with a level of 0.0 logs
+        a warning. No field changes."""
         if self.fuel_level == 0.0:
             logger.warning("Fuel level is at 0. Does the game started?")
 
-        projection_string = self.PROJECTION_STRING.format(self.fuel_level)
+        sentences = [self.PROJECTION_STRING.format(self.fuel_level)]
 
         if self.is_scooping_fuel:
-            projection_string += self.SCOOPING_FUEL_PROJECTION
+            sentences.append(self.SCOOPING_FUEL_PROJECTION)
 
         if self.is_low_fuel:
-            projection_string += self.LOW_FUEL_PROJECTION
+            sentences.append(self.LOW_FUEL_PROJECTION)
 
-        return projection_string
+        return " ".join(sentences)

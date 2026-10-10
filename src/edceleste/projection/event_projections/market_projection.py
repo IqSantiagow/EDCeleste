@@ -21,7 +21,7 @@ TOP_DEALS_COUNT = 3
 class MarketProjection(Projection):
     MARKET_PROJECTION = "Station {0} sells {1} commodities."
 
-    BEST_DEALS_PROJECTION = " The best prices against the galactic average: {0}."
+    BEST_DEALS_PROJECTION = "The best prices against the galactic average: {0}."
 
     def __init__(self):
         """Two market ids are kept apart on purpose: the station we are docked
@@ -84,20 +84,21 @@ class MarketProjection(Projection):
     def create_projection(self) -> str:
         """Empty string unless the prices belong to the station we are docked
         at, so the LLM never talks about another station's prices. Otherwise
-        the station name, the number of commodities and up to TOP_DEALS_COUNT
-        best deals."""
+        the station name and the number of commodities, then one space and
+        up to TOP_DEALS_COUNT best deals. The best deals sentence is left out
+        when the station buys nothing."""
         if not self.is_market_data_current():
             return ""
 
-        projection_string = self.MARKET_PROJECTION.format(
-            self.station_name, len(self.commodities)
-        )
+        sentences = [
+            self.MARKET_PROJECTION.format(self.station_name, len(self.commodities))
+        ]
 
         best_deals = self.__best_deals()
         if best_deals:
-            projection_string += self.BEST_DEALS_PROJECTION.format(best_deals)
+            sentences.append(self.BEST_DEALS_PROJECTION.format(best_deals))
 
-        return projection_string
+        return " ".join(sentences)
 
     def __remember_station(self, station_name, market_id, station_services) -> None:
         """Shared by Docked and Location, which carry the same three fields."""
