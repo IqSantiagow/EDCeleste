@@ -133,8 +133,8 @@ class PlayerProjectionTest(unittest.TestCase):
         player_projection.process_event(self.loaded_game_event)
 
         expected_projection = (
-            "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}."
-            "Commander plays in {3} game mode."
+            "Commander name is {0}. Commander has {1} of credits. "
+            "Commander ship is {2}. Commander plays in {3} game mode."
         ).format(
             self.loaded_game_event.Commander,
             self.loaded_game_event.Credits,
@@ -215,6 +215,40 @@ class PlayerProjectionTest(unittest.TestCase):
         self.assertNotIn(
             PlayerProjection.DEAD_PROJECTION, player_projection.create_projection()
         )
+
+    def test_should_warn_only_while_name_or_ship_is_unknown(self):
+        player_projection = PlayerProjection()
+        player_logger = "edceleste.projection.event_projections.player_projection"
+
+        # A Commander event gives the name, but the ship is still unknown.
+        player_projection.process_event(self.commander_event)
+        with self.assertLogs(player_logger, level="WARNING"):
+            player_projection.create_projection()
+
+        player_projection.process_event(self.loaded_game_event)
+        with self.assertNoLogs(player_logger, level="WARNING"):
+            player_projection.create_projection()
+
+    def test_should_join_every_optional_commander_sentence_with_one_space(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self.loaded_game_event)
+        player_projection.process_event(self.rank_event)
+        player_projection.process_event(self.reputation_event)
+        player_projection.process_event(self.died_event)
+        player_projection.process_event(self.status_event_on_foot)
+
+        expected_projection = (
+            "Commander name is TestCommander. Commander has 1000000 of credits. "
+            "Commander ship is Sidewinder. Commander plays in Solo game mode. "
+            "Commander ranks are Combat: Master, Trade: Dealer, "
+            "Exploration: Mostly Aimless. "
+            "Commander reputation is Empire: 6.7%, Federation: 0.2%, Alliance: 1.5%. "
+            "Commander has been destroyed and is awaiting rebuy. "
+            "Commander is currently on foot."
+        )
+
+        self.assertEqual(expected_projection, player_projection.create_projection())
 
     def test_should_report_on_foot_from_status_event(self):
         player_projection = PlayerProjection()

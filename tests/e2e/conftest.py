@@ -117,6 +117,12 @@ def comms_entries(app: App, entry_type: str) -> list[str]:
     ]
 
 
+async def send_comms_message(pilot: Pilot, message: str) -> None:
+    await pilot.click("#comms-input")
+    await pilot.press(*message)
+    await pilot.press("enter")
+
+
 def ship_log_events(app: App) -> list[str]:
     rail_rows = app.screen.query_one("#ship-log-rail").query(WidgetShipLogRow)
     return [row.entry.event for row in rail_rows]

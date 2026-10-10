@@ -235,6 +235,19 @@ class TestMarketProjectionText(unittest.TestCase):
         self.assertIn("Platinum at 42220 (+22464 per tonne)", projection_text)
         self.assertIn("Gold", projection_text)
 
+    def test_projection_separates_station_sentence_from_best_prices_with_one_space(
+        self,
+    ):
+        projection = MarketProjection()
+        projection.process_event(make_docked_event())
+        projection.process_event(make_market_event())
+
+        self.assertEqual(
+            "Station Fan Horizons sells 1 commodities. The best prices against "
+            "the galactic average: Platinum at 42220 (+22464 per tonne).",
+            projection.create_projection(),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

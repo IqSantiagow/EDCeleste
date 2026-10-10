@@ -180,10 +180,12 @@ class LLMService:
 
     def __build_prompt_from_game_state_and_history(self, game_state: str) -> str:
         """The agent keeps no memory between runs, so every prompt carries the
-        current game state first and then the whole conversation history."""
+        current game state first and then the whole conversation history.
+        The "Current game state is:" heading is added only here, on its own
+        line above the game state lines."""
         conversation_history = self.__conversation_history_as_text()
 
-        return f"Current game state is: {game_state}\n{conversation_history}"
+        return f"Current game state is:\n{game_state}\n{conversation_history}"
 
     def __conversation_history_as_text(self) -> str:
         """One line per message: "Human: ..." for the pilot and "Celeste: ..."

@@ -230,59 +230,69 @@ class LocationProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
-        """Adds one sentence for every known fact and skips the unknown ones,
-        so the text is empty before the first location event. A station while
-        not docked becomes "un-docked from ... flying nearby". The system facts
-        are not in the text, only the dashboard shows them."""
-        projection_string = ""
+        """One sentence for every known fact, the unknown ones are skipped, so
+        the text is empty before the first location event. The sentences come
+        in this order, joined with one space:
+        1. the current system,
+        2. docked at the station, or "un-docked from <station> flying nearby"
+           when a station is known but the docked flag is off,
+        3. in supercruise,
+        4. near a body,
+        5. close to a settlement,
+        6. the assigned landing pad and its station,
+        7. where the ship dropped out of supercruise,
+        8. during the FSD jump, with the target system,
+        9. the next hop of the plotted route (system, star class, jumps left).
+        The system facts (security, allegiance, government, economy,
+        population) are not in the text, only the dashboard shows them. Reads
+        the fields only, changes nothing."""
+        sentences = []
 
         if self.current_star_system:
-            projection_string += self.SYSTEM_LOCATION_PROJECTION.format(
-                self.current_star_system
+            sentences.append(
+                self.SYSTEM_LOCATION_PROJECTION.format(self.current_star_system)
             )
 
         if self.is_docked:
-            projection_string += self.DOCKED_PROJECTION.format(self.current_station)
+            sentences.append(self.DOCKED_PROJECTION.format(self.current_station))
 
         if not self.is_docked and self.current_station is not None:
-            projection_string += self.UNDOCKED_PROJECTION.format(self.current_station)
+            sentences.append(self.UNDOCKED_PROJECTION.format(self.current_station))
 
         if self.is_in_supercruise:
-            projection_string += self.SUPERCRUISE_PROJECTION
+            sentences.append(self.SUPERCRUISE_PROJECTION)
 
         if self.current_body:
-            projection_string += self.BODY_PROXIMITY_PROJECTION.format(
-                self.current_body
-            )
+            sentences.append(self.BODY_PROXIMITY_PROJECTION.format(self.current_body))
 
         if self.nearest_settlement:
-            projection_string += self.SETTLEMENT_PROJECTION.format(
-                self.nearest_settlement
-            )
+            sentences.append(self.SETTLEMENT_PROJECTION.format(self.nearest_settlement))
 
         if self.assigned_landing_pad is not None:
-            projection_string += self.LANDING_PAD_PROJECTION.format(
-                self.assigned_landing_pad, self.assigned_landing_pad_station
+            sentences.append(
+                self.LANDING_PAD_PROJECTION.format(
+                    self.assigned_landing_pad, self.assigned_landing_pad_station
+                )
             )
 
         if self.supercruise_drop_place:
-            projection_string += self.SUPERCRUISE_DROP_PROJECTION.format(
-                self.supercruise_drop_place
+            sentences.append(
+                self.SUPERCRUISE_DROP_PROJECTION.format(self.supercruise_drop_place)
             )
 
         if self.is_in_fsd_jump:
-            projection_string += self.FSD_TRAVEL_PROJECTION.format(
-                self.target_star_system
-            )
+            sentences.append(self.FSD_TRAVEL_PROJECTION.format(self.target_star_system))
 
         if self.route_next_star_system:
-            projection_string += self.ROUTE_NEXT_HOP_PROJECTION.format(
-                self.route_next_star_system,
-                self.route_next_star_class,
-                self.route_remaining_jumps,
+            sentences.append(
+                self.ROUTE_NEXT_HOP_PROJECTION.format(
+                    self.route_next_star_system,
+                    self.route_next_star_class,
+                    self.route_remaining_jumps,
+                )
             )
 
-        return projection_string
+        return " ".join(sentences)
 
     def __forget_landing_pad(self) -> None:
         """A landing pad is only valid until we undock or leave for supercruise

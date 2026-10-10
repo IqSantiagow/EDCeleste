@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class PlayerProjection(Projection):
     PROJECTION_STRING = (
-        "Commander name is {0}.Commander has {1} of credits.Commander ship is {2}."
+        "Commander name is {0}. Commander has {1} of credits. Commander ship is {2}."
     )
 
     GAME_MODE_PROJECTION = "Commander plays in {0} game mode."
@@ -134,51 +134,63 @@ class PlayerProjection(Projection):
         logger.debug("Received event but not withing allowed events. Skipping...")
 
     def create_projection(self) -> str:
-        """1. Name, credits and ship are always there, even before LoadGame (a
-           warning is logged and the text says "None").
-        2. Game mode, ranks (by name, only when all three are known) and
-           reputation are added when known.
-        3. A "destroyed" sentence when the commander is dead.
-        4. At most one "where is the commander" sentence, in this order: on
-           foot, taxi, SRV, fighter.
+        """Never empty. The sentences, joined with one space:
+        1. Name, credits and ship are always there. Before LoadGame the name
+           or the ship is unknown: the text then says "None" and every call
+           logs a warning.
+        2. Game mode, once LoadGame came.
+        3. Combat, trade and exploration rank by name, only when all three
+           are known.
+        4. Empire, Federation and Alliance reputation in percent with one
+           decimal, once a Reputation event came.
+        5. A "destroyed" sentence when the commander is dead.
+        6. At most one "where is the commander" sentence, checked in this
+           order: on foot, taxi, SRV, fighter. Nothing when in the ship.
+        No field changes, the only side effect is the warning above.
         """
         if not self.player_name or not self.player_ship:
             logger.warning("Player state not set. Does the game started?")
 
-        projection_string = self.PROJECTION_STRING.format(
-            self.player_name, self.player_credits, self.player_ship
-        )
+        sentences = [
+            self.PROJECTION_STRING.format(
+                self.player_name, self.player_credits, self.player_ship
+            )
+        ]
 
         if self.game_mode:
-            projection_string += self.GAME_MODE_PROJECTION.format(self.game_mode)
+            sentences.append(self.GAME_MODE_PROJECTION.format(self.game_mode))
 
         # Only emit the rank line once every rank is known; PromotionEvent can
         # set ranks independently, so a partially populated state would
         # otherwise leak literal "None" values into the LLM projection.
         if None not in (self.combat_rank, self.trade_rank, self.exploration_rank):
-            projection_string += self.RANK_PROJECTION.format(
-                rank_name(COMBAT_RANKS, self.combat_rank),
-                rank_name(TRADE_RANKS, self.trade_rank),
-                rank_name(EXPLORATION_RANKS, self.exploration_rank),
+            sentences.append(
+                self.RANK_PROJECTION.format(
+                    rank_name(COMBAT_RANKS, self.combat_rank),
+                    rank_name(TRADE_RANKS, self.trade_rank),
+                    rank_name(EXPLORATION_RANKS, self.exploration_rank),
+                )
             )
 
         if self.empire_reputation is not None:
-            projection_string += self.REPUTATION_PROJECTION.format(
-                self.empire_reputation,
-                self.federation_reputation,
-                self.alliance_reputation,
+            sentences.append(
+                self.REPUTATION_PROJECTION.format(
+                    self.empire_reputation,
+                    self.federation_reputation,
+                    self.alliance_reputation,
+                )
             )
 
         if not self.is_alive:
-            projection_string += self.DEAD_PROJECTION
+            sentences.append(self.DEAD_PROJECTION)
 
         if self.is_on_foot:
-            projection_string += self.ON_FOOT_PROJECTION
+            sentences.append(self.ON_FOOT_PROJECTION)
         elif self.is_in_taxi:
-            projection_string += self.IN_TAXI_PROJECTION
+            sentences.append(self.IN_TAXI_PROJECTION)
         elif self.is_in_srv:
-            projection_string += self.IN_SRV_PROJECTION
+            sentences.append(self.IN_SRV_PROJECTION)
         elif self.is_in_fighter:
-            projection_string += self.IN_FIGHTER_PROJECTION
+            sentences.append(self.IN_FIGHTER_PROJECTION)
 
-        return projection_string
+        return " ".join(sentences)

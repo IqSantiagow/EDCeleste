@@ -215,6 +215,17 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             self.mock_stream_agent_response.call_args.args[0],
         )
 
+    async def test_should_put_game_state_heading_once_on_its_own_line(self):
+        self.llm_service.add_llm_request_to_queue("Test message")
+
+        await self._collect_stream_items(3)
+
+        prompt = self.mock_stream_agent_response.call_args.args[0]
+        self.assertTrue(
+            prompt.startswith("Current game state is:\nTest game state\n"), prompt
+        )
+        self.assertEqual(1, prompt.count("Current game state is:"))
+
     async def test_should_publish_tts_event_for_every_agent_text(self):
         self.event_bus.publish = AsyncMock()
         self.mock_stream_agent_response.side_effect = _make_agent_stream_of(

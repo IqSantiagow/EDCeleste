@@ -12,7 +12,9 @@ class Projection(Protocol):
 
     @abstractmethod
     def create_projection(self) -> str:
-        """Turns the stored fields into plain sentences for the LLM prompt.
-        GameStateService calls it after every event and glues the texts of all
-        projections together. An empty string means nothing worth saying."""
+        """Turns the stored fields into plain sentences for the LLM prompt,
+        each ending with a period and joined with one space. GameStateService
+        calls it after every event and puts the text of every projection on
+        its own line. An empty string means nothing worth saying, and the line
+        is left out."""
         pass
