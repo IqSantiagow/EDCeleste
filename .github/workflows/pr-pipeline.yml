@@ -144,7 +144,8 @@ jobs:
     needs: test
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # A PR that touches most of src/ mutates ~3200 mutants; on a 4-core runner that took over 90 min
+    timeout-minutes: 180
     env:
       MIN_MUTATION_SCORE: 75
     steps:
