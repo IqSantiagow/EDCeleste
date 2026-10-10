@@ -1,10 +1,11 @@
 import logging
-from typing import Any, Union
+from typing import Annotated, Any, Union
 
 from pydantic import (
     BaseModel,
     Field,
     field_validator,
+    model_validator,
 )
 from typing import Literal
 
@@ -60,22 +61,17 @@ class SttModel(BaseModel, validate_assignment=True):
 DEFAULT_EDGE_VOICE = "en-GB-SoniaNeural"
 
 
-class EdgeTTSProviderModel(BaseModel, validate_assignment=True):
-    type: Literal["edge"] = Field(
-        description="The type of the text-to-speech provider",
-    )
-    voice: str = Field(
-        description="The Microsoft Edge voice short name to use for text-to-speech",
-    )
-
-
-class ChatterboxTTSProviderModel(BaseModel, validate_assignment=True):
+class ChatterboxParamsModel(BaseModel, validate_assignment=True, extra="forbid"):
     type: Literal["chatterbox"] = Field(
-        description="The type of the text-to-speech provider",
+        description="The type of the text-to-speech provider", exclude=True
     )
     profile: str = Field(
         description="The name of the voice profile (a reference audio clip stored in "
-        "the voices directory) that Chatterbox clones",
+        "the voices directory) that the clonable TTS provider clones",
+    )
+    device: Literal["auto", "cuda", "cpu"] = Field(
+        default="auto",
+        description="The device Chatterbox runs on ('auto' picks CUDA when available)",
     )
     exaggeration: float = Field(
         default=0.5,
@@ -89,15 +85,25 @@ class ChatterboxTTSProviderModel(BaseModel, validate_assignment=True):
         le=1.0,
         description="How closely Chatterbox follows the reference clip pacing",
     )
-    device: Literal["auto", "cuda", "cpu"] = Field(
-        default="auto",
-        description="The device Chatterbox runs on ('auto' picks CUDA when available)",
-    )
     nano: bool = Field(
         default=True,
         description="Whether to use the lighter Nano model. The Nano model loads and "
         "generates much faster, but it ignores exaggeration and cfg_weight",
     )
+
+
+class EdgeParamsModel(BaseModel, validate_assignment=True, extra="forbid"):
+    type: Literal["edge"] = Field(
+        description="The type of the text-to-speech provider", exclude=True
+    )
+    voice: str = Field(
+        description="The Microsoft Edge voice short name to use for text-to-speech",
+    )
+
+
+TtsProviderParams = Annotated[
+    Union[ChatterboxParamsModel, EdgeParamsModel], Field(discriminator="type")
+]
 
 
 class VoiceLabModel(BaseModel, validate_assignment=True):
@@ -126,12 +132,12 @@ class VoiceLabModel(BaseModel, validate_assignment=True):
 
 
 class TTSModel(BaseModel, validate_assignment=True):
-    provider: Union[EdgeTTSProviderModel, ChatterboxTTSProviderModel] = Field(
-        default_factory=lambda: EdgeTTSProviderModel(
-            type="edge", voice=DEFAULT_EDGE_VOICE
-        ),
-        description="The text-to-speech provider",
-        discriminator="type",
+    provider: Literal["edge", "chatterbox"] = Field(
+        description="The type of the text-to-speech provider", default="edge"
+    )
+    params: TtsProviderParams = Field(
+        default_factory=lambda: EdgeParamsModel(type="edge", voice=DEFAULT_EDGE_VOICE),
+        description="The parameters specific to the chosen TTS provider",
     )
     volume: float = Field(
         ge=0.0,
@@ -142,6 +148,26 @@ class TTSModel(BaseModel, validate_assignment=True):
         default_factory=VoiceLabModel,
         description="The voice effects applied to the speech of every provider",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def copy_provider_into_params_type_key(cls, data: Any) -> Any:
+        """Makes the params findable by pydantic. Runs before the fields are
+        validated and changes only a copy of the input.
+
+        Pydantic picks the params model (Edge or Chatterbox) by the "type" key
+        inside the params. A config.yaml has no such key (it would repeat
+        provider), so params["type"] gets the value of provider ("edge" when
+        provider is missing). Returns the input as it is when it is not a dict
+        (e.g. a model that is assigned) or when params is not a dict.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        data = dict(data)
+        if isinstance(data.get("params"), dict):
+            data["params"] = {**data["params"], "type": data.get("provider", "edge")}
+        return data
 
 
 # Every provider pydantic_ai can build from an api key. The six that need an

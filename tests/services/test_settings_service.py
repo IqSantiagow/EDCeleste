@@ -20,8 +20,8 @@ paths:
   journal_path: C:/j
   keybindings_path: C:/k
 tts:
-  provider:
-    type: edge
+  provider: edge
+  params:
     voice: en-GB-SoniaNeural
   volume: 1.0
 llm:
@@ -36,8 +36,8 @@ paths:
   journal_path: C:/j
   keybindings_path: C:/k
 tts:
-  provider:
-    type: edge
+  provider: edge
+  params:
     voice: en-GB-SoniaNeural
   volume: 1.0
 """

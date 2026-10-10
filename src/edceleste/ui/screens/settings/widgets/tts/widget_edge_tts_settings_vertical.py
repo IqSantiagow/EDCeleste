@@ -8,7 +8,7 @@ from textual.reactive import reactive
 from textual.widgets import LoadingIndicator
 
 from edceleste.containers.main_container import Container
-from edceleste.services.models.settings_model import EdgeTTSProviderModel
+from edceleste.services.models.settings_model import EdgeParamsModel
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row import (
     WidgetLabeledSelectRow,
@@ -25,17 +25,17 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
     @inject
     def __init__(
         self,
-        edge_tts_provider_model: EdgeTTSProviderModel,
+        edge_params: EdgeParamsModel,
         settings_repository: SettingsRepository = Provide[
             Container.settings_repository
         ],
         *args,
         **kwargs,
     ) -> None:
-        """Only reads edge_tts_provider_model. The voice change goes up as
-        ValueChanged and WidgetTTSContainer writes it."""
+        """Only reads edge_params. The voice change goes up as ValueChanged and
+        WidgetTTSContainer writes it."""
         super().__init__(*args, **kwargs)
-        self.edge_tts_provider_model = edge_tts_provider_model
+        self.edge_params = edge_params
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
@@ -52,7 +52,7 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
             yield WidgetLabeledSelectRow(
                 "Voice: ",
                 options=self.voices,
-                value=self.edge_tts_provider_model.voice,
+                value=self.edge_params.voice,
                 id=EdgeTTSInputWidgetIds.VOICE_INPUT,
             )
 
