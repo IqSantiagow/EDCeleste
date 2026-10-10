@@ -1,6 +1,6 @@
 """The whole app runs for real, only what leaves the computer is faked:
-config file, journal folder, keyboard, game window, speaker, microphones, the
-LLM and the lists of LLM models and edge-tts voices.
+config file, journal folder, keyboard, game window, speaker, voices folder,
+microphones, the LLM and the lists of LLM models and edge-tts voices.
 """
 
 import shutil
@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
 import allure
+import numpy as np
 import pytest
 import yaml
 from dependency_injector import providers
@@ -30,8 +31,14 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
     SttModel,
     TTSModel,
+    TtsProviderParams,
 )
+from edceleste.services import tts_service as tts_service_module
 from edceleste.services.settings_service import SettingsService
+from edceleste.services.tts_providers.chatterbox_tts_provider import (
+    ChatterboxTTSProvider,
+)
+from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
     WidgetCommsEntry,
@@ -39,6 +46,7 @@ from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_row import (
     WidgetShipLogRow,
 )
+from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from edceleste.ui.ui_app import UIApp
 from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
@@ -47,6 +55,7 @@ from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
 SCREEN_SIZE = (200, 50)
 
 NOT_SCRIPTED_ANSWER = "No answer was scripted for this test."
+EDGE_VOICES_WITHOUT_NETWORK = ["en-GB-SoniaNeural", "en-US-AriaNeural"]
 INSTINCT_MODEL_BYTES = 1_524_827_608
 
 
@@ -77,18 +86,62 @@ class FakeWindowsApiWithGameInFront:
         return True
 
 
-class FakeTtsProvider:
+FAKE_SAMPLE_RATE = 24000
+
+
+class FakeEdgeTtsProvider(EdgeTTSProvider):
+    """The real Edge checks, but no network: it only remembers what it should say"""
+
     def __init__(self, spoken_texts: list[str]) -> None:
         self.spoken_texts = spoken_texts
+        self.spoken_params: list[TtsProviderParams] = []
+        self.spoken_profile_paths: list[Path | None] = []
 
-    async def synthesize_and_play(self, text: str) -> None:
+    async def synthesize(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> tuple[np.ndarray, int]:
         self.spoken_texts.append(text)
+        self.spoken_params.append(params)
+        self.spoken_profile_paths.append(profile_path)
+        return np.zeros(FAKE_SAMPLE_RATE, dtype=np.float32), FAKE_SAMPLE_RATE
 
-    def validate_settings(self, new_settings: SettingsModel) -> None:
-        return None
 
-    def reload_provider(self, new_settings: SettingsModel) -> None:
-        pass
+class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
+    """The real Chatterbox checks, but no model and no GPU: a profile is a real
+    file in the voices folder and speaking only remembers what it should say"""
+
+    def __init__(self, spoken_texts: list[str]) -> None:
+        super().__init__()
+        self.spoken_texts = spoken_texts
+        self.spoken_params: list[TtsProviderParams] = []
+        self.spoken_profile_paths: list[Path | None] = []
+
+    async def synthesize(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> tuple[np.ndarray, int]:
+        if profile_path is not None and not profile_path.exists():
+            raise FileNotFoundError(f"No voice profile at {profile_path}")
+        self.spoken_texts.append(text)
+        self.spoken_params.append(params)
+        self.spoken_profile_paths.append(profile_path)
+        return np.zeros(FAKE_SAMPLE_RATE, dtype=np.float32), FAKE_SAMPLE_RATE
+
+    async def create_voice_profile(
+        self,
+        reference_audio_path: str,
+        profile_path: Path,
+        params: TtsProviderParams,
+    ) -> None:
+        profile_path.write_bytes(b"fake voice profile")
+
+    def get_available_device(self) -> str:
+        return "cpu"
 
 
 def recorded_journal_line(event_name: str) -> str:
@@ -183,9 +236,16 @@ class EdCelesteTestEnvironment:
             "A fake speaker that remembers what Celeste says, voices without network"
         ):
             self.spoken_texts: list[str] = []
-            fake_tts_provider = FakeTtsProvider(self.spoken_texts)
+            self.fake_tts_providers = {
+                "edge": FakeEdgeTtsProvider(self.spoken_texts),
+                "chatterbox": FakeChatterboxTtsProvider(self.spoken_texts),
+            }
+            self.played_audio: list[dict] = []
             tts_service = self.container.tts_service()
-            tts_service.build_provider = lambda settings: fake_tts_provider
+            tts_service.build_provider = lambda provider_type: self.fake_tts_providers[
+                provider_type
+            ]
+            tts_service.play_samples = self.remember_played_audio
             tts_service.fetch_edge_tts_voice_names = self.edge_voices_without_network
 
         with allure.step("LLM models and microphones listed without network"):
@@ -208,14 +268,23 @@ class EdCelesteTestEnvironment:
         )
         self.container.llm_service().build_model = lambda provider: scripted_model
 
+    async def remember_played_audio(
+        self, samples, sample_rate, volume, apply_voice_lab_effects
+    ) -> None:
+        self.played_audio.append({"volume": volume, "sample_rate": sample_rate})
+
     async def edge_voices_without_network(self) -> list[str]:
-        return [self.settings.tts.provider.voice]
+        return EDGE_VOICES_WITHOUT_NETWORK
 
     async def llm_models_without_network(self, provider=None) -> list[str]:
         return [self.settings.llm.provider.model]
 
     def save_config(self) -> None:
         self.config_file.write_text(yaml.safe_dump(self.settings.model_dump()))
+
+    def save_tts_settings(self, tts_settings: TTSModel) -> None:
+        self.settings.tts = tts_settings
+        self.save_config()
 
     def allow_game_actions(self) -> None:
         self.settings.game_actions.enabled = True
@@ -225,8 +294,10 @@ class EdCelesteTestEnvironment:
         self.settings.event_reactions.reactions[event_name] = True
         self.save_config()
 
-    def run_app(self):
-        return UIApp().run_test(size=SCREEN_SIZE)
+    def run_app(self, show_notifications: bool = False):
+        # Notifications are off by default: a toast on top of the screen could
+        # cover what a test clicks. Tests that check a notification turn them on
+        return UIApp().run_test(size=SCREEN_SIZE, notifications=show_notifications)
 
     def append_journal_event(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
@@ -280,6 +351,17 @@ class EdCelesteTestEnvironment:
             )
 
 
+async def open_settings_section(edceleste, pilot: Pilot, section_id: str) -> None:
+    await pilot.press("ctrl+r")
+    await edceleste.wait_until(
+        pilot,
+        lambda: isinstance(pilot.app.screen, SettingsScreen),
+        "the settings screen",
+    )
+    await pilot.click(f"#settings-sections-column #{section_id}")
+    await pilot.pause()
+
+
 @pytest.fixture
 def anyio_backend():
     # Textual runs on asyncio only
@@ -295,7 +377,11 @@ async def edceleste(tmp_path, monkeypatch):
     with allure.step("No request can reach a real LLM by mistake"):
         monkeypatch.setattr(models, "ALLOW_MODEL_REQUESTS", False)
 
+    with allure.step("The voice profiles go to a voices folder in the temp folder"):
+        monkeypatch.setattr(tts_service_module, "VOICES_DIR", tmp_path / "voices")
+
     environment = EdCelesteTestEnvironment(tmp_path)
+    environment.voices_folder = tmp_path / "voices"
     yield environment
 
     with allure.step("EDCeleste's services are unwired for the next test"):

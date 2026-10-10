@@ -1,7 +1,7 @@
 from typing import AsyncGenerator, Literal
 
 from edceleste.services.models.instinct_status import InstinctStatus
-from edceleste.services.tts_providers.chatterbox_tts_provider import (
+from edceleste.services.models.voice_cloning_models import (
     VoiceAnalysisResult,
     VoiceCloningState,
 )
@@ -10,6 +10,7 @@ from edceleste.services.models.settings_model import (
     LLMProviderModel,
     SettingsIssueModel,
     SettingsModel,
+    TtsProviderParams,
 )
 from edceleste.use_cases.settings.exceptions.settings_validation_exception import (
     SettingsValidationException,
@@ -198,38 +199,53 @@ class SettingsRepository:
         self.cancel_instinct_download_use_case()
 
     async def clone_voice(
-        self, path_to_audio_file: str, profile_name: str
+        self, path_to_audio_file: str, profile_name: str, params: TtsProviderParams
     ) -> AsyncGenerator[VoiceCloningState, None]:
-        """Builds a new chatterbox voice profile from an audio file and yields
-        every cloning step, so the UI can show progress. Loads the chatterbox
-        model first if needed, which is slow. Raises when the active TTS
-        provider is not chatterbox or the file does not exist."""
+        """Builds a new voice profile from an audio file and yields every
+        cloning step, so the UI can show progress. Loads the voice model first
+        if needed, which is slow. params are the TTS settings as they are on
+        the screen now (e.g. an unsaved device). The errors come while
+        iterating: VoiceCloningException when their provider cannot clone
+        voices, FileNotFoundError for a missing file, ValueError for a clip
+        shorter than the provider needs and RuntimeError when the model part
+        fails."""
         async for cloning_state in self.clone_voice_use_case(
-            path_to_audio_file, profile_name
+            path_to_audio_file, profile_name, params
         ):
             yield cloning_state
 
-    def get_available_voice_profiles(self) -> list[str]:
+    def get_available_voice_profiles(self, params: TtsProviderParams) -> list[str]:
         """Names of the saved chatterbox voice profiles, without the ".pt"
-        extension. Empty when the active TTS provider is not chatterbox."""
-        return self.get_available_voice_profiles_use_case()
+        extension. params are the TTS settings as they are on the screen now.
+        Empty when their provider is not chatterbox."""
+        return self.get_available_voice_profiles_use_case(params)
 
-    def remove_voice_profile(self, profile_name: str) -> None:
-        """Deletes the profile file and its sample .wav from disk. Raises when the
-        active TTS provider is not chatterbox."""
-        self.remove_voice_profile_use_case(profile_name)
+    def remove_voice_profile(
+        self, profile_name: str, params: TtsProviderParams
+    ) -> None:
+        """Deletes the profile file and its sample .wav from disk. A file that
+        is not there is skipped. params are the TTS settings as they are on the
+        screen now. Raises VoiceCloningException when their provider is not
+        chatterbox."""
+        self.remove_voice_profile_use_case(profile_name, params)
 
     def rename_voice_profile(
-        self, old_profile_name: str, new_profile_name: str
+        self, old_profile_name: str, new_profile_name: str, params: TtsProviderParams
     ) -> None:
-        """Renames the profile file and its sample .wav on disk. Raises when the
-        active TTS provider is not chatterbox."""
-        self.rename_voice_profile_use_case(old_profile_name, new_profile_name)
+        """Renames the profile file and its sample .wav on disk, a missing
+        sample is skipped. params are the TTS settings as they are on the
+        screen now. Raises VoiceCloningException when their provider is not
+        chatterbox, FileExistsError when the new name is taken and
+        FileNotFoundError when the old profile does not exist."""
+        self.rename_voice_profile_use_case(old_profile_name, new_profile_name, params)
 
-    async def preview_voice_sample(self, profile_name: str, text: str) -> None:
-        """Generates speech for text with the profile's voice, applies the Voice
-        Lab effects and plays it out loud. Returns when playback ends."""
-        await self.preview_voice_sample_use_case(profile_name, text)
+    async def preview_voice_sample(
+        self, profile_name: str, text: str, params: TtsProviderParams
+    ) -> None:
+        """Generates speech for text with the profile's voice and plays it out
+        loud. Returns when playback ends. params are the TTS settings as they
+        are on the screen now."""
+        await self.preview_voice_sample_use_case(profile_name, text, params)
 
     async def play_sample_voice(self, profile_name: str) -> None:
         """Plays out loud the sample .wav saved with the profile when it was
@@ -242,15 +258,19 @@ class SettingsRepository:
         before it is cloned. Returns when playback ends."""
         await self.play_audio_file_use_case(path_to_audio_file)
 
-    def analyze_voice_sample(self, path_to_audio_file: str) -> VoiceAnalysisResult:
+    def analyze_voice_sample(
+        self, path_to_audio_file: str, params: TtsProviderParams
+    ) -> VoiceAnalysisResult:
         """Checks if the audio file is good for cloning (length and similar) and
-        returns the measurements with a validation error message, if any."""
-        return self.analyze_voice_sample_use_case(path_to_audio_file)
+        returns the measurements with a validation error message, if any.
+        params are the TTS settings as they are on the screen now."""
+        return self.analyze_voice_sample_use_case(path_to_audio_file, params)
 
-    def get_available_device(self) -> Literal["cuda", "cpu"]:
+    def get_available_device(self, params: TtsProviderParams) -> Literal["cuda", "cpu"]:
         """The device chatterbox would run on: "cuda" when a GPU is usable, else
-        "cpu". Always "cpu" when the active TTS provider is not chatterbox."""
-        return self.get_available_device_use_case()
+        "cpu". params are the TTS settings as they are on the screen now.
+        Always "cpu" when their provider is not chatterbox."""
+        return self.get_available_device_use_case(params)
 
     def get_stt_models(self) -> list[str]:
         """Names of every Whisper model size, e.g. "base" or "small". Nothing is

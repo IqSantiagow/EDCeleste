@@ -16,9 +16,10 @@ class TTSProtocol(BaseServiceProtocol, Protocol):
 
     def reload_service(self) -> None:
         """Reads the tts part of the saved settings. A new provider type builds
-        a new provider. The same type only gets the new settings, and
-        chatterbox forgets its loaded model when the device or nano changed.
-        No model is loaded here, that happens on the first speech."""
+        a new provider. The same type changes nothing, the provider gets the
+        saved params with every sentence, and chatterbox loads its model again
+        when the device or nano changed. No model is loaded here, that happens
+        on the first speech."""
         ...
 
     async def fetch_edge_tts_voice_names(self) -> list[str]:

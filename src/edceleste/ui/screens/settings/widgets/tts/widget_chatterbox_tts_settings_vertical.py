@@ -7,7 +7,10 @@ from textual.reactive import reactive
 from textual.widgets import Button, Label, LoadingIndicator, Select, Static
 from dependency_injector.wiring import inject, Provide
 from edceleste.containers.main_container import Container
-from edceleste.services.models.settings_model import ChatterboxTTSProviderModel
+from edceleste.services.exceptions.voice_cloning_exception import (
+    VoiceCloningException,
+)
+from edceleste.services.models.settings_model import ChatterboxParamsModel
 from textual.app import ComposeResult
 
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
@@ -44,17 +47,17 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
     @inject
     def __init__(
         self,
-        chatterbox_provider: ChatterboxTTSProviderModel,
+        chatterbox_params: ChatterboxParamsModel,
         settings_repository: SettingsRepository = Provide[
             Container.settings_repository
         ],
         *args,
         **kwargs,
     ) -> None:
-        """Only reads chatterbox_provider. The changes go up as ValueChanged
+        """Only reads chatterbox_params. The changes go up as ValueChanged
         and WidgetTTSContainer writes them."""
         super().__init__(*args, **kwargs)
-        self.chatterbox_provider = chatterbox_provider
+        self.chatterbox_params = chatterbox_params
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
@@ -75,7 +78,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
             yield WidgetLabeledSelectRow(
                 "Voice: ",
                 self.voice_profiles,
-                self.chatterbox_provider.profile,
+                self.chatterbox_params.profile,
                 id=ChatterboxTTSInputWidgetIds.TTS_PROFILE_INPUT,
             )
 
@@ -91,6 +94,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 yield ProfileRow(
                     profile,
                     self.settings_repository,
+                    self.chatterbox_params,
                     id=f"profile-row-{profile.removesuffix('.pt')}",
                 )
 
@@ -102,7 +106,7 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 "Exaggeration:",
                 0,
                 2,
-                self.chatterbox_provider.exaggeration,
+                self.chatterbox_params.exaggeration,
                 step=0.1,
                 id=ChatterboxTTSInputWidgetIds.TTS_EXAGGERATION_INPUT,
             )
@@ -110,27 +114,29 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
                 "Pace (cfg):",
                 0,
                 1,
-                self.chatterbox_provider.cfg_weight,
+                self.chatterbox_params.cfg_weight,
                 step=0.05,
                 id=ChatterboxTTSInputWidgetIds.TTS_CFG_WEIGHT_INPUT,
             )
             yield WidgetLabeledSelectRow(
                 "Device: ",
                 CHATTERBOX_DEVICE_OPTIONS,
-                self.chatterbox_provider.device,
+                self.chatterbox_params.device,
                 id=ChatterboxTTSInputWidgetIds.TTS_DEVICE_INPUT,
             )
             yield WidgetLabeledSwitchRow(
                 "Nano model:",
-                self.chatterbox_provider.nano,
+                self.chatterbox_params.nano,
                 id=ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT,
             )
 
     def fetch_profiles(self) -> None:
         """Reads the profile names from the voices folder on disk. Setting
-        voice_profiles recomposes this block. The list comes from the saved TTS
-        engine, so it is empty while the saved engine is not Chatterbox."""
-        self.voice_profiles = self.settings_repository.get_available_voice_profiles()
+        voice_profiles recomposes this block. The list comes from the engine
+        picked on the screen, saved or not."""
+        self.voice_profiles = self.settings_repository.get_available_voice_profiles(
+            self.chatterbox_params
+        )
 
     def on_profile_row_profile_deleted(self, message: "ProfileRow.ProfileDeleted"):
         """A ProfileRow deleted its profile files, so the voice select must
@@ -143,7 +149,8 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
         """Opens VoiceCloneModalScreen on top of the settings. When the modal
         closes, handle_voice_clone_dismissed() gets its result."""
         self.app.push_screen(
-            VoiceCloneModalScreen(), callback=self.handle_voice_clone_dismissed
+            VoiceCloneModalScreen(self.chatterbox_params),
+            callback=self.handle_voice_clone_dismissed,
         )
         self.log("Clone voice button pressed")
 
@@ -188,14 +195,16 @@ class ProfileRow(Horizontal):
         self,
         profile_name: str,
         settings_repository: SettingsRepository,
+        params: ChatterboxParamsModel,
         *args,
         **kwargs,
     ) -> None:
         """profile_name is the name without ".pt", as it is shown in the voice
-        select."""
+        select. params are the TTS settings from the screen, saved or not."""
         super().__init__(*args, **kwargs)
         self.profile_name = profile_name
         self.settings_repository = settings_repository
+        self.params = params
 
     def compose(self) -> ComposeResult:
         """The profile name with a "⧉" in front, a play and a delete button."""
@@ -214,11 +223,19 @@ class ProfileRow(Horizontal):
     @on(Button.Pressed, ".profile-delete-button")
     def handle_delete_pressed(self) -> None:
         """The ✖ button. No confirmation.
-        1. Deletes the profile and its demo sample from disk.
+        1. Deletes the profile and its demo sample from disk. When the engine
+           on the screen cannot clone voices, it shows the error as a
+           notification and keeps the row.
         2. Posts ProfileDeleted to the parent block.
         3. Removes this row.
         """
-        self.settings_repository.remove_voice_profile(self.profile_name)
+        try:
+            self.settings_repository.remove_voice_profile(
+                self.profile_name, self.params
+            )
+        except VoiceCloningException as e:
+            self.notify(str(e), severity="error")
+            return
         self.post_message(self.ProfileDeleted(self.profile_name))
         self.remove()
 

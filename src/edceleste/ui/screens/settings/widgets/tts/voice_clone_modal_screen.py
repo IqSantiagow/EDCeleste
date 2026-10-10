@@ -1,4 +1,5 @@
 import asyncio
+import re
 from dataclasses import dataclass
 
 from dependency_injector.wiring import inject, Provide
@@ -13,10 +14,12 @@ from textual_fspicker import FileOpen, Filters
 from pathlib import Path
 
 from edceleste.containers.main_container import Container
-from edceleste.services.tts_providers.chatterbox_tts_provider import (
-    DEFAULT_VOICE_SAMPLE_TEXT,
-    VoiceAnalysisResult,
+from edceleste.services.exceptions.voice_cloning_exception import (
+    VoiceCloningException,
 )
+from edceleste.services.models.settings_model import TtsProviderParams
+from edceleste.services.models.voice_cloning_models import VoiceAnalysisResult
+from edceleste.services.tts_service import DEFAULT_VOICE_SAMPLE_TEXT
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.settings.widgets.inputs.widget_button import WidgetButton
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
@@ -38,6 +41,18 @@ CLONING_STEP_LABELS = [
     "Extracting voice features (Chatterbox)",
     "Saving profile and demo sample",
 ]
+
+
+def pick_free_profile_name(wanted_name: str, taken_names: list[str]) -> str:
+    """wanted_name when no profile has it yet, otherwise the first free one of
+    "<wanted_name>_1", "<wanted_name>_2" and so on. Reads nothing from disk,
+    taken_names is the list of saved profiles."""
+    free_name = wanted_name
+    number = 1
+    while free_name in taken_names:
+        free_name = f"{wanted_name}_{number}"
+        number += 1
+    return free_name
 
 
 def format_seconds_as_clock(seconds: float) -> str:
@@ -76,15 +91,24 @@ class AnalysisPhase(Static):
     class AnalysisCompleted(Message):
         def __init__(self, is_valid: bool) -> None:
             """Posted when the sample analysis finishes. is_valid False (sample
-            shorter than 10 s) keeps the modal's Next button disabled."""
+            shorter than the provider needs, 10 s for Chatterbox) keeps the
+            modal's Next button disabled."""
             super().__init__()
             self.is_valid = is_valid
 
-    def __init__(self, file_path: Path, settings_repository: SettingsRepository):
+    def __init__(
+        self,
+        file_path: Path,
+        settings_repository: SettingsRepository,
+        params: TtsProviderParams,
+    ):
         """Step 2 of the modal. analysis stays None until run_analysis()
-        finishes, compose() shows "Analyzing sample..." until then."""
+        finishes, compose() shows "Analyzing sample..." until then. params are
+        the TTS settings from the screen, they say how long a sample must
+        be."""
         self.file_path = file_path
         self.settings_repository = settings_repository
+        self.params = params
         self.analysis: VoiceAnalysisResult | None = None
         super().__init__()
 
@@ -102,7 +126,9 @@ class AnalysisPhase(Static):
         3. Recomposes to show the results.
         """
         analysis = await asyncio.to_thread(
-            self.settings_repository.analyze_voice_sample, str(self.file_path)
+            self.settings_repository.analyze_voice_sample,
+            str(self.file_path),
+            self.params,
         )
         self.analysis = analysis
         self.post_message(self.AnalysisCompleted(analysis["is_valid"]))
@@ -238,13 +264,29 @@ class SavePhase(Static):
     # clone_voice() finishes - recompose=True redraws compose() on flip.
     is_ready: reactive[bool] = reactive(False, recompose=True)
 
-    def __init__(self, file_path: Path, settings_repository: SettingsRepository):
+    def __init__(
+        self,
+        file_path: Path,
+        settings_repository: SettingsRepository,
+        params: TtsProviderParams,
+    ):
         """Step 3 of the modal. The profile is first cloned under the file name
-        without extension, e.g. "celeste.wav" -> "celeste"."""
+        without extension, e.g. "celeste.wav" -> "celeste". When a saved
+        profile already has that name, it gets "_1", "_2"... instead
+        ("celeste_1"), so an existing voice is never replaced. Reads the saved
+        profile names from disk, in the UI thread (one folder listing). When
+        the engine of params cannot clone, that list is empty and the file
+        name is used as it is. params are the TTS settings from the screen
+        (saved or not), the cloning and the preview use them, not the saved
+        ones."""
         self.file_path = file_path
+        self.params = params
         # The name the profile already lives under on disk since clone_voice()
-        # ran. The user can rename it before saving - see attempt_save().
-        self.temporary_profile_name = file_path.stem
+        # ran. The user can rename it before saving, see
+        # rename_clone_to_typed_name().
+        self.temporary_profile_name = pick_free_profile_name(
+            file_path.stem, settings_repository.get_available_voice_profiles(params)
+        )
         self.settings_repository = settings_repository
         super().__init__()
 
@@ -315,8 +357,9 @@ class SavePhase(Static):
 
     @work
     async def run_clone_voice(self) -> None:
-        """Worker. Clones the voice with Chatterbox and saves the profile and a
-        demo sample to disk under temporary_profile_name.
+        """Worker. Clones the voice with the engine of params (the settings on
+        the screen) and saves the profile and a demo sample to disk under
+        temporary_profile_name.
 
         Every state the repository yields ticks the current step ✓ and starts
         the spinner on the next one. On error the current step gets ✗, the
@@ -330,7 +373,7 @@ class SavePhase(Static):
 
         try:
             async for _cloning_state in self.settings_repository.clone_voice(
-                str(self.file_path), self.temporary_profile_name
+                str(self.file_path), self.temporary_profile_name, self.params
             ):
                 steps[step_index].mark_done()
                 step_index += 1
@@ -386,16 +429,22 @@ class SavePhase(Static):
         it saves nothing. Same "ab-playback" group as play_source()."""
         new_text = self.query_one("#save-sample-text-input", Input).value
         await self.settings_repository.preview_voice_sample(
-            self.temporary_profile_name, new_text
+            self.temporary_profile_name, new_text, self.params
         )
 
-    async def attempt_save(self) -> VoiceCloneSaveResult | None:
+    async def rename_clone_to_typed_name(self) -> VoiceCloneSaveResult | None:
         """Called by the modal's [✓ Save profile] button. The profile is
-        already on disk, so "saving" only means:
+        already on disk under temporary_profile_name, so "saving" only means
+        giving it the name typed in the input:
         1. empty name -> error under the input, returns None,
-        2. a changed name -> renames the profile files on disk in a thread.
-           A name that is taken -> error under the input, returns None,
-        3. returns the final name and the "Set as active" switch value.
+        2. a changed name with other characters than letters, digits, spaces,
+           "-" and "_" (e.g. "../x") -> error under the input, returns None,
+        3. a changed name -> renames the profile and its sample on disk in a
+           thread. A taken name or an engine that cannot clone -> error under
+           the input, returns None,
+        4. returns the final name and the "Set as active" switch value.
+        None always means: the error is shown, the modal stays open and the
+        clone keeps its old name. Never picks a free name itself.
         """
         candidate_name = self.query_one("#save-profile-name-input", Input).value.strip()
         error_label = self.query_one("#save-name-error", Label)
@@ -405,14 +454,21 @@ class SavePhase(Static):
             error_label.remove_class("hidden")
             return None
 
-        if candidate_name != self.temporary_profile_name:
+        is_new_name = candidate_name != self.temporary_profile_name
+        if is_new_name and not re.fullmatch(r"[\w\- ]+", candidate_name):
+            error_label.update("Use only letters, digits, spaces, - and _.")
+            error_label.remove_class("hidden")
+            return None
+
+        if is_new_name:
             try:
                 await asyncio.to_thread(
                     self.settings_repository.rename_voice_profile,
                     self.temporary_profile_name,
                     candidate_name,
+                    self.params,
                 )
-            except FileExistsError as e:
+            except (FileExistsError, VoiceCloningException) as e:
                 error_label.update(str(e))
                 error_label.remove_class("hidden")
                 return None
@@ -484,6 +540,7 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     @inject
     def __init__(
         self,
+        params: TtsProviderParams,
         settings_repository: SettingsRepository = Provide[
             Container.settings_repository
         ],
@@ -492,8 +549,12 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     ) -> None:
         """A three step wizard: 1 pick a file, 2 analyse it, 3 clone and name
         it. phase holds the current step. Dismissed with a
-        VoiceCloneSaveResult after a save, or with None on cancel."""
+        VoiceCloneSaveResult after a save, or with None on cancel. params are
+        the TTS settings as they are on the screen, the pilot has not saved
+        them yet, so the steps get them from here and not from the saved
+        settings."""
         super().__init__(*args, **kwargs)
+        self.params = params
         self.settings_repository = settings_repository
 
     def on_mount(self):
@@ -551,10 +612,20 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
 
     def cleanup_unsaved_clone(self) -> None:
         """Only in step 3, where cloning already wrote a profile to disk.
-        Deletes that profile, so leaving without saving leaves no files
-        behind. Steps 1 and 2 wrote nothing."""
-        if self.phase == 3 and self.file_path is not None:
-            self.settings_repository.remove_voice_profile(self.file_path.stem)
+        Deletes that profile (under the name SavePhase picked, which is never
+        the name of an older voice), so leaving without saving leaves no files
+        behind. Steps 1 and 2 wrote nothing. When the engine cannot clone
+        voices, the files stay and the error is shown as a notification."""
+        save_phases = self.query(SavePhase)
+        if self.phase != 3 or not save_phases:
+            return
+
+        try:
+            self.settings_repository.remove_voice_profile(
+                save_phases.first().temporary_profile_name, self.params
+            )
+        except VoiceCloningException as e:
+            self.notify(str(e), severity="error")
 
     @on(Button.Pressed, "#voice-clone-cancel-button")
     def handle_cancel_pressed(self) -> None:
@@ -602,13 +673,13 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
             self.query_one("#voice-clone-next-button", WidgetButton).disabled = True
             self.query_one("#voice-clone-pick-another-button").remove_class("hidden")
             self.query_one(".voice-clone-body").mount(
-                AnalysisPhase(self.file_path, self.settings_repository)
+                AnalysisPhase(self.file_path, self.settings_repository, self.params)
             )
         elif self.phase == 3:
             self.query_one("#voice-clone-next-button", WidgetButton).disabled = True
             self.query_one("#voice-clone-pick-another-button").add_class("hidden")
             self.query_one(".voice-clone-body").mount(
-                SavePhase(self.file_path, self.settings_repository)
+                SavePhase(self.file_path, self.settings_repository, self.params)
             )
 
     def on_analysis_phase_analysis_completed(
@@ -636,10 +707,12 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
 
     @work
     async def save_and_dismiss(self) -> None:
-        """Worker. Asks SavePhase to apply the name. None (empty or taken
-        name) keeps the modal open with the error shown, otherwise the modal
-        closes and returns the result to the Chatterbox settings."""
+        """Worker. Asks SavePhase to give the clone the typed name. None (for
+        every reason listed in rename_clone_to_typed_name: empty, not allowed
+        characters, taken, engine that cannot clone) keeps the modal open with
+        the error shown, otherwise the modal closes and returns the result to
+        the Chatterbox settings."""
         save_phase = self.query_one(SavePhase)
-        result = await save_phase.attempt_save()
+        result = await save_phase.rename_clone_to_typed_name()
         if result is not None:
             self.dismiss(result)
