@@ -1,10 +1,12 @@
 """The whole app runs for real, only what leaves the computer is faked:
 config file, journal folder, keyboard, game window, speaker, voices folder,
-microphones, the LLM and the lists of LLM models and edge-tts voices.
+microphones, the Instinct decision model, the LLM and the lists of LLM models
+and edge-tts voices.
 """
 
 import asyncio
 import shutil
+import threading
 import time
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
@@ -22,6 +24,7 @@ from textual.pilot import Pilot
 
 from edceleste.containers.main_container import MODULES_USING_PROVIDE, Container
 from edceleste.services.decision_model_download_service import (
+    DOWNLOAD_COMPLETE_FILE,
     DecisionModelDownloadService,
 )
 from edceleste.services.game_window import GameWindow
@@ -85,6 +88,61 @@ class FakeWindowsApiWithGameInFront:
 
     def SetForegroundWindow(self, window: int) -> bool:
         return True
+
+
+class FakeWindowsApiWithoutGame:
+    def FindWindowW(self, class_name: str | None, window_title: str) -> int:
+        return 0
+
+    def GetForegroundWindow(self) -> int:
+        return 0
+
+    def SetForegroundWindow(self, window: int) -> bool:
+        return False
+
+
+NO_ACTION_CHOSEN = "none"
+# A model that was never let go must not keep the test run from ending
+SLOW_MODEL_GIVES_UP_AFTER_SECONDS = 3
+
+
+class FakeDecider:
+    """The Instinct decision model without GPU and weights. It picks the action
+    the test scripted for a pilot message and 'none' for every other message.
+    A test can make it slow: it then answers a command only after the test
+    lets it"""
+
+    def __init__(self, device: str) -> None:
+        self.dev = device
+        self.choices_by_message: dict[str, str] = {}
+        self.messages_asked: list[str] = []
+        self.model_may_answer: threading.Event | None = None
+
+    def make_the_model_slow(self) -> None:
+        self.model_may_answer = threading.Event()
+
+    def let_the_model_answer(self) -> None:
+        if self.model_may_answer is not None:
+            self.model_may_answer.set()
+
+    def system_one(self, state: dict, questions: dict) -> dict:
+        if "action" not in questions:
+            # The warm up question at start-up, its answer is thrown away
+            return {
+                "answers": {
+                    name: {"choice": "false", "probabilities": {"false": 1.0}}
+                    for name in questions
+                }
+            }
+
+        pilot_message = state["pilot_said"]
+        self.messages_asked.append(pilot_message)
+        if self.model_may_answer is not None:
+            self.model_may_answer.wait(timeout=SLOW_MODEL_GIVES_UP_AFTER_SECONDS)
+        choice = self.choices_by_message.get(pilot_message, NO_ACTION_CHOSEN)
+        return {
+            "answers": {"action": {"choice": choice, "probabilities": {choice: 1.0}}}
+        }
 
 
 FAKE_SAMPLE_RATE = 24000
@@ -237,12 +295,14 @@ class EdCelesteTestEnvironment:
             self.container.settings_service.override(providers.Object(settings_service))
 
         with allure.step("The Instinct model in the temp folder, no Hugging Face Hub"):
-            instinct_download_service = DecisionModelDownloadService(
+            self.instinct_download_service = DecisionModelDownloadService(
                 models_directory=temp_folder / "models"
             )
-            instinct_download_service.fetch_download_size = lambda: INSTINCT_MODEL_BYTES
+            self.instinct_download_service.fetch_download_size = lambda: (
+                INSTINCT_MODEL_BYTES
+            )
             self.container.decision_model_download_service.override(
-                providers.Object(instinct_download_service)
+                providers.Object(self.instinct_download_service)
             )
 
         with allure.step("A fake keyboard and a game window that is always in front"):
@@ -310,6 +370,25 @@ class EdCelesteTestEnvironment:
     def allow_game_actions(self) -> None:
         self.settings.game_actions.enabled = True
         self.save_config()
+
+    def turn_instinct_on(self, device: str = "cuda") -> FakeDecider:
+        # The model counts as downloaded and loaded: no Hub, no download, no GPU.
+        # The preflight still runs its real start-up question through the fake
+        self.settings.llm.instinct.enabled = True
+        self.save_config()
+
+        model_folder = self.instinct_download_service.model_folder
+        model_folder.mkdir(parents=True)
+        (model_folder / DOWNLOAD_COMPLETE_FILE).write_text("test")
+
+        fake_decider = FakeDecider(device)
+        self.container.instinct_service().decider = fake_decider
+        return fake_decider
+
+    def close_the_game_window(self) -> None:
+        self.container.keybinds_service().game_window = GameWindow(
+            windows_api=FakeWindowsApiWithoutGame()
+        )
 
     def react_to_event(self, event_name: str) -> None:
         self.settings.event_reactions.reactions[event_name] = True

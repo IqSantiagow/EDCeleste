@@ -8,8 +8,8 @@ from edceleste.ui.screens.dashboard.view_models.game_stats_view_model import (
 from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     JournalLogViewModel,
 )
-from edceleste.use_cases.dashboard.llm_send_message_use_case import (
-    LLMSendMessageUseCase,
+from edceleste.use_cases.dashboard.send_pilot_message_use_case import (
+    SendPilotMessageUseCase,
 )
 from edceleste.use_cases.dashboard.stream_flight_and_drive_stats_use_case import (
     StreamFlightAndDriveStatsUseCase,
@@ -46,7 +46,7 @@ class EdDashboardRepository:
     def __init__(
         self,
         stream_journal_events_usecase: StreamJournalEventsUseCase,
-        llm_send_message_usecase: LLMSendMessageUseCase,
+        send_pilot_message_usecase: SendPilotMessageUseCase,
         stream_llm_responses_usecase: StreamLLMResponsesUseCase,
         stt_start_recording_usecase: SttStartRecordingUseCase,
         stt_stop_recording_usecase: SttStopRecordingUseCase,
@@ -60,7 +60,7 @@ class EdDashboardRepository:
         calls one use case, so the widgets never know a use case or a
         service."""
         self.stream_journal_events_usecase = stream_journal_events_usecase
-        self.llm_send_message_usecase = llm_send_message_usecase
+        self.send_pilot_message_usecase = send_pilot_message_usecase
         self.stream_llm_responses_usecase = stream_llm_responses_usecase
         self.stt_start_recording_usecase = stt_start_recording_usecase
         self.stt_stop_recording_usecase = stt_stop_recording_usecase
@@ -77,10 +77,11 @@ class EdDashboardRepository:
         events are not replayed. DashboardScreen is the only reader."""
         return self.stream_journal_events_usecase()
 
-    def send_message_to_llm(self, message: str) -> None:
-        """Only puts the message in the LLM queue and returns at once. The
-        reply comes later out of stream_llm_responses()."""
-        self.llm_send_message_usecase(message)
+    def send_pilot_message(self, message: str) -> None:
+        """Returns at once. Instinct may press the key the pilot asked for,
+        otherwise the message goes to the LLM queue. Either way the reply comes
+        later out of stream_llm_responses(). Needs a running event loop."""
+        self.send_pilot_message_usecase(message)
 
     def stream_llm_responses(self) -> AsyncGenerator[CommsStreamItem, None]:
         """Never ends. Gives LLMStatus items (thinking / idle) and COMMS
