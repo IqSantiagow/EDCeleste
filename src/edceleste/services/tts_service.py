@@ -289,12 +289,21 @@ class TTSService:
         profile_name = getattr(params, "profile")
         return self.build_profile_path(profile_name, provider.profile_file_extension)
 
-    def get_provider_for(self, params: TtsProviderParams) -> TTSProviderProtocol:
-        """The provider of the engine in params. The active one when it is of
-        the same type (it keeps its loaded model), otherwise a throwaway one,
-        because the pilot may have picked another engine in the settings that
-        is not saved yet. Raises KeyError for a type that is not in
-        TTS_PROVIDER_CLASSES."""
+    def get_active_or_new_provider_for(
+        self, params: TtsProviderParams
+    ) -> TTSProviderProtocol:
+        """Picks the provider for the engine in params, the settings as they are
+        on the screen now. Nothing is stored and the active provider is never
+        replaced here.
+        - Same type as the active provider -> the active one (self.provider),
+          which keeps its loaded model.
+        - Another type, because the pilot picked an engine that is not saved
+          yet -> a new throwaway provider, built on every call. It has no model
+          yet, so a throwaway Chatterbox loads its own model on first use and
+          drops it together with the provider, which is slow every time.
+        - No active provider built yet (reload_service() has not run) -> a new
+          one as well, also not stored.
+        Raises KeyError for a type that is not in TTS_PROVIDER_CLASSES."""
         if params.type == self.provider_type and self.provider is not None:
             return self.provider
         return self.build_provider(params.type)
@@ -302,9 +311,12 @@ class TTSService:
     def get_cloning_provider_for(
         self, params: TtsProviderParams
     ) -> CloningTTSProviderProtocol:
-        """The provider that clones for params, see get_provider_for(). Raises
-        VoiceCloningException when that provider cannot clone voices."""
-        provider = self.get_provider_for(params)
+        """Picks the provider for params like get_active_or_new_provider_for(),
+        but only one that can clone voices. Returns it, never None. Raises
+        VoiceCloningException (with NO_VOICE_PROFILES_MESSAGE) when that
+        provider cannot clone voices (Edge), and KeyError for an unknown
+        type."""
+        provider = self.get_active_or_new_provider_for(params)
 
         if not isinstance(provider, CloningTTSProviderProtocol):
             raise VoiceCloningException(NO_VOICE_PROFILES_MESSAGE)
@@ -497,18 +509,20 @@ class TTSService:
         switch and sliders all come from them, so a change is heard before it is
         saved. Nothing is saved or written to disk.
 
-        1. Takes the provider of the engine on the screen (get_provider_for) and
-           lets it check its params. A problem, e.g. no voice or no profile
-           picked, is raised as ValueError with its message.
-        2. Speaks the sentence, which goes to the network for Edge and loads
-           the model on first use for Chatterbox.
+        1. Takes the provider of the engine on the screen
+           (get_active_or_new_provider_for) and lets it check its params. A
+           problem, e.g. no voice or no profile picked, is raised as ValueError
+           with its message.
+        2. Speaks the sentence. Edge goes to the network. Chatterbox loads its
+           model on first use, and again on every call when the engine on the
+           screen is not the saved one (a throwaway provider).
         3. Adds the Voice Lab effects from tts_settings. Switched off -> the
            plain voice, as Celeste would sound.
         4. Plays the result at the volume of tts_settings.
         Provider errors are raised, e.g. no network or a profile file that is
         gone (FileNotFoundError).
         """
-        provider = self.get_provider_for(tts_settings.params)
+        provider = self.get_active_or_new_provider_for(tts_settings.params)
 
         issue = provider.validate_params(tts_settings.params)
         if issue is not None:
