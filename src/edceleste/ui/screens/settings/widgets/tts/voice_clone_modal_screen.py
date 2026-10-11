@@ -10,6 +10,7 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.widgets import Label, Static, Button, Input, Sparkline, Switch
 from textual.containers import Vertical, VerticalScroll, Horizontal, Center
+from textual.worker import Worker
 from textual_fspicker import FileOpen, Filters
 from pathlib import Path
 
@@ -278,9 +279,10 @@ class SavePhase(Static):
         the engine of params cannot clone, that list is empty and the file
         name is used as it is. params are the TTS settings from the screen
         (saved or not), the cloning and the preview use them, not the saved
-        ones."""
+        ones. clone_worker stays None until on_mount() starts the cloning."""
         self.file_path = file_path
         self.params = params
+        self.clone_worker: Worker[None] | None = None
         # The name the profile already lives under on disk since clone_voice()
         # ran. The user can rename it before saving, see
         # rename_clone_to_typed_name().
@@ -291,8 +293,9 @@ class SavePhase(Static):
         super().__init__()
 
     def on_mount(self):
-        """Starts cloning as soon as the step is shown."""
-        self.run_clone_voice()
+        """Starts cloning as soon as the step is shown and keeps its worker in
+        clone_worker, so the modal can stop it on Cancel."""
+        self.clone_worker = self.run_clone_voice()
 
     def compose(self):
         """Not ready: "<file> → <profile name>" and one CloningStepRow per
@@ -610,38 +613,51 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
         self.query_one("#selected-file-label").remove_class("hidden")
         self.query_one("#voice-clone-next-button", WidgetButton).disabled = False
 
-    def cleanup_unsaved_clone(self) -> None:
-        """Only in step 3, where cloning already wrote a profile to disk.
-        Deletes that profile (under the name SavePhase picked, which is never
-        the name of an older voice), so leaving without saving leaves no files
-        behind. Steps 1 and 2 wrote nothing. When the engine cannot clone
-        voices, the files stay and the error is shown as a notification."""
+    def stop_and_delete_unsaved_clone(self) -> None:
+        """Only in step 3, where cloning writes a profile to disk. In steps 1
+        and 2 it does nothing, they wrote nothing.
+        1. Cancels the cloning worker when it still runs. The model thread may
+           still finish its learning in the background, but the profile and
+           its sample are written by the worker after that thread, so a
+           cancelled clone writes nothing more. Deleting first would let a
+           running clone write its profile after the delete.
+        2. Deletes the profile and its sample (under the name SavePhase
+           picked, which is never the name of an older voice), so leaving
+           without saving leaves no files behind. Files that are not there yet
+           are skipped.
+        When the engine cannot clone voices, the files stay and the error is
+        shown as a notification. Other errors of the delete (e.g. a file
+        locked on Windows) come out as they are."""
         save_phases = self.query(SavePhase)
         if self.phase != 3 or not save_phases:
             return
 
+        save_phase = save_phases.first()
+        if save_phase.clone_worker is not None:
+            save_phase.clone_worker.cancel()
+
         try:
             self.settings_repository.remove_voice_profile(
-                save_phases.first().temporary_profile_name, self.params
+                save_phase.temporary_profile_name, self.params
             )
         except VoiceCloningException as e:
             self.notify(str(e), severity="error")
 
     @on(Button.Pressed, "#voice-clone-cancel-button")
     def handle_cancel_pressed(self) -> None:
-        """[X Cancel]. Deletes an unsaved clone and closes the modal with
-        None."""
-        self.cleanup_unsaved_clone()
+        """[X Cancel]. Stops a running clone, deletes an unsaved one (see
+        stop_and_delete_unsaved_clone) and closes the modal with None."""
+        self.stop_and_delete_unsaved_clone()
         self.dismiss(None)
 
     @on(Button.Pressed, "#voice-clone-pick-another-button")
     def handle_pick_another_pressed(self) -> None:
         """[← Pick another] in step 2 or 3:
-        1. deletes an unsaved clone (step 3),
+        1. stops a running clone and deletes an unsaved one (step 3),
         2. forgets the file and disables Next,
         3. puts FilePickPhase back in the body and resets the phase bar.
         """
-        self.cleanup_unsaved_clone()
+        self.stop_and_delete_unsaved_clone()
         self.phase = 1
         self.file_path = None
         self.query_one("#voice-clone-next-button", WidgetButton).disabled = True

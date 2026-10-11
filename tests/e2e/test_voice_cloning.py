@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 import allure
 import pytest
 
@@ -30,6 +33,21 @@ pytestmark = [pytest.mark.anyio, allure.feature("Voice cloning")]
 async def switch_to_chatterbox_in_settings(edceleste, pilot) -> None:
     await open_text_to_speech_settings(edceleste, pilot)
     await switch_engine_to_chatterbox(edceleste, pilot)
+
+
+async def press_cancel_and_let_the_model_finish_as_the_window_closes(
+    pilot, chatterbox
+) -> None:
+    # The model is released the moment the clone window is off the screen, while
+    # the app is still tearing it down: a model that finishes right when the
+    # Commander gives up. A wait_until poll (50 ms) would be too slow for this
+    pilot.app.screen.query_one("#voice-clone-cancel-button").press()
+    give_up_at = time.monotonic() + 5
+    while clone_window_is_open(pilot.app):
+        if time.monotonic() > give_up_at:
+            pytest.fail("Waited 5 s for: the clone window to close after Cancel")
+        await asyncio.sleep(0)
+    chatterbox.let_the_model_finish()
 
 
 @allure.title("Cancel after cloning deletes the unsaved voice and keeps the others")
@@ -305,6 +323,127 @@ async def test_should_keep_the_existing_voice_when_the_commander_cancels_the_clo
             old_voice = (edceleste.voices_folder / "celeste.pt").read_bytes()
             old_sample = (edceleste.voices_folder / "celeste_sample.wav").read_bytes()
             assert (old_voice, old_sample) == (b"voice", b"sample")
+
+
+@allure.title(
+    "Cancel while a voice is still being cloned keeps the old voice and adds no new one"
+)
+async def test_should_add_no_voice_when_the_commander_cancels_while_cloning_runs(
+    edceleste, tmp_path
+):
+    chatterbox = edceleste.fake_tts_providers["chatterbox"]
+
+    with allure.step("Given the Commander has the cloned voice 'celeste'"):
+        write_voice_profile_files(edceleste, "celeste")
+        recording = write_voice_recording(
+            tmp_path / "recordings", "celeste.wav", seconds=12
+        )
+
+    with allure.step("And the voice model is slow to learn a new voice"):
+        chatterbox.make_the_model_slow()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander switched the engine to Chatterbox"):
+            await switch_to_chatterbox_in_settings(edceleste, pilot)
+
+        with allure.step("And cloning celeste.wav started and the model is learning"):
+            await open_clone_window(edceleste, pilot)
+            await pick_recording_in_clone_window(edceleste, pilot, recording)
+            await continue_to_analysis(edceleste, pilot)
+            await edceleste.wait_until(
+                pilot,
+                lambda: next_button_is_enabled(pilot.app),
+                "Next enabled for a long enough recording",
+            )
+            await pilot.click("#voice-clone-next-button")
+            await edceleste.wait_until(
+                pilot,
+                lambda: chatterbox.model_started_learning_a_voice,
+                "the model learning the new voice",
+            )
+
+        with allure.step(
+            "When the Commander presses Cancel and the model finishes at that moment"
+        ):
+            await press_cancel_and_let_the_model_finish_as_the_window_closes(
+                pilot, chatterbox
+            )
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, SettingsScreen),
+                "the settings back after Cancel",
+            )
+            # Nothing is there to wait for: the check is that no voice shows up
+            # after the model is done. A moment is enough for it to be written
+            await pilot.pause(0.5)
+
+        with allure.step("Then the voices folder holds only the files of 'celeste'"):
+            assert voice_files_in_folder(edceleste) == [
+                "celeste.pt",
+                "celeste_sample.wav",
+            ]
+
+        with allure.step("And the old voice 'celeste' is untouched"):
+            old_voice = (edceleste.voices_folder / "celeste.pt").read_bytes()
+            old_sample = (edceleste.voices_folder / "celeste_sample.wav").read_bytes()
+            assert (old_voice, old_sample) == (b"voice", b"sample")
+
+        with allure.step("And the list shows only 'celeste'"):
+            assert profile_names_in_list(pilot.app) == ["celeste"]
+
+
+@allure.title(
+    "Cloning a recording from the voices folder leaves the recordings there untouched"
+)
+async def test_should_not_touch_the_recordings_kept_in_the_voices_folder(edceleste):
+    with allure.step(
+        "Given the Commander keeps the recordings take.wav and take_reference.wav"
+        " in the voices folder"
+    ):
+        recording = write_voice_recording(
+            edceleste.voices_folder, "take.wav", seconds=12
+        )
+        other_recording = write_voice_recording(
+            edceleste.voices_folder, "take_reference.wav", seconds=15
+        )
+        recording_before = recording.read_bytes()
+        other_recording_before = other_recording.read_bytes()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander switched the engine to Chatterbox"):
+            await switch_to_chatterbox_in_settings(edceleste, pilot)
+
+        with allure.step("When the Commander clones take.wav from there and saves"):
+            await clone_recording_until_profile_is_ready(edceleste, pilot, recording)
+            await click_save_profile(edceleste, pilot)
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, SettingsScreen),
+                "the settings back after saving",
+            )
+
+        with allure.step("Then the list shows the new voice 'take'"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: profile_names_in_list(pilot.app) == ["take"],
+                "the voice 'take' in the list",
+            )
+
+        with allure.step("And both recordings are still in the voices folder"):
+            assert voice_files_in_folder(edceleste) == [
+                "take.pt",
+                "take.wav",
+                "take_reference.wav",
+                "take_sample.wav",
+            ]
+
+        with allure.step("And both recordings have exactly the content they had"):
+            assert recording.read_bytes() == recording_before
+            assert other_recording.read_bytes() == other_recording_before
 
 
 @allure.title("An empty voice name is refused with 'Name cannot be empty.'")
