@@ -1,4 +1,6 @@
+import asyncio
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -135,6 +137,17 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         return [
             state async for state in self.service.clone_voice(audio_path, name, params)
         ]
+
+    def _remember_clip_paths_given_to(self, provider) -> list[Path]:
+        """The returned list gets the trimmed clip path of every
+        create_voice_profile() call, taken while the clip still exists."""
+        seen_clip_paths: list[Path] = []
+
+        async def remember_clip_path(clip_path, profile_path, params):
+            seen_clip_paths.append(Path(clip_path))
+
+        provider.create_voice_profile.side_effect = remember_clip_path
+        return seen_clip_paths
 
     # --- event bus ---
 
@@ -700,7 +713,13 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_clone_voice_deletes_the_trimmed_clip_when_it_fails(self):
         provider = self._use_saved_chatterbox()
-        provider.create_voice_profile.side_effect = OSError("disk full")
+        seen_clip_paths: list[Path] = []
+
+        async def remember_clip_path_and_fail(clip_path, profile_path, params):
+            seen_clip_paths.append(Path(clip_path))
+            raise OSError("disk full")
+
+        provider.create_voice_profile.side_effect = remember_clip_path_and_fail
         audio_path = self.input_dir / "voice.wav"
         _write_wav(audio_path, 12)
 
@@ -709,10 +728,12 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
                 str(audio_path), "nova", _make_chatterbox_params()
             )
 
-        self.assertFalse((self.voices_dir / "nova_reference.wav").exists())
+        self.assertEqual(len(seen_clip_paths), 1)
+        self.assertFalse(seen_clip_paths[0].parent.exists())
 
     async def test_clone_voice_deletes_the_trimmed_clip_after_success(self):
-        self._use_saved_chatterbox()
+        provider = self._use_saved_chatterbox()
+        seen_clip_paths = self._remember_clip_paths_given_to(provider)
         audio_path = self.input_dir / "voice.wav"
         _write_wav(audio_path, 12)
 
@@ -720,8 +741,52 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             str(audio_path), "nova", _make_chatterbox_params()
         )
 
-        self.assertFalse((self.voices_dir / "nova_reference.wav").exists())
+        self.assertEqual(len(seen_clip_paths), 1)
+        self.assertFalse(seen_clip_paths[0].parent.exists())
         self.assertTrue(audio_path.exists())
+
+    async def test_clone_voice_deletes_the_trimmed_clip_when_cancelled(self):
+        provider = self._use_saved_chatterbox()
+        seen_clip_paths: list[Path] = []
+        learning_started = asyncio.Event()
+
+        async def learn_until_cancelled(clip_path, profile_path, params):
+            seen_clip_paths.append(Path(clip_path))
+            learning_started.set()
+            await asyncio.Event().wait()
+
+        provider.create_voice_profile.side_effect = learn_until_cancelled
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+
+        clone_task = asyncio.create_task(
+            self._collect_clone_states(
+                str(audio_path), "nova", _make_chatterbox_params()
+            )
+        )
+        await learning_started.wait()
+        clone_task.cancel()
+
+        # The cancel must come out as it is, not wrapped in RuntimeError
+        with self.assertRaises(asyncio.CancelledError):
+            await clone_task
+
+        self.assertFalse(seen_clip_paths[0].parent.exists())
+
+    async def test_clone_voice_finishes_when_the_trimmed_clip_cannot_be_deleted(self):
+        provider = self._use_saved_chatterbox()
+        seen_clip_paths = self._remember_clip_paths_given_to(provider)
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+
+        # On Windows a file still open in the model thread cannot be deleted
+        with patch("os.unlink", side_effect=PermissionError("file in use")):
+            states = await self._collect_clone_states(
+                str(audio_path), "nova", _make_chatterbox_params()
+            )
+        self.addCleanup(shutil.rmtree, seen_clip_paths[0].parent, ignore_errors=True)
+
+        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
 
     async def test_clone_voice_gives_the_provider_only_reference_seconds_of_audio(
         self,
@@ -757,28 +822,34 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((self.voices_dir / "nova_sample.wav").read_bytes(), b"sample")
         provider.create_voice_profile.assert_not_awaited()
 
-    async def test_clone_voice_writes_the_trimmed_clip_under_the_new_profile_name(
-        self,
-    ):
+    async def test_clone_voice_writes_the_trimmed_clip_outside_the_voices_folder(self):
         provider = self._use_saved_chatterbox()
-        self._make_profile_files("narrator")
-        audio_path = self.input_dir / "narrator_sample.wav"
+        seen_clip_paths = self._remember_clip_paths_given_to(provider)
+        audio_path = self.input_dir / "voice.wav"
         _write_wav(audio_path, 12)
-        seen_clip_names = []
-
-        async def remember_clip_name(clip_path, profile_path, params):
-            seen_clip_names.append(Path(clip_path).name)
-
-        provider.create_voice_profile.side_effect = remember_clip_name
 
         await self._collect_clone_states(
             str(audio_path), "nova", _make_chatterbox_params()
         )
 
-        self.assertEqual(seen_clip_names, ["nova_reference.wav"])
-        self.assertEqual(
-            (self.voices_dir / "narrator_sample.wav").read_bytes(), b"sample"
+        clip_folder = seen_clip_paths[0].parent
+        self.assertNotEqual(clip_folder, self.voices_dir)
+        self.assertNotEqual(clip_folder, self.input_dir)
+
+    async def test_clone_voice_never_touches_a_recording_picked_from_the_voices_folder(
+        self,
+    ):
+        self._use_saved_chatterbox()
+        self.voices_dir.mkdir(parents=True)
+        # The name the trimmed clip had before, it replaced and deleted this file
+        audio_path = self.voices_dir / "nova_reference.wav"
+        _write_wav(audio_path, 12)
+
+        await self._collect_clone_states(
+            str(audio_path), "nova", _make_chatterbox_params()
         )
+
+        self.assertEqual(sf.info(str(audio_path)).frames, 12 * SAMPLE_RATE)
 
     # --- profiles: regression, saved engine is Edge, screen is Chatterbox ---
 

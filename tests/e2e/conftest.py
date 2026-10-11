@@ -3,6 +3,7 @@ config file, journal folder, keyboard, game window, speaker, voices folder,
 microphones, the LLM and the lists of LLM models and edge-tts voices.
 """
 
+import asyncio
 import shutil
 import time
 from collections.abc import AsyncIterator, Callable
@@ -111,13 +112,24 @@ class FakeEdgeTtsProvider(EdgeTTSProvider):
 
 class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
     """The real Chatterbox checks, but no model and no GPU: a profile is a real
-    file in the voices folder and speaking only remembers what it should say"""
+    file in the voices folder and speaking only remembers what it should say.
+    A test can make the model slow: it then learns a new voice only after the
+    test lets it finish"""
 
     def __init__(self, spoken_texts: list[str]) -> None:
         super().__init__()
         self.spoken_texts = spoken_texts
         self.spoken_params: list[TtsProviderParams] = []
         self.spoken_profile_paths: list[Path | None] = []
+        self.model_started_learning_a_voice = False
+        self.model_may_finish: asyncio.Event | None = None
+
+    def make_the_model_slow(self) -> None:
+        self.model_may_finish = asyncio.Event()
+
+    def let_the_model_finish(self) -> None:
+        if self.model_may_finish is not None:
+            self.model_may_finish.set()
 
     async def synthesize(
         self,
@@ -138,6 +150,9 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
         profile_path: Path,
         params: TtsProviderParams,
     ) -> None:
+        self.model_started_learning_a_voice = True
+        if self.model_may_finish is not None:
+            await self.model_may_finish.wait()
         profile_path.write_bytes(b"fake voice profile")
 
     def get_available_device(self) -> str:

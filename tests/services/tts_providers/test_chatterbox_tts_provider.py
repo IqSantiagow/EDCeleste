@@ -259,6 +259,48 @@ class ChatterboxTTSProviderCreateVoiceProfileTest(unittest.IsolatedAsyncioTestCa
 
         self.assertIsNone(self.provider.loaded_profile_path)
 
+    def _pretend_the_model_is_loaded(self):
+        """Same device and nano as _make_chatterbox_params(), so
+        create_voice_profile() does not load the model again. Loading would
+        clear loaded_profile_path on its own and hide what is tested."""
+        self.provider.model = self.model
+        self.provider.loaded_device = "cpu"
+        self.provider.loaded_nano = True
+
+    async def test_create_voice_profile_clears_loaded_profile_path_before_learning(
+        self,
+    ):
+        self._pretend_the_model_is_loaded()
+        self.provider.loaded_profile_path = Path("voices") / "old.pt"
+        loaded_profile_path_while_learning = []
+
+        def remember_loaded_profile_path(**kwargs):
+            loaded_profile_path_while_learning.append(self.provider.loaded_profile_path)
+
+        self.model.prepare_conditionals.side_effect = remember_loaded_profile_path
+
+        await self.provider.create_voice_profile(
+            "reference.wav", self.profile_path, _make_chatterbox_params()
+        )
+
+        self.from_pretrained.assert_not_called()
+        self.assertEqual(loaded_profile_path_while_learning, [None])
+
+    async def test_create_voice_profile_clears_loaded_profile_path_when_learning_fails(
+        self,
+    ):
+        self._pretend_the_model_is_loaded()
+        self.provider.loaded_profile_path = Path("voices") / "old.pt"
+        self.model.prepare_conditionals.side_effect = RuntimeError("bad audio")
+
+        with self.assertRaises(RuntimeError):
+            await self.provider.create_voice_profile(
+                "reference.wav", self.profile_path, _make_chatterbox_params()
+            )
+
+        self.assertIsNone(self.provider.loaded_profile_path)
+        self.model.conds.save.assert_not_called()
+
     async def test_create_voice_profile_loads_the_model_with_the_given_params(self):
         await self.provider.create_voice_profile(
             "reference.wav", self.profile_path, _make_chatterbox_params(nano=False)
