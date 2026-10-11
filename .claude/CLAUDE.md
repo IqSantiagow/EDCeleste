@@ -36,6 +36,11 @@ bash mutation_testing/run_in_docker.sh                                       # w
 The CI pipelines have a built-in Allure report of the test results, published from `main` to
 https://iqsantiagow.github.io/EDCeleste/. The e2e conventions that feed it live in the `e2e-test-writer` agent.
 
+The mutation tests and the e2e tests of the pipeline run on a remote runner (a VPS) when the
+`edceleste-runner` MCP connector is connected, otherwise on this machine. The two subagents pick
+by themselves. They send the working copy with `bash mutation_testing/send_code.sh`, which needs
+`RUNNER_URL` (with the port, e.g. `http://100.x.y.z:8765`) and `RUNNER_TOKEN` in the environment.
+
 ## Pipeline of a feature or a bug fix
 
 Go through the steps in order. Do not call the work done before step 6 is done.

@@ -1,7 +1,7 @@
 ---
 name: mutation-tester
-description: Runs mutation tests (mutmut) on the recently changed source files of EDCeleste and reports which mutants survived, that is which behaviour the unit tests do not really check. Use it after a feature or a bug fix is implemented and the unit tests pass, before calling the work done. Pass the changed files in the prompt, or let it find them in git. It only reports and suggests tests, it never edits code or tests. The full report, with the diff of every survivor, is written to mutation_testing/report/findings.md.
-tools: Bash, Read, Grep, Glob, Write
+description: Runs mutation tests (mutmut) on the recently changed source files of EDCeleste and reports which mutants survived, that is which behaviour the unit tests do not really check. It runs on the remote runner (the edceleste-runner connector) when that is connected, otherwise in local Docker. Use it after a feature or a bug fix is implemented and the unit tests pass, before calling the work done. Pass the changed files in the prompt, or let it find them in git. It only reports and suggests tests, it never edits code or tests. The full report, with the diff of every survivor, is written to mutation_testing/report/findings.md.
+tools: Bash, Read, Grep, Glob, Write, mcp__edceleste-runner__start_mutation, mcp__edceleste-runner__job_status, mcp__edceleste-runner__job_report
 model: haiku
 ---
 
@@ -36,7 +36,43 @@ Run the whole project only when the prompt asks for it. A full run takes about h
 
 ## Step 2 — Run mutmut
 
-mutmut does not run on Windows. Check the platform with `uname -s`.
+mutmut does not run on Windows, so it runs on the remote runner or in a local Linux container.
+Pick by your tools:
+
+- You have `mcp__edceleste-runner__start_mutation`: the runner connector is connected, run on
+  the **remote runner**. Your machine stays free.
+- You do not have it: run **local**.
+
+### Remote runner
+
+The runner mutates a copy of the working copy, uncommitted changes included. It runs one job
+at a time, the others wait in a queue.
+
+1. Upload the code. The script prints `{"upload_id": "...", "bytes": ...}`:
+   ```bash
+   bash mutation_testing/send_code.sh
+   ```
+   If it fails, report its error text and stop. Never fall back to local Docker on your own: the
+   caller must learn that the runner cannot be reached (`RUNNER_URL` and `RUNNER_TOKEN` not set,
+   `RUNNER_URL` without the port, Tailscale off) and decides what to do.
+2. Start the job with the files of Step 1, written as `src/edceleste/...py`. An empty `files`
+   mutates the whole project. You get a `job_id`:
+   `start_mutation(upload_id=..., files=[...])`
+3. Wait. Call `job_status(job_id)`, and between the calls `sleep 240` in Bash, until `state` is
+   not `queued` and not `running`. `queue_position` and `progress` tell how far it is.
+4. Read the `state`:
+   - `passed`: finished, the score is at least `MIN_MUTATION_SCORE`.
+   - `failed` and `report_files` holds `summary.txt`: finished under `MIN_MUTATION_SCORE`.
+     Judge it like a pass.
+   - Anything else (`failed` without `summary.txt`, `timeout`, `cancelled`, `error`,
+     `interrupted`): the run failed. Read `job_report(job_id, name="log.txt")`, report its last
+     lines and stop. The usual cause is a failing test suite, mutmut runs the tests on unchanged
+     code first. An import error of a package that is new in `pyproject.toml` means the runner
+     image is old: say so, the caller must run `rebuild_image`, you cannot.
+
+### Local
+
+Check the platform with `uname -s`.
 
 - `MINGW*` or `MSYS*` (Windows):
   1. Check that Docker Desktop runs. Use the exit code and never a pipe, because
@@ -73,22 +109,27 @@ mutmut does not run on Windows. Check the platform with `uname -s`.
 One or two files take a few minutes, the first Docker build takes longer because it downloads
 the dependencies.
 
-If the run failed, report the last lines of the script's output and stop. Read them with
+If the local run failed, report the last lines of the script's output and stop. Read them with
 `tr '\r' '\n' < mutation_testing/report/mutmut_run.log | tail -n 40`, the raw log is full of
 spinner characters. The usual cause is a failing test suite: mutmut runs the tests on
 unchanged code first and stops when they fail.
 
 ## Step 3 — Read the report
 
-All files are in `mutation_testing/report/`:
+The report has these files, local in `mutation_testing/report/`, remote through
+`job_report(job_id, name=...)`:
 
 - `summary.txt` — mutation score and the count of every status
 - `survivors.txt` — every mutant with status `survived` or `no tests`, with its diff
 - `all_results.txt` — status of every mutant, read it only to look up a single mutant
-- `mutmut_run.log` — full mutmut output, read it only when the run failed
+- `mutmut_run.log` — full mutmut output, read it only when the run failed (remote: `log.txt`)
 
-If `summary.txt` or `survivors.txt` is missing after a run that ended with `exit code 0`,
-say exactly which one is missing and stop. Never fill the gap with your own judgement.
+On the remote runner ask only for names listed in the job's `report_files`, any other name is
+an error. When a `job_report` answer has `truncated: true`, call it again with `offset` set to
+`next_offset` until you have the whole file, `survivors.txt` is often long.
+
+If `summary.txt` or `survivors.txt` is missing after a run that finished (`exit code 0` or
+`passed`), say exactly which one is missing and stop. Never fill the gap with your own judgement.
 
 Statuses: `killed` and `timeout` are good. `survived` means no test noticed the change.
 `no tests` means no test even runs this function.
@@ -146,5 +187,6 @@ For every survivor, in every group, copy its diff from `survivors.txt`. For ever
 test file, a test method name in the style of that file, and what the test should assert.
 Do not write the test code itself.
 
-Your final message is only: the path of `findings.md`, the score line, and the number of gaps,
-equivalent and low value survivors. The caller reads the details from the file.
+Your final message is only: the path of `findings.md`, the score line, the number of gaps,
+equivalent and low value survivors, and on the remote runner the `job_id`. The caller reads the
+details from the file.
