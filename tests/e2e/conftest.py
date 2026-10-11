@@ -292,7 +292,9 @@ class EdCelesteTestEnvironment:
     async def remember_played_audio(
         self, samples, sample_rate, volume, apply_voice_lab_effects
     ) -> None:
-        self.played_audio.append({"volume": volume, "sample_rate": sample_rate})
+        self.played_audio.append(
+            {"volume": volume, "sample_rate": sample_rate, "samples": samples}
+        )
 
     async def edge_voices_without_network(self) -> list[str]:
         return EDGE_VOICES_WITHOUT_NETWORK

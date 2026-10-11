@@ -997,29 +997,31 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(VoiceCloningException):
             await self.service.preview_voice_sample("nova", "Hi", _make_edge_params())
 
-    # --- get_provider_for ---
+    # --- get_active_or_new_provider_for ---
 
-    def test_get_provider_for_returns_the_active_provider_for_its_own_type(self):
+    def test_active_or_new_provider_returns_the_active_one_for_its_own_type(self):
         active_provider = Mock(spec=EdgeTTSProvider)
         self.service.provider = active_provider
 
-        provider = self.service.get_provider_for(_make_edge_params())
+        provider = self.service.get_active_or_new_provider_for(_make_edge_params())
 
         self.assertIs(provider, active_provider)
 
-    def test_get_provider_for_builds_a_throwaway_provider_for_another_type(self):
+    def test_active_or_new_provider_builds_a_throwaway_one_for_another_type(self):
         active_provider = Mock(spec=EdgeTTSProvider)
         self.service.provider = active_provider
 
-        provider = self.service.get_provider_for(_make_chatterbox_params())
+        provider = self.service.get_active_or_new_provider_for(
+            _make_chatterbox_params()
+        )
 
         self.assertIsInstance(provider, ChatterboxTTSProvider)
         self.assertIs(self.service.provider, active_provider)
 
-    def test_get_provider_for_builds_a_provider_when_no_provider_is_active(self):
+    def test_active_or_new_provider_builds_one_when_none_is_active(self):
         self.service.provider = None
 
-        provider = self.service.get_provider_for(_make_edge_params())
+        provider = self.service.get_active_or_new_provider_for(_make_edge_params())
 
         self.assertIsInstance(provider, EdgeTTSProvider)
 
