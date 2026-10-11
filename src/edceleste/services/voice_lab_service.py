@@ -10,6 +10,7 @@ import math
 import numpy as np
 from scipy.signal import butter, fftconvolve, lfilter, sosfilt
 
+from edceleste.services.models.settings_model import VoiceLabModel
 from edceleste.services.settings_service import SettingsService
 
 BASS_BOOST_DB = 4.0
@@ -33,9 +34,18 @@ class VoiceLabService:
         reload."""
         self.__settings_service = settings_service
 
-    def apply_effects(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
+    def apply_effects(
+        self,
+        samples: np.ndarray,
+        sample_rate: int,
+        voice_lab: VoiceLabModel | None = None,
+    ) -> np.ndarray:
         """Mono or stereo samples in. Out: mono, or stereo (samples x 2) when stereo
         width is above 0, longer by the time the reverb rings after the last word.
+
+        voice_lab is the switch and the sliders to use. None -> the saved ones,
+        read now. The settings screen passes the ones it shows, saved or not, so
+        the pilot hears a slider change before saving it.
 
         Voice Lab switched off -> the very same samples come back untouched.
         Otherwise, in this order:
@@ -50,7 +60,8 @@ class VoiceLabService:
            float32.
         Called by the TTS service right before the audio is played.
         """
-        voice_lab = self.__settings_service.get_settings().tts.voice_lab
+        if voice_lab is None:
+            voice_lab = self.__settings_service.get_settings().tts.voice_lab
         if not voice_lab.enabled:
             return samples
 

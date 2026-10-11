@@ -109,7 +109,7 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 step=0.05,
                 id=TTSInputWidgetIds.VOLUME_INPUT,
             )
-            yield WidgetVoiceLabSettingsVertical(self.tts_model.voice_lab)
+            yield WidgetVoiceLabSettingsVertical(self.tts_model)
 
     def on_value_changed(self, message: ValueChanged) -> None:
         """Gets ValueChanged from every row in this section, also from the Edge,
