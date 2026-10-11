@@ -161,7 +161,7 @@ async def continue_to_analysis(edceleste, pilot: Pilot) -> None:
     await edceleste.wait_until(
         pilot, lambda: next_button_is_enabled(pilot.app), "Next ready to be clicked"
     )
-    await pilot.click("#voice-clone-next-button")
+    await edceleste.click_when_ready(pilot, "#voice-clone-next-button")
     await edceleste.wait_until(
         pilot,
         lambda: pilot.app.screen.query("#analysis-play-button"),
@@ -175,7 +175,7 @@ async def continue_to_cloning_and_wait_until_it_ends(edceleste, pilot: Pilot) ->
         lambda: next_button_is_enabled(pilot.app),
         "Next enabled for a long enough recording",
     )
-    await pilot.click("#voice-clone-next-button")
+    await edceleste.click_when_ready(pilot, "#voice-clone-next-button")
     await edceleste.wait_until(
         pilot,
         lambda: clone_finished(pilot.app),
@@ -205,7 +205,7 @@ async def click_save_profile(edceleste, pilot: Pilot) -> None:
         lambda: save_button_is_ready(pilot.app),
         "Save profile ready to be clicked",
     )
-    await pilot.click("#voice-clone-next-button")
+    await edceleste.click_when_ready(pilot, "#voice-clone-next-button")
 
 
 async def type_profile_name(pilot: Pilot, profile_name: str) -> None:

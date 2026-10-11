@@ -346,6 +346,18 @@ class EdCelesteTestEnvironment:
                     pytest.fail(f"Waited {timeout_seconds} s for: {description}")
                 await pilot.pause(0.05)
 
+    async def click_when_ready(self, pilot: Pilot, selector: str) -> None:
+        # Textual ignores a click on a button that still plays its press
+        # animation (class "-active", 0.2 s). A second click on the same button
+        # is lost when the screen reacts faster than that, which fast fakes do
+        button = pilot.app.screen.query_one(selector)
+        await self.wait_until(
+            pilot,
+            lambda: not button.has_class("-active"),
+            f"{selector} to finish its press animation",
+        )
+        await pilot.click(selector)
+
     async def boot_to_dashboard(
         self, pilot: Pilot, step_keyword: str = "Given"
     ) -> None:

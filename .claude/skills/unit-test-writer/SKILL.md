@@ -34,6 +34,11 @@ For each unit identified in Step 2, write a plan entry with:
 - Test file: where it belongs, mirroring the source path (e.g. `services/foo/bar.py` → `tests/services/foo/test_bar.py`), matching the existing layout under `tests/`
 - Test method names: `test_<behavior>` style (e.g. `test_returns_none_when_queue_is_empty`), one per case — happy path, edge cases, and error/exception paths
 - One line per method: what it verifies and why it matters
+- One line per method: the change to the production code that turns the test red (for example "delete the line that resets the field", "swap `>=` for `>`"). If you cannot name one, the test checks nothing, so rework it.
+
+A test that asserts an absence (`None`, "file does not exist", "was not called") proves nothing until its setup rules out every other way to reach that state:
+- Put in place what a precondition step would reset or create on its own (a model the code would load, a file it would write), so the code under test is the only thing that can produce the state.
+- Capture the real path or value the code used (a `side_effect` that records it) and assert on the captured value, never on a hard-coded name that a rename can make stale.
 
 Do not write any test code in this step.
 

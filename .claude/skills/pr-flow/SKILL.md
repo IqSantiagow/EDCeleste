@@ -18,6 +18,8 @@ coverage report -m
 
 If `ruff check` reports errors, fix them (`ruff check --fix` and `ruff format`). If any test fails, identify and fix the cause. Do not proceed to Step 2 until both lint and tests are clean.
 
+If the change holds no Python file (only docs, skills, agents or other config), skip this step: there is nothing for `ruff` to check and the tests cannot change. Say so in the summary. The CI pipeline runs lint and tests anyway.
+
 ## Step 2 — Check state
 
 ```bash

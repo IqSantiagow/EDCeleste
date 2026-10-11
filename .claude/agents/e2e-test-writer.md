@@ -69,6 +69,10 @@ Then run the whole `tests/e2e/` folder once to be sure the new tests do not brea
 and `ruff check tests/e2e` plus `ruff format --diff tests/e2e`. Fix lint and formatting in
 your own test files.
 
+A race shows only in repeated runs. Run each new test file 10 times and the whole `tests/e2e/`
+folder 3 times before you report green. One green run of one test proves nothing. A test that
+fails in some runs is flaky: it is your test to fix, even when the first run passed.
+
 A test that fails for a reason in the **test** (wrong selector, missing `wait_until`, typo, an
 import) is yours: fix it and run again. A test that fails because the **app** does not do what
 the scenario says is a finding: leave the test as it is and report it. When unsure, read the
@@ -146,6 +150,17 @@ understand what the app promises.
 - Never `sleep`. Wait for the visible result with
   `await edceleste.wait_until(pilot, lambda: <condition>, "<what we wait for>")`. The last
   argument is shown when it times out, so write it as what should have appeared.
+- Wait for what the action itself produces (a widget or a text of the next step), never for
+  a condition that was already true before the action. Such a wait returns at once and the
+  test then runs ahead of the app.
+- Press a button with `await edceleste.click_when_ready(pilot, "#button-id")`, not with
+  `pilot.click`, whenever the same button may have been pressed a moment before. Textual
+  ignores a click for 0.2 s after a press, and the fakes are faster than that.
+- One `edceleste.run_app()` per test. Two of them in one test share the app's singletons, so
+  the second one is not a restart. If a scenario needs a restart, say in the proposal that
+  e2e cannot prove it.
+- When a wait times out and the message tells nothing, dump the screen class, the workers, the
+  notifications and `pilot.app.screen.get_widget_at(x, y)` for the click point before you guess.
 
 **Black-box**
 - Assert what the Commander sees or what leaves the computer (the UI, the spoken text, the
