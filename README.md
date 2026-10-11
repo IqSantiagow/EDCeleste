@@ -16,7 +16,7 @@ Celeste follows your game as it happens, talks with you, and presses keys for yo
 
 ![EDCeleste dashboard: navigation, flight and ship panels on top, the COMMS conversation with Celeste on the left and the ship log on the right](docs/screenshots/dashboard.png)
 
-> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, is being wired in ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
+> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, presses the key for a single command when it runs on the GPU; a command combined with a question and the check of the ship's state are next ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
 
 ## What Celeste does
 
@@ -83,14 +83,14 @@ sequenceDiagram
     STT->>Instinct: text + game state
     alt a command
         Instinct->>Game: press the bound key (~30 ms decision)
-        Instinct-->>Pilot: "Landing gear deployed"
-    else talk, a question, or Instinct not sure
+        Instinct-->>Pilot: "Done: Landing gear toggle"
+    else talk, a question, or Instinct not ready
         Instinct->>Celeste: the message, unchanged
         Celeste-->>Pilot: spoken answer
     end
 ```
 
-Instinct presses a key only when it is confident. When it is unsure, not downloaded yet, or too slow, the message goes to Celeste as it always did, so nothing gets worse when it is off.
+Instinct presses a key only when the model picks a ship action. When the model picks `none`, is not downloaded or loaded yet, runs on the CPU (too slow), is too slow (more than 1 s), or game actions are switched off in the settings, the message goes to Celeste as it always did, so nothing gets worse when it is off. The reply Celeste shows for a pressed key is short and neutral ("Done: Landing gear toggle"), because the toggle's direction is checked in [M1.3](https://github.com/IqSantiagow/EDCeleste/issues/113). It is not spoken yet. When the pilot asks for an action while the game is not running, the reply says so at once ("Game window not found, nothing was pressed.") instead of waiting for Celeste to find out.
 
 ### Who handles what
 
@@ -109,24 +109,23 @@ Instinct is the small model that decides who handles a message: a key press righ
 
 ### How it decides
 
-Instinct is not a chatbot and never writes a sentence. It reads the game state and what the pilot said, gets a few questions, and answers every question with a probability. All of it happens in one pass through the model.
+Instinct is not a chatbot and never writes a sentence. It reads the game state and what the pilot said, gets a question, and answers by choosing one of the options. All of it happens in one pass through the model.
 
 ```mermaid
 flowchart LR
     Said["What the pilot said"] --> Prompt["One prompt"]
     State["Game state"] --> Prompt
-    Questions["Questions<br/>1. Which ship action was asked for?<br/>2. Does this need the big LLM?"] --> Prompt
+    Questions["Question<br/>Which ship action was asked for?"] --> Prompt
     Prompt --> Model["Instinct<br/>one pass, no text written"]
-    Model --> Odds["A probability<br/>for every answer"]
-    Odds --> Sure{"Sure enough?"}
-    Sure -- "yes, a command" --> Key["Press the key"]
-    Sure -- "no, talk or a question" --> Celeste["Celeste<br/>LLM"]
+    Model --> Choice{"The chosen option"}
+    Choice -- "a ship action" --> Key["Press the key"]
+    Choice -- "none: talk or a question" --> Celeste["Celeste<br/>LLM"]
 ```
 
-- **Every question is multiple choice.** For a command, the options are the actions the pilot has bound, plus `none`. The model scores one letter per option and the scores become probabilities. It cannot answer outside the list, so it cannot press a key that does not exist.
-- **The probability is the point.** "97% sure it is the landing gear" presses the key. "40% sure" does not, and the message goes to Celeste, as it did before Instinct.
+- **The question is multiple choice.** For a command, the options are the actions the pilot has bound, plus `none`. The model scores one letter per option and picks one. It cannot answer outside the list, so it cannot press a key that does not exist.
+- **The model chooses, there is no threshold.** If the chosen option is an action, its key is pressed. If it is `none`, the message goes to Celeste, as it did before Instinct. The scores of the best options go to the log, only for development.
 - **The list can change.** It was trained on random subsets of 5 to 42 actions, in random order, with `none` last, so it learns to choose from whatever list it is given.
-- **A second question guards the door.** `needs_llm` asks whether the message needs knowledge, planning or conversation. "How much fuel do I have?" goes to Celeste, not to a key.
+- **A second question will guard the door (planned, [M1.2](https://github.com/IqSantiagow/EDCeleste/issues/114)).** `needs_llm` will ask whether the message needs knowledge, planning or conversation, so a command combined with a question can be split.
 
 The same model answers the other questions the app will ask it: whether Celeste should speak up about a game event under the pilot's own rule ([M3](https://github.com/IqSantiagow/EDCeleste/issues/156)), and yes/no facts about the ship ("is the landing gear down?"), so toggles can check the state before pressing ([M1.3](https://github.com/IqSantiagow/EDCeleste/issues/113)).
 
@@ -165,11 +164,11 @@ The chart compares Instinct with the base model it started from, and with Jev 1.
 | Who decides | Where it runs | Time to decide |
 |---|---|---|
 | Instinct on the GPU | your machine | about 35 ms for one question, about 125 ms for twelve |
-| Instinct on the CPU | your machine | about 2 s |
+| Instinct on the CPU | your machine | about 2 s, so commands are not decided there: every message goes to Celeste and the start-up check says so |
 | Jev 1.13 | hosted, over the network | about 330 ms |
 | Celeste (the LLM) | your LLM provider | about 1.6 s to the first word, 4.3 s at the 95th percentile |
 
-A command is one multiple-choice question plus `needs_llm`, so it lands between the one-question and twelve-question times.
+A command is one multiple-choice question over up to 41 actions, about 33 ms on the GPU. The app waits at most 1 s for it, then the message goes to Celeste.
 
 **What it does to the game:**
 
@@ -182,7 +181,8 @@ A command is one multiple-choice question plus `needs_llm`, so it lands between 
 ### Using it
 
 - Switch it on in **Settings → LLM → Instinct**. The model (1.5 GB) is downloaded the first time; after that it needs no network and no API key.
-- It runs on the GPU or on the CPU. The GPU memory is shared with the game, so you may want to keep it free.
+- It decides commands only when it runs on the GPU. On the CPU one decision takes about 2 s, which is slower than Celeste, so nothing is pressed there and every message goes to Celeste. The GPU memory is shared with the game, so keep an eye on it.
+- It presses keys only when **Settings → Game actions** is on, like Celeste's own key presses.
 
 <details>
 <summary>How it was trained</summary>
