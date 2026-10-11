@@ -81,6 +81,9 @@ from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
 )
 from edceleste.use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from edceleste.use_cases.settings.play_audio_file_use_case import PlayAudioFileUseCase
+from edceleste.use_cases.settings.play_voice_lab_test_use_case import (
+    PlayVoiceLabTestUseCase,
+)
 from edceleste.use_cases.settings.play_sample_voice_use_case import (
     PlaySampleVoiceUseCase,
 )
@@ -122,6 +125,7 @@ MODULES_USING_PROVIDE = [
     "edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen",
     "edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical",  # noqa: E501
     "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
+    "edceleste.ui.screens.settings.widgets.tts.widget_voice_lab_settings_vertical",  # noqa: E501
 ]
 
 
@@ -337,6 +341,10 @@ class Container(containers.DeclarativeContainer):
         PlayAudioFileUseCase, voice_cloning_protocol=tts_service
     )
 
+    play_voice_lab_test_use_case = providers.Factory(
+        PlayVoiceLabTestUseCase, voice_lab_test_protocol=tts_service
+    )
+
     analyze_voice_sample_use_case = providers.Factory(
         AnalyzeVoiceSampleUseCase, voice_cloning_protocol=tts_service
     )
@@ -407,6 +415,7 @@ class Container(containers.DeclarativeContainer):
         rename_voice_profile_use_case=rename_voice_profile_use_case,
         play_sample_voice_use_case=play_sample_voice_use_case,
         play_audio_file_use_case=play_audio_file_use_case,
+        play_voice_lab_test_use_case=play_voice_lab_test_use_case,
         analyze_voice_sample_use_case=analyze_voice_sample_use_case,
         preview_voice_sample_use_case=preview_voice_sample_use_case,
         get_available_device_use_case=get_available_device_use_case,

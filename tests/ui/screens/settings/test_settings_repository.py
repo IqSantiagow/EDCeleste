@@ -56,6 +56,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         rename_voice_profile_use_case=None,
         play_sample_voice_use_case=None,
         play_audio_file_use_case=None,
+        play_voice_lab_test_use_case=None,
         analyze_voice_sample_use_case=None,
         preview_voice_sample_use_case=None,
         get_available_device_use_case=None,
@@ -84,6 +85,7 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
             rename_voice_profile_use_case=rename_voice_profile_use_case or Mock(),
             play_sample_voice_use_case=play_sample_voice_use_case or AsyncMock(),
             play_audio_file_use_case=play_audio_file_use_case or AsyncMock(),
+            play_voice_lab_test_use_case=play_voice_lab_test_use_case or AsyncMock(),
             analyze_voice_sample_use_case=analyze_voice_sample_use_case or Mock(),
             preview_voice_sample_use_case=preview_voice_sample_use_case or AsyncMock(),
             get_available_device_use_case=get_available_device_use_case or Mock(),
@@ -335,6 +337,17 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         preview_voice_sample_use_case.assert_awaited_once_with(
             "celeste", "Hello there.", params
         )
+
+    async def test_should_delegate_play_voice_lab_test_to_use_case(self):
+        tts_settings = TTSModel(volume=0.4)
+        play_voice_lab_test_use_case = AsyncMock()
+        repository = self._make_repository(
+            play_voice_lab_test_use_case=play_voice_lab_test_use_case
+        )
+
+        await repository.play_voice_lab_test(tts_settings)
+
+        play_voice_lab_test_use_case.assert_awaited_once_with(tts_settings)
 
 
 if __name__ == "__main__":
