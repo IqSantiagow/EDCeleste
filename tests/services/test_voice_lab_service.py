@@ -65,6 +65,38 @@ class VoiceLabServiceTest(unittest.TestCase):
 
         self.assertIs(result, samples)
 
+    def test_uses_the_given_voice_lab_instead_of_the_saved_one(self):
+        # The saved Voice Lab is off, which alone would give the samples back
+        settings_service = Mock(spec=SettingsService)
+        settings_service.get_settings.return_value.tts.voice_lab = VoiceLabModel(
+            enabled=False
+        )
+        samples = make_noise()
+        given_voice_lab = VoiceLabModel(
+            enabled=True, clarity=0.5, reverb=0, stereo_width=0
+        )
+
+        result = VoiceLabService(settings_service).apply_effects(
+            samples, SAMPLE_RATE, given_voice_lab
+        )
+
+        self.assertIsNot(result, samples)
+        self.assertFalse(np.array_equal(result, samples))
+        settings_service.get_settings.assert_not_called()
+
+    def test_given_voice_lab_switched_off_wins_over_a_saved_one_that_is_on(self):
+        settings_service = Mock(spec=SettingsService)
+        settings_service.get_settings.return_value.tts.voice_lab = VoiceLabModel(
+            enabled=True
+        )
+        samples = make_noise()
+
+        result = VoiceLabService(settings_service).apply_effects(
+            samples, SAMPLE_RATE, VoiceLabModel(enabled=False)
+        )
+
+        self.assertIs(result, samples)
+
     def test_all_sliders_at_zero_keep_the_voice_mono_and_as_long(self):
         samples = make_noise()
         voice_lab = VoiceLabModel(clarity=0, reverb=0, stereo_width=0)

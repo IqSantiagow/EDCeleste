@@ -24,6 +24,7 @@ from edceleste.services.models.settings_model import (
     SttModel,
     TTSModel,
     TtsProviderParams,
+    VoiceLabModel,
 )
 from edceleste.services.models.voice_cloning_models import VoiceCloningState
 from edceleste.services.settings_service import SettingsService
@@ -36,6 +37,7 @@ from edceleste.services.tts_service import (
     SILENCE_FLOOR_DBFS,
     TTSEvent,
     TTSService,
+    VOICE_LAB_TEST_TEXT,
     calculate_noise_floor_dbfs,
     find_voices_directory,
     calculate_peak_dbfs,
@@ -994,6 +996,171 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_preview_voice_sample_raises_voice_cloning_exception_for_edge(self):
         with self.assertRaises(VoiceCloningException):
             await self.service.preview_voice_sample("nova", "Hi", _make_edge_params())
+
+    # --- get_provider_for ---
+
+    def test_get_provider_for_returns_the_active_provider_for_its_own_type(self):
+        active_provider = Mock(spec=EdgeTTSProvider)
+        self.service.provider = active_provider
+
+        provider = self.service.get_provider_for(_make_edge_params())
+
+        self.assertIs(provider, active_provider)
+
+    def test_get_provider_for_builds_a_throwaway_provider_for_another_type(self):
+        active_provider = Mock(spec=EdgeTTSProvider)
+        self.service.provider = active_provider
+
+        provider = self.service.get_provider_for(_make_chatterbox_params())
+
+        self.assertIsInstance(provider, ChatterboxTTSProvider)
+        self.assertIs(self.service.provider, active_provider)
+
+    def test_get_provider_for_builds_a_provider_when_no_provider_is_active(self):
+        self.service.provider = None
+
+        provider = self.service.get_provider_for(_make_edge_params())
+
+        self.assertIsInstance(provider, EdgeTTSProvider)
+
+    # --- play_voice_lab_test_sentence ---
+
+    def _make_screen_tts(
+        self,
+        params: TtsProviderParams,
+        volume: float = 0.3,
+        voice_lab: VoiceLabModel | None = None,
+    ) -> TTSModel:
+        """The TTS settings as they are on the screen, not the saved ones."""
+        return TTSModel(
+            provider=params.type,
+            params=params,
+            volume=volume,
+            voice_lab=voice_lab or VoiceLabModel(),
+        )
+
+    def _use_working_edge_provider(self) -> Mock:
+        """The active provider is an Edge one that finds no problem with the
+        params and speaks 10 silent samples."""
+        provider = Mock(spec=EdgeTTSProvider)
+        provider.validate_params.return_value = None
+        provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
+        self.service.provider = provider
+        return provider
+
+    async def test_voice_lab_test_speaks_the_test_text_with_the_screen_params(
+        self,
+    ):
+        provider = self._use_working_edge_provider()
+        self.service.play_samples = AsyncMock()
+        screen_params = _make_edge_params("en-GB-SoniaNeural")
+
+        await self.service.play_voice_lab_test_sentence(
+            self._make_screen_tts(screen_params)
+        )
+
+        text, used_params, profile_path = provider.synthesize.await_args.args
+        self.assertEqual(text, VOICE_LAB_TEST_TEXT)
+        self.assertIs(used_params, screen_params)
+        self.assertIsNone(profile_path)
+
+    async def test_voice_lab_test_uses_the_profile_file_of_the_screen_params(
+        self,
+    ):
+        provider = self._use_saved_chatterbox()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.play_voice_lab_test_sentence(
+            self._make_screen_tts(_make_chatterbox_params("nova"))
+        )
+
+        profile_path = provider.synthesize.await_args.args[2]
+        self.assertEqual(profile_path, self.voices_dir / "nova.pt")
+
+    async def test_voice_lab_test_adds_the_effects_from_the_screen_not_saved_ones(
+        self,
+    ):
+        provider = self._use_working_edge_provider()
+        samples = np.zeros(10)
+        provider.synthesize.return_value = (samples, SAMPLE_RATE)
+        self.service.play_samples = AsyncMock()
+        screen_tts = self._make_screen_tts(
+            _make_edge_params(), voice_lab=VoiceLabModel(enabled=True, clarity=0.9)
+        )
+
+        await self.service.play_voice_lab_test_sentence(screen_tts)
+
+        self.voice_lab_service.apply_effects.assert_called_once()
+        effects_input, effects_rate, effects_voice_lab = (
+            self.voice_lab_service.apply_effects.call_args.args
+        )
+        self.assertIs(effects_input, samples)
+        self.assertEqual(effects_rate, SAMPLE_RATE)
+        self.assertIs(effects_voice_lab, screen_tts.voice_lab)
+
+    async def test_voice_lab_test_plays_the_result_at_the_screen_volume(
+        self,
+    ):
+        self._use_working_edge_provider()
+        with_effects = np.full(30, 0.5)
+        self.voice_lab_service.apply_effects.return_value = with_effects
+        self.service.play_samples = AsyncMock()
+
+        await self.service.play_voice_lab_test_sentence(
+            self._make_screen_tts(_make_edge_params(), volume=0.3)
+        )
+
+        self.service.play_samples.assert_awaited_once_with(
+            with_effects, SAMPLE_RATE, 0.3, apply_voice_lab_effects=False
+        )
+
+    async def test_voice_lab_test_uses_a_throwaway_provider_for_an_unsaved_engine(
+        self,
+    ):
+        active_provider = self._use_working_edge_provider()
+        throwaway_provider = _make_fake_cloning_provider()
+        self.service.build_provider = Mock(return_value=throwaway_provider)
+        self.service.play_samples = AsyncMock()
+
+        await self.service.play_voice_lab_test_sentence(
+            self._make_screen_tts(_make_chatterbox_params("nova"))
+        )
+
+        self.service.build_provider.assert_called_once_with("chatterbox")
+        throwaway_provider.synthesize.assert_awaited_once()
+        active_provider.synthesize.assert_not_awaited()
+
+    async def test_voice_lab_test_raises_value_error_when_engine_is_not_set_up(
+        self,
+    ):
+        provider = self._use_saved_chatterbox()
+        self.service.play_samples = AsyncMock()
+        screen_params = _make_chatterbox_params("")
+        problem = provider.validate_params(screen_params)
+        self.assertIsNotNone(problem)
+
+        with self.assertRaises(ValueError) as raised:
+            await self.service.play_voice_lab_test_sentence(
+                self._make_screen_tts(screen_params)
+            )
+
+        self.assertEqual(str(raised.exception), problem.message)
+        provider.synthesize.assert_not_awaited()
+        self.service.play_samples.assert_not_awaited()
+
+    async def test_voice_lab_test_propagates_provider_error_and_plays_nothing(
+        self,
+    ):
+        provider = self._use_working_edge_provider()
+        provider.synthesize.side_effect = RuntimeError("network down")
+        self.service.play_samples = AsyncMock()
+
+        with self.assertRaises(RuntimeError):
+            await self.service.play_voice_lab_test_sentence(
+                self._make_screen_tts(_make_edge_params())
+            )
+
+        self.service.play_samples.assert_not_awaited()
 
     # --- get_available_device ---
 

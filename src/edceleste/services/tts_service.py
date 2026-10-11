@@ -14,6 +14,7 @@ from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.settings_model import (
     SettingsIssueModel,
     SettingsModel,
+    TTSModel,
     TtsProviderParams,
 )
 from edceleste.services.models.voice_cloning_models import (
@@ -42,6 +43,11 @@ TTS_PROVIDER_CLASSES = {
 }
 
 DEFAULT_VOICE_SAMPLE_TEXT = "Hello Commander. How can I assist you today?"
+# Long enough to hear the reverb ring out, with a few "s" sounds for the clarity
+VOICE_LAB_TEST_TEXT = (
+    "Commander, all systems are online. "
+    "Shields are up, and the ship is ready when you are."
+)
 RECOMMENDED_REFERENCE_AUDIO_SECONDS_RANGE = (10.0, 30.0)
 
 # How much audio goes into one waveform bar. Small enough to look smooth,
@@ -283,18 +289,22 @@ class TTSService:
         profile_name = getattr(params, "profile")
         return self.build_profile_path(profile_name, provider.profile_file_extension)
 
+    def get_provider_for(self, params: TtsProviderParams) -> TTSProviderProtocol:
+        """The provider of the engine in params. The active one when it is of
+        the same type (it keeps its loaded model), otherwise a throwaway one,
+        because the pilot may have picked another engine in the settings that
+        is not saved yet. Raises KeyError for a type that is not in
+        TTS_PROVIDER_CLASSES."""
+        if params.type == self.provider_type and self.provider is not None:
+            return self.provider
+        return self.build_provider(params.type)
+
     def get_cloning_provider_for(
         self, params: TtsProviderParams
     ) -> CloningTTSProviderProtocol:
-        """The provider that clones for params. The active one when it is of
-        the same type (it keeps its loaded model), otherwise a throwaway one,
-        because the pilot may have picked another engine in the settings that
-        is not saved yet. Raises VoiceCloningException when that provider
-        cannot clone voices."""
-        if params.type == self.provider_type:
-            provider = self.provider
-        else:
-            provider = self.build_provider(params.type)
+        """The provider that clones for params, see get_provider_for(). Raises
+        VoiceCloningException when that provider cannot clone voices."""
+        provider = self.get_provider_for(params)
 
         if not isinstance(provider, CloningTTSProviderProtocol):
             raise VoiceCloningException(NO_VOICE_PROFILES_MESSAGE)
@@ -478,6 +488,44 @@ class TTSService:
         volume = self.__settings_service.get_settings().tts.volume
         await self.play_samples(
             samples, sample_rate, volume, apply_voice_lab_effects=False
+        )
+
+    async def play_voice_lab_test_sentence(self, tts_settings: TTSModel) -> None:
+        """Lets the pilot hear the Voice Lab: speaks VOICE_LAB_TEST_TEXT and
+        waits until it has played. tts_settings are the settings as they are on
+        the screen now, saved or not: the engine, the volume and the Voice Lab
+        switch and sliders all come from them, so a change is heard before it is
+        saved. Nothing is saved or written to disk.
+
+        1. Takes the provider of the engine on the screen (get_provider_for) and
+           lets it check its params. A problem, e.g. no voice or no profile
+           picked, is raised as ValueError with its message.
+        2. Speaks the sentence, which goes to the network for Edge and loads
+           the model on first use for Chatterbox.
+        3. Adds the Voice Lab effects from tts_settings. Switched off -> the
+           plain voice, as Celeste would sound.
+        4. Plays the result at the volume of tts_settings.
+        Provider errors are raised, e.g. no network or a profile file that is
+        gone (FileNotFoundError).
+        """
+        provider = self.get_provider_for(tts_settings.params)
+
+        issue = provider.validate_params(tts_settings.params)
+        if issue is not None:
+            raise ValueError(issue.message)
+
+        profile_path = self.find_profile_path(provider, tts_settings.params)
+        samples, sample_rate = await provider.synthesize(
+            VOICE_LAB_TEST_TEXT, tts_settings.params, profile_path
+        )
+        samples = self.__voice_lab_service.apply_effects(
+            samples, sample_rate, tts_settings.voice_lab
+        )
+        await self.play_samples(
+            samples,
+            sample_rate,
+            tts_settings.volume,
+            apply_voice_lab_effects=False,
         )
 
     async def play_sample_voice(self, profile_name: str) -> None:
