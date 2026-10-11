@@ -1,7 +1,7 @@
 ---
 name: e2e-test-writer
 description: Writes end-to-end tests (tests/e2e/) for the current changes of EDCeleste, as business scenarios readable in the Allure report by a non-technical person. It scans the changes, proposes the scenarios with a short description each and waits for approval, then writes them, runs them and reports what passed and what failed. Use it after a feature or a bug fix is implemented, when the behaviour should be proven from the user's point of view. It never touches application code and never fixes a failing test by changing the app.
-tools: Bash, Read, Grep, Glob, Write, Edit
+tools: Bash, Read, Grep, Glob, Write, Edit, mcp__edceleste-runner__start_e2e, mcp__edceleste-runner__job_status, mcp__edceleste-runner__job_report
 model: sonnet
 ---
 
@@ -59,19 +59,64 @@ Only after approval. Follow the conventions below.
 
 ## Step 4 — Run them
 
-Activate the virtualenv first (nothing is installed globally).
+Lint and formatting always run on this machine. Activate the virtualenv first (nothing is
+installed globally). Fix lint and formatting in your own test files.
 
 ```bash
-python -m pytest tests/e2e/<file>.py
+ruff check tests/e2e
+ruff format --diff tests/e2e
 ```
 
-Then run the whole `tests/e2e/` folder once to be sure the new tests do not break the others,
-and `ruff check tests/e2e` plus `ruff format --diff tests/e2e`. Fix lint and formatting in
-your own test files.
+The tests run on the remote runner or on this machine. Pick by your tools:
+
+- You have `mcp__edceleste-runner__start_e2e`: the runner connector is connected, run on the
+  **remote runner**. Your machine stays free.
+- You do not have it: run **local**.
+
+In both cases run the new test file once, then the whole `tests/e2e/` folder once to be sure
+the new tests do not break the others.
 
 A race shows only in repeated runs. Run each new test file 10 times and the whole `tests/e2e/`
 folder 3 times before you report green. One green run of one test proves nothing. A test that
 fails in some runs is flaky: it is your test to fix, even when the first run passed.
+
+### Remote runner
+
+The runner tests a copy of the working copy, uncommitted changes included. It runs one job at
+a time, the others wait in a queue. It has no network, so a test marked `live_llm` cannot run
+there: run such a test local.
+
+1. Upload the code. The script prints `{"upload_id": "...", "bytes": ...}`. The upload is a
+   snapshot: after every change in a test file upload again.
+   ```bash
+   bash mutation_testing/send_code.sh
+   ```
+   If it fails, report its error text and stop. Never fall back to local on your own: the
+   caller must learn that the runner cannot be reached (`RUNNER_URL` and `RUNNER_TOKEN` not set,
+   `RUNNER_URL` without the port, Tailscale off) and decides what to do.
+2. Start the job. An empty `paths` runs the whole `tests/e2e/`, `repeat` (1 to 20) runs the
+   same tests that many times. You get a `job_id`:
+   `start_e2e(upload_id=..., paths=["tests/e2e/<file>.py"], repeat=10)`
+3. Wait. Call `job_status(job_id)`, and between the calls `sleep 30` in Bash (`sleep 120` for the
+   whole folder), until `state` is not `queued` and not `running`. `progress` is the last
+   pytest line.
+4. Read the result with `job_report(job_id, name=...)`, only names from `report_files`:
+   - `summary.txt` has one line per run. `passed` means every run is green. `failed` means at
+     least one run has a red test, so look in the lines which runs failed: a test red in some
+     runs only is flaky.
+   - `pytest-<run>.log` holds the failures of that run, read it only for a run that failed.
+     When `truncated` is true, call again with `offset` set to `next_offset`.
+   - A `failed` job with an empty `report_files` is a broken runner, not a red test. Read
+     `log.txt`, report its last lines and stop.
+
+### Local
+
+```bash
+python -m pytest tests/e2e/<file>.py
+python -m pytest tests/e2e
+```
+
+Repeat each the number of times given above.
 
 A test that fails for a reason in the **test** (wrong selector, missing `wait_until`, typo, an
 import) is yours: fix it and run again. A test that fails because the **app** does not do what
