@@ -528,6 +528,96 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             f"{VOICE_RESPONSE_RULES}\nNew system prompt",
         )
 
+    # A reply without the LLM answers a command Instinct handled: no LLM, no speech.
+
+    async def test_should_yield_a_reply_without_llm_as_one_agent_text_without_statuses(
+        self,
+    ):
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+        # The next queued message proves nothing else was yielded in between
+        self.llm_service.add_llm_request_to_queue("Test message")
+
+        items = await self._collect_stream_items(4)
+
+        self.assertEqual(
+            items,
+            [
+                AgentText(content="Done: Landing gear toggle"),
+                LLMStatus.THINKING,
+                AgentText(content="Test output 1"),
+                LLMStatus.IDLE,
+            ],
+        )
+
+    async def test_should_not_call_the_llm_for_a_reply_without_llm(self):
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+
+        await self._collect_stream_items(1)
+
+        self.mock_stream_agent_response.assert_not_called()
+
+    async def test_should_write_a_reply_without_llm_to_the_conversation_history(self):
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+
+        await self._collect_stream_items(1)
+
+        self.assertEqual(
+            self.llm_service.conversation,
+            [
+                UserMessage(content="deploy landing gear"),
+                AgentFullResponse(
+                    content="Done: Landing gear toggle", tool_calls=[], tool_results=[]
+                ),
+            ],
+        )
+
+    async def test_should_not_speak_a_reply_without_llm(self):
+        self.event_bus.publish = AsyncMock()
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+        # Resuming the stream with a normal turn lets any speech after the
+        # reply without the LLM happen before we look
+        self.llm_service.add_llm_request_to_queue("Test message")
+
+        await self._collect_stream_items(4)
+
+        published_texts = [
+            call.args[0].text for call in self.event_bus.publish.await_args_list
+        ]
+        self.assertEqual(published_texts, ["Test output 1"])
+
+    async def test_should_keep_replies_without_llm_in_the_order_they_were_queued(self):
+        self.llm_service.add_reply_without_llm_to_queue("first command", "Done: First")
+        self.llm_service.add_reply_without_llm_to_queue(
+            "second command", "Done: Second"
+        )
+
+        items = await self._collect_stream_items(2)
+
+        self.assertEqual(
+            items, [AgentText(content="Done: First"), AgentText(content="Done: Second")]
+        )
+
+    async def test_should_give_the_llm_a_reply_without_llm_in_the_next_prompt(self):
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+        self.llm_service.add_llm_request_to_queue("and now retract it")
+
+        await self._collect_stream_items(4)
+
+        prompt = self.mock_stream_agent_response.call_args.args[0]
+        self.assertIn("Human: deploy landing gear", prompt)
+        self.assertIn("Celeste: Done: Landing gear toggle", prompt)
+        self.assertIn("Human: and now retract it", prompt)
+
 
 class TestLLMServiceProvider(unittest.TestCase):
     """Nothing is patched here, so real pydantic_ai providers and models are built."""

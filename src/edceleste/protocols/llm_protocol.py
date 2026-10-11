@@ -17,10 +17,18 @@ class LLMProtocol(BaseServiceProtocol, Protocol):
         comes later out of consume_llm_queue()."""
         ...
 
+    def add_reply_without_llm_to_queue(self, pilot_message: str, reply: str) -> None:
+        """Puts a reply that is already known in the queue, behind the messages
+        that wait there. The LLM is not called and nothing is spoken. The reply
+        comes out of consume_llm_queue() as one AgentText, and the pilot message
+        and the reply are written in the conversation history."""
+        ...
+
     def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:
         """Never ends. For every queued message it yields LLMStatus.THINKING,
         the reply blocks and LLMStatus.IDLE. A failed turn comes as a
-        SystemMessage, the stream goes on.
+        SystemMessage, the stream goes on. A reply without the LLM comes as one
+        AgentText, without the statuses.
 
         The stream has exactly one consumer - a queue does not duplicate items.
         """

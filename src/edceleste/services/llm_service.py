@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from typing import Union
 import logging
 import asyncio
@@ -85,6 +86,16 @@ described below as JSON.
 """
 
 
+@dataclass
+class ReplyWithoutLLM:
+    """A pilot message that Instinct already handled. The reply is ready, so
+    the LLM is not called for it. pilot_message is what the pilot said, reply is
+    the text COMMS shows as Celeste's answer."""
+
+    pilot_message: str
+    reply: str
+
+
 class LLMService:
     def __init__(
         self,
@@ -108,7 +119,7 @@ class LLMService:
         self.__settings_service = settings_service
         self.__event_bus = event_bus
 
-        self.__llm_queue: asyncio.Queue[str] = asyncio.Queue()
+        self.__llm_queue: asyncio.Queue[str | ReplyWithoutLLM] = asyncio.Queue()
 
         self.__tools = tools
 
@@ -412,6 +423,16 @@ class LLMService:
         consume_llm_queue()."""
         self.__llm_queue.put_nowait(message)
 
+    def add_reply_without_llm_to_queue(self, pilot_message: str, reply: str) -> None:
+        """Puts a reply that is already known in the queue, behind the messages
+        that wait there, so COMMS keeps the order of the conversation. The LLM
+        is not called for it and nothing is spoken. consume_llm_queue() yields
+        the reply and writes both lines in the conversation history (when it
+        takes the item from the queue, not now), so the LLM knows what happened
+        when the pilot goes on ("and now retract it"). Needs the app event loop,
+        like add_llm_request_to_queue."""
+        self.__llm_queue.put_nowait(ReplyWithoutLLM(pilot_message, reply))
+
     async def consume_llm_queue(self) -> AsyncGenerator[LLMStreamItem, None]:
         """Never ends. Takes messages from the queue one by one, so two
         requests never talk to the LLM at the same time.
@@ -421,10 +442,27 @@ class LLMService:
         2. every block of the reply,
         3. LLMStatus.IDLE.
         A failed turn does not stop the loop, the error is yielded as a
-        SystemMessage and the next message is taken.
+        SystemMessage (LLMStatus.IDLE still follows) and the next message is
+        taken. The reply is spoken too: every AgentText is published as a
+        TTSEvent by __stream_reply_speak_it_and_save_to_history. The stream has
+        exactly one consumer, a queue does not copy items.
+
+        A ReplyWithoutLLM skips all that: its text is yielded as one AgentText,
+        with no LLMStatus at all (neither THINKING nor IDLE) and no speech, and
+        both lines go in the history.
         """
         while True:
             message = await self.__llm_queue.get()
+
+            if isinstance(message, ReplyWithoutLLM):
+                self.conversation.append(UserMessage(content=message.pilot_message))
+                self.conversation.append(
+                    AgentFullResponse(
+                        content=message.reply, tool_calls=[], tool_results=[]
+                    )
+                )
+                yield AgentText(content=message.reply)
+                continue
 
             yield LLMStatus.THINKING
 

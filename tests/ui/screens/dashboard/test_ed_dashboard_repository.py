@@ -15,7 +15,7 @@ class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
     def _make_repository(self, enabled: bool) -> EdDashboardRepository:
         return EdDashboardRepository(
             stream_journal_events_usecase=None,  # type: ignore
-            llm_send_message_usecase=None,  # type: ignore
+            send_pilot_message_usecase=None,  # type: ignore
             stream_llm_responses_usecase=None,  # type: ignore
             stt_start_recording_usecase=None,  # type: ignore
             stt_stop_recording_usecase=None,  # type: ignore
@@ -37,6 +37,35 @@ class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
         self.assertFalse(repository.is_stt_enabled())
 
 
+class FakeSendPilotMessageUseCase:
+    def __init__(self):
+        self.messages: list[str] = []
+
+    def __call__(self, message: str) -> None:
+        self.messages.append(message)
+
+
+class TestEdDashboardRepositorySendPilotMessage(unittest.TestCase):
+    def test_send_pilot_message_calls_its_use_case_with_the_message(self):
+        use_case = FakeSendPilotMessageUseCase()
+        repository = EdDashboardRepository(
+            stream_journal_events_usecase=None,  # type: ignore
+            send_pilot_message_usecase=use_case,  # type: ignore
+            stream_llm_responses_usecase=None,  # type: ignore
+            stt_start_recording_usecase=None,  # type: ignore
+            stt_stop_recording_usecase=None,  # type: ignore
+            get_stt_enabled_usecase=None,  # type: ignore
+            stream_navigation_stats_usecase=None,  # type: ignore
+            stream_flight_and_drive_stats_usecase=None,  # type: ignore
+            stream_ship_stats_usecase=None,  # type: ignore
+            stream_station_market_usecase=None,  # type: ignore
+        )
+
+        repository.send_pilot_message("deploy landing gear")
+
+        self.assertEqual(use_case.messages, ["deploy landing gear"])
+
+
 class FakeStreamUseCase:
     def __init__(self, stream):
         self._stream = stream
@@ -49,7 +78,7 @@ class TestEdDashboardRepositoryStatsStreams(unittest.TestCase):
     def _make_repository(self, **stats_use_cases) -> EdDashboardRepository:
         use_cases = dict(
             stream_journal_events_usecase=None,
-            llm_send_message_usecase=None,
+            send_pilot_message_usecase=None,
             stream_llm_responses_usecase=None,
             stt_start_recording_usecase=None,
             stt_stop_recording_usecase=None,

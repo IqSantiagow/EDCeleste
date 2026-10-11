@@ -1,6 +1,8 @@
 import asyncio
 import functools
 import sys
+import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,17 +15,25 @@ from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
     DownloadCancelled,
 )
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
 from edceleste.services.instinct_service import (
+    GAME_WINDOW_NOT_FOUND_REPLY,
     InstinctService,
     ModelNotDownloaded,
+    describe_top_scores,
     switch_qwen_kernels_to_device,
 )
+from edceleste.services.models.instinct_actions import build_which_action_questions
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
     InstinctFailure,
     InstinctModelState,
 )
+from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.settings_model import (
+    GameActionsModel,
     InstinctModel,
     LLMModel,
     PathModel,
@@ -36,7 +46,9 @@ MODEL_BYTES = 1_500_000_000
 MODULE = "edceleste.services.instinct_service"
 
 
-def make_settings(enabled: bool, device: str = "auto") -> SettingsModel:
+def make_settings(
+    enabled: bool, device: str = "auto", game_actions_enabled: bool = False
+) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(volume=1.0),
@@ -46,6 +58,7 @@ def make_settings(enabled: bool, device: str = "auto") -> SettingsModel:
             instinct=InstinctModel(enabled=enabled, device=device),
         ),
         stt=SttModel(model="tiny.en"),
+        game_actions=GameActionsModel(enabled=game_actions_enabled),
     )
 
 
@@ -75,11 +88,114 @@ class FakeDownloadService:
         yield DownloadProgress(bytes_done=MODEL_BYTES, bytes_total=MODEL_BYTES)
 
 
+class FakeKeybinds:
+    """Stands for KeybindService: which actions have a key and what was pressed."""
+
+    def __init__(
+        self,
+        bound_actions: set[EdAction] | None = None,
+        press_error: Exception | None = None,
+        keys_loaded: bool = True,
+    ):
+        self.bound_actions = set(EdAction) if bound_actions is None else bound_actions
+        self.press_error = press_error
+        self.keys_loaded = keys_loaded
+        self.press_attempts: list[EdAction] = []
+        self.pressed: list[EdAction] = []
+
+    def is_bound(self, action: EdAction) -> bool:
+        if not self.keys_loaded:
+            raise KeyError(action)
+        return action in self.bound_actions
+
+    async def press_keys_for_action(self, action: EdAction) -> None:
+        self.press_attempts.append(action)
+        if self.press_error is not None:
+            raise self.press_error
+        self.pressed.append(action)
+
+
+class FakeGameState:
+    def __init__(self, text: str = "Commander name is NOVA."):
+        self.text = text
+
+    def get_game_state_projection(self) -> str:
+        return self.text
+
+
+class FakeDecider:
+    """Stands for decider.infer.Decider. Answers the "action" question with a
+    fixed choice and records every call, also how many ran at the same time."""
+
+    def __init__(
+        self,
+        choice: str = "none",
+        device: str = "cuda",
+        error: Exception | None = None,
+    ):
+        self.dev = device
+        self.choice = choice
+        self.error = error
+        self.seconds_per_call = 0.0
+        self.release = threading.Event()  # clear it to keep the model busy
+        self.release.set()
+        self.calls: list[tuple[dict, dict]] = []
+        self.running_now = 0
+        self.most_running_at_once = 0
+        self.counter_lock = threading.Lock()
+
+    def system_one(self, state: dict, questions: dict) -> dict:
+        with self.counter_lock:
+            self.calls.append((state, questions))
+            self.running_now += 1
+            self.most_running_at_once = max(self.most_running_at_once, self.running_now)
+        try:
+            self.release.wait(5)
+            time.sleep(self.seconds_per_call)
+            if self.error is not None:
+                raise self.error
+            probabilities = {name: 0.01 for name in questions["action"]["criteria"]}
+            probabilities[self.choice] = 0.9
+            answer = {"choice": self.choice, "probabilities": probabilities}
+            return {"answers": {"action": answer}}
+        finally:
+            with self.counter_lock:
+                self.running_now -= 1
+
+
+def make_fast_command_service(
+    enabled: bool = True,
+    device: str = "cuda",
+    game_actions_enabled: bool = True,
+    choice: str = "LandingGearToggle",
+    keybinds: FakeKeybinds | None = None,
+    game_state_text: str = "Commander name is NOVA.",
+    decider_error: Exception | None = None,
+) -> InstinctService:
+    """A service that is ready to decide: on, loaded on the GPU, game actions on,
+    every action has a key. Each test breaks exactly one of these."""
+    settings_service = Mock()
+    settings_service.get_settings.return_value = make_settings(
+        enabled, game_actions_enabled=game_actions_enabled
+    )
+    service = InstinctService(
+        settings_service,
+        FakeDownloadService(downloaded=True),
+        keybinds or FakeKeybinds(),
+        FakeGameState(game_state_text),
+    )
+    service.enabled = enabled
+    service.decider = FakeDecider(choice=choice, device=device, error=decider_error)  # type: ignore[assignment]
+    return service
+
+
 class InstinctServiceTest(unittest.IsolatedAsyncioTestCase):
     def make_service(self, enabled: bool, download_service: FakeDownloadService):
         self.settings_service = Mock()
         self.settings_service.get_settings.return_value = make_settings(enabled)
-        service = InstinctService(self.settings_service, download_service)
+        service = InstinctService(
+            self.settings_service, download_service, Mock(), Mock()
+        )
         service.warm_up = MagicMock()  # never load the real model in these tests
         return service
 
@@ -238,7 +354,7 @@ class InstinctColdStartTest(unittest.IsolatedAsyncioTestCase):
     def make_service(self, enabled: bool, download_service: FakeDownloadService):
         settings_service = Mock()
         settings_service.get_settings.return_value = make_settings(enabled)
-        service = InstinctService(settings_service, download_service)
+        service = InstinctService(settings_service, download_service, Mock(), Mock())
         service.warm_up = MagicMock()
         return service
 
@@ -281,13 +397,38 @@ class InstinctColdStartTest(unittest.IsolatedAsyncioTestCase):
             "Commands go through Celeste.",
         )
 
+    async def test_model_on_the_cpu_is_a_warning_that_commands_go_through_celeste(self):
+        service = self.make_service(True, FakeDownloadService(downloaded=True))
+        service.decider = FakeDecider(device="cpu")  # type: ignore[assignment]
+
+        statuses = [status async for status in service.cold_start()]
+
+        self.assertTrue(statuses[-1].completed)
+        self.assertTrue(statuses[-1].is_warning)
+        self.assertFalse(statuses[-1].is_critical)
+        self.assertEqual(
+            statuses[-1].message,
+            "model runs on the CPU, too slow for commands. "
+            "Commands go through Celeste.",
+        )
+
+    async def test_model_on_the_gpu_gives_no_warning(self):
+        service = self.make_service(True, FakeDownloadService(downloaded=True))
+        service.decider = FakeDecider(device="cuda")  # type: ignore[assignment]
+
+        statuses = [status async for status in service.cold_start()]
+
+        self.assertTrue(statuses[-1].completed)
+        self.assertFalse(statuses[-1].is_warning)
+        self.assertIsNone(statuses[-1].message)
+
 
 class InstinctModelLoadingTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.download_service = MagicMock(spec=DecisionModelDownloadService)
         self.download_service.model_folder = Path("C:/models/decider")
         self.download_service.is_model_downloaded.return_value = True
-        self.service = InstinctService(Mock(), self.download_service)
+        self.service = InstinctService(Mock(), self.download_service, Mock(), Mock())
 
     def load_with_fake_decider(self, cuda_available: bool = True, triton=True):
         fake_decider_module = MagicMock()
@@ -425,3 +566,207 @@ class SwitchQwenKernelsToDeviceTest(unittest.TestCase):
 
         self.assertEqual(self.qwen_module.torch_chunk_gated_delta_rule(), "gpu")
         self.assertEqual(self.qwen_module.torch_recurrent_gated_delta_rule(), "gpu")
+
+
+class CanDecideCommandsTest(unittest.TestCase):
+    # Every test starts from a service that can decide and breaks one condition
+
+    def test_is_true_when_on_loaded_on_the_gpu_and_game_actions_are_on(self):
+        service = make_fast_command_service()
+
+        self.assertTrue(service.can_decide_commands())
+
+    def test_is_false_when_instinct_is_disabled(self):
+        service = make_fast_command_service(enabled=False)
+
+        self.assertFalse(service.can_decide_commands())
+
+    def test_is_false_when_the_model_runs_on_the_cpu(self):
+        service = make_fast_command_service(device="cpu")
+
+        self.assertFalse(service.can_decide_commands())
+
+    def test_is_false_when_the_model_is_not_loaded(self):
+        service = make_fast_command_service()
+        service.decider = None
+
+        self.assertFalse(service.can_decide_commands())
+
+    def test_is_false_when_game_actions_are_off(self):
+        service = make_fast_command_service(game_actions_enabled=False)
+
+        self.assertFalse(service.can_decide_commands())
+
+
+class FindActionsWithAKeyTest(unittest.TestCase):
+    def test_lists_only_actions_with_a_key_in_the_order_of_ed_action(self):
+        # The set is given in the opposite order to prove EdAction sets the order
+        keybinds = FakeKeybinds(
+            bound_actions={EdAction.LANDING_GEAR_TOGGLE, EdAction.SUPERCRUISE}
+        )
+        service = make_fast_command_service(keybinds=keybinds)
+
+        self.assertEqual(
+            service.find_actions_with_a_key(),
+            [EdAction.SUPERCRUISE, EdAction.LANDING_GEAR_TOGGLE],
+        )
+
+    def test_is_empty_when_the_keybinds_are_not_loaded(self):
+        service = make_fast_command_service(keybinds=FakeKeybinds(keys_loaded=False))
+
+        self.assertEqual(service.find_actions_with_a_key(), [])
+
+
+class AskWhichActionTest(unittest.TestCase):
+    def test_sends_the_state_and_the_question_to_the_model_and_returns_its_answer(self):
+        service = make_fast_command_service(choice="Supercruise")
+        offered = [EdAction.SUPERCRUISE, EdAction.LANDING_GEAR_TOGGLE]
+
+        answer = service.ask_which_action("State text", "engage supercruise", offered)
+
+        self.assertEqual(answer["choice"], "Supercruise")
+        self.assertEqual(
+            service.decider.calls,  # type: ignore[union-attr]
+            [
+                (
+                    {"game_state": "State text", "pilot_said": "engage supercruise"},
+                    build_which_action_questions(offered),
+                )
+            ],
+        )
+
+
+class DescribeTopScoresTest(unittest.TestCase):
+    def test_lists_the_best_three_options_best_first(self):
+        scores = {"a": 0.10, "b": 0.70, "c": 0.15, "d": 0.05}
+
+        self.assertEqual(describe_top_scores(scores), "b 0.70, c 0.15, a 0.10")
+
+
+class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
+    async def test_presses_the_chosen_key_and_returns_the_reply(self):
+        service = make_fast_command_service(choice="LandingGearToggle")
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertEqual(reply, "Done: Landing gear toggle")
+        self.assertEqual(
+            service.keybinds_protocol.pressed, [EdAction.LANDING_GEAR_TOGGLE]
+        )
+        self.assertEqual(
+            service.decider.calls[0][0],  # type: ignore[union-attr]
+            {
+                "game_state": "Commander name is NOVA.",
+                "pilot_said": "deploy landing gear",
+            },
+        )
+
+    async def test_logs_one_line_with_the_message_the_action_and_the_best_scores(self):
+        service = make_fast_command_service(choice="LandingGearToggle")
+
+        with self.assertLogs(instinct_service.logger, level="INFO") as logs:
+            await service.try_fast_command("deploy landing gear")
+
+        fast_command_lines = [line for line in logs.output if "Fast command" in line]
+        self.assertEqual(len(fast_command_lines), 1)
+        line = fast_command_lines[0]
+        self.assertIn("'deploy landing gear'", line)
+        self.assertIn("Instinct pressed LandingGearToggle in ", line)
+        self.assertIn("LandingGearToggle 0.90", line)  # the best score, first
+
+    async def test_returns_none_and_presses_nothing_when_the_model_chooses_none(self):
+        service = make_fast_command_service(choice="none")
+
+        # "none" is a normal answer, not an error that happens to give None too
+        with self.assertNoLogs(instinct_service.logger, level="ERROR"):
+            reply = await service.try_fast_command("how much fuel do I have")
+
+        self.assertIsNone(reply)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.keybinds_protocol.press_attempts, [])
+
+    async def test_does_not_ask_the_model_when_it_cannot_decide(self):
+        service = make_fast_command_service(enabled=False)
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+
+    async def test_does_not_ask_the_model_when_no_action_has_a_key(self):
+        service = make_fast_command_service(keybinds=FakeKeybinds(bound_actions=set()))
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+
+    async def test_does_not_ask_the_model_when_the_game_state_is_empty(self):
+        service = make_fast_command_service(game_state_text="")
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+
+    async def test_returns_none_when_the_model_runs_out_of_time(self):
+        service = make_fast_command_service(choice="LandingGearToggle")
+        service.decider.release.clear()  # type: ignore[union-attr]
+
+        with (
+            patch.object(instinct_service, "FAST_COMMAND_TIMEOUT_SECONDS", 0.2),
+            self.assertLogs(instinct_service.logger, level="WARNING"),
+        ):
+            reply = await service.try_fast_command("deploy landing gear")
+
+        # Checked before the model is let go: its late answer would press the key
+        self.assertIsNone(reply)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.keybinds_protocol.press_attempts, [])
+        service.decider.release.set()  # type: ignore[union-attr]
+
+    async def test_returns_none_when_the_model_raises(self):
+        service = make_fast_command_service(decider_error=RuntimeError("boom"))
+
+        with self.assertLogs(instinct_service.logger, level="ERROR"):
+            reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.keybinds_protocol.press_attempts, [])
+
+    async def test_replies_at_once_when_the_game_window_is_not_found(self):
+        keybinds = FakeKeybinds(press_error=GameWindowNotFoundException("no window"))
+        service = make_fast_command_service(keybinds=keybinds)
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertEqual(reply, GAME_WINDOW_NOT_FOUND_REPLY)
+        self.assertEqual(reply, "Game window not found, nothing was pressed.")
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(keybinds.press_attempts, [EdAction.LANDING_GEAR_TOGGLE])
+        self.assertEqual(keybinds.pressed, [])
+
+    async def test_returns_none_when_the_model_answers_an_unknown_action(self):
+        service = make_fast_command_service(choice="NotARealAction")
+
+        with self.assertLogs(instinct_service.logger, level="ERROR"):
+            reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.keybinds_protocol.press_attempts, [])
+
+    async def test_one_model_call_runs_at_a_time(self):
+        service = make_fast_command_service()
+        service.decider.seconds_per_call = 0.1  # type: ignore[union-attr]
+        state = {"game_state": "state", "pilot_said": "engage supercruise"}
+        questions = build_which_action_questions([EdAction.SUPERCRUISE])
+
+        await asyncio.gather(
+            asyncio.to_thread(service.ask_decision_model, state, questions),
+            asyncio.to_thread(service.ask_decision_model, state, questions),
+        )
+
+        self.assertEqual(len(service.decider.calls), 2)  # type: ignore[union-attr]
+        self.assertEqual(service.decider.most_running_at_once, 1)  # type: ignore[union-attr]

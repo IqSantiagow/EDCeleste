@@ -57,7 +57,7 @@ class WidgetCommsInput(VerticalGroup):
     def __init__(
         self, ed_dashboard_repository: EdDashboardRepository, **kwargs
     ) -> None:
-        """Only stores the repository. Recording and sending to the LLM go
+        """Only stores the repository. Recording and sending pilot messages go
         through it."""
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
@@ -99,7 +99,7 @@ class WidgetCommsInput(VerticalGroup):
            Whisper blocks.
         2. Sets stt_state=False in every case, so the input is unlocked again.
         3. If there is text, puts it in the input and submits it, so it goes
-           the same way as a typed command (send_typed_command_to_llm).
+           the same way as a typed command (send_pilot_message_from_input).
            No text (None or empty) sends nothing.
 
         Any error (STT disabled, already recording, nothing recorded) is shown
@@ -130,23 +130,26 @@ class WidgetCommsInput(VerticalGroup):
                 self.notify(f"STT error: {e}", severity="error")
 
     @on(Input.Submitted)
-    def send_typed_command_to_llm(self, event: Input.Submitted) -> None:
-        """Runs on Enter in the input and after a voice command is put in it.
+    def send_pilot_message_from_input(self, event: Input.Submitted) -> None:
+        """Runs on Enter in the input and after a voice command is put in it, so
+        typed and spoken messages take the same way. The text is sent as it is,
+        not trimmed.
 
         1. Blank or whitespace only text is ignored.
         2. Posts UserCommandSubmitted, so the dashboard shows the "YOU:" line.
         3. Clears the input.
-        4. Puts the command in the LLM queue. It does not wait for the reply,
-           the reply comes back through the dashboard's LLM stream.
+        4. Sends the message on (Instinct or the LLM queue). It does not wait
+           for the reply, the reply comes back through the dashboard's LLM
+           stream. Needs the app event loop.
         """
         if not event.value.strip():
             log.debug("Ignoring empty command submission")
             return
 
-        log.debug("Queueing message for LLM: %s", event.value)
+        log.debug("Sending the pilot message: %s", event.value)
         self.post_message(self.UserCommandSubmitted(event.value))
         self.query_one("#comms-input", Input).value = ""
-        self.ed_dashboard_repository.send_message_to_llm(event.value)
+        self.ed_dashboard_repository.send_pilot_message(event.value)
 
     def watch_stt_state(self, new_state: bool) -> None:
         """While recording (True) the input is disabled and says

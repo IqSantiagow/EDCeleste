@@ -18,7 +18,7 @@ User/runtime settings, loaded via `services/settings_service.py` (`SettingsServi
 - `paths.journal_path` / `paths.keybindings_path`
 - `llm.provider` — `type` (any provider name in `SUPPORTED_LLM_PROVIDER_TYPES`, `services/models/settings_model.py`), `model`, `api_key` and an optional `base_url` for providers without a public endpoint (ollama, vllm, azure).
 - `llm.system_prompt` — used to build the LLM agent
-- `llm.instinct` — `enabled` and `device` (`auto` | `cuda` | `cpu`) of Instinct, the local fast-command model. `InstinctService` downloads it on first use to `%LOCALAPPDATA%\EDCeleste\models` and loads it; its repo and revision are fixed in `decision_model_download_service.py`.
+- `llm.instinct` — `enabled` and `device` (`auto` | `cuda` | `cpu`) of Instinct, the local fast-command model. `InstinctService` downloads it on first use to `%LOCALAPPDATA%\EDCeleste\models` and loads it; its repo and revision are fixed in `decision_model_download_service.py`. It decides commands only when the model runs on the GPU (on the CPU every message goes to the LLM) and only when `game_actions.enabled` is on.
 - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
 - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`, `cfg_weight`, `device`, `nano`); `tts.volume` is `0.0`–`1.0`
 - `tts.voice_lab` — voice effects for either engine (`VoiceLabService` in `services/voice_lab_service.py`, applied right before `sd.play`): `enabled`, `clarity`, `reverb`, `stereo_width`, each `0.0`–`1.0`, `0.5` = fitted to Celeste's voice clip

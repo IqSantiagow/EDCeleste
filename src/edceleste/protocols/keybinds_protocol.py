@@ -31,6 +31,13 @@ class KeybindsProtocol(BaseServiceProtocol, Protocol):
         loaded yet."""
         ...
 
+    async def press_keys_for_action(self, action: EdAction) -> None:
+        """Presses the action's keys in the game. An action without a keyboard
+        key only logs a warning and presses nothing. Brings the game window to
+        the front first and raises GameWindowNotFoundException when the game
+        is not running. Raises KeyError when the keybinds are not loaded yet."""
+        ...
+
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:

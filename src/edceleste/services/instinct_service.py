@@ -4,17 +4,28 @@ import asyncio
 import importlib.util
 import inspect
 import logging
+import threading
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING, AsyncGenerator, Literal
 
 import httpx
 
+from edceleste.protocols.game_state_protocol import GameStateProtocol
+from edceleste.protocols.keybinds_protocol import KeybindsProtocol
 from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
     DownloadCancelled,
 )
+from edceleste.services.exceptions.game_window_exception import (
+    GameWindowNotFoundException,
+)
 from edceleste.services.models.cold_start_status import ColdStartStatus
+from edceleste.services.models.instinct_actions import (
+    COMMAND_QUESTION_NAME,
+    NO_ACTION,
+    build_which_action_questions,
+)
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
     InstinctFailure,
@@ -22,6 +33,7 @@ from edceleste.services.models.instinct_status import (
     InstinctStatus,
     describe_download_progress,
 )
+from edceleste.services.models.keybinds_model import EdAction, action_in_plain_words
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
@@ -31,6 +43,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SECONDS_BETWEEN_PROGRESS_UPDATES = 0.2
+
+# A slower model call is not waited for, the message goes to the LLM instead
+FAST_COMMAND_TIMEOUT_SECONDS = 1.0
+SCORES_IN_LOG = 3
+
+# The same sentence the PerformGameAction tool gives the LLM in this case
+GAME_WINDOW_NOT_FOUND_REPLY = "Game window not found, nothing was pressed."
 
 DeviceChoice = Literal["auto", "cuda", "cpu"]
 
@@ -82,6 +101,17 @@ def describe_failure_reason(error: Exception) -> str:
     return first_line[:120]
 
 
+def describe_top_scores(probabilities: dict[str, float]) -> str:
+    """The best SCORES_IN_LOG options of a model answer for the log, best first,
+    e.g. "LandingGearToggle 0.97, none 0.02, SetSpeedZero 0.00". Scores have two
+    decimals. Options with the same score keep the order of the answer. An empty
+    answer gives an empty string. Only builds the text."""
+    best_options = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
+    return ", ".join(
+        f"{name} {score:.2f}" for name, score in best_options[:SCORES_IN_LOG]
+    )
+
+
 class InstinctService:
     enabled: bool = False
     background_task: asyncio.Task | None = None
@@ -95,11 +125,17 @@ class InstinctService:
         self,
         settings_service: SettingsService,
         download_service: DecisionModelDownloadService,
+        keybinds_protocol: KeybindsProtocol,
+        game_state_protocol: GameStateProtocol,
     ) -> None:
-        """Only stores the dependencies. Nothing is downloaded or loaded here,
+        """Only stores the dependencies and creates the lock that lets one
+        thread at a time use the model. Nothing is downloaded or loaded here,
         that starts in reload_service()."""
         self.settings_service = settings_service
         self.download_service = download_service
+        self.keybinds_protocol = keybinds_protocol
+        self.game_state_protocol = game_state_protocol
+        self.model_lock = threading.Lock()
 
     def validate_settings(
         self, new_settings: SettingsModel
@@ -260,20 +296,33 @@ class InstinctService:
         are raised). Logs what the pilot said or which event came, the answers
         and how long it took.
 
+        Only one thread uses the model at a time, a second caller waits for the
+        first, without a time limit (a call that ran out of time in
+        try_fast_command() is still running in its thread, and holds the model
+        until it ends).
+
         state holds e.g. "game_state" and "pilot_said". questions maps a
         question name to its type, instructions and criteria, see
         WARM_UP_QUESTIONS. The answers are keyed by the same question names.
+        A "choice" answer holds "choice" (the chosen option) and
+        "probabilities" (a score for every option, together about 1), plus
+        fields we do not use. A "noul" (yes or no) answer holds "noul", the
+        probability of yes.
+
+        Raises ModelNotDownloaded when the model files are not on disk, and
+        whatever the model itself raises.
         """
-        decider = self.load_model()
-        start = time.perf_counter()
-        answers = decider.system_one(state, questions)["answers"]
-        logger.info(
-            "Decision model: %s -> %s in %.0f ms",
-            state.get("pilot_said") or state.get("event"),
-            answers,
-            (time.perf_counter() - start) * 1000,
-        )
-        return answers
+        with self.model_lock:
+            decider = self.load_model()
+            start = time.perf_counter()
+            answers = decider.system_one(state, questions)["answers"]
+            logger.info(
+                "Decision model: %s -> %s in %.0f ms",
+                state.get("pilot_said") or state.get("event"),
+                answers,
+                (time.perf_counter() - start) * 1000,
+            )
+            return answers
 
     def warm_up(self) -> None:
         """Loads the model and asks one made up question, so the slow first
@@ -281,6 +330,129 @@ class InstinctService:
         is thrown away. Blocking."""
         state = {"game_state": "", "pilot_said": "deploy hardpoints"}
         self.ask_decision_model(state, WARM_UP_QUESTIONS)
+
+    # ----- Fast commands -----
+
+    async def try_fast_command(self, pilot_message: str) -> str | None:
+        """Presses the key the pilot asked for, without the LLM. Returns the
+        short reply for COMMS: "Done: <action in plain words>", e.g. "Done:
+        Landing gear toggle", when a key was pressed, or
+        GAME_WINDOW_NOT_FOUND_REPLY when the model picked an action but the game
+        is not running. None means "not handled", and then the caller sends the
+        message to the LLM as before.
+
+        1. Nothing is asked when can_decide_commands() is False, when no
+           action has a keyboard key or when there is no game state yet. The
+           message may be a question, which only the LLM can answer, so it
+           goes there.
+        2. Asks the model in a worker thread. It gets FAST_COMMAND_TIMEOUT_SECONDS,
+           the model is never waited for longer.
+        3. The model picks one option. "none" means the pilot is talking or
+           asking, so nothing is pressed. An action gets its key pressed.
+        4. Logs one line: the message, the best scores, the chosen action and
+           the time from the message to the key press.
+
+        Never raises. A timeout, a model error, a wrong answer or a key press
+        that fails for another reason are logged and give None (a call that ran
+        out of time keeps running in its thread and holds the model, so the next
+        command may wait for it). A missing game window is a normal case, not
+        an error: we already know the message is a command, so the LLM would
+        only fail the same way after seconds, and the reply comes at once.
+        """
+        start = time.perf_counter()
+        try:
+            if not self.can_decide_commands():
+                return None
+            offered_actions = self.find_actions_with_a_key()
+            game_state = self.game_state_protocol.get_game_state_projection()
+            if not offered_actions or not game_state:
+                # The model is not asked, so we do not know if this is a command
+                # or a question. Only the LLM can tell the pilot what is missing.
+                return None
+
+            answer = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.ask_which_action, game_state, pilot_message, offered_actions
+                ),
+                timeout=FAST_COMMAND_TIMEOUT_SECONDS,
+            )
+            scores = describe_top_scores(answer["probabilities"])
+            if answer["choice"] == NO_ACTION:
+                logger.info(
+                    "Fast command %r: no ship action (%s), the message goes to the LLM",
+                    pilot_message,
+                    scores,
+                )
+                return None
+            action = EdAction(answer["choice"])
+            await self.keybinds_protocol.press_keys_for_action(action)
+        except TimeoutError:
+            logger.warning(
+                "Fast command %r: the model needed more than %.1f s, the message "
+                "goes to the LLM",
+                pilot_message,
+                FAST_COMMAND_TIMEOUT_SECONDS,
+            )
+            return None
+        except GameWindowNotFoundException:
+            logger.info(
+                "Fast command %r: the game window was not found, nothing was pressed",
+                pilot_message,
+            )
+            return GAME_WINDOW_NOT_FOUND_REPLY
+        except Exception:
+            logger.exception(
+                "Fast command %r failed, the message goes to the LLM", pilot_message
+            )
+            return None
+
+        logger.info(
+            "Fast command %r: Instinct pressed %s in %.0f ms (%s)",
+            pilot_message,
+            action.value,
+            (time.perf_counter() - start) * 1000,
+            scores,
+        )
+        return f"Done: {action_in_plain_words(action)}"
+
+    def can_decide_commands(self) -> bool:
+        """True when Instinct may take a pilot message from the LLM: Instinct
+        is on, the model is loaded and runs on the GPU ("cuda"), and the game
+        actions (game_actions.enabled) are switched on in the saved settings.
+        On the CPU one call takes about 2 s, so the LLM is faster there and
+        Instinct stays out of it. A model that is still loading or failed to
+        load has no device, so it gives False too. Only reads memory and the
+        saved settings."""
+        game_actions_are_on = self.settings_service.get_settings().game_actions.enabled
+        return self.enabled and self.running_device() == "cuda" and game_actions_are_on
+
+    def find_actions_with_a_key(self) -> list[EdAction]:
+        """The actions that have a keyboard key, in the order of EdAction. The
+        model is asked only about these. Empty when the keybinds are not
+        loaded yet, and also when no action has a keyboard key (then the
+        caller cannot tell the two apart). Only reads memory."""
+        try:
+            return [
+                action for action in EdAction if self.keybinds_protocol.is_bound(action)
+            ]
+        except KeyError:
+            return []
+
+    def ask_which_action(
+        self, game_state: str, pilot_message: str, offered_actions: list[EdAction]
+    ) -> dict:
+        """Blocking, so try_fast_command() runs it in a worker thread. Asks the
+        model the one "action" question about offered_actions (see
+        build_which_action_questions) and returns its answer: "choice" (an
+        EdAction value or "none") and "probabilities" with a score for every
+        option, together about 1. Raises what ask_decision_model raises
+        (ModelNotDownloaded, errors of the model), try_fast_command catches
+        them. May load the model first when it is not loaded."""
+        state = {"game_state": game_state, "pilot_said": pilot_message}
+        answers = self.ask_decision_model(
+            state, build_which_action_questions(offered_actions)
+        )
+        return answers[COMMAND_QUESTION_NAME]
 
     # ----- Status for the UI and the cold start -----
 
@@ -324,7 +496,8 @@ class InstinctService:
            the download progress every 0.2 s.
         4. Yields completed. A failed download or load is only a warning with
            the reason, never critical, because without Instinct every command
-           still goes through Celeste.
+           still goes through Celeste. A model that runs on the CPU is a
+           warning too: it is too slow, so the commands go through Celeste.
         """
         status = ColdStartStatus(
             service="instinct",
@@ -348,6 +521,16 @@ class InstinctService:
             await asyncio.sleep(SECONDS_BETWEEN_PROGRESS_UPDATES)
 
         if self.failure is None:
+            device = self.running_device()
+            if device is not None and device != "cuda":
+                yield replace(
+                    status,
+                    completed=True,
+                    is_warning=True,
+                    message=f"model runs on the {device.upper()}, too slow for "
+                    "commands. Commands go through Celeste.",
+                )
+                return
             yield replace(status, completed=True)
             return
         # Not critical: without Instinct every command goes through Celeste

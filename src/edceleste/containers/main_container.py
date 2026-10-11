@@ -22,8 +22,8 @@ from edceleste.ui.screens.system_check.system_check_repository import (
     SystemCheckRepository,
 )
 from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
-from edceleste.use_cases.dashboard.llm_send_message_use_case import (
-    LLMSendMessageUseCase,
+from edceleste.use_cases.dashboard.send_pilot_message_use_case import (
+    SendPilotMessageUseCase,
 )
 from edceleste.use_cases.app.stream_app_header_stats_usecase import (
     StreamAppHeaderStatsUseCase,
@@ -189,6 +189,8 @@ class Container(containers.DeclarativeContainer):
         InstinctService,
         settings_service=settings_service,
         download_service=decision_model_download_service,
+        keybinds_protocol=keybinds_service,
+        game_state_protocol=game_state_service,
     )
 
     voice_lab_service = providers.Singleton(
@@ -240,8 +242,9 @@ class Container(containers.DeclarativeContainer):
         StreamStationMarketUseCase, game_state_protocol=game_state_service
     )
 
-    llm_send_message_use_case = providers.Factory(
-        LLMSendMessageUseCase,
+    send_pilot_message_use_case = providers.Factory(
+        SendPilotMessageUseCase,
+        instinct_protocol=instinct_service,
         llm_protocol=llm_service,
     )
 
@@ -375,7 +378,7 @@ class Container(containers.DeclarativeContainer):
     ed_dashboard_repository = providers.Singleton(
         EdDashboardRepository,
         stream_journal_events_usecase=stream_journal_events_use_case,
-        llm_send_message_usecase=llm_send_message_use_case,
+        send_pilot_message_usecase=send_pilot_message_use_case,
         stream_llm_responses_usecase=stream_llm_responses_use_case,
         stt_start_recording_usecase=stt_start_recording_use_case,
         stt_stop_recording_usecase=stt_stop_recording_use_case,

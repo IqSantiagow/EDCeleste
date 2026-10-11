@@ -42,6 +42,20 @@ class InstinctProtocol(BaseServiceProtocol, Protocol):
         get_status().failure. Must run on the app event loop."""
         ...
 
+    async def try_fast_command(self, pilot_message: str) -> str | None:
+        """Presses the key of the ship action the pilot asked for, without the
+        LLM, and returns the short reply for COMMS: "Done: <action in plain
+        words>", e.g. "Done: Landing gear toggle". When the pilot asked for an
+        action but the game is not running, the reply says so at once ("Game
+        window not found, nothing was pressed."). None means "not handled": the
+        pilot only talks or asks, Instinct is off, not loaded, runs on the CPU
+        (too slow), game actions are off, or the model failed or ran out of its
+        time limit (about one second). Then the caller sends the message to the
+        LLM. Never raises. Goes to the model in a worker thread, so it can take
+        up to the time limit. A call that ran out of time keeps the model busy
+        until it ends."""
+        ...
+
     def cancel_download(self) -> None:
         """Only asks the running download to stop, it stops at the next chunk
         and deletes the half downloaded files. This is not a failure, so
