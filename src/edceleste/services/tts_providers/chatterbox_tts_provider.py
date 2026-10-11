@@ -78,13 +78,21 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol):
         profile_path: Path,
         params: TtsProviderParams,
     ) -> None:
-        """Lets the model learn the voice from the clip and saves it as a .pt
-        file in profile_path. Loads the model if needed. Raises TypeError for
-        params of another provider.
+        """Lets the model learn the voice from the clip in reference_audio_path
+        and saves it to the file profile_path (a .pt file, its folder must
+        exist). A file already there is replaced, the caller checks the name
+        first.
+        1. Loads the model in a worker thread if needed (slow, may download
+           it from the Hugging Face Hub the first time).
+        2. Clears loaded_profile_path, because learning replaces the voice in
+           the model, also when it fails or is cancelled half way. The next
+           synthesize() then loads its profile from the file again.
+        3. Learns the voice in a worker thread, then saves the file.
 
-        Side effect: the model now speaks with the new voice, but
-        loaded_profile_path is cleared, so the next synthesize() loads the
-        profile from the file.
+        Raises TypeError for params of another provider, before anything is
+        loaded. Errors of the model (e.g. a clip it cannot read) come out as
+        they are and nothing is saved. A cancel during learning also saves
+        nothing, the thread only finishes the learning in the background.
         """
         if not isinstance(params, ChatterboxParamsModel):
             raise TypeError(
@@ -92,13 +100,13 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol):
             )
 
         model = await asyncio.to_thread(self.__get_or_load_model, params)
+        self.loaded_profile_path = None
         await asyncio.to_thread(
             model.prepare_conditionals,
             wav_fpath=reference_audio_path,
             norm_loudness=False,
         )
         model.conds.save(profile_path)
-        self.loaded_profile_path = None
 
     def validate_params(self, params: TtsProviderParams) -> SettingsIssueModel | None:
         """Only checks that a profile name is set. Does not check that the

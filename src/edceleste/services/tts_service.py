@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import AsyncGenerator, Literal
 
@@ -304,24 +305,31 @@ class TTSService:
         self, path_to_audio_file: str, profile_name: str, params: TtsProviderParams
     ) -> AsyncGenerator[VoiceCloningState, None]:
         """Makes a new voice profile from an audio file and yields after every
-        step, so the UI can show progress. Writes files to the voices folder.
-        params are the settings as they are on the screen now, not the saved
-        ones. Raises VoiceCloningException when their provider cannot clone.
+        step, so the UI can show progress. params are the settings as they are
+        on the screen now, not the saved ones. Nothing runs before the first
+        state is asked for, so every error comes out while iterating.
 
-        1. Creates the voices folder. Raises FileNotFoundError when the audio
-           file does not exist and FileExistsError when a profile with this
-           name exists already (an existing voice is never replaced). Yields
+        1. Raises VoiceCloningException when the provider of params cannot
+           clone. Creates the voices folder. Raises FileNotFoundError when the
+           audio file does not exist and FileExistsError when a profile with
+           this name exists already (an existing voice is never replaced).
+           Folder parts of profile_name are dropped ("../x" -> "x"). Yields
            DIRECTORY_CREATED.
         2. Raises ValueError when the clip is shorter than the provider needs.
            Reads only that many seconds of it. Yields AUDIO_PROCESSED.
-        3. Writes those seconds as "<name>_reference<file extension>" next to
-           the profiles and lets the provider learn the voice from them.
-           Yields COMPLETED, the profile is saved.
+        3. Writes those seconds into a new temporary folder, outside the voices
+           folder, and lets the provider learn the voice from them and save
+           the profile file in the voices folder. Yields COMPLETED.
         4. Generates <name>_sample.wav with DEFAULT_VOICE_SAMPLE_TEXT. Yields
-           SAMPLE_CREATED.
+           SAMPLE_CREATED and ends.
 
-        Any error in steps 3 and 4 is raised again as RuntimeError. The trimmed
-        clip is always deleted.
+        Any error in steps 3 and 4 is raised again as RuntimeError, with the
+        original error as its cause. A cancel is not wrapped. A cancel during
+        step 3 leaves no profile file. An error or a cancel after COMPLETED
+        leaves the profile file on disk, the caller deletes it. The temporary
+        folder is always deleted. When that fails (on Windows a file still
+        open in the model thread), the folder is left in the system temp
+        folder and no error is raised.
         """
         provider = self.get_cloning_provider_for(params)
         profile_path = self.build_profile_path(
@@ -348,15 +356,15 @@ class TTSService:
             )
 
         audio_file_name = os.path.basename(path_to_audio_file)
-        # Named after the new profile, so it can never be a file of another voice
-        trimmed_clip_path = self.build_profile_path(
-            f"{profile_name}_reference", Path(audio_file_name).suffix
-        )
-
         frames_to_read = int(provider.reference_seconds * audio_info.samplerate)
         audio_data, sample_rate = sf.read(path_to_audio_file, frames=frames_to_read)
 
         yield VoiceCloningState.AUDIO_PROCESSED
+
+        # A new empty folder, so the trimmed clip can never replace a file of
+        # the pilot, whatever its name is
+        clip_folder = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        trimmed_clip_path = Path(clip_folder.name) / audio_file_name
         try:
             sf.write(
                 trimmed_clip_path, audio_data, sample_rate, subtype=audio_info.subtype
@@ -385,8 +393,7 @@ class TTSService:
             ) from e
 
         finally:
-            if trimmed_clip_path.exists():
-                trimmed_clip_path.unlink()
+            clip_folder.cleanup()
 
     def get_available_profiles(self, params: TtsProviderParams) -> list[str]:
         """Voice profile names from the voices folder, without the file
