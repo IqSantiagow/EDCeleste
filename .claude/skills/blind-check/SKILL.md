@@ -23,11 +23,15 @@ Execute the steps in order.
 ## Step 2 — Stage 1: names only
 
 1. Run `python signature_check/strip_method_bodies.py --without-docstrings [files]`.
-   It writes the copies to `signature_check/stripped/` and prints their paths.
-2. Start the `blind-signature-reader` agent. The prompt is only `Stage 1` and the
-   printed paths. Never describe the project or the code: the test is blind, every hint
-   spoils it.
-3. Compare every guess with the real code. A method needs work when:
+   It writes the copies to `signature_check/stripped/` and prints the report folder and
+   then their paths. The copies keep imports, constants and the fields of classes (dataclass,
+   model and enum fields), only the bodies of functions are cut.
+2. Start the `blind-signature-reader` agent. The prompt is only `Stage 1`, the printed
+   report folder and the printed paths. Never describe the project or the code: the test is
+   blind, every hint spoils it.
+3. The agent writes its tables to files in the report folder, one per source file, and
+   its final message only lists them with the counts. Read those files. Compare every guess
+   with the real code. A method needs work when:
    - the guess is wrong, or misses a side effect that matters (network, event bus, files,
      audio, stored state, tokens), or
    - the confidence is not high.
@@ -47,9 +51,10 @@ Execute the steps in order.
 
 1. Run `python signature_check/strip_method_bodies.py [files]` again, now with
    docstrings, after the renames.
-2. Start the `blind-signature-reader` agent with only `Stage 2` and the printed paths.
-   It answers per method: what it does, returns, raises and changes.
-3. Compare each answer with the real code. Read the body, and one level of the
+2. Start the `blind-signature-reader` agent with only `Stage 2`, the printed report folder
+   and the printed paths. It answers per method: what it does, returns, raises and changes,
+   in a report file per source file. Its final message only lists the files and the counts.
+3. Read the report files. Compare each answer with the real code. Read the body, and one level of the
    methods it calls, to know which exceptions really come out. A docstring needs work
    when the agent:
    - got the return wrong, or did not know what `None` or an empty result means,

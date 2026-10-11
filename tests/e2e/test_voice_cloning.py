@@ -357,7 +357,7 @@ async def test_should_add_no_voice_when_the_commander_cancels_while_cloning_runs
                 lambda: next_button_is_enabled(pilot.app),
                 "Next enabled for a long enough recording",
             )
-            await pilot.click("#voice-clone-next-button")
+            await edceleste.click_when_ready(pilot, "#voice-clone-next-button")
             await edceleste.wait_until(
                 pilot,
                 lambda: chatterbox.model_started_learning_a_voice,

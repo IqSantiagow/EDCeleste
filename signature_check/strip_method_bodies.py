@@ -1,8 +1,9 @@
 """Shows Python files the way the blind-signature-reader agent sees them.
 
-Keeps only classes, method signatures and docstrings. Drops imports, constants,
-class attributes and every method body, so a reader can only guess what a method
-does from its name, its types and its docstring.
+Keeps the interface: classes, their fields (dataclass, model and enum fields),
+method signatures, docstrings, imports and constants. Drops every function and
+method body, so a reader can only guess what a method does from its name, its
+types and its docstring.
 
 Usage:
     python signature_check/strip_method_bodies.py          # changed against main
@@ -13,8 +14,10 @@ Usage:
 are left (stage 1 of the blind-check skill).
 
 Writes the stripped copies to signature_check/stripped/ (same paths as in the
-repo, the folder is emptied first) and prints their paths. Pass those paths to
-the blind-signature-reader agent. A hook lets that agent read nothing else.
+repo, the folder is emptied first) and prints the report folder,
+signature_check/reports/, and then the paths of the copies. Pass them to the
+blind-signature-reader agent. A hook lets that agent read nothing but the
+copies and write nothing but its reports.
 """
 
 import ast
@@ -25,6 +28,10 @@ from pathlib import Path
 
 SOURCE_FOLDER = "src/edceleste"
 STRIPPED_FOLDER = Path(__file__).parent / "stripped"
+REPORTS_FOLDER = Path(__file__).parent / "reports"
+
+# Part of the interface: what a module imports and what its classes and the module hold
+INTERFACE_STATEMENTS = (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign)
 
 
 def find_changed_python_files() -> list[str]:
@@ -55,14 +62,15 @@ def keep_docstring_only(node: ast.AST) -> list[ast.stmt]:
     return [ast.Expr(ast.Constant(docstring))]
 
 
-def keep_classes_and_signatures(body: list[ast.stmt]) -> list[ast.stmt]:
+def keep_interface(body: list[ast.stmt]) -> list[ast.stmt]:
     """Walks one level of a module or a class. Classes go in with their own
-    signatures, functions go in with only their docstring, the rest is dropped."""
+    interface, functions go in with only their docstring, imports, constants and
+    class fields stay as they are, the rest is dropped."""
     kept: list[ast.stmt] = []
     for node in body:
         if isinstance(node, ast.ClassDef):
             class_docstring = ast.get_docstring(node, clean=False)
-            node.body = keep_classes_and_signatures(node.body)
+            node.body = keep_interface(node.body)
             if class_docstring is not None:
                 node.body.insert(0, ast.Expr(ast.Constant(class_docstring)))
             if not node.body:
@@ -70,6 +78,8 @@ def keep_classes_and_signatures(body: list[ast.stmt]) -> list[ast.stmt]:
             kept.append(node)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             node.body = keep_docstring_only(node)
+            kept.append(node)
+        elif isinstance(node, INTERFACE_STATEMENTS):
             kept.append(node)
 
     return kept
@@ -91,7 +101,7 @@ def strip_method_bodies(source_code: str, keep_docstrings: bool = True) -> str:
     part of the signature."""
     module = ast.parse(source_code)
     module_docstring = ast.get_docstring(module, clean=False)
-    module.body = keep_classes_and_signatures(module.body)
+    module.body = keep_interface(module.body)
     if module_docstring is not None:
         module.body.insert(0, ast.Expr(ast.Constant(module_docstring)))
     if not keep_docstrings:
@@ -102,17 +112,21 @@ def strip_method_bodies(source_code: str, keep_docstrings: bool = True) -> str:
 
 def main() -> None:
     """Files without any function (plain models, constants) are skipped, there
-    is nothing to guess in them. Copies from an earlier run are deleted, so the
-    agent never reads a stale file."""
+    is nothing to guess in them. Copies and reports from an earlier run are deleted,
+    so the agent never reads a stale file. Prints the report folder first and then
+    one path per stripped copy."""
     arguments = sys.argv[1:]
     keep_docstrings = "--without-docstrings" not in arguments
     files = [argument for argument in arguments if argument != "--without-docstrings"]
     files = files or find_changed_python_files()
     shutil.rmtree(STRIPPED_FOLDER, ignore_errors=True)
+    shutil.rmtree(REPORTS_FOLDER, ignore_errors=True)
     if not files:
         print("No changed Python files under src/edceleste.")
         return
 
+    REPORTS_FOLDER.mkdir(parents=True)
+    print(f"Report folder: {REPORTS_FOLDER.resolve().as_posix()}")
     for file in files:
         source_code = Path(file).read_text(encoding="utf-8")
         stripped_code = strip_method_bodies(source_code, keep_docstrings)
