@@ -45,7 +45,8 @@ class VoiceLabService:
 
         voice_lab is the switch and the sliders to use. None -> the saved ones,
         read now. The settings screen passes the ones it shows, saved or not, so
-        the pilot hears a slider change before saving it.
+        the pilot hears a slider change before saving it. The samples passed in
+        are never changed, the effects are made on a copy.
 
         Voice Lab switched off -> the very same samples come back untouched.
         Otherwise, in this order:
