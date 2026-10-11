@@ -79,7 +79,7 @@ jobs:
       # A failing run still has results, and the report job needs them most then
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-results
           path: allure-results/
@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload mutation report
         if: always() && steps.changed.outputs.files != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mutation-report
           path: mutation_testing/report/
