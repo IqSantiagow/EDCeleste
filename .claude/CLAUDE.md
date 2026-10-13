@@ -25,6 +25,10 @@ coverage report -m
 
 # Run a single test file
 python -m pytest tests/services/journal/test_journal_watcher.py
+
+# Mutation tests (mutmut needs Linux; on Windows this runs in Docker, report in mutation_testing/report/)
+bash mutation_testing/run_in_docker.sh src/edceleste/services/event_bus.py   # given files
+bash mutation_testing/run_in_docker.sh                                       # whole project, ~30 min
 ```
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
@@ -32,25 +36,29 @@ python -m pytest tests/services/journal/test_journal_watcher.py
 The CI pipelines have a built-in Allure report of the test results, published from `main` to
 https://iqsantiagow.github.io/EDCeleste/. The e2e conventions that feed it live in the `e2e-test-writer` agent.
 
-The e2e tests of the pipeline run on a remote runner (a VPS) when the `edceleste-runner` MCP
-connector is connected, otherwise on this machine. The `e2e-test-writer` subagent picks by itself.
-It sends the working copy with `bash mutation_testing/send_code.sh` (the folder keeps the name of
-the first tool that used the runner), which needs `RUNNER_URL` (with the port, e.g.
-`http://100.x.y.z:8765`) and `RUNNER_TOKEN` in the environment.
+The mutation tests and the e2e tests of the pipeline run on a remote runner (a VPS) when the
+`edceleste-runner` MCP connector is connected, otherwise on this machine. The two subagents pick
+by themselves. They send the working copy with `bash mutation_testing/send_code.sh`, which needs
+`RUNNER_URL` (with the port, e.g. `http://100.x.y.z:8765`) and `RUNNER_TOKEN` in the environment.
 
 ## Pipeline of a feature or a bug fix
 
-Go through the steps in order. Do not call the work done before step 4 is done.
+Go through the steps in order. Do not call the work done before step 6 is done.
 
 1. **Implement** the feature or the fix.
 2. **Unit tests** — write them with the `unit-test-writer` skill, until `python -m pytest` is green.
-3. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
+3. **Mutation tests** — ask the `mutation-tester` subagent (`.claude/agents/mutation-tester.md`)
+   to check the changed files. It only reports surviving mutants.
+4. **Close the mutation gaps** — add the unit tests for the gaps it reports, then ask it to check
+   again until the score is at least `MIN_MUTATION_SCORE` (75%). The CI pipeline does not run the
+   mutation tests (a job there held every merge for about an hour), so this step is where they run.
+5. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
    1. It scans the changes and returns proposed scenarios. Review them and approve (or trim) them.
    2. After approval it writes the tests, runs them and reports passed and failed.
    3. A failed e2e test means the app breaks a business requirement. Fix the **app**, never the
       test, then run the e2e tests again until all are green. Change a test only when the
       scenario itself was wrong, and say so.
-4. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
+6. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
    The `blind-signature-reader` subagent guesses the changed methods from names alone (wrong
    guesses → rename), then from names plus docstrings (wrong guesses → better docstrings). It sees
    only stripped copies made by `signature_check/strip_method_bodies.py`; a hook blocks every other read.
