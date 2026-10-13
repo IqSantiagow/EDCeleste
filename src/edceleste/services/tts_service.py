@@ -251,9 +251,10 @@ class TTSService:
         settings. volume is the saved volume, a factor from 0 to 1.
 
         The player is stopped also when the provider fails, and that error is
-        raised. An error of the player (sounddevice.PortAudioError, e.g. no
-        speaker can be opened) is raised only at the end, after the whole voice
-        was made, because the player is awaited last.
+        raised (an error of the player is dropped then). An error of the player
+        (sounddevice.PortAudioError, e.g. no speaker can be opened) is raised
+        only at the end, after the whole voice was made, because the player is
+        awaited last.
         """
         pieces_to_play: queue.Queue[np.ndarray | None] = queue.Queue()
         player = asyncio.create_task(
@@ -261,6 +262,11 @@ class TTSService:
                 self.play_pieces, pieces_to_play, provider.stream_sample_rate
             )
         )
+        # When the provider fails first, its error is raised and the player is
+        # never awaited. Reading the exception of the player here keeps asyncio
+        # from warning that it was never retrieved. When the provider is fine,
+        # the error of the player is still raised by the await at the end.
+        player.add_done_callback(lambda task: task.cancelled() or task.exception())
         audio_so_far = np.zeros(0, dtype=np.float32)
         audio_with_effects = audio_so_far
         samples_queued = 0

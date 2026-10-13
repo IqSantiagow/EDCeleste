@@ -376,10 +376,10 @@ class InstinctService:
             return
         from decider.engine import T_BUCKETS
 
-        sizes = [size for size in T_BUCKETS if size >= input_tokens][:1]
-        if not sizes:
+        command_size = next((size for size in T_BUCKETS if size >= input_tokens), None)
+        if command_size is None:
             return
-        position = T_BUCKETS.index(sizes[0])
+        position = T_BUCKETS.index(command_size)
         nearby_sizes = T_BUCKETS[max(0, position - 1) : position + 2]
         with self.model_lock:
             engine.warmup([(1, size) for size in nearby_sizes])

@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import os
 import queue
 import shutil
@@ -1628,6 +1629,34 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         player_got_the_end = await asyncio.to_thread(self.player_got_the_end.wait, 1)
         self.assertTrue(player_got_the_end)
         self.assertEqual(len(self.played_pieces), 1)
+
+    async def test_speak_while_synthesizing_leaves_no_unread_error_of_the_player(
+        self,
+    ):
+        self._make_provider_speak(
+            [np.zeros(10, dtype=np.float32), np.zeros(10, dtype=np.float32)],
+            fail_at_piece=1,
+        )
+        provider_errors = []
+
+        def play_pieces_without_a_speaker(pieces, sample_rate):
+            raise FakePortAudioError("no speaker")
+
+        self.service.play_pieces = play_pieces_without_a_speaker
+        loop_complaints = []
+        asyncio.get_running_loop().set_exception_handler(
+            lambda loop, context: loop_complaints.append(context["message"])
+        )
+
+        try:
+            await self._speak()
+        except RuntimeError as provider_error:
+            provider_errors.append(str(provider_error))
+        await asyncio.sleep(0.2)  # the player thread fails and its task ends
+        gc.collect()  # asyncio complains when a failed task is collected unread
+
+        self.assertEqual(provider_errors, ["GPU out of memory"])
+        self.assertEqual(loop_complaints, [])
 
     # --- the player and the speaker ---
 
