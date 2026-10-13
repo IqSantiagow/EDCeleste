@@ -146,6 +146,40 @@ class FakeDecider:
 
 
 FAKE_SAMPLE_RATE = 24000
+# Three pieces of a tenth of a second, every one at its own level, so a test
+# sees the order of the pieces in what the speaker played
+FAKE_VOICE_PIECE_LEVELS = (0.1, 0.2, 0.3)
+FAKE_VOICE_PIECE_SAMPLES = FAKE_SAMPLE_RATE // 10
+
+
+class FakeSpeaker:
+    """The speaker of a voice that is played while it is still being made,
+    without hardware: it remembers every block of audio it was given, in order"""
+
+    def __init__(self) -> None:
+        self.sample_rate: int | None = None
+        self.times_opened = 0
+        self.times_closed = 0
+        self.blocks: list[np.ndarray] = []
+
+    def open(self, sample_rate: int) -> "FakeSpeaker":
+        self.sample_rate = sample_rate
+        self.times_opened += 1
+        return self
+
+    def __enter__(self) -> "FakeSpeaker":
+        return self
+
+    def __exit__(self, *error_details) -> None:
+        self.times_closed += 1
+
+    def write(self, samples: np.ndarray) -> None:
+        self.blocks.append(samples.copy())
+
+    def everything_played(self) -> np.ndarray:
+        if not self.blocks:
+            return np.zeros((0, 2), dtype=np.float32)
+        return np.concatenate(self.blocks)
 
 
 class FakeEdgeTtsProvider(EdgeTTSProvider):
@@ -172,7 +206,11 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
     """The real Chatterbox checks, but no model and no GPU: a profile is a real
     file in the voices folder and speaking only remembers what it should say.
     A test can make the model slow: it then learns a new voice only after the
-    test lets it finish"""
+    test lets it finish.
+    It speaks in pieces like the real one on a GPU (can_stream and the sample
+    rate are the real ones, so only a saved device "cuda" streams). A test can
+    make the voice slow (only the first piece comes until the test lets it
+    finish) and make it break once, after its first piece"""
 
     def __init__(self, spoken_texts: list[str]) -> None:
         super().__init__()
@@ -181,6 +219,12 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
         self.spoken_profile_paths: list[Path | None] = []
         self.model_started_learning_a_voice = False
         self.model_may_finish: asyncio.Event | None = None
+        self.voice_pieces: list[np.ndarray] = [
+            np.full(FAKE_VOICE_PIECE_SAMPLES, level, dtype=np.float32)
+            for level in FAKE_VOICE_PIECE_LEVELS
+        ]
+        self.voice_may_continue: asyncio.Event | None = None
+        self.voice_breaks_once = False
 
     def make_the_model_slow(self) -> None:
         self.model_may_finish = asyncio.Event()
@@ -188,6 +232,36 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
     def let_the_model_finish(self) -> None:
         if self.model_may_finish is not None:
             self.model_may_finish.set()
+
+    def make_the_voice_slow(self) -> None:
+        self.voice_may_continue = asyncio.Event()
+
+    def let_the_voice_finish(self) -> None:
+        if self.voice_may_continue is not None:
+            self.voice_may_continue.set()
+
+    def break_the_voice_once(self) -> None:
+        self.voice_breaks_once = True
+
+    async def synthesize_stream(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> AsyncIterator[np.ndarray]:
+        if profile_path is not None and not profile_path.exists():
+            raise FileNotFoundError(f"Voice profile not found: {profile_path}")
+        self.spoken_texts.append(text)
+        self.spoken_params.append(params)
+        self.spoken_profile_paths.append(profile_path)
+        for piece_number, piece in enumerate(self.voice_pieces):
+            if piece_number == 1:
+                if self.voice_breaks_once:
+                    self.voice_breaks_once = False
+                    raise RuntimeError("CUDA out of memory")
+                if self.voice_may_continue is not None:
+                    await self.voice_may_continue.wait()
+            yield piece
 
     async def synthesize(
         self,
@@ -314,7 +388,8 @@ class EdCelesteTestEnvironment:
             )
 
         with allure.step(
-            "A fake speaker that remembers what Celeste says, voices without network"
+            "A fake speaker that remembers what Celeste says and plays, voices "
+            "without network"
         ):
             self.spoken_texts: list[str] = []
             self.fake_tts_providers = {
@@ -327,6 +402,8 @@ class EdCelesteTestEnvironment:
                 provider_type
             ]
             tts_service.play_samples = self.remember_played_audio
+            self.fake_speaker = FakeSpeaker()
+            tts_service.open_speaker = self.fake_speaker.open
             tts_service.fetch_edge_tts_voice_names = self.edge_voices_without_network
 
         with allure.step("LLM models and microphones listed without network"):

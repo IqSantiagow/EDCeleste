@@ -137,6 +137,8 @@ class FakeDecider:
         self.choice = choice
         self.error = error
         self.seconds_per_call = 0.0
+        # The size of the input the model reports, None when it reports nothing
+        self.input_tokens: int | None = None
         self.release = threading.Event()  # clear it to keep the model busy
         self.release.set()
         self.calls: list[tuple[dict, dict]] = []
@@ -157,7 +159,10 @@ class FakeDecider:
             probabilities = {name: 0.01 for name in questions["action"]["criteria"]}
             probabilities[self.choice] = 0.9
             answer = {"choice": self.choice, "probabilities": probabilities}
-            return {"answers": {"action": answer}}
+            result: dict = {"answers": {"action": answer}}
+            if self.input_tokens is not None:
+                result["usage"] = {"input_tokens": self.input_tokens}
+            return result
         finally:
             with self.counter_lock:
                 self.running_now -= 1
@@ -501,10 +506,11 @@ class InstinctModelLoadingTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.service.running_device(), "cuda")
 
-    def test_warm_up_asks_one_question_so_the_first_command_is_fast(self):
+    def test_warm_up_asks_only_the_small_question_when_there_is_no_game_state(self):
         self.service.ask_decision_model = MagicMock(
             return_value={"warm_up": {"noul": 0.9}}
         )
+        self.service.game_state_protocol.get_game_state_projection.return_value = ""
 
         self.service.warm_up()
 
@@ -634,6 +640,159 @@ class AskWhichActionTest(unittest.TestCase):
                 )
             ],
         )
+
+
+class AskDecisionModelInputSizeTest(unittest.TestCase):
+    def ask_the_model(self, service: InstinctService) -> None:
+        questions = build_which_action_questions([EdAction.SUPERCRUISE])
+        service.ask_decision_model(
+            {"game_state": "State", "pilot_said": "go"}, questions
+        )
+
+    def test_remembers_the_input_size_the_model_reported(self):
+        service = make_fast_command_service()
+        service.decider.input_tokens = 321  # type: ignore[union-attr]
+
+        self.ask_the_model(service)
+
+        self.assertEqual(service.last_input_tokens, 321)
+
+    def test_forgets_the_old_input_size_when_the_model_reports_none(self):
+        service = make_fast_command_service()
+        service.last_input_tokens = 99  # from a decision before
+
+        self.ask_the_model(service)  # this answer has no "usage"
+
+        self.assertEqual(service.last_input_tokens, 0)
+
+
+class WarmUpTest(unittest.TestCase):
+    def make_service(
+        self, game_state_text: str = "State text", keybinds: FakeKeybinds | None = None
+    ) -> InstinctService:
+        """A service that is ready to decide, whose three questions of the warm
+        up are replaced, so only the order of the warm up is tested."""
+        service = make_fast_command_service(
+            game_state_text=game_state_text, keybinds=keybinds
+        )
+        service.ask_decision_model = MagicMock(return_value={})  # type: ignore[method-assign]
+        service.ask_which_action = MagicMock()  # type: ignore[method-assign]
+        service.compile_engine_for_input_sizes_near = MagicMock()  # type: ignore[method-assign]
+        return service
+
+    def test_asks_the_real_command_question_with_the_game_state_and_the_keys(self):
+        service = self.make_service()
+
+        service.warm_up()
+
+        service.ask_which_action.assert_called_once_with(  # type: ignore[attr-defined]
+            "State text", "deploy hardpoints", service.find_actions_with_a_key()
+        )
+
+    def test_skips_the_command_question_when_no_action_has_a_key(self):
+        service = self.make_service(keybinds=FakeKeybinds(bound_actions=set()))
+
+        service.warm_up()
+
+        service.ask_decision_model.assert_called_once()  # type: ignore[attr-defined]
+        service.ask_which_action.assert_not_called()  # type: ignore[attr-defined]
+        service.compile_engine_for_input_sizes_near.assert_not_called()  # type: ignore[attr-defined]
+
+    def test_skips_the_command_question_when_there_is_no_game_state(self):
+        service = self.make_service(game_state_text="")
+
+        service.warm_up()
+
+        service.ask_decision_model.assert_called_once()  # type: ignore[attr-defined]
+        service.ask_which_action.assert_not_called()  # type: ignore[attr-defined]
+        service.compile_engine_for_input_sizes_near.assert_not_called()  # type: ignore[attr-defined]
+
+    def test_compiles_the_input_sizes_near_what_the_command_needed(self):
+        service = self.make_service()
+
+        def ask_which_action(game_state, pilot_message, offered_actions):
+            service.last_input_tokens = 321  # what the real question reports
+
+        service.ask_which_action.side_effect = ask_which_action  # type: ignore[attr-defined]
+
+        service.warm_up()
+
+        service.compile_engine_for_input_sizes_near.assert_called_once_with(321)  # type: ignore[attr-defined]
+
+
+class CompileEngineForInputSizesNearTest(unittest.TestCase):
+    SIZES = [64, 128, 192, 256, 320, 384, 512]
+
+    def setUp(self):
+        modules_patcher = patch.dict(
+            sys.modules,
+            {
+                "decider": MagicMock(),
+                "decider.engine": SimpleNamespace(T_BUCKETS=self.SIZES),
+            },
+        )
+        modules_patcher.start()
+        self.addCleanup(modules_patcher.stop)
+
+        self.engine = Mock()
+        self.service = make_fast_command_service()
+        self.service.decider = SimpleNamespace(eng=self.engine)  # type: ignore[assignment]
+
+    def compiled_shapes(self) -> list[tuple[int, int]]:
+        """The (batch, size) shapes the engine was asked to compile."""
+        return [
+            shape
+            for engine_call in self.engine.warmup.call_args_list
+            for shape in engine_call.args[0]
+        ]
+
+    def test_compiles_the_size_of_the_command_and_the_sizes_next_to_it(self):
+        self.service.compile_engine_for_input_sizes_near(
+            300
+        )  # 320 is the smallest that holds it
+
+        self.assertEqual(self.compiled_shapes(), [(1, 256), (1, 320), (1, 384)])
+
+    def test_the_smallest_size_has_no_size_below_it(self):
+        self.service.compile_engine_for_input_sizes_near(10)
+
+        self.assertEqual(self.compiled_shapes(), [(1, 64), (1, 128)])
+
+    def test_the_largest_size_has_no_size_above_it(self):
+        self.service.compile_engine_for_input_sizes_near(500)
+
+        self.assertEqual(self.compiled_shapes(), [(1, 384), (1, 512)])
+
+    def test_an_input_that_fits_a_size_exactly_uses_that_size(self):
+        self.service.compile_engine_for_input_sizes_near(320)
+
+        self.assertEqual(self.compiled_shapes(), [(1, 256), (1, 320), (1, 384)])
+
+    def test_compiles_nothing_when_the_input_is_bigger_than_every_size(self):
+        self.service.compile_engine_for_input_sizes_near(600)
+
+        self.engine.warmup.assert_not_called()
+
+    def test_compiles_nothing_when_the_model_did_not_tell_its_input_size(self):
+        self.service.compile_engine_for_input_sizes_near(0)
+
+        self.engine.warmup.assert_not_called()
+
+    def test_does_not_fail_without_the_engine_of_the_model(self):
+        self.service.decider = FakeDecider(device="cpu")  # type: ignore[assignment]
+
+        self.service.compile_engine_for_input_sizes_near(300)
+
+    def test_holds_the_model_lock_while_compiling(self):
+        locked_while_compiling: list[bool] = []
+        self.engine.warmup.side_effect = lambda shapes: locked_while_compiling.append(
+            self.service.model_lock.locked()
+        )
+
+        self.service.compile_engine_for_input_sizes_near(300)
+
+        self.assertEqual(locked_while_compiling, [True])
+        self.assertFalse(self.service.model_lock.locked())
 
 
 class DescribeTopScoresTest(unittest.TestCase):
