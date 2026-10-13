@@ -21,7 +21,9 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.services.tts_providers import chatterbox_tts_provider
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
+    MAX_SENTENCE_CHARS,
     ChatterboxTTSProvider,
+    split_text_into_sentences,
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_providers.tts_provider_protocol import (
@@ -418,6 +420,51 @@ class ChatterboxTTSProviderStreamingProtocolTest(unittest.TestCase):
         self.assertNotIsInstance(EdgeTTSProvider(), StreamingTTSProviderProtocol)
 
 
+class ChatterboxTTSProviderSplitTextIntoSentencesTest(unittest.TestCase):
+    def test_splits_after_every_sentence_end(self):
+        self.assertEqual(
+            split_text_into_sentences("First one. Second one! Third one?"),
+            ["First one.", "Second one!", "Third one?"],
+        )
+
+    def test_keeps_a_text_without_a_sentence_end_as_one_part(self):
+        self.assertEqual(split_text_into_sentences("No stop here"), ["No stop here"])
+
+    def test_does_not_split_a_dot_without_white_space_after_it(self):
+        text = "It is 2.0 tons, Commander."
+
+        self.assertEqual(split_text_into_sentences(text), [text])
+
+    def test_gives_no_sentences_for_an_empty_or_white_space_text(self):
+        self.assertEqual(split_text_into_sentences(""), [])
+        self.assertEqual(split_text_into_sentences("   \n "), [])
+
+    def test_strips_white_space_around_the_sentences(self):
+        self.assertEqual(
+            split_text_into_sentences("  One.\n\n  Two.  "), ["One.", "Two."]
+        )
+
+    def test_cuts_a_long_sentence_after_its_last_comma_that_fits(self):
+        word = "w" * 20
+        words_that_fit = MAX_SENTENCE_CHARS // len(word + ", ")
+        sentence = ", ".join([word] * (words_that_fit + 7)) + "."
+
+        cut_sentences = split_text_into_sentences(sentence)
+
+        self.assertEqual(len(cut_sentences), 2)
+        self.assertEqual(cut_sentences[0], ", ".join([word] * words_that_fit) + ",")
+        self.assertLessEqual(len(cut_sentences[0]), MAX_SENTENCE_CHARS)
+        self.assertEqual(" ".join(cut_sentences), sentence)
+
+    def test_cuts_a_long_sentence_without_commas_hard_at_the_limit(self):
+        cut_sentences = split_text_into_sentences("x" * (2 * MAX_SENTENCE_CHARS + 100))
+
+        self.assertEqual(
+            [len(sentence) for sentence in cut_sentences],
+            [MAX_SENTENCE_CHARS, MAX_SENTENCE_CHARS, 100],
+        )
+
+
 class ChatterboxTTSProviderSynthesizeStreamTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.fake_tts_turbo_module = _install_fake_chatterbox_module(self)
@@ -442,6 +489,12 @@ class ChatterboxTTSProviderSynthesizeStreamTest(unittest.IsolatedAsyncioTestCase
         )
         make_audio_pieces_patch.start()
         self.addCleanup(make_audio_pieces_patch.stop)
+        # Giving the GPU memory back is only recorded, no GPU is touched
+        empty_cache_patch = patch.object(
+            chatterbox_tts_provider.torch.cuda, "empty_cache"
+        )
+        self.empty_cache = empty_cache_patch.start()
+        self.addCleanup(empty_cache_patch.stop)
 
     async def _collect_pieces(self, params=None, profile_path=None) -> list:
         return [
@@ -548,6 +601,89 @@ class ChatterboxTTSProviderSynthesizeStreamTest(unittest.IsolatedAsyncioTestCase
             await self._collect_pieces(profile_path=missing_profile_path)
 
         self.make_audio_pieces.assert_not_called()
+
+    async def test_synthesize_stream_speaks_a_long_reply_one_sentence_at_a_time(self):
+        def make_pieces(model, text):
+            yield np.full(2, len(text), dtype=np.float32)
+
+        self.make_audio_pieces.side_effect = make_pieces
+
+        collected = [
+            piece
+            async for piece in self.provider.synthesize_stream(
+                "First one. Second sentence.",
+                _make_chatterbox_params(),
+                self.profile_path,
+            )
+        ]
+
+        asked_with = [asked.args for asked in self.make_audio_pieces.call_args_list]
+        self.assertEqual(
+            asked_with,
+            [(self.model, "First one."), (self.model, "Second sentence.")],
+        )
+        self.assertEqual([int(piece[0]) for piece in collected], [10, 16])
+
+    async def test_synthesize_stream_gives_the_memory_back_after_every_sentence(self):
+        log: list[str] = []
+
+        def make_pieces(model, text):
+            log.append(f"made {text}")
+            yield np.zeros(2, dtype=np.float32)
+
+        self.make_audio_pieces.side_effect = make_pieces
+        self.empty_cache.side_effect = lambda: log.append("memory given back")
+
+        async for _ in self.provider.synthesize_stream(
+            "First one. Second one.", _make_chatterbox_params(), self.profile_path
+        ):
+            log.append("got")
+
+        self.assertEqual(
+            log,
+            [
+                "made First one.",
+                "got",
+                "memory given back",
+                "made Second one.",
+                "got",
+                "memory given back",
+            ],
+        )
+
+    async def test_synthesize_stream_does_nothing_for_a_text_of_white_space(self):
+        collected = [
+            piece
+            async for piece in self.provider.synthesize_stream(
+                "   ", _make_chatterbox_params(), self.profile_path
+            )
+        ]
+
+        self.assertEqual(collected, [])
+        self.make_audio_pieces.assert_not_called()
+        self.empty_cache.assert_not_called()
+
+    async def test_synthesize_stream_keeps_given_pieces_when_a_later_sentence_fails(
+        self,
+    ):
+        def make_pieces(model, text):
+            if text == "Second one.":
+                raise RuntimeError("model broke")
+            yield np.full(2, 7, dtype=np.float32)
+
+        self.make_audio_pieces.side_effect = make_pieces
+        given_pieces: list = []
+
+        with self.assertRaises(RuntimeError) as raised:
+            async for piece in self.provider.synthesize_stream(
+                "First one. Second one.", _make_chatterbox_params(), self.profile_path
+            ):
+                given_pieces.append(piece)
+
+        self.assertEqual(str(raised.exception), "model broke")
+        self.assertEqual(len(given_pieces), 1)
+        # Only the sentence that was finished gave its memory back
+        self.empty_cache.assert_called_once()
 
 
 class ChatterboxTTSProviderGroupTokensTest(unittest.TestCase):
