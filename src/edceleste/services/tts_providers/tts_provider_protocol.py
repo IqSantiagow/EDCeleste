@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
@@ -42,6 +43,35 @@ class TTSProviderProtocol(Protocol):
 
     def validate_params(self, params: TtsProviderParams) -> SettingsIssueModel | None:
         """Checks only the fields of this provider type. None means fine."""
+        ...
+
+
+@runtime_checkable
+class StreamingTTSProviderProtocol(TTSProviderProtocol, Protocol):
+    stream_sample_rate: int  # in Hz, the sample rate of every piece
+
+    def can_stream(self, params: TtsProviderParams) -> bool:
+        """True when speaking in pieces is better than speaking the whole text
+        at once for these params, e.g. false on a machine too slow to make
+        audio faster than it is played. Must be cheap and must not load a
+        model: TTSService asks it before every sentence. A provider raises
+        TypeError for the params of another provider."""
+        ...
+
+    def synthesize_stream(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> AsyncIterator[np.ndarray]:
+        """Like synthesize(), but gives the speech in pieces as soon as each
+        one is ready: mono float32 samples at stream_sample_rate. The first
+        piece comes long before the whole text is done. Plays nothing and adds
+        no effects. Not an `async def`: it returns an async iterator, read it
+        with `async for`, without `await`. The iterator ends after the last
+        piece, and a text with no sound gives no pieces. Errors about the
+        params or the profile are raised before the first piece, an error while
+        the speech is made comes out of the iteration."""
         ...
 
 

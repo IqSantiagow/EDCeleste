@@ -1,9 +1,12 @@
 import asyncio
+import ctypes
 import logging
 import os
+import queue
+import sys
 import tempfile
 from pathlib import Path
-from typing import AsyncGenerator, Literal
+from typing import TYPE_CHECKING, AsyncGenerator, Literal
 
 import edge_tts
 import numpy as np
@@ -30,11 +33,15 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_providers.tts_provider_protocol import (
     CloningTTSProviderProtocol,
+    StreamingTTSProviderProtocol,
     TTSProviderProtocol,
 )
 from edceleste.services.voice_lab_service import VoiceLabService
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    import sounddevice as sd
 
 TTS_PROVIDER_CLASSES = {
     "edge": EdgeTTSProvider,
@@ -42,6 +49,9 @@ TTS_PROVIDER_CLASSES = {
 }
 
 DEFAULT_VOICE_SAMPLE_TEXT = "Hello Commander. How can I assist you today?"
+# Spoken without sound at startup, so the voice model is loaded and its first
+# run is behind it before the first reply
+WARM_UP_TEXT = "Ready, Commander."
 RECOMMENDED_REFERENCE_AUDIO_SECONDS_RANGE = (10.0, 30.0)
 
 # How much audio goes into one waveform bar. Small enough to look smooth,
@@ -171,6 +181,11 @@ class TTSService:
         Voice Lab effects (when they are switched on in the saved settings)
         and the saved volume. Waits until the audio has finished, so the next
         text is not spoken over this one.
+
+        A provider that can speak in pieces for the saved params (Chatterbox on
+        a GPU) speaks through speak_while_synthesizing(), so the first sound
+        comes long before the text is done. Every other provider makes the
+        whole audio first and plays it then.
         Raises RuntimeError when reload_service() has not built the provider
         yet. Provider errors are raised."""
         logger.info("Synthesizing TTS for text: %s", text)
@@ -179,6 +194,19 @@ class TTSService:
 
         tts_settings = self.__settings_service.get_settings().tts
         profile_path = self.find_profile_path(self.provider, tts_settings.params)
+
+        if isinstance(
+            self.provider, StreamingTTSProviderProtocol
+        ) and self.provider.can_stream(tts_settings.params):
+            await self.speak_while_synthesizing(
+                self.provider,
+                text,
+                tts_settings.params,
+                tts_settings.volume,
+                profile_path,
+            )
+            return
+
         apply_voice_lab_effects = tts_settings.voice_lab.enabled
 
         samples, sample_rate = await self.provider.synthesize(
@@ -190,6 +218,144 @@ class TTSService:
             tts_settings.volume,
             apply_voice_lab_effects=apply_voice_lab_effects,
         )
+
+    async def speak_while_synthesizing(
+        self,
+        provider: StreamingTTSProviderProtocol,
+        text: str,
+        params: TtsProviderParams,
+        volume: float,
+        profile_path: Path | None,
+    ) -> None:
+        """Speaks the text while the provider is still making it. Returns when
+        the voice has been played to the end.
+
+        A worker thread (play_pieces) plays what is put in a queue. Here every
+        piece the provider makes is added to the audio so far, and the Voice
+        Lab effects are run on ALL of it, not on the piece alone, so a filter or
+        the reverb does not start again at every piece. The effects only look
+        back in time, so the part that was already queued comes out the same,
+        and only the new samples are put in the queue, at the volume. After the
+        last piece the rest of the output (the reverb ringing out) is queued.
+        Running the effects again over the audio so far costs 40 ms for 10
+        seconds of speech.
+
+        The effects are always asked for: VoiceLabService.apply_effects gives
+        the audio back untouched when Voice Lab is switched off in the saved
+        settings. volume is the saved volume, a factor from 0 to 1.
+
+        The player is stopped also when the provider fails, and that error is
+        raised. An error of the player (sounddevice.PortAudioError, e.g. no
+        speaker can be opened) is raised only at the end, after the whole voice
+        was made, because the player is awaited last.
+        """
+        pieces_to_play: queue.Queue[np.ndarray | None] = queue.Queue()
+        player = asyncio.create_task(
+            asyncio.to_thread(
+                self.play_pieces, pieces_to_play, provider.stream_sample_rate
+            )
+        )
+        audio_so_far = np.zeros(0, dtype=np.float32)
+        audio_with_effects = audio_so_far
+        samples_queued = 0
+
+        try:
+            async for piece in provider.synthesize_stream(text, params, profile_path):
+                audio_so_far = np.concatenate([audio_so_far, piece])
+                audio_with_effects = await asyncio.to_thread(
+                    self.__voice_lab_service.apply_effects,
+                    audio_so_far,
+                    provider.stream_sample_rate,
+                )
+                new_samples = audio_with_effects[samples_queued : len(audio_so_far)]
+                pieces_to_play.put(new_samples * volume)
+                samples_queued = len(audio_so_far)
+
+            pieces_to_play.put(audio_with_effects[samples_queued:] * volume)
+        finally:
+            pieces_to_play.put(None)
+        await player
+
+    def play_pieces(
+        self, pieces: "queue.Queue[np.ndarray | None]", sample_rate: int
+    ) -> None:
+        """Plays the audio that arrives in the queue, as it arrives, and returns
+        after the last piece was played, when None arrives. Blocking: runs in a
+        worker thread. The one place where a streamed voice meets the
+        hardware, the same as play_samples() is for a whole voice.
+
+        Every piece is mono (samples) or stereo (samples x 2) float32. A mono
+        piece is played from both speakers. An empty piece (what is left after
+        the last piece when the effects add no tail) is skipped, because a write
+        of zero samples to a speaker is not worth the risk of an error of the
+        driver. When the next piece is late, the speaker plays silence. The
+        speaker is closed when the function ends, also after an error. The
+        queue has no size limit, and without the None at the end the function
+        waits for it for ever.
+
+        Raises sounddevice.PortAudioError when no speaker can be opened. The
+        error stays in the worker thread and reaches speak_while_synthesizing()
+        only at its end, so the voice is made to the end for nothing."""
+        with self.open_speaker(sample_rate) as speaker:
+            while (piece := pieces.get()) is not None:
+                if len(piece) == 0:
+                    continue
+                if piece.ndim == 1:
+                    piece = np.stack([piece, piece], axis=1)
+                speaker.write(np.ascontiguousarray(piece, dtype=np.float32))
+
+    def open_speaker(self, sample_rate: int) -> "sd.OutputStream":
+        """Opens a stereo float32 speaker with low latency, not started yet. The
+        caller uses it as a context manager, which starts it and closes it. On
+        Windows it is WASAPI, with about 40 ms of delay, where the default way
+        (MME, what sd.play uses) has about 200 ms. WASAPI needs COM started in
+        the thread that opens it, and a worker thread has none, so COM is
+        started here (and stays started for the life of the thread). When
+        WASAPI cannot be opened, or is not on the list, the default speaker is
+        used, and a failed WASAPI is logged as a warning. On other systems it
+        is always the default speaker. Raises sounddevice.PortAudioError when
+        the default speaker cannot be opened either."""
+        import sounddevice as sd
+
+        settings = {
+            "samplerate": sample_rate,
+            "channels": 2,
+            "dtype": "float32",
+            "latency": "low",
+        }
+        if sys.platform == "win32":
+            wasapi = next(
+                (api for api in sd.query_hostapis() if api["name"] == "Windows WASAPI"),
+                None,
+            )
+            if wasapi is not None:
+                try:
+                    ctypes.windll.ole32.CoInitializeEx(None, 0)
+                    return sd.OutputStream(
+                        **settings,
+                        device=wasapi["default_output_device"],
+                        extra_settings=sd.WasapiSettings(auto_convert=True),
+                    )
+                except sd.PortAudioError:
+                    logger.warning(
+                        "WASAPI speaker could not be opened, using the default one.",
+                        exc_info=True,
+                    )
+        return sd.OutputStream(**settings)
+
+    async def warm_up_voice(self, provider: StreamingTTSProviderProtocol) -> None:
+        """Loads the model and the voice profile of the saved settings and runs
+        the model once on WARM_UP_TEXT, without playing anything: it reads
+        provider.synthesize_stream() to the end and throws the pieces away.
+        Slow, several seconds. Provider errors are raised (a missing voice
+        profile too). Only a streaming provider is asked, because only for it
+        cold_start() warms up."""
+        tts_settings = self.__settings_service.get_settings().tts
+        profile_path = self.find_profile_path(provider, tts_settings.params)
+        async for _ in provider.synthesize_stream(
+            WARM_UP_TEXT, tts_settings.params, profile_path
+        ):
+            pass
 
     async def speak_text_from_tts_event(self, event: TTSEvent) -> None:
         """Runs when a TTSEvent is published on the event bus. Says the text
@@ -566,10 +732,16 @@ class TTSService:
         """Startup check shown in the system check screen.
 
         1. Yields a "not completed" status, so the UI shows a spinner.
-        2. Builds the provider (reload_service). No model is loaded and nothing
-           is spoken, so a broken voice shows up only on the first reply.
-        3. Yields completed. Never raises, an error ends up in the status
-           message.
+        2. Builds the provider (reload_service).
+        3. A provider that speaks in pieces for the saved params (Chatterbox on
+           a GPU) loads its model and voice now and speaks WARM_UP_TEXT with no
+           sound, which takes several seconds. Otherwise the pilot would wait
+           for that on the first reply. Other providers load nothing, a broken
+           voice shows up on the first reply.
+        4. Yields completed. Never raises, an error (also a voice profile that
+           is missing) ends up in the status message. The check is not
+           critical: with an error the app still starts, and the problem shows
+           on the first reply.
         """
         status = ColdStartStatus(
             service="tts",
@@ -580,6 +752,15 @@ class TTSService:
         yield status
         try:
             self.reload_service()
+            if isinstance(
+                self.provider, StreamingTTSProviderProtocol
+            ) and self.provider.can_stream(
+                self.__settings_service.get_settings().tts.params
+            ):
+                status.progress_text = "Loading the voice"
+                yield status
+                await self.warm_up_voice(self.provider)
+                status.progress_text = None
             status.completed = True
             yield status
         except Exception as e:

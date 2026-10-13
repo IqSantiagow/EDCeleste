@@ -120,6 +120,9 @@ class InstinctService:
     download_size: int | None = None
     decider: Decider | None = None
     device_choice: DeviceChoice = "auto"
+    # The size of the input of the last decision, as the model reported it. 0
+    # when there was none yet or the model did not report it.
+    last_input_tokens: int = 0
 
     def __init__(
         self,
@@ -190,8 +193,10 @@ class InstinctService:
         1. When the model is not on disk yet, downloads it from the Hugging
            Face Hub and keeps the newest progress in download_progress, so the
            UI and cold_start() can show it.
-        2. When Instinct is still enabled, loads the model and asks one warm up
-           question in a worker thread, so the first real command is fast.
+        2. When Instinct is still enabled, loads the model and warms it up in a
+           worker thread (warm_up(): a small question and, when there is a game
+           state and keys, a real command question and the compile of the
+           sizes next to it), so the first real command is fast.
 
         Errors are not raised. A cancelled download is only logged. Any other
         error is logged and saved in failure, together with the step that failed
@@ -294,7 +299,8 @@ class InstinctService:
         """Runs the local model once. Blocking, and slow when the model is not
         loaded yet, because it loads it first (errors like ModelNotDownloaded
         are raised). Logs what the pilot said or which event came, the answers
-        and how long it took.
+        and how long it took. Remembers the size of the model's input in
+        last_input_tokens.
 
         Only one thread uses the model at a time, a second caller waits for the
         first, without a time limit (a call that ran out of time in
@@ -315,7 +321,9 @@ class InstinctService:
         with self.model_lock:
             decider = self.load_model()
             start = time.perf_counter()
-            answers = decider.system_one(state, questions)["answers"]
+            result = decider.system_one(state, questions)
+            answers = result["answers"]
+            self.last_input_tokens = result.get("usage", {}).get("input_tokens", 0)
             logger.info(
                 "Decision model: %s -> %s in %.0f ms",
                 state.get("pilot_said") or state.get("event"),
@@ -325,11 +333,56 @@ class InstinctService:
             return answers
 
     def warm_up(self) -> None:
-        """Loads the model and asks one made up question, so the slow first
-        run happens at startup and not on the pilot's first command. The answer
-        is thrown away. Blocking."""
+        """Loads the model and makes it ready for the real commands, so the slow
+        part happens at startup and not on the pilot's first command. The
+        answers are thrown away. Blocking.
+
+        The model is compiled again for every size of its input, and a
+        compile takes seconds, so one tiny question is not enough.
+        1. Asks one made up question, which loads the model.
+        2. Asks the real command question about the real game state and the
+           offered actions, which compiles the size of a real command.
+        3. Compiles the sizes next to it (compile_engine_for_input_sizes_near).
+        Steps 2 and 3 are left out when there is no game state yet or no action
+        has a key, because then commands are not decided either. The pilot
+        message of step 2 is a made up one, "deploy hardpoints". Called by
+        download_and_load_model() right after loading, in a worker thread.
+        Errors (ModelNotDownloaded, errors of the model) are raised.
+        """
         state = {"game_state": "", "pilot_said": "deploy hardpoints"}
         self.ask_decision_model(state, WARM_UP_QUESTIONS)
+
+        game_state = self.game_state_protocol.get_game_state_projection()
+        offered_actions = self.find_actions_with_a_key()
+        if not game_state or not offered_actions:
+            return
+        self.ask_which_action(game_state, "deploy hardpoints", offered_actions)
+        self.compile_engine_for_input_sizes_near(self.last_input_tokens)
+
+    def compile_engine_for_input_sizes_near(self, input_tokens: int) -> None:
+        """Compiles the input size of a command (the smallest size the model
+        has that holds input_tokens) and the size below and above it. A game
+        state that grows or shrinks a little moves the prompt to the next size,
+        and the first decision at a size that was never compiled takes seconds.
+        Then Instinct runs over its time limit and the message goes to the LLM,
+        and the compile, which runs in Python, slows the rest of the app
+        meanwhile. Blocking, holds the model lock.
+
+        Does nothing without the engine of the model (on a CPU), when
+        input_tokens is 0 (the model did not tell its input size), or when
+        input_tokens is bigger than the biggest size the engine has."""
+        engine = getattr(self.decider, "eng", None)
+        if engine is None or input_tokens <= 0:
+            return
+        from decider.engine import T_BUCKETS
+
+        sizes = [size for size in T_BUCKETS if size >= input_tokens][:1]
+        if not sizes:
+            return
+        position = T_BUCKETS.index(sizes[0])
+        nearby_sizes = T_BUCKETS[max(0, position - 1) : position + 2]
+        with self.model_lock:
+            engine.warmup([(1, size) for size in nearby_sizes])
 
     # ----- Fast commands -----
 
