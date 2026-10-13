@@ -21,7 +21,7 @@ User/runtime settings, loaded via `services/settings_service.py` (`SettingsServi
 - `llm.instinct` — `enabled` and `device` (`auto` | `cuda` | `cpu`) of Instinct, the local fast-command model. `InstinctService` downloads it on first use to `%LOCALAPPDATA%\EDCeleste\models` and loads it; its repo and revision are fixed in `decision_model_download_service.py`. It decides commands only when the model runs on the GPU (on the CPU every message goes to the LLM) and only when `game_actions.enabled` is on.
 - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
 - `tts.provider` — `edge` (`voice`) or `chatterbox` (`profile`, `exaggeration`, `cfg_weight`, `device`, `nano`); `tts.volume` is `0.0`–`1.0`
-- `tts.voice_lab` — voice effects for either engine (`VoiceLabService` in `services/voice_lab_service.py`, applied right before `sd.play`): `enabled`, `clarity`, `reverb`, `stereo_width`, each `0.0`–`1.0`, `0.5` = fitted to Celeste's voice clip
+- `tts.voice_lab` — voice effects for either engine (`VoiceLabService` in `services/voice_lab_service.py`, applied to the whole voice right before `sd.play`, and for a Chatterbox voice that speaks in pieces on the audio so far, every time a piece is made): `enabled`, `clarity`, `reverb`, `stereo_width`, each `0.0`–`1.0`, `0.5` = fitted to Celeste's voice clip
 - `stt.enabled` / `stt.model` / `stt.input_device`
 - `event_reactions.reactions` — per-journal-event booleans for automatic replies
 - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)

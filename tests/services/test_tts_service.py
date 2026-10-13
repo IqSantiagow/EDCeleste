@@ -1,15 +1,19 @@
 import asyncio
+import gc
 import os
+import queue
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import numpy as np
 import soundfile as sf
 
+from edceleste.services import tts_service
 from edceleste.services.event_bus import EventBus
 from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
@@ -37,6 +41,7 @@ from edceleste.services.tts_service import (
     SILENCE_FLOOR_DBFS,
     TTSEvent,
     TTSService,
+    WARM_UP_TEXT,
     VOICE_LAB_TEST_TEXT,
     calculate_noise_floor_dbfs,
     find_voices_directory,
@@ -81,6 +86,8 @@ def _make_fake_cloning_provider() -> ChatterboxTTSProvider:
     provider.synthesize = AsyncMock(return_value=(np.full(20, 0.25), SAMPLE_RATE))
     provider.create_voice_profile = AsyncMock()
     provider.get_available_device = Mock(return_value="cuda")
+    # Streaming depends on the GPU of the machine, these tests are about the whole voice
+    provider.can_stream = Mock(return_value=False)
     return provider
 
 
@@ -201,8 +208,10 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         self.service.provider = None
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError) as raised:
             await self.service.synthesize_and_play("Hello")
+
+        self.assertEqual(str(raised.exception), "The TTS provider is not built yet.")
 
     async def test_synthesize_and_play_passes_saved_params_to_the_edge_provider(self):
         provider = Mock(spec=EdgeTTSProvider)
@@ -1365,3 +1374,490 @@ class FindVoicesDirectoryTest(unittest.TestCase):
             voices_dir,
             Path("/home/pilot") / ".local" / "share" / "EDCeleste" / "voices",
         )
+
+
+class FakePortAudioError(Exception):
+    """Stands for sounddevice.PortAudioError, the error of a speaker that cannot be
+    opened."""
+
+
+class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
+    """Speaking in pieces: a Chatterbox provider that can stream, with the work of
+    the model and the speaker replaced by fakes."""
+
+    def setUp(self):
+        self.settings_service = Mock(spec=SettingsService)
+        self.settings_service.get_settings.return_value = _make_settings(
+            _make_chatterbox_params()
+        )
+        self.voice_lab_service = Mock(spec=VoiceLabService)
+        self.voice_lab_service.apply_effects.side_effect = lambda samples, rate: samples
+        self.service = TTSService(
+            event_bus=EventBus(),
+            settings_service=self.settings_service,
+            voice_lab_service=self.voice_lab_service,
+        )
+        self.service.reload_service()
+        self.provider = _make_fake_cloning_provider()
+        self.service.provider = self.provider
+
+        temp_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_directory.cleanup)
+        self.voices_dir = Path(temp_directory.name) / "voices"
+        voices_dir_patch = patch(
+            "edceleste.services.tts_service.VOICES_DIR", self.voices_dir
+        )
+        voices_dir_patch.start()
+        self.addCleanup(voices_dir_patch.stop)
+
+        self.sounddevice = Mock()
+        sounddevice_patch = patch.dict(sys.modules, {"sounddevice": self.sounddevice})
+        sounddevice_patch.start()
+        self.addCleanup(sounddevice_patch.stop)
+
+        self.stream_calls: list[tuple] = []
+        self.stream_was_read_to_the_end = False
+
+    def _make_provider_speak(self, pieces, can_stream=True, fail_at_piece=None):
+        """The provider makes these pieces, one after another. With
+        fail_at_piece it fails instead of making that piece."""
+        self.provider.can_stream = Mock(return_value=can_stream)
+        self.provider.stream_sample_rate = SAMPLE_RATE
+
+        async def synthesize_stream(text, params, profile_path=None):
+            self.stream_calls.append((text, params, profile_path))
+            for number, piece in enumerate(pieces):
+                if number == fail_at_piece:
+                    raise RuntimeError("GPU out of memory")
+                yield piece
+            self.stream_was_read_to_the_end = True
+
+        self.provider.synthesize_stream = synthesize_stream
+
+    def _use_a_fake_player(self):
+        """The real player needs a speaker. This one keeps every piece it gets and
+        notes when the end (None) came. It gives up after 2 s without a piece, so
+        a missing end fails the test and does not leave a thread waiting."""
+        self.played_pieces: list[np.ndarray] = []
+        self.player_sample_rates: list[int] = []
+        self.player_got_the_end = threading.Event()
+
+        def play_pieces(pieces, sample_rate):
+            self.player_sample_rates.append(sample_rate)
+            while (piece := pieces.get(timeout=2)) is not None:
+                self.played_pieces.append(piece)
+            self.player_got_the_end.set()
+
+        self.service.play_pieces = play_pieces
+
+    def _use_a_fake_speaker(self) -> MagicMock:
+        speaker = MagicMock()
+        speaker.__enter__.return_value = speaker
+        self.service.open_speaker = Mock(return_value=speaker)
+        return speaker
+
+    async def _speak(self, volume=SAVED_VOLUME):
+        await self.service.speak_while_synthesizing(
+            self.provider, "Hello", _make_chatterbox_params(), volume, None
+        )
+
+    # --- synthesize_and_play chooses the way ---
+
+    async def test_synthesize_and_play_streams_when_the_provider_can_stream(self):
+        self._make_provider_speak(
+            [np.full(10, 0.5, dtype=np.float32), np.full(20, 0.5, dtype=np.float32)]
+        )
+        self._use_a_fake_player()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.synthesize_and_play("Hello")
+
+        self.provider.synthesize.assert_not_awaited()
+        self.service.play_samples.assert_not_awaited()
+        self.provider.can_stream.assert_called_once_with(_make_chatterbox_params())
+        self.assertEqual(
+            self.stream_calls,
+            [("Hello", _make_chatterbox_params(), self.voices_dir / "celeste.pt")],
+        )
+        self.assertEqual(self.player_sample_rates, [SAMPLE_RATE])
+        np.testing.assert_allclose(
+            np.concatenate(self.played_pieces), np.full(30, 0.5 * SAVED_VOLUME)
+        )
+
+    async def test_synthesize_and_play_makes_the_whole_audio_when_it_cannot_stream(
+        self,
+    ):
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)], can_stream=False)
+        self.service.play_samples = AsyncMock()
+
+        await self.service.synthesize_and_play("Hello")
+
+        self.provider.synthesize.assert_awaited_once()
+        self.service.play_samples.assert_awaited_once()
+        self.assertEqual(self.stream_calls, [])
+
+    # --- speak_while_synthesizing ---
+
+    async def test_speak_while_synthesizing_queues_every_sample_once_at_the_volume(
+        self,
+    ):
+        self._make_provider_speak(
+            [
+                (np.arange(10) / 100).astype(np.float32),
+                (np.arange(10, 30) / 100).astype(np.float32),
+            ]
+        )
+        self._use_a_fake_player()
+
+        await self._speak(volume=0.5)
+
+        np.testing.assert_allclose(
+            np.concatenate(self.played_pieces), (np.arange(30) / 100) * 0.5, atol=1e-6
+        )
+
+    async def test_speak_while_synthesizing_runs_the_effects_on_all_the_audio_so_far(
+        self,
+    ):
+        self._make_provider_speak(
+            [np.zeros(10, dtype=np.float32), np.zeros(20, dtype=np.float32)]
+        )
+        self._use_a_fake_player()
+
+        await self._speak()
+
+        effect_calls = self.voice_lab_service.apply_effects.call_args_list
+        self.assertEqual([len(call.args[0]) for call in effect_calls], [10, 30])
+        self.assertEqual([call.args[1] for call in effect_calls], [SAMPLE_RATE] * 2)
+
+    async def test_speak_while_synthesizing_queues_the_tail_of_the_effects_at_the_end(
+        self,
+    ):
+        self._make_provider_speak(
+            [
+                (np.arange(10) / 100).astype(np.float32),
+                (np.arange(10, 30) / 100).astype(np.float32),
+            ]
+        )
+        self._use_a_fake_player()
+        # The reverb rings on: the effects make the audio 5 samples longer
+        self.voice_lab_service.apply_effects.side_effect = lambda samples, rate: (
+            np.concatenate([samples, np.full(5, 0.7, dtype=np.float32)])
+        )
+
+        await self._speak(volume=0.5)
+
+        expected = np.concatenate([np.arange(30) / 100, np.full(5, 0.7)]) * 0.5
+        np.testing.assert_allclose(
+            np.concatenate(self.played_pieces), expected, atol=1e-6
+        )
+        np.testing.assert_allclose(self.played_pieces[-1], np.full(5, 0.35), atol=1e-6)
+
+    async def test_speak_while_synthesizing_handles_stereo_output_of_the_effects(self):
+        self._make_provider_speak(
+            [
+                (np.arange(10) / 100).astype(np.float32),
+                (np.arange(10, 30) / 100).astype(np.float32),
+            ]
+        )
+        self._use_a_fake_player()
+
+        def make_stereo_with_a_tail(samples, rate):
+            stereo = np.stack([samples, samples], axis=1)
+            return np.concatenate([stereo, np.full((4, 2), 0.9, dtype=np.float32)])
+
+        self.voice_lab_service.apply_effects.side_effect = make_stereo_with_a_tail
+
+        await self._speak(volume=0.5)
+
+        queued = np.concatenate(self.played_pieces)
+        self.assertEqual(queued.shape, (34, 2))
+        np.testing.assert_allclose(
+            queued[:30, 0], (np.arange(30) / 100) * 0.5, atol=1e-6
+        )
+        np.testing.assert_allclose(queued[:30, 1], queued[:30, 0])
+        np.testing.assert_allclose(queued[30:], np.full((4, 2), 0.45), atol=1e-6)
+
+    async def test_speak_while_synthesizing_ends_the_player_after_the_last_piece(self):
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)])
+        self._use_a_fake_player()
+
+        await self._speak()
+
+        self.assertTrue(self.stream_was_read_to_the_end)
+        self.assertTrue(self.player_got_the_end.is_set())
+
+    async def test_speak_while_synthesizing_works_on_float32_audio_all_the_way(self):
+        self._make_provider_speak(
+            [np.zeros(10, dtype=np.float32), np.zeros(20, dtype=np.float32)]
+        )
+        self._use_a_fake_player()
+
+        await self._speak()
+
+        effect_calls = self.voice_lab_service.apply_effects.call_args_list
+        self.assertEqual(
+            [effect_call.args[0].dtype for effect_call in effect_calls],
+            [np.dtype(np.float32)] * 2,
+        )
+        self.assertEqual(
+            {piece.dtype for piece in self.played_pieces}, {np.dtype(np.float32)}
+        )
+
+    async def test_speak_while_synthesizing_ends_cleanly_when_there_are_no_pieces(
+        self,
+    ):
+        self._make_provider_speak([])
+        self._use_a_fake_player()
+
+        await self._speak()
+
+        self.assertTrue(self.player_got_the_end.is_set())
+        self.assertEqual(sum(len(piece) for piece in self.played_pieces), 0)
+
+    async def test_speak_while_synthesizing_stops_the_player_when_the_provider_fails(
+        self,
+    ):
+        self._make_provider_speak(
+            [np.zeros(10, dtype=np.float32), np.zeros(10, dtype=np.float32)],
+            fail_at_piece=1,
+        )
+        self._use_a_fake_player()
+
+        with self.assertRaises(RuntimeError):
+            await self._speak()
+
+        player_got_the_end = await asyncio.to_thread(self.player_got_the_end.wait, 1)
+        self.assertTrue(player_got_the_end)
+        self.assertEqual(len(self.played_pieces), 1)
+
+    async def test_speak_while_synthesizing_leaves_no_unread_error_of_the_player(
+        self,
+    ):
+        self._make_provider_speak(
+            [np.zeros(10, dtype=np.float32), np.zeros(10, dtype=np.float32)],
+            fail_at_piece=1,
+        )
+        provider_errors = []
+
+        def play_pieces_without_a_speaker(pieces, sample_rate):
+            raise FakePortAudioError("no speaker")
+
+        self.service.play_pieces = play_pieces_without_a_speaker
+        loop_complaints = []
+        asyncio.get_running_loop().set_exception_handler(
+            lambda loop, context: loop_complaints.append(context["message"])
+        )
+
+        try:
+            await self._speak()
+        except RuntimeError as provider_error:
+            provider_errors.append(str(provider_error))
+        await asyncio.sleep(0.2)  # the player thread fails and its task ends
+        gc.collect()  # asyncio complains when a failed task is collected unread
+
+        self.assertEqual(provider_errors, ["GPU out of memory"])
+        self.assertEqual(loop_complaints, [])
+
+    # --- the player and the speaker ---
+
+    def test_play_pieces_plays_a_mono_piece_from_both_speakers(self):
+        speaker = self._use_a_fake_speaker()
+        pieces: queue.Queue = queue.Queue()
+        pieces.put(np.array([0.1, 0.2, 0.3], dtype=np.float32))
+        pieces.put(None)
+
+        self.service.play_pieces(pieces, 24000)
+
+        self.service.open_speaker.assert_called_once_with(24000)
+        speaker.write.assert_called_once()
+        np.testing.assert_allclose(
+            speaker.write.call_args.args[0],
+            np.array([[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]], dtype=np.float32),
+        )
+
+    def test_play_pieces_writes_float32_pieces_until_the_end_and_closes_the_speaker(
+        self,
+    ):
+        speaker = self._use_a_fake_speaker()
+        stereo_float64_not_contiguous = np.asfortranarray(
+            np.array([[0.1, 0.4], [0.2, 0.5]], dtype=np.float64)
+        )
+        pieces: queue.Queue = queue.Queue()
+        pieces.put(stereo_float64_not_contiguous)
+        pieces.put(np.array([0.6], dtype=np.float32))
+        pieces.put(None)
+
+        self.service.play_pieces(pieces, 24000)
+
+        self.assertEqual(speaker.write.call_count, 2)  # the end (None) is not written
+        first_written = speaker.write.call_args_list[0].args[0]
+        self.assertEqual(first_written.dtype, np.float32)
+        self.assertTrue(first_written.flags["C_CONTIGUOUS"])
+        np.testing.assert_allclose(first_written, [[0.1, 0.4], [0.2, 0.5]])
+        speaker.__exit__.assert_called_once()
+
+    def test_play_pieces_skips_an_empty_piece(self):
+        speaker = self._use_a_fake_speaker()
+        pieces: queue.Queue = queue.Queue()
+        pieces.put(np.array([0.1, 0.2], dtype=np.float32))
+        pieces.put(np.zeros(0, dtype=np.float32))  # nothing left after the last piece
+        pieces.put(np.array([0.3], dtype=np.float32))
+        pieces.put(None)
+
+        self.service.play_pieces(pieces, 24000)
+
+        written_lengths = [len(call.args[0]) for call in speaker.write.call_args_list]
+        self.assertEqual(written_lengths, [2, 1])
+
+    def _set_up_windows_with_wasapi(self, wasapi_listed=True):
+        host_apis = [{"name": "MME", "default_output_device": 1}]
+        if wasapi_listed:
+            host_apis.append({"name": "Windows WASAPI", "default_output_device": 7})
+        self.sounddevice.query_hostapis.return_value = host_apis
+        self.sounddevice.PortAudioError = FakePortAudioError
+
+    def test_open_speaker_uses_wasapi_with_low_latency_on_windows(self):
+        self._set_up_windows_with_wasapi()
+
+        with (
+            patch.object(tts_service.sys, "platform", "win32"),
+            patch.object(tts_service, "ctypes") as ctypes,
+        ):
+            speaker = self.service.open_speaker(24000)
+
+        self.assertIs(speaker, self.sounddevice.OutputStream.return_value)
+        self.sounddevice.WasapiSettings.assert_called_once_with(auto_convert=True)
+        self.sounddevice.OutputStream.assert_called_once_with(
+            samplerate=24000,
+            channels=2,
+            dtype="float32",
+            latency="low",
+            device=7,
+            extra_settings=self.sounddevice.WasapiSettings.return_value,
+        )
+        ctypes.windll.ole32.CoInitializeEx.assert_called_once_with(None, 0)
+
+    def test_open_speaker_falls_back_to_the_default_speaker_when_wasapi_fails(self):
+        self._set_up_windows_with_wasapi()
+        self.sounddevice.OutputStream.side_effect = [
+            FakePortAudioError("device busy"),
+            "the default speaker",
+        ]
+
+        with (
+            patch.object(tts_service.sys, "platform", "win32"),
+            patch.object(tts_service, "ctypes"),
+            self.assertLogs(tts_service.logger, level="WARNING"),
+        ):
+            speaker = self.service.open_speaker(24000)
+
+        self.assertEqual(speaker, "the default speaker")
+        self.assertEqual(
+            self.sounddevice.OutputStream.call_args_list[1],
+            call(samplerate=24000, channels=2, dtype="float32", latency="low"),
+        )
+
+    def test_open_speaker_uses_the_default_speaker_when_windows_has_no_wasapi(self):
+        self._set_up_windows_with_wasapi(wasapi_listed=False)
+
+        with (
+            patch.object(tts_service.sys, "platform", "win32"),
+            patch.object(tts_service, "ctypes") as ctypes,
+        ):
+            self.service.open_speaker(24000)
+
+        self.sounddevice.OutputStream.assert_called_once_with(
+            samplerate=24000, channels=2, dtype="float32", latency="low"
+        )
+        ctypes.windll.ole32.CoInitializeEx.assert_not_called()
+
+    def test_open_speaker_uses_the_default_speaker_on_other_systems(self):
+        # WASAPI is on the list, so only the system tells the code not to use it
+        self._set_up_windows_with_wasapi()
+
+        with patch.object(tts_service.sys, "platform", "linux"):
+            self.service.open_speaker(24000)
+
+        self.sounddevice.OutputStream.assert_called_once_with(
+            samplerate=24000, channels=2, dtype="float32", latency="low"
+        )
+        self.sounddevice.WasapiSettings.assert_not_called()
+
+    # --- warming up the voice ---
+
+    async def test_warm_up_voice_runs_the_model_on_the_warm_up_text_without_sound(
+        self,
+    ):
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)] * 3)
+
+        await self.service.warm_up_voice(self.provider)
+
+        self.assertEqual(
+            self.stream_calls,
+            [
+                (
+                    WARM_UP_TEXT,
+                    _make_chatterbox_params(),
+                    self.voices_dir / "celeste.pt",
+                )
+            ],
+        )
+        self.assertTrue(self.stream_was_read_to_the_end)
+        self.sounddevice.play.assert_not_called()
+        self.sounddevice.OutputStream.assert_not_called()
+
+    async def _run_cold_start(self) -> list[tuple]:
+        """What every status looked like when the service handed it out (it is the
+        same object, changed afterwards) and how many warm ups had run by then."""
+        statuses = []
+        async for status in self.service.cold_start():
+            statuses.append(
+                (
+                    status.completed,
+                    status.progress_text,
+                    status.message,
+                    self.service.warm_up_voice.await_count,
+                )
+            )
+        return statuses
+
+    async def test_cold_start_warms_up_the_voice_when_the_provider_can_stream(self):
+        self._make_provider_speak([])
+        self.service.warm_up_voice = AsyncMock()
+
+        statuses = await self._run_cold_start()
+
+        self.service.warm_up_voice.assert_awaited_once_with(self.provider)
+        self.assertEqual(statuses[-1], (True, None, None, 1))
+
+    async def test_cold_start_shows_the_loading_message_before_the_warm_up_starts(
+        self,
+    ):
+        self._make_provider_speak([])
+        self.service.warm_up_voice = AsyncMock()
+
+        statuses = await self._run_cold_start()
+
+        self.assertIn((False, "Loading the voice", None, 0), statuses)
+
+    async def test_cold_start_does_not_load_the_voice_when_it_cannot_stream(self):
+        self._make_provider_speak([], can_stream=False)
+        self.service.warm_up_voice = AsyncMock()
+
+        statuses = await self._run_cold_start()
+
+        self.service.warm_up_voice.assert_not_awaited()
+        self.assertEqual(self.stream_calls, [])
+        self.assertEqual(statuses[-1], (True, None, None, 0))
+
+    async def test_cold_start_reports_a_failed_warm_up_in_the_status_message(self):
+        self._make_provider_speak([])
+        self.service.warm_up_voice = AsyncMock(
+            side_effect=FileNotFoundError("Voice profile not found: celeste.pt")
+        )
+
+        statuses = await self._run_cold_start()
+
+        completed, _, message, _ = statuses[-1]
+        self.assertTrue(completed)
+        self.assertEqual(message, "Voice profile not found: celeste.pt")
