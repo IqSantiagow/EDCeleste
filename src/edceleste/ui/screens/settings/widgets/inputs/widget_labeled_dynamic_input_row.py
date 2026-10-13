@@ -85,6 +85,22 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
                         ),
                     )
 
+    def mark_current_value_as_saved(self) -> None:
+        """Called by the section container after a successful save.
+
+        1. Makes the current value the saved one (the base class copies value
+           into initial_value), so is_modified() turns False.
+        2. Draws the Label again, so it loses the yellow "warning-label" class
+           right away.
+
+        While the pilot is typing there is no Label and the Input must keep its
+        focus and its text, so step 2 is skipped then. The Label built after the
+        edit compares against the new saved value anyway. Returns nothing.
+        """
+        super().mark_current_value_as_saved()
+        if not self.is_being_edited:
+            self.refresh(recompose=True)
+
     def on_click(self, _: events.Click) -> None:
         """A click anywhere on the row switches it to edit mode. The Input only
         exists after the recompose, so focusing waits for the next refresh."""
