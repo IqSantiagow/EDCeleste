@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -39,6 +40,36 @@ SAMPLES_PER_FRAME = 480
 UNSURE_FRAMES = 6
 # Frames before the new ones that the vocoder looks at to start warm
 CONTEXT_FRAMES = 4
+# The most characters spoken in one go. Every piece runs S3Gen on ALL speech
+# tokens so far, so the GPU memory grows with the length of what is spoken at
+# once. Measured on an RTX 3080 Ti: a 442-character reply took 7.4 GB at once and
+# 2.6 GB sentence by sentence, an 884-character one 10.6 GB against the same 2.6 GB
+MAX_SENTENCE_CHARS = 300
+
+
+def split_text_into_sentences(text: str) -> list[str]:
+    """Cuts the text into the sentences that are spoken one after another: after
+    every ".", "!" or "?" that is followed by white space. The mark stays at the
+    end of its sentence. The rule is simple: an abbreviation like "Dr. Smith"
+    also ends a sentence, and "2.0" does not (no white space after the dot).
+
+    A sentence longer than MAX_SENTENCE_CHARS (300) is cut again and again until
+    every piece fits: after the last ", " that fits (the comma stays at the end
+    of the first piece), or hard at MAX_SENTENCE_CHARS when there is no comma.
+    So what comes back can also be a piece of a long sentence. No element has
+    white space around it and no element is empty, so an empty text, or a text
+    of white space only, gives an empty list. Pure: touches no model and no
+    file."""
+    sentences: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        while len(sentence) > MAX_SENTENCE_CHARS:
+            last_comma = sentence.rfind(", ", 0, MAX_SENTENCE_CHARS)
+            cut_at = last_comma + 1 if last_comma > 0 else MAX_SENTENCE_CHARS
+            sentences.append(sentence[:cut_at].strip())
+            sentence = sentence[cut_at:].strip()
+        if sentence:
+            sentences.append(sentence)
+    return sentences
 
 
 class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol):
@@ -105,10 +136,23 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
         rest is made while the pilot already hears it.
 
         1. Loads the model and the voice profile exactly as synthesize() does.
-        2. Asks __make_audio_pieces for the next piece in a worker thread, so the
-           event loop stays free while the GPU works.
-        3. Gives each piece as it comes: mono float32 at stream_sample_rate.
-        Plays nothing and adds no effects. exaggeration and cfg_weight are not
+        2. Cuts the text into sentences (split_text_into_sentences) and speaks
+           them one after another. Memory grows with the length spoken in one
+           go, so a long reply in one go would take up to 10 GB of the GPU, next
+           to the game that is too much. A sentence is short, so it stays at
+           about 2.6 GB however long the reply is.
+        3. For each sentence asks __make_audio_pieces for the next piece in a
+           worker thread, so the event loop stays free while the GPU works.
+        4. Gives each piece as it comes: mono float32 at stream_sample_rate.
+        5. After each sentence gives the memory that torch kept for itself back
+           to the GPU (torch.cuda.empty_cache, in a worker thread, a no-op
+           without a GPU). If the caller stops reading in the middle of a
+           sentence this is skipped, the memory is given back after the next
+           reply's first sentence.
+        Plays nothing and adds no effects. Between two sentences there is no
+        crossfade: every sentence fades in as generate() does, and the last piece
+        of a sentence is given whole, so the pause is what the model puts at the
+        end of the sentence. exaggeration and cfg_weight are not
         passed to the model (synthesize() passes them to generate(), and Turbo
         and Nano ignore them there, the library only logs a warning). Read the
         pieces with `async for`, without `await`. Check can_stream() first, on a
@@ -116,11 +160,13 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
 
         Raises TypeError for params of another provider, ValueError when
         profile_path is None and FileNotFoundError for a missing profile file,
-        all before the first piece. An error of the model while the speech is
-        made comes out of the `async for` as it is, the pieces already given
-        stay given. A caller that stops reading leaves at most the piece in
-        progress to finish in its worker thread. A text with no sound gives no
-        pieces.
+        all at the first step of the `async for` (not when the generator is
+        created), before the first piece. Errors while the model is loaded (no
+        network, no GPU memory) come out the same way. An error of the model
+        while the speech is made comes out of the `async for` as it is, the
+        pieces already given stay given. A caller that stops reading leaves at
+        most the piece in progress to finish in its worker thread. A text with
+        no sound gives no pieces.
         """
         if not isinstance(params, ChatterboxParamsModel):
             raise TypeError(
@@ -132,9 +178,11 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
         model = await asyncio.to_thread(self.__get_or_load_model, params)
         await asyncio.to_thread(self.__load_voice_profile_into_model, profile_path)
 
-        pieces = self.__make_audio_pieces(model, text)
-        while (piece := await asyncio.to_thread(next, pieces, None)) is not None:
-            yield piece
+        for sentence in split_text_into_sentences(text):
+            pieces = self.__make_audio_pieces(model, sentence)
+            while (piece := await asyncio.to_thread(next, pieces, None)) is not None:
+                yield piece
+            await asyncio.to_thread(torch.cuda.empty_cache)
 
     def can_stream(self, params: TtsProviderParams) -> bool:
         """True when the device in params is a GPU. On a CPU the model makes
@@ -321,6 +369,8 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
         so the voice must be loaded. Ends when T3 says stop (that token is not
         given) or after MAX_SPEECH_TOKENS tokens, about 40 seconds of speech: a
         longer text is cut there, with no error and no log, as in generate().
+        synthesize_stream() calls this for each sentence of the text, so the
+        limit is per sentence there.
         Blocking: every next() runs the model for one token.
 
         The same work as T3.inference_turbo() inside generate(), the same
