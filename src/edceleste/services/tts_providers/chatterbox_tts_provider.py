@@ -76,6 +76,7 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
     # Chatterbox learns a voice from the first 10 seconds of a clip
     reference_seconds = 10.0
     profile_file_extension = ".pt"
+    profile_folder_name = "chatterbox"
     # S3Gen, the part that makes the audio, always speaks at 24 kHz (model.sr)
     stream_sample_rate = 24000
 

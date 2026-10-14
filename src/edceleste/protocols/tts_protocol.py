@@ -8,10 +8,10 @@ class TTSProtocol(BaseServiceProtocol, Protocol):
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
-        """Asks a new provider of the chosen type (edge or chatterbox) to check
-        the tts part of settings that are not saved yet: edge needs a voice,
-        chatterbox a profile. Loads no voice model and changes nothing in the
-        service. None means fine."""
+        """Asks a new provider of the chosen type (edge, chatterbox or pocket)
+        to check the tts part of settings that are not saved yet: edge needs a
+        voice, chatterbox and pocket a profile. Loads no voice model and
+        changes nothing in the service. None means fine."""
         ...
 
     def reload_service(self) -> None:

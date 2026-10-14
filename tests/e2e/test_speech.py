@@ -1,8 +1,15 @@
 import allure
+import numpy as np
 import pytest
 
-from edceleste.services.models.settings_model import ChatterboxParamsModel, TTSModel
+from edceleste.services.models.settings_model import (
+    ChatterboxParamsModel,
+    PocketParamsModel,
+    TTSModel,
+    VoiceLabModel,
+)
 from tests.e2e.test_comms import send_comms_message
+from tests.e2e.test_streaming_voice import what_the_speaker_should_play
 
 pytestmark = [pytest.mark.anyio, allure.feature("Speech")]
 
@@ -52,8 +59,8 @@ async def test_should_speak_with_the_saved_cloned_voice(edceleste):
         yield "Copy that, Commander."
 
     with allure.step("Given Chatterbox is saved with the cloned voice 'narrator'"):
-        edceleste.voices_folder.mkdir()
-        (edceleste.voices_folder / "narrator.pt").write_bytes(b"voice")
+        edceleste.chatterbox_voices_folder.mkdir(parents=True)
+        (edceleste.chatterbox_voices_folder / "narrator.pt").write_bytes(b"voice")
         edceleste.save_tts_settings(
             TTSModel(
                 provider="chatterbox",
@@ -89,7 +96,7 @@ async def test_should_speak_with_the_saved_cloned_voice(edceleste):
             "And it uses the voice file 'narrator' from the voices folder"
         ):
             assert chatterbox_engine.spoken_profile_paths == [
-                edceleste.voices_folder / "narrator.pt"
+                edceleste.chatterbox_voices_folder / "narrator.pt"
             ]
 
         with allure.step("And it uses the saved exaggeration and pace"):
@@ -99,4 +106,60 @@ async def test_should_speak_with_the_saved_cloned_voice(edceleste):
         with allure.step("And the speakers play the speech"):
             await edceleste.wait_until(
                 pilot, lambda: edceleste.played_audio != [], "the speech played"
+            )
+
+
+@allure.title("Celeste speaks with the saved Pocket TTS voice")
+async def test_should_speak_with_the_saved_pocket_voice(edceleste):
+    async def answer_copy_that(messages, agent_info):
+        yield "Copy that, Commander."
+
+    with allure.step(
+        "Given Pocket TTS is saved with the cloned voice 'narrator', Voice Lab off"
+    ):
+        edceleste.pocket_voices_folder.mkdir(parents=True)
+        (edceleste.pocket_voices_folder / "narrator.npy").write_bytes(b"voice")
+        edceleste.save_tts_settings(
+            TTSModel(
+                provider="pocket",
+                params=PocketParamsModel(type="pocket", profile="narrator"),
+                volume=0.5,
+                voice_lab=VoiceLabModel(enabled=False),
+            )
+        )
+        pocket_engine = edceleste.fake_tts_providers["pocket"]
+
+    with allure.step("And the LLM answers 'Copy that, Commander.'"):
+        edceleste.use_scripted_model(answer_copy_that)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then the Pocket TTS engine is asked to say the answer"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: "Copy that, Commander." in pocket_engine.spoken_texts,
+                "the answer handed to the voice engine",
+            )
+
+        with allure.step(
+            "And it uses the voice file 'narrator' from the Pocket TTS folder"
+        ):
+            assert pocket_engine.spoken_profile_paths[-1] == (
+                edceleste.pocket_voices_folder / "narrator.npy"
+            )
+
+        with allure.step("And the speakers play the voice at the saved volume"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: edceleste.fake_speaker.times_closed == 1,
+                "the speakers done playing",
+            )
+            np.testing.assert_allclose(
+                edceleste.fake_speaker.everything_played(),
+                what_the_speaker_should_play(pocket_engine.voice_pieces, 0.5),
+                atol=1e-6,
             )

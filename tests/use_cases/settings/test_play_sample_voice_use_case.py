@@ -12,9 +12,11 @@ class TestPlaySampleVoiceUseCase(unittest.IsolatedAsyncioTestCase):
         protocol.play_sample_voice = AsyncMock()
         use_case = PlaySampleVoiceUseCase(protocol)  # type: ignore
 
-        await use_case("celeste")
+        params = Mock()
 
-        protocol.play_sample_voice.assert_awaited_once_with("celeste")
+        await use_case("celeste", params)
+
+        protocol.play_sample_voice.assert_awaited_once_with("celeste", params)
 
 
 if __name__ == "__main__":

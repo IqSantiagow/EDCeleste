@@ -253,11 +253,15 @@ class SettingsRepository:
         are on the screen now."""
         await self.preview_voice_sample_use_case(profile_name, text, params)
 
-    async def play_sample_voice(self, profile_name: str) -> None:
+    async def play_sample_voice(
+        self, profile_name: str, params: TtsProviderParams
+    ) -> None:
         """Plays out loud the sample .wav saved with the profile when it was
-        cloned. Returns when playback ends. Raises FileNotFoundError when the
-        sample is missing."""
-        await self.play_sample_voice_use_case(profile_name)
+        cloned. params are the TTS settings as they are on the screen now (they
+        say which engine's folder holds the sample). Returns when playback
+        ends. Raises VoiceCloningException when that engine cannot clone voices
+        and FileNotFoundError when the sample is missing."""
+        await self.play_sample_voice_use_case(profile_name, params)
 
     async def play_audio_file(self, path_to_audio_file: str) -> None:
         """Plays any audio file out loud at the TTS volume, e.g. a recording

@@ -219,8 +219,12 @@ async def test_should_refuse_a_taken_name_and_lose_no_voice(edceleste, tmp_path)
             assert clone_window_is_open(pilot.app)
 
         with allure.step("And the files of 'narrator' are untouched"):
-            old_voice = (edceleste.voices_folder / "narrator.pt").read_bytes()
-            old_sample = (edceleste.voices_folder / "narrator_sample.wav").read_bytes()
+            old_voice = (
+                edceleste.chatterbox_voices_folder / "narrator.pt"
+            ).read_bytes()
+            old_sample = (
+                edceleste.chatterbox_voices_folder / "narrator_sample.wav"
+            ).read_bytes()
             assert (old_voice, old_sample) == (b"voice", b"sample")
 
         with allure.step("And the new clone still exists under its first name"):
@@ -283,8 +287,10 @@ async def test_should_not_replace_an_existing_voice_when_a_recording_has_its_nam
             await clone_recording_until_profile_is_ready(edceleste, pilot, recording)
 
         with allure.step("Then the old voice 'celeste' still has its own files"):
-            old_voice = (edceleste.voices_folder / "celeste.pt").read_bytes()
-            old_sample = (edceleste.voices_folder / "celeste_sample.wav").read_bytes()
+            old_voice = (edceleste.chatterbox_voices_folder / "celeste.pt").read_bytes()
+            old_sample = (
+                edceleste.chatterbox_voices_folder / "celeste_sample.wav"
+            ).read_bytes()
             assert (old_voice, old_sample) == (b"voice", b"sample")
 
 
@@ -320,8 +326,10 @@ async def test_should_keep_the_existing_voice_when_the_commander_cancels_the_clo
                 "celeste.pt",
                 "celeste_sample.wav",
             ]
-            old_voice = (edceleste.voices_folder / "celeste.pt").read_bytes()
-            old_sample = (edceleste.voices_folder / "celeste_sample.wav").read_bytes()
+            old_voice = (edceleste.chatterbox_voices_folder / "celeste.pt").read_bytes()
+            old_sample = (
+                edceleste.chatterbox_voices_folder / "celeste_sample.wav"
+            ).read_bytes()
             assert (old_voice, old_sample) == (b"voice", b"sample")
 
 
@@ -386,8 +394,10 @@ async def test_should_add_no_voice_when_the_commander_cancels_while_cloning_runs
             ]
 
         with allure.step("And the old voice 'celeste' is untouched"):
-            old_voice = (edceleste.voices_folder / "celeste.pt").read_bytes()
-            old_sample = (edceleste.voices_folder / "celeste_sample.wav").read_bytes()
+            old_voice = (edceleste.chatterbox_voices_folder / "celeste.pt").read_bytes()
+            old_sample = (
+                edceleste.chatterbox_voices_folder / "celeste_sample.wav"
+            ).read_bytes()
             assert (old_voice, old_sample) == (b"voice", b"sample")
 
         with allure.step("And the list shows only 'celeste'"):
@@ -403,10 +413,10 @@ async def test_should_not_touch_the_recordings_kept_in_the_voices_folder(edceles
         " in the voices folder"
     ):
         recording = write_voice_recording(
-            edceleste.voices_folder, "take.wav", seconds=12
+            edceleste.chatterbox_voices_folder, "take.wav", seconds=12
         )
         other_recording = write_voice_recording(
-            edceleste.voices_folder, "take_reference.wav", seconds=15
+            edceleste.chatterbox_voices_folder, "take_reference.wav", seconds=15
         )
         recording_before = recording.read_bytes()
         other_recording_before = other_recording.read_bytes()
@@ -556,7 +566,7 @@ async def test_should_notify_when_the_sample_of_a_cloned_voice_is_missing(edcele
         "Given the Commander has the cloned voice 'narrator' with no sample"
     ):
         write_voice_profile_files(edceleste, "narrator")
-        (edceleste.voices_folder / "narrator_sample.wav").unlink()
+        (edceleste.chatterbox_voices_folder / "narrator_sample.wav").unlink()
 
     async with edceleste.run_app(show_notifications=True) as pilot:
         await edceleste.boot_to_dashboard(pilot, step_keyword="And")

@@ -22,13 +22,15 @@ FAKE_SAMPLE_RATE_FOR_FILES = 24000
 
 
 def write_voice_profile_files(edceleste, profile_name: str) -> None:
-    edceleste.voices_folder.mkdir(exist_ok=True)
-    (edceleste.voices_folder / f"{profile_name}.pt").write_bytes(b"voice")
-    (edceleste.voices_folder / f"{profile_name}_sample.wav").write_bytes(b"sample")
+    edceleste.chatterbox_voices_folder.mkdir(parents=True, exist_ok=True)
+    (edceleste.chatterbox_voices_folder / f"{profile_name}.pt").write_bytes(b"voice")
+    (edceleste.chatterbox_voices_folder / f"{profile_name}_sample.wav").write_bytes(
+        b"sample"
+    )
 
 
 def write_voice_recording(folder, file_name: str, seconds: int):
-    folder.mkdir(exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
     sample_rate = 16000
     voice_like_noise = np.random.default_rng(1).uniform(
         -0.3, 0.3, seconds * sample_rate
@@ -44,9 +46,9 @@ def profile_names_in_list(app: App) -> list[str]:
 
 
 def voice_files_in_folder(edceleste) -> list[str]:
-    if not edceleste.voices_folder.exists():
+    if not edceleste.chatterbox_voices_folder.exists():
         return []
-    return sorted(file.name for file in edceleste.voices_folder.iterdir())
+    return sorted(file.name for file in edceleste.chatterbox_voices_folder.iterdir())
 
 
 def engine_shown(app: App) -> str:
@@ -65,13 +67,23 @@ def next_button_is_enabled(app: App) -> bool:
 
 
 async def switch_engine_to_chatterbox(edceleste, pilot: Pilot) -> None:
+    # From Edge: the location Local first, which shows Pocket TTS (the first
+    # local engine), then the engine Chatterbox below it
+    await pilot.click("#tts-location-input Select")
+    await pilot.pause()
+    await pilot.press("up", "enter")
+    await edceleste.wait_until(
+        pilot,
+        lambda: pilot.app.screen.query("#clone-voice-button"),
+        "the Pocket TTS settings with the profile list",
+    )
     await pilot.click("#tts-provider-type-input Select")
     await pilot.pause()
     await pilot.press("down", "enter")
     await edceleste.wait_until(
         pilot,
-        lambda: pilot.app.screen.query("#clone-voice-button"),
-        "the Chatterbox settings with the profile list",
+        lambda: pilot.app.screen.query("#tts-exaggeration-input"),
+        "the Chatterbox settings with its own params",
     )
 
 
@@ -85,10 +97,10 @@ async def open_text_to_speech_settings(edceleste, pilot: Pilot) -> None:
 
 
 def write_playable_sample(edceleste, profile_name: str) -> None:
-    edceleste.voices_folder.mkdir(exist_ok=True)
+    edceleste.chatterbox_voices_folder.mkdir(parents=True, exist_ok=True)
     one_second_of_silence = np.zeros(FAKE_SAMPLE_RATE_FOR_FILES)
     soundfile.write(
-        edceleste.voices_folder / f"{profile_name}_sample.wav",
+        edceleste.chatterbox_voices_folder / f"{profile_name}_sample.wav",
         one_second_of_silence,
         FAKE_SAMPLE_RATE_FOR_FILES,
     )

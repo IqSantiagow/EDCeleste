@@ -53,6 +53,8 @@ dependencies = [
     "scipy==1.16.3",
     "openai-whisper==20250625",
     "chatterbox-tts==0.1.7",
+    "onnxruntime==1.31.0",
+    "sentencepiece==0.2.2",
     "textual-slider==0.2.0",
     "textual-fspicker==1.0.1",
     "decider-ai==1.8.1",
@@ -102,6 +104,10 @@ markers = [
     "live_llm: talks to a real LLM over the network, needs OPENROUTER_API_KEY",
 ]
 
+[tool.ruff]
+# A copy of another project, kept unchanged (see src/pocket_tts_onnx/VENDORED.md)
+extend-exclude = ["src/pocket_tts_onnx"]
+
 [tool.ruff.lint]
 select = ["E", "F", "TID"]
 
@@ -114,8 +120,13 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type information
-module = ["chatterbox.*", "decider.*", "scipy.*", "sounddevice", "soundfile", "whisper", "yaml"]
+module = ["chatterbox.*", "decider.*", "onnxruntime", "scipy.*", "sentencepiece", "sounddevice", "soundfile", "whisper", "yaml"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# A copy of another project, kept unchanged (see src/pocket_tts_onnx/VENDORED.md)
+module = ["pocket_tts_onnx", "pocket_tts_onnx.*"]
+ignore_errors = true
 
 [tool.mutmut]
 source_paths = ["src/edceleste/"]
