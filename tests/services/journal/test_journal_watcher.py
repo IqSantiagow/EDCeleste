@@ -1,8 +1,14 @@
+import os
+import tempfile
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
-from edceleste.services.game_watcher_service import GameWatcherService
+from edceleste.services.game_watcher_service import (
+    GameWatcherService,
+    find_journal_files,
+)
 from edceleste.services.models.game_events import (
     MarketEvent,
     StatusEvent,
@@ -439,6 +445,189 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             watcher.start_watcher_service()
 
         self.assertEqual(watcher._game_watcher_tasks, [])
+
+
+class JournalFilesOnDiskTest(unittest.TestCase):
+    """Uses real temporary folders and no mocks. The glob mock of
+    JournalWatcherTest returns a journal file for any pattern, so it can never
+    show which file names the code accepts."""
+
+    def setUp(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.temp_root = Path(temp_dir.name)
+
+    def _make_folder(self, folder_name: str, *file_names: str) -> str:
+        """Creates the folder with one empty file per name and returns its path."""
+        folder = self.temp_root / folder_name
+        folder.mkdir()
+        for file_name in file_names:
+            (folder / file_name).touch()
+        return str(folder)
+
+    def _make_watcher(self, journal_path: str) -> GameWatcherService:
+        return GameWatcherService(
+            journal_path=journal_path,
+            event_bus=Mock(),
+            settings_service=Mock(),
+        )
+
+    def _names_of(self, file_paths: list[str]) -> list[str]:
+        return sorted(os.path.basename(file_path) for file_path in file_paths)
+
+    # --- find_journal_files ---
+
+    def test_find_journal_files_finds_both_journal_name_formats(self):
+        folder = self._make_folder(
+            "journals",
+            "Journal.2026-10-09T120000.01.log",
+            "Journal.261009120000.01.log",
+        )
+
+        found = find_journal_files(folder)
+
+        self.assertEqual(
+            self._names_of(found),
+            ["Journal.2026-10-09T120000.01.log", "Journal.261009120000.01.log"],
+        )
+
+    def test_find_journal_files_ignores_logs_with_other_names(self):
+        folder = self._make_folder("logs", "netLog.2026-10-09.log", "app.log")
+
+        self.assertEqual(find_journal_files(folder), [])
+
+    def test_find_journal_files_matches_the_file_name_not_the_folder_path(self):
+        folder = self._make_folder("MyJournals", "app.log")
+
+        self.assertEqual(find_journal_files(folder), [])
+
+    def test_find_journal_files_ignores_files_that_do_not_end_in_log(self):
+        folder = self._make_folder(
+            "journals", "Journal.2026.01.log.bak", "Journal.cache"
+        )
+
+        self.assertEqual(find_journal_files(folder), [])
+
+    def test_find_journal_files_reads_a_folder_with_glob_characters_in_its_name(self):
+        folder = self._make_folder("Elite [backup]", "Journal.2026.01.log")
+
+        found = find_journal_files(folder)
+
+        self.assertEqual(found, [os.path.join(folder, "Journal.2026.01.log")])
+
+    def test_find_journal_files_returns_nothing_for_a_missing_folder(self):
+        missing_folder = str(self.temp_root / "no-such-folder")
+
+        self.assertEqual(find_journal_files(missing_folder), [])
+
+    # --- validate_settings ---
+
+    def test_validate_settings_rejects_a_folder_with_only_a_net_log(self):
+        folder = self._make_folder("logs", "netLog.2026-10-09.log")
+        watcher = self._make_watcher(folder)
+
+        issue = watcher.validate_settings(_make_settings(journal_path=folder))
+
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.section, "paths")
+        self.assertEqual(issue.field, "journal_path")
+        self.assertEqual(
+            issue.message,
+            f"No Elite Dangerous journal files (Journal*.log) found in '{folder}'.",
+        )
+
+    def test_validate_settings_rejects_a_journal_named_folder_with_only_app_log(self):
+        folder = self._make_folder("MyJournals", "app.log")
+        watcher = self._make_watcher(folder)
+
+        issue = watcher.validate_settings(_make_settings(journal_path=folder))
+
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.field, "journal_path")
+
+    def test_validate_settings_accepts_a_folder_with_a_journal_file(self):
+        folder = self._make_folder("journals", "Journal.2026-10-09T120000.01.log")
+        watcher = self._make_watcher(folder)
+
+        issue = watcher.validate_settings(_make_settings(journal_path=folder))
+
+        self.assertIsNone(issue)
+
+    def test_validate_settings_keeps_the_message_for_a_missing_folder(self):
+        missing_folder = str(self.temp_root / "no-such-folder")
+        watcher = self._make_watcher(missing_folder)
+
+        issue = watcher.validate_settings(_make_settings(journal_path=missing_folder))
+
+        self.assertIsNotNone(issue)
+        self.assertEqual(
+            issue.message, f"Journal path '{missing_folder}' does not exist."
+        )
+
+    def test_validate_settings_keeps_the_message_for_an_empty_path(self):
+        watcher = self._make_watcher("")
+
+        issue = watcher.validate_settings(_make_settings(journal_path=""))
+
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.message, "Journal path is not set.")
+
+    # --- the watcher ---
+
+    def test_latest_journal_file_is_never_a_net_log_even_when_it_is_newer(self):
+        folder = self._make_folder(
+            "logs", "Journal.old.log", "Journal.new.log", "netLog.newest.log"
+        )
+        for file_name, modified_time in [
+            ("Journal.old.log", 100),
+            ("Journal.new.log", 200),
+            ("netLog.newest.log", 300),
+        ]:
+            os.utime(os.path.join(folder, file_name), (modified_time, modified_time))
+        watcher = self._make_watcher(folder)
+
+        latest = watcher._GameWatcherService__get_latest_journal_filepath()  # type: ignore
+
+        self.assertEqual(os.path.basename(latest), "Journal.new.log")
+
+    def test_start_watcher_service_raises_for_a_folder_with_only_app_log(self):
+        folder = self._make_folder("MyJournals", "app.log")
+        watcher = self._make_watcher(folder)
+
+        with self.assertRaises(FileNotFoundError):
+            watcher.start_watcher_service()
+
+        self.assertEqual(watcher._game_watcher_tasks, [])
+
+    # --- one rule in both places ---
+
+    def test_a_folder_passes_validation_exactly_when_the_watcher_can_start(self):
+        folder_layouts = [
+            # folder name, file names in it, is it a folder with a journal
+            ("only_journal", ["Journal.2026-10-09T120000.01.log"], True),
+            ("journal_and_net_log", ["netLog.1.log", "Journal.1.log"], True),
+            ("only_net_log", ["netLog.1.log"], False),
+            ("nothing_inside", [], False),
+            ("MyJournals", ["app.log"], False),
+        ]
+
+        for folder_name, file_names, has_journal in folder_layouts:
+            with self.subTest(folder=folder_name):
+                folder = self._make_folder(folder_name, *file_names)
+                watcher = self._make_watcher(folder)
+
+                passes_validation = (
+                    watcher.validate_settings(_make_settings(journal_path=folder))
+                    is None
+                )
+                try:
+                    watcher._GameWatcherService__get_latest_journal_filepath()  # type: ignore
+                    watcher_can_start = True
+                except FileNotFoundError:
+                    watcher_can_start = False
+
+                self.assertEqual(passes_validation, has_journal)
+                self.assertEqual(watcher_can_start, has_journal)
 
 
 if __name__ == "__main__":
