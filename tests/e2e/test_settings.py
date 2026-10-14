@@ -9,13 +9,19 @@ from textual.pilot import Pilot
 from textual.widgets import Input, Label
 
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
+from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from tests import TEST_BINDS_FILE_LOCATION
-from tests.e2e.conftest import open_settings_section
+from tests.e2e.conftest import (
+    open_settings_section,
+    recorded_journal_line,
+    ship_log_events,
+)
 
 pytestmark = [pytest.mark.anyio, allure.feature("Settings")]
 
 JOURNAL_PATH_ROW = "journal-path-input"
 KEYBINDS_PATH_ROW = "keybinds-path-input"
+NEW_FOLDER_JOURNAL_FILE_NAME = "Journal.2026-10-05T120001.01.log"
 
 
 def save_state_text(app: App) -> str:
@@ -59,8 +65,16 @@ def path_text(app: App, row_id: str) -> str:
 def make_journal_folder_with_a_log_file(edceleste, folder_suffix: str) -> str:
     new_folder = Path(edceleste.settings.paths.journal_path + folder_suffix)
     new_folder.mkdir()
-    (new_folder / "Journal.2026-10-05T120001.01.log").touch()
+    (new_folder / NEW_FOLDER_JOURNAL_FILE_NAME).touch()
     return str(new_folder)
+
+
+def make_folder_with_log_files(edceleste, folder_suffix: str, *file_names: str) -> Path:
+    new_folder = Path(edceleste.settings.paths.journal_path + folder_suffix)
+    new_folder.mkdir()
+    for file_name in file_names:
+        (new_folder / file_name).touch()
+    return new_folder
 
 
 def make_keybinds_folder_with_a_binds_file(edceleste, folder_suffix: str) -> str:
@@ -338,7 +352,8 @@ async def test_should_keep_the_journal_path_yellow_when_the_save_fails(edceleste
 
         with allure.step("And the Paths section says there are no journal files"):
             assert section_error_text(pilot.app, "settings-paths") == (
-                f"✗ No journal log files found in '{folder_without_journal}'."
+                "✗ No Elite Dangerous journal files (Journal*.log) found in "
+                f"'{folder_without_journal}'."
             )
 
         with allure.step("And the journal path is still shown in yellow"):
@@ -348,6 +363,160 @@ async def test_should_keep_the_journal_path_yellow_when_the_save_fails(edceleste
 
         with allure.step("And config.yaml is unchanged"):
             assert edceleste.config_file.read_text() == config_before_saving
+
+
+@allure.title(
+    "A folder with game logs but no journal file is refused and Settings stays open"
+)
+async def test_should_refuse_a_folder_with_only_game_logs_and_keep_settings_open(
+    edceleste,
+):
+    config_before_saving = edceleste.config_file.read_text()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step("And a folder with only the game's netLog file exists"):
+            folder_with_net_log = make_folder_with_log_files(
+                edceleste, "_netlog", "netLog.2026-10-09.log"
+            )
+
+        with allure.step("And the Commander changes the journal path to that folder"):
+            await edit_the_end_of_a_path(edceleste, pilot, JOURNAL_PATH_ROW, *"_netlog")
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_in_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the changed journal path in yellow",
+            )
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+
+        with allure.step("Then the header shows ERROR DURING SAVING"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ ERROR DURING SAVING",
+                "ERROR DURING SAVING in the settings header",
+            )
+
+        with allure.step("And the Paths section says there are no journal files"):
+            assert section_error_text(pilot.app, "settings-paths") == (
+                "✗ No Elite Dangerous journal files (Journal*.log) found in "
+                f"'{folder_with_net_log}'."
+            )
+
+        with allure.step("And the Settings screen is still open"):
+            assert isinstance(pilot.app.screen, SettingsScreen)
+
+        with allure.step("And config.yaml is unchanged"):
+            assert edceleste.config_file.read_text() == config_before_saving
+
+
+@allure.title(
+    "A folder called MyJournals with only an app.log is refused: the file name "
+    "counts, not the folder name"
+)
+async def test_should_refuse_a_folder_named_like_journals_that_has_only_an_app_log(
+    edceleste,
+):
+    config_before_saving = edceleste.config_file.read_text()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step("And a folder called MyJournals with only app.log exists"):
+            folder_named_like_journals = make_folder_with_log_files(
+                edceleste, "_MyJournals", "app.log"
+            )
+
+        with allure.step("And the Commander changes the journal path to that folder"):
+            await edit_the_end_of_a_path(
+                edceleste, pilot, JOURNAL_PATH_ROW, *"_MyJournals"
+            )
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_in_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the changed journal path in yellow",
+            )
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+
+        with allure.step("Then the header shows ERROR DURING SAVING"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ ERROR DURING SAVING",
+                "ERROR DURING SAVING in the settings header",
+            )
+
+        with allure.step("And the Paths section says there are no journal files"):
+            assert section_error_text(pilot.app, "settings-paths") == (
+                "✗ No Elite Dangerous journal files (Journal*.log) found in "
+                f"'{folder_named_like_journals}'."
+            )
+
+        with allure.step("And the Settings screen is still open"):
+            assert isinstance(pilot.app.screen, SettingsScreen)
+
+        with allure.step("And config.yaml is unchanged"):
+            assert edceleste.config_file.read_text() == config_before_saving
+
+
+@allure.title(
+    "After saving a new journal folder, the events the game writes there reach "
+    "the ship log"
+)
+async def test_should_show_events_from_the_saved_journal_folder_in_the_ship_log(
+    edceleste,
+):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step("And a folder with a journal file exists next to the journal"):
+            new_journal_folder = make_journal_folder_with_a_log_file(edceleste, "_new")
+            new_journal_file = Path(new_journal_folder) / NEW_FOLDER_JOURNAL_FILE_NAME
+
+        with allure.step("And the Commander changes the journal path to that folder"):
+            await edit_the_end_of_a_path(edceleste, pilot, JOURNAL_PATH_ROW, *"_new")
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_in_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the changed journal path in yellow",
+            )
+
+        with allure.step("And the Commander saves and goes back to the dashboard"):
+            await pilot.press("ctrl+s")
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ SAVED",
+                "SAVED in the settings header",
+            )
+            await pilot.press("escape")
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, DashboardScreen),
+                "the dashboard after Escape",
+            )
+
+        with allure.step("When the game writes FSDJump to the journal in that folder"):
+            with new_journal_file.open("a", encoding="utf-8") as journal:
+                journal.write(recorded_journal_line("FSDJump") + "\n")
+
+        with allure.step("Then the ship log shows FSDJump"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: "FSDJump" in ship_log_events(pilot.app),
+                "FSDJump in the ship log",
+            )
 
 
 @allure.title("A path typed back to the saved value is not shown in yellow")
