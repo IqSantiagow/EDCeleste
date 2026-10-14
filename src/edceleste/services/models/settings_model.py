@@ -101,8 +101,19 @@ class EdgeParamsModel(BaseModel, validate_assignment=True, extra="forbid"):
     )
 
 
+class PocketParamsModel(BaseModel, validate_assignment=True, extra="forbid"):
+    type: Literal["pocket"] = Field(
+        description="The type of the text-to-speech provider", exclude=True
+    )
+    profile: str = Field(
+        description="The name of the voice profile (a reference audio clip stored in "
+        "the voices directory) that Pocket TTS clones",
+    )
+
+
 TtsProviderParams = Annotated[
-    Union[ChatterboxParamsModel, EdgeParamsModel], Field(discriminator="type")
+    Union[ChatterboxParamsModel, EdgeParamsModel, PocketParamsModel],
+    Field(discriminator="type"),
 ]
 
 
@@ -131,8 +142,11 @@ class VoiceLabModel(BaseModel, validate_assignment=True):
     )
 
 
+TtsEngine = Literal["edge", "chatterbox", "pocket"]
+
+
 class TTSModel(BaseModel, validate_assignment=True):
-    provider: Literal["edge", "chatterbox"] = Field(
+    provider: TtsEngine = Field(
         description="The type of the text-to-speech provider", default="edge"
     )
     params: TtsProviderParams = Field(
@@ -155,7 +169,7 @@ class TTSModel(BaseModel, validate_assignment=True):
         """Makes the params findable by pydantic. Runs before the fields are
         validated and changes only a copy of the input.
 
-        Pydantic picks the params model (Edge or Chatterbox) by the "type" key
+        Pydantic picks the params model (Edge, Chatterbox or Pocket) by the "type" key
         inside the params. A config.yaml has no such key (it would repeat
         provider), so params["type"] gets the value of provider ("edge" when
         provider is missing). Returns the input as it is when it is not a dict

@@ -1,14 +1,20 @@
 import allure
 import pytest
+from textual.app import App
 from textual.pilot import Pilot
-from textual.widgets import Select
+from textual.widgets import OptionList, Select
 
 from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     EdgeParamsModel,
+    PocketParamsModel,
     TTSModel,
 )
 from tests.e2e.conftest import open_settings_section
+from tests.e2e.test_pocket_tts import (
+    switch_engine_from_edge_to_pocket,
+    write_pocket_voice_files,
+)
 from tests.e2e.test_settings import (
     save_state_text,
     saved_config,
@@ -16,6 +22,7 @@ from tests.e2e.test_settings import (
     section_shows_modified_indicator,
 )
 from tests.e2e.test_voice_profiles import (
+    engine_shown,
     open_text_to_speech_settings,
     profile_names_in_list,
     switch_engine_to_chatterbox,
@@ -41,14 +48,58 @@ def edge_with_voice(voice: str) -> TTSModel:
     )
 
 
+def pocket_with_voice(profile_name: str) -> TTSModel:
+    return TTSModel(
+        provider="pocket",
+        params=PocketParamsModel(type="pocket", profile=profile_name),
+        volume=1.0,
+    )
+
+
 def edge_voice_shown(pilot: Pilot) -> str:
     return str(pilot.app.screen.query_one("#voice-input Select", Select).value)
 
 
-async def switch_engine_to_edge(edceleste, pilot: Pilot) -> None:
-    await pilot.click("#tts-provider-type-input Select")
+def location_shown(app: App) -> str:
+    return str(app.screen.query_one("#tts-location-input Select", Select).value)
+
+
+def pocket_voice_shown(app: App) -> str:
+    # An empty text means that no voice is picked
+    voice_select = app.screen.query_one("#tts-profile-input Select", Select)
+    if voice_select.is_blank():
+        return ""
+    return str(voice_select.value)
+
+
+async def open_pocket_tts_settings(edceleste, pilot: Pilot) -> None:
+    await open_settings_section(edceleste, pilot, "settings-tts")
+    await edceleste.wait_until(
+        pilot,
+        lambda: pilot.app.screen.query("#clone-voice-button"),
+        "the Pocket TTS settings with the profile list",
+    )
+
+
+async def pick_voice_in_the_list(pilot: Pilot, voice_name: str) -> None:
+    # The list of voices has no fixed order, so move down until the voice is
+    # under the cursor
+    await pilot.click("#tts-profile-input Select")
     await pilot.pause()
-    await pilot.press("up", "enter")
+    voice_list = pilot.app.screen.query_one("#tts-profile-input OptionList", OptionList)
+    for _ in range(voice_list.option_count):
+        voice_under_cursor = voice_list.highlighted_option
+        if voice_under_cursor and str(voice_under_cursor.prompt) == voice_name:
+            break
+        await pilot.press("down")
+    await pilot.press("enter")
+
+
+async def switch_engine_to_edge(edceleste, pilot: Pilot) -> None:
+    # Edge is the only engine of the location Remote
+    await pilot.click("#tts-location-input Select")
+    await pilot.pause()
+    await pilot.press("down", "enter")
     await edceleste.wait_until(
         pilot,
         lambda: pilot.app.screen.query("#voice-input Select"),
@@ -98,7 +149,7 @@ async def test_should_not_save_the_selected_voice_after_it_was_deleted(edceleste
         with allure.step("Then saving either refuses or stores a voice that exists"):
             stored_voice = saved_config(edceleste)["tts"]["params"]["profile"]
             voice_file_exists = (
-                edceleste.voices_folder / f"{stored_voice}.pt"
+                edceleste.chatterbox_voices_folder / f"{stored_voice}.pt"
             ).exists()
             saving_was_refused = save_state_text(pilot.app) == "◉ ERROR DURING SAVING"
             assert saving_was_refused or voice_file_exists, (
@@ -201,3 +252,175 @@ async def test_should_mark_the_settings_as_modified_after_switching_the_engine(
 
         with allure.step("And the Text to speech section shows the modified mark"):
             assert section_shows_modified_indicator(pilot.app, "settings-tts")
+
+
+@allure.title("Switching the location to Local shows Pocket TTS with no voice picked")
+async def test_should_show_pocket_tts_without_a_voice_after_switching_to_local(
+    edceleste,
+):
+    with allure.step("Given Edge is saved and the Pocket TTS voice 'echo' exists"):
+        edceleste.save_tts_settings(edge_with_voice("en-GB-SoniaNeural"))
+        write_pocket_voice_files(edceleste, "echo")
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander opens Settings > Text to speech"):
+            await open_text_to_speech_settings(edceleste, pilot)
+
+        with allure.step("When the Commander picks the location Local"):
+            await switch_engine_from_edge_to_pocket(edceleste, pilot)
+
+        with allure.step("Then the location is Local and the engine is Pocket TTS"):
+            assert location_shown(pilot.app) == "local"
+            assert engine_shown(pilot.app) == "pocket"
+
+        with allure.step("And the voice list shows 'echo' with no voice picked"):
+            assert profile_names_in_list(pilot.app) == ["echo"]
+            assert pocket_voice_shown(pilot.app) == ""
+
+        with allure.step("And the header shows MODIFIED"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ MODIFIED",
+                "MODIFIED in the settings header",
+            )
+
+
+@allure.title("Switching the location to Remote shows Edge TTS with its default voice")
+async def test_should_show_edge_with_its_default_voice_after_switching_to_remote(
+    edceleste,
+):
+    with allure.step("Given Pocket TTS is saved with the voice 'narrator'"):
+        write_pocket_voice_files(edceleste, "narrator")
+        edceleste.save_tts_settings(pocket_with_voice("narrator"))
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And Settings > Text to speech shows Pocket TTS"):
+            await open_pocket_tts_settings(edceleste, pilot)
+            assert location_shown(pilot.app) == "local"
+            assert engine_shown(pilot.app) == "pocket"
+
+        with allure.step("When the Commander picks the location Remote"):
+            await switch_engine_to_edge(edceleste, pilot)
+
+        with allure.step("Then the location is Remote and the engine is Edge TTS"):
+            assert location_shown(pilot.app) == "remote"
+            assert engine_shown(pilot.app) == "edge"
+
+        with allure.step("And the Edge voice is the default en-GB-SoniaNeural"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: edge_voice_shown(pilot) == "en-GB-SoniaNeural",
+                "the default Edge voice en-GB-SoniaNeural",
+            )
+
+
+@allure.title(
+    "Saving after switching the location to Local stores Pocket TTS and its voice"
+)
+async def test_should_save_pocket_tts_and_its_voice_after_switching_to_local(
+    edceleste,
+):
+    with allure.step("Given Edge is saved and the Pocket TTS voice 'echo' exists"):
+        edceleste.save_tts_settings(edge_with_voice("en-GB-SoniaNeural"))
+        write_pocket_voice_files(edceleste, "echo")
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(
+            "And the Commander switched to Local and picked the voice 'echo'"
+        ):
+            await open_text_to_speech_settings(edceleste, pilot)
+            await switch_engine_from_edge_to_pocket(edceleste, pilot)
+            await pick_voice_in_the_list(pilot, "echo")
+            await edceleste.wait_until(
+                pilot,
+                lambda: pocket_voice_shown(pilot.app) == "echo",
+                "the voice 'echo' shown as picked",
+            )
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ SAVED",
+                "SAVED in the settings header",
+            )
+
+        with allure.step(
+            "Then config.yaml has Pocket TTS as the engine with that voice"
+        ):
+            saved_tts = saved_config(edceleste)["tts"]
+            assert saved_tts["provider"] == "pocket"
+            assert saved_tts["params"] == {"profile": "echo"}
+
+
+@allure.title("Saving Pocket TTS with no voice shows an error and keeps config.yaml")
+async def test_should_refuse_to_save_pocket_tts_without_a_voice(edceleste):
+    with allure.step("Given Edge is saved"):
+        edceleste.save_tts_settings(edge_with_voice("en-GB-SoniaNeural"))
+        config_before_saving = edceleste.config_file.read_text()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander switched the location to Local"):
+            await open_text_to_speech_settings(edceleste, pilot)
+            await switch_engine_from_edge_to_pocket(edceleste, pilot)
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ ERROR DURING SAVING",
+                "ERROR DURING SAVING in the settings header",
+                timeout_seconds=15,
+            )
+
+        with allure.step("Then the Text to speech section says the voice is not set"):
+            assert "Profile is not set" in section_error_text(pilot.app, "settings-tts")
+
+        with allure.step("And config.yaml is unchanged"):
+            assert edceleste.config_file.read_text() == config_before_saving
+
+
+@allure.title(
+    "Going to Remote and back to Local shows the unsaved Pocket TTS voice again"
+)
+async def test_should_show_the_unsaved_pocket_voice_after_going_to_remote_and_back(
+    edceleste,
+):
+    with allure.step(
+        "Given Pocket TTS is saved with the voice 'narrator', the voice 'echo' exists"
+    ):
+        write_pocket_voice_files(edceleste, "narrator")
+        write_pocket_voice_files(edceleste, "echo")
+        edceleste.save_tts_settings(pocket_with_voice("narrator"))
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander picked the voice 'echo' without saving"):
+            await open_pocket_tts_settings(edceleste, pilot)
+            assert pocket_voice_shown(pilot.app) == "narrator"
+            await pick_voice_in_the_list(pilot, "echo")
+            await edceleste.wait_until(
+                pilot,
+                lambda: pocket_voice_shown(pilot.app) == "echo",
+                "the voice 'echo' shown as picked",
+            )
+
+        with allure.step("When the Commander switches the location to Remote and back"):
+            await switch_engine_to_edge(edceleste, pilot)
+            await switch_engine_from_edge_to_pocket(edceleste, pilot)
+
+        with allure.step("Then the engine is Pocket TTS again"):
+            assert location_shown(pilot.app) == "local"
+            assert engine_shown(pilot.app) == "pocket"
+
+        with allure.step("And the voice shown is 'echo', not the saved 'narrator'"):
+            assert pocket_voice_shown(pilot.app) == "echo"

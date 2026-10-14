@@ -11,6 +11,7 @@ from edceleste.services.models.settings_model import (
     GameActionsModel,
     LLMModel,
     PathModel,
+    PocketParamsModel,
     SettingsModel,
     SttModel,
     TTSModel,
@@ -119,6 +120,50 @@ class TestTTSModel(unittest.TestCase):
                     "volume": 1.0,
                 }
             )
+
+    def test_pocket_params_are_picked_by_the_provider_type(self):
+        tts_model = TTSModel.model_validate(
+            {
+                "provider": "pocket",
+                "params": {"profile": "celeste-v3"},
+                "volume": 1.0,
+            }
+        )
+
+        self.assertEqual(tts_model.provider, "pocket")
+        self.assertIsInstance(tts_model.params, PocketParamsModel)
+        self.assertEqual(tts_model.params.profile, "celeste-v3")
+
+    def test_pocket_params_reject_keys_of_another_provider(self):
+        with self.assertRaises(ValidationError):
+            TTSModel.model_validate(
+                {
+                    "provider": "pocket",
+                    "params": {"profile": "celeste-v3", "device": "cpu"},
+                    "volume": 1.0,
+                }
+            )
+
+    def test_pocket_params_need_a_profile(self):
+        with self.assertRaises(ValidationError):
+            TTSModel.model_validate({"provider": "pocket", "params": {}, "volume": 1.0})
+
+    def test_an_unknown_provider_is_still_rejected(self):
+        with self.assertRaises(ValidationError):
+            TTSModel.model_validate(
+                {
+                    "provider": "pocket-tts",
+                    "params": {"profile": "celeste-v3"},
+                    "volume": 1.0,
+                }
+            )
+
+    def test_model_dump_of_pocket_params_has_only_the_profile(self):
+        tts_model = TTSModel.model_validate(
+            {"provider": "pocket", "params": {"profile": "celeste-v3"}, "volume": 1.0}
+        )
+
+        self.assertEqual(tts_model.model_dump()["params"], {"profile": "celeste-v3"})
 
     def test_assigning_invalid_value_to_a_params_field_raises_validation_error(self):
         params = ChatterboxParamsModel(type="chatterbox", profile="celeste-v3")

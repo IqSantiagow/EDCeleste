@@ -24,6 +24,7 @@ from edceleste.services.models.settings_model import (
     EdgeParamsModel,
     LLMModel,
     PathModel,
+    PocketParamsModel,
     SettingsModel,
     SttModel,
     TTSModel,
@@ -36,6 +37,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
+from edceleste.services.tts_providers.pocket_tts_provider import PocketTTSProvider
 from edceleste.services.tts_service import (
     DEFAULT_VOICE_SAMPLE_TEXT,
     SILENCE_FLOOR_DBFS,
@@ -112,6 +114,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         temp_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temp_directory.cleanup)
         self.voices_dir = Path(temp_directory.name) / "voices"
+        self.profiles_dir = self.voices_dir / "chatterbox"
         voices_dir_patch = patch(
             "edceleste.services.tts_service.VOICES_DIR", self.voices_dir
         )
@@ -137,10 +140,10 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         return fake_provider
 
     def _make_profile_files(self, name: str, with_sample: bool = True) -> None:
-        self.voices_dir.mkdir(parents=True, exist_ok=True)
-        (self.voices_dir / f"{name}.pt").write_bytes(b"profile")
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
+        (self.profiles_dir / f"{name}.pt").write_bytes(b"profile")
         if with_sample:
-            (self.voices_dir / f"{name}_sample.wav").write_bytes(b"sample")
+            (self.profiles_dir / f"{name}_sample.wav").write_bytes(b"sample")
 
     async def _collect_clone_states(self, audio_path, name, params):
         return [
@@ -234,7 +237,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         await self.service.synthesize_and_play("Hello")
 
         provider.synthesize.assert_awaited_once_with(
-            "Hello", _make_chatterbox_params(), self.voices_dir / "celeste.pt"
+            "Hello", _make_chatterbox_params(), self.profiles_dir / "celeste.pt"
         )
 
     async def test_synthesize_and_play_plays_at_the_saved_volume(self):
@@ -339,21 +342,21 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.sounddevice.play.assert_not_called()
 
     async def test_play_sample_voice_plays_the_saved_sample_file(self):
-        self.voices_dir.mkdir(parents=True)
-        _write_wav(self.voices_dir / "celeste_sample.wav", 0.01)
+        self.profiles_dir.mkdir(parents=True)
+        _write_wav(self.profiles_dir / "celeste_sample.wav", 0.01)
         self.service.play_audio_file = AsyncMock()
 
-        await self.service.play_sample_voice("celeste")
+        await self.service.play_sample_voice("celeste", _make_chatterbox_params())
 
         self.service.play_audio_file.assert_awaited_once_with(
-            str(self.voices_dir / "celeste_sample.wav")
+            str(self.profiles_dir / "celeste_sample.wav")
         )
 
     async def test_play_sample_voice_raises_file_not_found_without_the_sample(self):
         self.service.play_audio_file = AsyncMock()
 
         with self.assertRaises(FileNotFoundError):
-            await self.service.play_sample_voice("celeste")
+            await self.service.play_sample_voice("celeste", _make_chatterbox_params())
 
         self.service.play_audio_file.assert_not_awaited()
 
@@ -512,28 +515,35 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     # --- profile paths ---
 
-    def test_build_profile_path_puts_the_file_in_the_voices_folder(self):
+    def test_build_profile_path_puts_the_file_in_the_folder_of_the_provider(self):
         self.assertEqual(
-            self.service.build_profile_path("celeste", ".pt"),
-            self.voices_dir / "celeste.pt",
+            self.service.build_profile_path(
+                _make_fake_cloning_provider(), "celeste", ".pt"
+            ),
+            self.profiles_dir / "celeste.pt",
         )
 
     def test_build_profile_path_drops_folder_parts_of_the_name(self):
         self.assertEqual(
-            self.service.build_profile_path("../x", ".pt"), self.voices_dir / "x.pt"
+            self.service.build_profile_path(
+                _make_fake_cloning_provider(), "../x", ".pt"
+            ),
+            self.profiles_dir / "x.pt",
         )
 
     def test_find_profile_path_is_none_for_the_edge_provider(self):
         self.assertIsNone(
-            self.service.find_profile_path(EdgeTTSProvider(), _make_edge_params())
+            self.service.build_profile_path_named_in_params(
+                EdgeTTSProvider(), _make_edge_params()
+            )
         )
 
     def test_find_profile_path_returns_the_profile_file_for_cloning_provider(self):
-        path = self.service.find_profile_path(
+        path = self.service.build_profile_path_named_in_params(
             _make_fake_cloning_provider(), _make_chatterbox_params("nova")
         )
 
-        self.assertEqual(path, self.voices_dir / "nova.pt")
+        self.assertEqual(path, self.profiles_dir / "nova.pt")
 
     # --- get_cloning_provider_for ---
 
@@ -590,7 +600,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         await self._collect_clone_states(str(audio_path), "nova", screen_params)
 
         create_args = provider.create_voice_profile.await_args.args
-        self.assertEqual(create_args[1], self.voices_dir / "nova.pt")
+        self.assertEqual(create_args[1], self.profiles_dir / "nova.pt")
         self.assertIs(create_args[2], screen_params)
         synthesize_args = provider.synthesize.await_args.args
         self.assertEqual(synthesize_args[0], DEFAULT_VOICE_SAMPLE_TEXT)
@@ -607,7 +617,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         synthesize_args = provider.synthesize.await_args.args
         self.assertEqual(synthesize_args[1].profile, "nova")
-        self.assertEqual(synthesize_args[2], self.voices_dir / "nova.pt")
+        self.assertEqual(synthesize_args[2], self.profiles_dir / "nova.pt")
 
     async def test_clone_voice_writes_the_sample_next_to_the_profile(self):
         self._use_saved_chatterbox()
@@ -618,7 +628,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             str(audio_path), "nova", _make_chatterbox_params()
         )
 
-        sample, rate = sf.read(str(self.voices_dir / "nova_sample.wav"))
+        sample, rate = sf.read(str(self.profiles_dir / "nova_sample.wav"))
         self.assertEqual(rate, SAMPLE_RATE)
         self.assertEqual(len(sample), 20)
 
@@ -829,8 +839,10 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
                 str(audio_path), "nova", _make_chatterbox_params()
             )
 
-        self.assertEqual((self.voices_dir / "nova.pt").read_bytes(), b"profile")
-        self.assertEqual((self.voices_dir / "nova_sample.wav").read_bytes(), b"sample")
+        self.assertEqual((self.profiles_dir / "nova.pt").read_bytes(), b"profile")
+        self.assertEqual(
+            (self.profiles_dir / "nova_sample.wav").read_bytes(), b"sample"
+        )
         provider.create_voice_profile.assert_not_awaited()
 
     async def test_clone_voice_writes_the_trimmed_clip_outside_the_voices_folder(self):
@@ -851,9 +863,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         self._use_saved_chatterbox()
-        self.voices_dir.mkdir(parents=True)
+        self.profiles_dir.mkdir(parents=True)
         # The name the trimmed clip had before, it replaced and deleted this file
-        audio_path = self.voices_dir / "nova_reference.wav"
+        audio_path = self.profiles_dir / "nova_reference.wav"
         _write_wav(audio_path, 12)
 
         await self._collect_clone_states(
@@ -876,7 +888,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.remove_profile("nova", screen_params)
 
         self.assertEqual(listed, ["celeste"])
-        self.assertEqual(list(self.voices_dir.iterdir()), [])
+        self.assertEqual(list(self.profiles_dir.iterdir()), [])
         self.assertIs(self.service.provider, active_provider)
         self.assertEqual(self.service.provider_type, "edge")
 
@@ -909,12 +921,12 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.remove_profile("celeste", _make_chatterbox_params())
 
         self.assertEqual(
-            sorted(path.name for path in self.voices_dir.iterdir()),
+            sorted(path.name for path in self.profiles_dir.iterdir()),
             ["nova.pt", "nova_sample.wav"],
         )
 
     def test_remove_profile_does_not_fail_when_the_files_are_missing(self):
-        self.voices_dir.mkdir(parents=True)
+        self.profiles_dir.mkdir(parents=True)
 
         self.service.remove_profile("ghost", _make_chatterbox_params())
 
@@ -924,7 +936,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(VoiceCloningException):
             self.service.remove_profile("celeste", _make_edge_params())
 
-        self.assertTrue((self.voices_dir / "celeste.pt").exists())
+        self.assertTrue((self.profiles_dir / "celeste.pt").exists())
 
     # --- rename_profile ---
 
@@ -934,7 +946,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
 
         self.assertEqual(
-            sorted(path.name for path in self.voices_dir.iterdir()),
+            sorted(path.name for path in self.profiles_dir.iterdir()),
             ["nova.pt", "nova_sample.wav"],
         )
 
@@ -945,12 +957,12 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(FileExistsError):
             self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
 
-        self.assertTrue((self.voices_dir / "celeste.pt").exists())
+        self.assertTrue((self.profiles_dir / "celeste.pt").exists())
 
     def test_rename_profile_raises_file_not_found_when_the_old_profile_is_missing(
         self,
     ):
-        self.voices_dir.mkdir(parents=True)
+        self.profiles_dir.mkdir(parents=True)
 
         with self.assertRaises(FileNotFoundError):
             self.service.rename_profile("ghost", "nova", _make_chatterbox_params())
@@ -960,7 +972,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
 
-        self.assertEqual([path.name for path in self.voices_dir.iterdir()], ["nova.pt"])
+        self.assertEqual(
+            [path.name for path in self.profiles_dir.iterdir()], ["nova.pt"]
+        )
 
     def test_rename_profile_raises_voice_cloning_exception_for_edge_params(self):
         with self.assertRaises(VoiceCloningException):
@@ -980,7 +994,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(text, "Hi there")
         self.assertEqual(used_params.profile, "nova")
         self.assertEqual(used_params.exaggeration, 1.2)
-        self.assertEqual(profile_path, self.voices_dir / "nova.pt")
+        self.assertEqual(profile_path, self.profiles_dir / "nova.pt")
 
     async def test_preview_voice_sample_plays_without_effects_at_saved_volume(self):
         provider = self._use_saved_chatterbox()
@@ -1086,7 +1100,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         profile_path = provider.synthesize.await_args.args[2]
-        self.assertEqual(profile_path, self.voices_dir / "nova.pt")
+        self.assertEqual(profile_path, self.profiles_dir / "nova.pt")
 
     async def test_voice_lab_test_adds_the_effects_from_the_screen_not_saved_ones(
         self,
@@ -1404,6 +1418,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         temp_directory = tempfile.TemporaryDirectory()
         self.addCleanup(temp_directory.cleanup)
         self.voices_dir = Path(temp_directory.name) / "voices"
+        self.profiles_dir = self.voices_dir / "chatterbox"
         voices_dir_patch = patch(
             "edceleste.services.tts_service.VOICES_DIR", self.voices_dir
         )
@@ -1477,7 +1492,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.provider.can_stream.assert_called_once_with(_make_chatterbox_params())
         self.assertEqual(
             self.stream_calls,
-            [("Hello", _make_chatterbox_params(), self.voices_dir / "celeste.pt")],
+            [("Hello", _make_chatterbox_params(), self.profiles_dir / "celeste.pt")],
         )
         self.assertEqual(self.player_sample_rates, [SAMPLE_RATE])
         np.testing.assert_allclose(
@@ -1798,7 +1813,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
                 (
                     WARM_UP_TEXT,
                     _make_chatterbox_params(),
-                    self.voices_dir / "celeste.pt",
+                    self.profiles_dir / "celeste.pt",
                 )
             ],
         )
@@ -1861,3 +1876,184 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         completed, _, message, _ = statuses[-1]
         self.assertTrue(completed)
         self.assertEqual(message, "Voice profile not found: celeste.pt")
+
+
+def _make_pocket_params(profile: str = "celeste") -> PocketParamsModel:
+    return PocketParamsModel(type="pocket", profile=profile)
+
+
+def _make_fake_pocket_provider() -> PocketTTSProvider:
+    """A real Pocket TTS provider object whose work is replaced by mocks, so no
+    model or network is used."""
+    provider = PocketTTSProvider()
+    provider.synthesize = AsyncMock(return_value=(np.full(20, 0.25), SAMPLE_RATE))
+    provider.create_voice_profile = AsyncMock()
+    provider.can_stream = Mock(return_value=False)
+    return provider
+
+
+class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
+    """Every cloning provider keeps its profiles and their samples in its own
+    folder inside the voices folder: voices/chatterbox and voices/pocket."""
+
+    def setUp(self):
+        self.settings_service = Mock(spec=SettingsService)
+        self.settings_service.get_settings.return_value = _make_settings()
+        self.service = TTSService(
+            event_bus=EventBus(),
+            settings_service=self.settings_service,
+            voice_lab_service=Mock(spec=VoiceLabService),
+        )
+        self.service.reload_service()
+
+        temp_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_directory.cleanup)
+        self.voices_dir = Path(temp_directory.name) / "voices"
+        self.chatterbox_dir = self.voices_dir / "chatterbox"
+        self.pocket_dir = self.voices_dir / "pocket"
+        voices_dir_patch = patch(
+            "edceleste.services.tts_service.VOICES_DIR", self.voices_dir
+        )
+        voices_dir_patch.start()
+        self.addCleanup(voices_dir_patch.stop)
+
+        self.input_dir = Path(temp_directory.name) / "input"
+        self.input_dir.mkdir()
+
+    def _use_saved_pocket(self) -> PocketTTSProvider:
+        """Saved settings are Pocket TTS, the active provider is a fake."""
+        self.settings_service.get_settings.return_value = _make_settings(
+            _make_pocket_params()
+        )
+        self.service.reload_service()
+        fake_provider = _make_fake_pocket_provider()
+        self.service.provider = fake_provider
+        return fake_provider
+
+    def _write_files(self, folder: Path, *names: str) -> None:
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (folder / name).write_bytes(name.encode())
+
+    def test_build_provider_makes_a_pocket_provider_for_pocket(self):
+        self.assertIsInstance(self.service.build_provider("pocket"), PocketTTSProvider)
+
+    def test_find_profile_path_puts_a_pocket_profile_in_the_pocket_folder_as_npy(
+        self,
+    ):
+        path = self.service.build_profile_path_named_in_params(
+            PocketTTSProvider(), _make_pocket_params("nova")
+        )
+
+        self.assertEqual(path, self.pocket_dir / "nova.npy")
+
+    def test_get_available_profiles_lists_only_the_profiles_of_the_provider(self):
+        self._write_files(self.chatterbox_dir, "voice_a.pt", "wrong_kind.npy")
+        self._write_files(self.pocket_dir, "voice_b.npy", "wrong_kind.pt")
+
+        self.assertEqual(
+            self.service.get_available_profiles(_make_pocket_params()), ["voice_b"]
+        )
+        self.assertEqual(
+            self.service.get_available_profiles(_make_chatterbox_params()), ["voice_a"]
+        )
+
+    def test_get_available_profiles_ignores_files_in_the_voices_folder_itself(self):
+        self._write_files(self.voices_dir, "old.pt", "old.npy")
+
+        self.assertEqual(self.service.get_available_profiles(_make_pocket_params()), [])
+        self.assertEqual(
+            self.service.get_available_profiles(_make_chatterbox_params()), []
+        )
+
+    async def test_clone_voice_for_pocket_writes_into_the_pocket_folder(self):
+        provider = self._use_saved_pocket()
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, provider.reference_seconds)
+
+        _ = [
+            state
+            async for state in self.service.clone_voice(
+                str(audio_path), "nova", _make_pocket_params()
+            )
+        ]
+
+        profile_path = provider.create_voice_profile.await_args.args[1]
+        self.assertEqual(profile_path, self.pocket_dir / "nova.npy")
+        self.assertTrue((self.pocket_dir / "nova_sample.wav").exists())
+        self.assertFalse(self.chatterbox_dir.exists())
+
+    async def test_clone_voice_accepts_a_name_taken_in_another_provider_folder(self):
+        provider = self._use_saved_pocket()
+        self._write_files(self.chatterbox_dir, "nova.pt")
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, provider.reference_seconds)
+
+        states = [
+            state
+            async for state in self.service.clone_voice(
+                str(audio_path), "nova", _make_pocket_params()
+            )
+        ]
+
+        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
+
+    def test_remove_profile_removes_only_the_files_of_the_provider_of_the_params(
+        self,
+    ):
+        self._write_files(self.chatterbox_dir, "nova.pt", "nova_sample.wav")
+        self._write_files(self.pocket_dir, "nova.npy", "nova_sample.wav")
+
+        self.service.remove_profile("nova", _make_pocket_params())
+
+        self.assertEqual(list(self.pocket_dir.iterdir()), [])
+        self.assertEqual(
+            sorted(path.name for path in self.chatterbox_dir.iterdir()),
+            ["nova.pt", "nova_sample.wav"],
+        )
+
+    def test_rename_profile_renames_inside_the_folder_of_the_provider(self):
+        self._write_files(self.chatterbox_dir, "celeste.pt")
+        self._write_files(self.pocket_dir, "celeste.npy", "celeste_sample.wav")
+
+        self.service.rename_profile("celeste", "nova", _make_pocket_params())
+
+        self.assertEqual(
+            sorted(path.name for path in self.pocket_dir.iterdir()),
+            ["nova.npy", "nova_sample.wav"],
+        )
+        self.assertEqual(
+            [path.name for path in self.chatterbox_dir.iterdir()], ["celeste.pt"]
+        )
+
+    async def test_preview_voice_sample_uses_the_profile_in_the_pocket_folder(self):
+        provider = self._use_saved_pocket()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.preview_voice_sample(
+            "nova", "Hi there", _make_pocket_params("other")
+        )
+
+        profile_path = provider.synthesize.await_args.args[2]
+        self.assertEqual(profile_path, self.pocket_dir / "nova.npy")
+
+    async def test_play_sample_voice_plays_the_sample_of_the_provider_of_the_params(
+        self,
+    ):
+        self._write_files(self.chatterbox_dir, "celeste_sample.wav")
+        self._write_files(self.pocket_dir, "celeste_sample.wav")
+        self.service.play_audio_file = AsyncMock()
+
+        await self.service.play_sample_voice("celeste", _make_pocket_params())
+
+        self.service.play_audio_file.assert_awaited_once_with(
+            str(self.pocket_dir / "celeste_sample.wav")
+        )
+
+    async def test_play_sample_voice_raises_voice_cloning_exception_for_edge(self):
+        self.service.play_audio_file = AsyncMock()
+
+        with self.assertRaises(VoiceCloningException):
+            await self.service.play_sample_voice("celeste", _make_edge_params())
+
+        self.service.play_audio_file.assert_not_awaited()

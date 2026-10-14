@@ -79,6 +79,9 @@ class StreamingTTSProviderProtocol(TTSProviderProtocol, Protocol):
 class CloningTTSProviderProtocol(TTSProviderProtocol, Protocol):
     reference_seconds: float
     profile_file_extension: str
+    # The folder of this provider inside the voices folder: the profiles of one
+    # provider are not in the list of another, because the files differ
+    profile_folder_name: str
 
     async def create_voice_profile(
         self,

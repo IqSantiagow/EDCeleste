@@ -6,7 +6,7 @@ import queue
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncGenerator, Literal
+from typing import TYPE_CHECKING, AsyncGenerator, Callable, Literal
 
 import edge_tts
 import numpy as np
@@ -32,6 +32,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
+from edceleste.services.tts_providers.pocket_tts_provider import PocketTTSProvider
 from edceleste.services.tts_providers.tts_provider_protocol import (
     CloningTTSProviderProtocol,
     StreamingTTSProviderProtocol,
@@ -44,9 +45,10 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     import sounddevice as sd
 
-TTS_PROVIDER_CLASSES = {
+TTS_PROVIDER_CLASSES: dict[str, Callable[[], TTSProviderProtocol]] = {
     "edge": EdgeTTSProvider,
     "chatterbox": ChatterboxTTSProvider,
+    "pocket": PocketTTSProvider,
 }
 
 DEFAULT_VOICE_SAMPLE_TEXT = "Hello Commander. How can I assist you today?"
@@ -144,7 +146,7 @@ VOICES_DIR = find_voices_directory()
 
 NO_VOICE_PROFILES_MESSAGE = (
     "The active TTS provider does not support voice profiles. "
-    "Switch the TTS provider to 'chatterbox' and try again."
+    "Switch the TTS provider to 'chatterbox' or 'pocket' and try again."
 )
 
 
@@ -178,7 +180,8 @@ class TTSService:
 
     def build_provider(self, provider_type: str) -> TTSProviderProtocol:
         """Creates a new provider object for settings.tts.provider. Cheap, no
-        model is loaded here, Chatterbox loads it on the first use. Raises
+        model is loaded here, Chatterbox and Pocket TTS load theirs on the
+        first use. Raises
         KeyError for a provider type not in TTS_PROVIDER_CLASSES."""
         return TTS_PROVIDER_CLASSES[provider_type]()
 
@@ -189,7 +192,8 @@ class TTSService:
         text is not spoken over this one.
 
         A provider that can speak in pieces for the saved params (Chatterbox on
-        a GPU) speaks through speak_while_synthesizing(), so the first sound
+        a GPU, Pocket TTS) speaks through speak_while_synthesizing(), so the
+        first sound
         comes long before the text is done. Every other provider makes the
         whole audio first and plays it then.
         Raises RuntimeError when reload_service() has not built the provider
@@ -199,7 +203,9 @@ class TTSService:
             raise RuntimeError("The TTS provider is not built yet.")
 
         tts_settings = self.__settings_service.get_settings().tts
-        profile_path = self.find_profile_path(self.provider, tts_settings.params)
+        profile_path = self.build_profile_path_named_in_params(
+            self.provider, tts_settings.params
+        )
 
         if isinstance(
             self.provider, StreamingTTSProviderProtocol
@@ -363,7 +369,9 @@ class TTSService:
         profile too). Only a streaming provider is asked, because only for it
         cold_start() warms up."""
         tts_settings = self.__settings_service.get_settings().tts
-        profile_path = self.find_profile_path(provider, tts_settings.params)
+        profile_path = self.build_profile_path_named_in_params(
+            provider, tts_settings.params
+        )
         async for _ in provider.synthesize_stream(
             WARM_UP_TEXT, tts_settings.params, profile_path
         ):
@@ -402,7 +410,8 @@ class TTSService:
 
         1. Builds a throwaway provider of the new type (KeyError for a type
            that is not in TTS_PROVIDER_CLASSES) and lets it check its own
-           params (Edge: voice is set, Chatterbox: profile is set).
+           params (Edge: voice is set, Chatterbox and Pocket TTS: profile is
+           set).
         2. For a provider that clones voices, the profile file must also exist
            in the voices folder, e.g. not deleted a moment ago. Reads the disk.
         """
@@ -413,7 +422,9 @@ class TTSService:
         if issue is not None:
             return issue
 
-        profile_path = self.find_profile_path(provider, tts_settings.params)
+        profile_path = self.build_profile_path_named_in_params(
+            provider, tts_settings.params
+        )
         if profile_path is not None and not profile_path.exists():
             return SettingsIssueModel(
                 section="tts",
@@ -443,14 +454,24 @@ class TTSService:
         active. Network errors are raised."""
         return [voice["ShortName"] for voice in await edge_tts.list_voices()]
 
-    def build_profile_path(self, profile_name: str, file_extension: str) -> Path:
+    def build_profile_path(
+        self,
+        provider: CloningTTSProviderProtocol,
+        profile_name: str,
+        file_extension: str,
+    ) -> Path:
         """Puts "<profile_name><file_extension>", e.g. "celeste.pt" or
-        "celeste_sample.wav", in the voices folder. Any folder part of the name
-        is dropped, so a name like "../x" cannot reach outside the voices
-        folder. Does not check that the file exists."""
-        return VOICES_DIR / (Path(profile_name).name + file_extension)
+        "celeste_sample.wav", in the folder of the provider inside the voices
+        folder (voices/chatterbox, voices/pocket). Any folder part of the name
+        is dropped, so a name like "../x" cannot reach outside that folder.
+        Does not check that the file exists."""
+        return (
+            VOICES_DIR
+            / provider.profile_folder_name
+            / (Path(profile_name).name + file_extension)
+        )
 
-    def find_profile_path(
+    def build_profile_path_named_in_params(
         self, provider: TTSProviderProtocol, params: TtsProviderParams
     ) -> Path | None:
         """The voice profile file named in params, for a provider that clones
@@ -459,7 +480,9 @@ class TTSService:
             return None
 
         profile_name = getattr(params, "profile")
-        return self.build_profile_path(profile_name, provider.profile_file_extension)
+        return self.build_profile_path(
+            provider, profile_name, provider.profile_file_extension
+        )
 
     def get_active_or_new_provider_for(
         self, params: TtsProviderParams
@@ -471,8 +494,9 @@ class TTSService:
           which keeps its loaded model.
         - Another type, because the pilot picked an engine that is not saved
           yet -> a new throwaway provider, built on every call. It has no model
-          yet, so a throwaway Chatterbox loads its own model on first use and
-          drops it together with the provider, which is slow every time.
+          yet, so a throwaway Chatterbox or Pocket TTS loads its own model on
+          first use and drops it together with the provider, which is slow
+          every time.
         - No active provider built yet (reload_service() has not run) -> a new
           one as well, also not stored.
         Raises KeyError for a type that is not in TTS_PROVIDER_CLASSES."""
@@ -504,7 +528,8 @@ class TTSService:
         state is asked for, so every error comes out while iterating.
 
         1. Raises VoiceCloningException when the provider of params cannot
-           clone. Creates the voices folder. Raises FileNotFoundError when the
+           clone. Creates the folder of that provider inside the voices folder
+           (and the voices folder). Raises FileNotFoundError when the
            audio file does not exist and FileExistsError when a profile with
            this name exists already (an existing voice is never replaced).
            Folder parts of profile_name are dropped ("../x" -> "x"). Yields
@@ -527,10 +552,10 @@ class TTSService:
         """
         provider = self.get_cloning_provider_for(params)
         profile_path = self.build_profile_path(
-            profile_name, provider.profile_file_extension
+            provider, profile_name, provider.profile_file_extension
         )
 
-        VOICES_DIR.mkdir(parents=True, exist_ok=True)
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not os.path.isfile(path_to_audio_file):
             raise FileNotFoundError(f"Audio file '{path_to_audio_file}' not found.")
@@ -575,7 +600,9 @@ class TTSService:
                 params.model_copy(update={"profile": profile_name}),
                 profile_path,
             )
-            sample_path = self.build_profile_path(f"{profile_name}_sample", ".wav")
+            sample_path = self.build_profile_path(
+                provider, f"{profile_name}_sample", ".wav"
+            )
             sf.write(sample_path, samples, sample_rate)
 
             yield VoiceCloningState.SAMPLE_CREATED
@@ -590,37 +617,41 @@ class TTSService:
             clip_folder.cleanup()
 
     def get_available_profiles(self, params: TtsProviderParams) -> list[str]:
-        """Voice profile names from the voices folder, without the file
-        extension of the provider of params (the settings as they are on the
-        screen, saved or not). Empty when that provider cannot clone voices, or
-        the folder does not exist yet, even if profiles exist on disk."""
+        """Voice profile names from the folder of the provider of params inside
+        the voices folder (the settings as they are on the screen, saved or
+        not), without the file extension. Empty when that provider cannot clone
+        voices, or its folder does not exist yet. The profiles of another
+        provider are not listed."""
         try:
             provider = self.get_cloning_provider_for(params)
         except VoiceCloningException:
             return []
 
-        if not VOICES_DIR.exists():
+        profile_folder = VOICES_DIR / provider.profile_folder_name
+        if not profile_folder.exists():
             return []
 
         file_extension = provider.profile_file_extension
         return [
             profile_file.name.removesuffix(file_extension)
-            for profile_file in VOICES_DIR.iterdir()
+            for profile_file in profile_folder.iterdir()
             if profile_file.is_file() and profile_file.name.endswith(file_extension)
         ]
 
     def remove_profile(self, profile_name: str, params: TtsProviderParams) -> None:
-        """Deletes the profile file and its <name>_sample.wav from the voices
-        folder. A file that is not there is skipped. The settings are not
+        """Deletes the profile file and its <name>_sample.wav from the folder of
+        the provider. A file that is not there is skipped. The settings are not
         changed, they may still point at it. params are the settings as they
         are on the screen now. Raises VoiceCloningException when their provider
         cannot clone voices."""
         provider = self.get_cloning_provider_for(params)
 
         profile_path = self.build_profile_path(
-            profile_name, provider.profile_file_extension
+            provider, profile_name, provider.profile_file_extension
         )
-        sample_path = self.build_profile_path(f"{profile_name}_sample", ".wav")
+        sample_path = self.build_profile_path(
+            provider, f"{profile_name}_sample", ".wav"
+        )
 
         profile_path.unlink(missing_ok=True)
         sample_path.unlink(missing_ok=True)
@@ -637,10 +668,10 @@ class TTSService:
         provider = self.get_cloning_provider_for(params)
 
         old_profile_path = self.build_profile_path(
-            old_profile_name, provider.profile_file_extension
+            provider, old_profile_name, provider.profile_file_extension
         )
         new_profile_path = self.build_profile_path(
-            new_profile_name, provider.profile_file_extension
+            provider, new_profile_name, provider.profile_file_extension
         )
 
         if new_profile_path.exists():
@@ -648,8 +679,12 @@ class TTSService:
 
         old_profile_path.rename(new_profile_path)
 
-        old_sample_path = self.build_profile_path(f"{old_profile_name}_sample", ".wav")
-        new_sample_path = self.build_profile_path(f"{new_profile_name}_sample", ".wav")
+        old_sample_path = self.build_profile_path(
+            provider, f"{old_profile_name}_sample", ".wav"
+        )
+        new_sample_path = self.build_profile_path(
+            provider, f"{new_profile_name}_sample", ".wav"
+        )
         if old_sample_path.exists():
             old_sample_path.rename(new_sample_path)
 
@@ -663,7 +698,7 @@ class TTSService:
         provider cannot clone voices, FileNotFoundError for a missing profile."""
         provider = self.get_cloning_provider_for(params)
         profile_path = self.build_profile_path(
-            profile_name, provider.profile_file_extension
+            provider, profile_name, provider.profile_file_extension
         )
 
         samples, sample_rate = await provider.synthesize(
@@ -685,9 +720,10 @@ class TTSService:
            (get_active_or_new_provider_for) and lets it check its params. A
            problem, e.g. no voice or no profile picked, is raised as ValueError
            with its message.
-        2. Speaks the sentence. Edge goes to the network. Chatterbox loads its
-           model on first use, and again on every call when the engine on the
-           screen is not the saved one (a throwaway provider).
+        2. Speaks the sentence. Edge goes to the network. Chatterbox and
+           Pocket TTS load their model on first use, and again on every call
+           when the engine on the screen is not the saved one (a throwaway
+           provider).
         3. Adds the Voice Lab effects from tts_settings. Switched off -> the
            plain voice, as Celeste would sound.
         4. Plays the result at the volume of tts_settings.
@@ -700,7 +736,9 @@ class TTSService:
         if issue is not None:
             raise ValueError(issue.message)
 
-        profile_path = self.find_profile_path(provider, tts_settings.params)
+        profile_path = self.build_profile_path_named_in_params(
+            provider, tts_settings.params
+        )
         samples, sample_rate = await provider.synthesize(
             VOICE_LAB_TEST_TEXT, tts_settings.params, profile_path
         )
@@ -714,11 +752,18 @@ class TTSService:
             apply_voice_lab_effects=False,
         )
 
-    async def play_sample_voice(self, profile_name: str) -> None:
-        """Plays the sample saved when the profile was cloned and waits until
-        it has played. No speech is generated and no model is loaded. Raises
-        FileNotFoundError when the sample file is missing."""
-        sample_path = self.build_profile_path(f"{profile_name}_sample", ".wav")
+    async def play_sample_voice(
+        self, profile_name: str, params: TtsProviderParams
+    ) -> None:
+        """Plays the sample saved when the profile was cloned, from the folder
+        of the provider of params (the settings as they are on the screen now),
+        and waits until it has played. No speech is generated and no model is
+        loaded. Raises VoiceCloningException when that provider cannot clone
+        voices and FileNotFoundError when the sample file is missing."""
+        provider = self.get_cloning_provider_for(params)
+        sample_path = self.build_profile_path(
+            provider, f"{profile_name}_sample", ".wav"
+        )
 
         if not sample_path.exists():
             raise FileNotFoundError(
@@ -802,10 +847,11 @@ class TTSService:
         1. Yields a "not completed" status, so the UI shows a spinner.
         2. Builds the provider (reload_service).
         3. A provider that speaks in pieces for the saved params (Chatterbox on
-           a GPU) loads its model and voice now and speaks WARM_UP_TEXT with no
-           sound, which takes several seconds. Otherwise the pilot would wait
-           for that on the first reply. Other providers load nothing, a broken
-           voice shows up on the first reply.
+           a GPU, Pocket TTS) loads its model and voice now and speaks
+           WARM_UP_TEXT with no sound, which takes several seconds (and the
+           first time Pocket TTS downloads its model). Otherwise the pilot
+           would wait for that on the first reply. Other providers load
+           nothing, a broken voice shows up on the first reply.
         4. Yields completed. Never raises, an error (also a voice profile that
            is missing) ends up in the status message. The check is not
            critical: with an error the app still starts, and the problem shows
