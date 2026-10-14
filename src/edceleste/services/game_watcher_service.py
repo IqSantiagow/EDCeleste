@@ -16,6 +16,22 @@ from edceleste.services.models.settings_model import SettingsIssueModel, Setting
 logger = logging.getLogger(__name__)
 
 
+def find_journal_files(folder: str) -> list[str]:
+    """Lists the files named Journal*.log that lie directly in the folder.
+    Reads the disk, changes nothing and never raises.
+
+    Returns the full path of every file, in no guaranteed order, not sorted
+    by time. Only the file name is matched, never the folder path: a folder
+    called "MyJournals" does not turn its app.log into a journal. Characters
+    of the folder path that glob treats as a pattern, like "[", are taken
+    literally. An empty list means there is no journal file, or the folder
+    does not exist or cannot be read.
+
+    Both the settings check and the watcher use this one rule, so a folder that
+    passes the check can always be watched."""
+    return glob.glob(os.path.join(glob.escape(folder), "Journal*.log"))
+
+
 class GameWatcherService:
     def __init__(
         self, journal_path: str, event_bus: EventBus, settings_service: SettingsService
@@ -91,12 +107,14 @@ class GameWatcherService:
                     continue
 
     def __get_latest_journal_filepath(self) -> str:
-        """Picks the *.log file with "Journal" in its name that was modified
-        last. When there is none, sets exit_signal and raises
-        FileNotFoundError."""
-        all_files = glob.glob(self.journal_path + "/*.log")
+        """Looks in the folder self.journal_path and returns the full path of
+        the Journal*.log file (see find_journal_files) that was modified last.
+        Reads the disk.
 
-        journal_files = [f for f in all_files if "Journal" in f]
+        When the folder has no such file, it sets exit_signal (so this is not a
+        pure getter) and raises FileNotFoundError. Only start_watcher_service
+        calls it."""
+        journal_files = find_journal_files(self.journal_path)
 
         if not journal_files:
             self.exit_signal = True
@@ -110,13 +128,15 @@ class GameWatcherService:
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
         """Checks the journal path of new settings before they are saved. Reads
-        the disk.
+        the disk, changes no state and never raises.
 
         Checks in order and returns the first issue:
-        1. the path is set,
+        1. the path is set (not empty),
         2. the folder exists,
-        3. the folder has at least one *.log file (any name, not only
-           Journal*).
+        3. the folder has at least one Journal*.log file (find_journal_files),
+           the same rule the watcher uses to start.
+        The issue points at section "paths" and field "journal_path", and its
+        message is the text the settings screen shows next to the path.
         Returns None when everything is fine.
         """
         if not new_settings.paths.journal_path or new_settings.paths.journal_path == "":
@@ -133,12 +153,12 @@ class GameWatcherService:
                     f"Journal path '{new_settings.paths.journal_path}' does not exist."
                 ),
             )
-        if not glob.glob(new_settings.paths.journal_path + "/*.log"):
+        if not find_journal_files(new_settings.paths.journal_path):
             return SettingsIssueModel(
                 section="paths",
                 field="journal_path",
                 message=(
-                    "No journal log files found in "
+                    "No Elite Dangerous journal files (Journal*.log) found in "
                     f"'{new_settings.paths.journal_path}'."
                 ),
             )
