@@ -39,7 +39,7 @@ class VoiceCloneSaveResult:
 CLONING_STEP_LABELS = [
     "Preparing profile",
     "Loading sample",
-    "Extracting voice features (Chatterbox)",
+    "Extracting voice features",
     "Saving profile and demo sample",
 ]
 
@@ -92,8 +92,8 @@ class AnalysisPhase(Static):
     class AnalysisCompleted(Message):
         def __init__(self, is_valid: bool) -> None:
             """Posted when the sample analysis finishes. is_valid False (sample
-            shorter than the provider needs, 10 s for Chatterbox) keeps the
-            modal's Next button disabled."""
+            shorter than the provider needs, 10 s for Chatterbox and Pocket TTS)
+            keeps the modal's Next button disabled."""
             super().__init__()
             self.is_valid = is_valid
 
@@ -163,7 +163,7 @@ class AnalysisPhase(Static):
 
             if not self.analysis["is_valid"]:
                 yield Label(
-                    "Chatterbox needs a longer sample to capture the voice's timbre.",
+                    "The voice needs a longer sample to capture its timbre.",
                     classes="analysis-error-hint",
                 )
 
@@ -418,7 +418,9 @@ class SavePhase(Static):
     async def play_sample(self) -> None:
         """Worker. Plays the demo sample saved by cloning, not a new synthesis.
         Same "ab-playback" group as play_source()."""
-        await self.settings_repository.play_sample_voice(self.temporary_profile_name)
+        await self.settings_repository.play_sample_voice(
+            self.temporary_profile_name, self.params
+        )
 
     @on(Button.Pressed, "#save-regenerate-button")
     def handle_regenerate_pressed(self) -> None:

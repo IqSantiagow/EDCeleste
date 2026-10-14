@@ -143,7 +143,7 @@ async def test_should_show_loading_the_voice_while_a_fast_voice_engine_loads(
 
             with allure.step("And it used the voice file 'narrator'"):
                 assert chatterbox.spoken_profile_paths == [
-                    edceleste.voices_folder / "narrator.pt"
+                    edceleste.chatterbox_voices_folder / "narrator.pt"
                 ]
 
             with allure.step("And no sound came out of the speakers"):
@@ -160,7 +160,7 @@ async def test_should_mark_text_to_speech_failed_when_the_voice_file_is_missing(
         "but the voice file is gone"
     ):
         edceleste.save_tts_settings(chatterbox_settings(device="cuda"))
-        assert not (edceleste.voices_folder / "narrator.pt").exists()
+        assert not (edceleste.chatterbox_voices_folder / "narrator.pt").exists()
 
     with allure.step("And the preflight stays open 2 s so the results can be read"):
         monkeypatch.setattr(SystemCheckScreen, "SECONDS_BEFORE_DASHBOARD", 2)

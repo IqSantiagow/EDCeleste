@@ -280,14 +280,15 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         remove_voice_profile_use_case.assert_called_once_with("celeste", params)
 
     async def test_should_delegate_play_sample_voice_to_use_case(self):
+        params = _params()
         play_sample_voice_use_case = AsyncMock()
         repository = self._make_repository(
             play_sample_voice_use_case=play_sample_voice_use_case
         )
 
-        await repository.play_sample_voice("celeste")
+        await repository.play_sample_voice("celeste", params)
 
-        play_sample_voice_use_case.assert_awaited_once_with("celeste")
+        play_sample_voice_use_case.assert_awaited_once_with("celeste", params)
 
     async def test_should_delegate_play_audio_file_to_use_case(self):
         play_audio_file_use_case = AsyncMock()

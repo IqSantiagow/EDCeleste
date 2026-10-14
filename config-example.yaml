@@ -44,6 +44,12 @@ tts:
   #   cfg_weight: 0.5
   #   device: "auto"
   #   nano: true
+  # Pocket TTS clones a voice from a profile too, but runs on the processor only and takes no
+  # graphics card memory. Its profiles are kept apart from the Chatterbox ones. Clone from a clean,
+  # dry recording: the voice copies the echo and hiss of the clip.
+  # provider: "pocket"
+  # params:
+  #   profile: "celeste-v3"
   volume: 1.0
   # Voice Lab makes Celeste sound like she speaks inside the ship, with either engine.
   # Every slider goes from 0 to 1; 0.5 is the sound fitted to Celeste's voice clip.

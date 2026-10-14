@@ -43,6 +43,7 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
+from edceleste.services.tts_providers.pocket_tts_provider import PocketTTSProvider
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
     WidgetCommsEntry,
@@ -291,6 +292,58 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
         return "cpu"
 
 
+class FakePocketTtsProvider(PocketTTSProvider):
+    """The real Pocket TTS checks (folder and file type of a profile, speaking
+    in pieces), but no model and no download: a profile is a real file in the
+    voices folder and speaking only remembers what it should say. It speaks in
+    the same three pieces as the fake Chatterbox"""
+
+    def __init__(self, spoken_texts: list[str]) -> None:
+        super().__init__()
+        self.spoken_texts = spoken_texts
+        self.spoken_params: list[TtsProviderParams] = []
+        self.spoken_profile_paths: list[Path | None] = []
+        self.voice_pieces: list[np.ndarray] = [
+            np.full(FAKE_VOICE_PIECE_SAMPLES, level, dtype=np.float32)
+            for level in FAKE_VOICE_PIECE_LEVELS
+        ]
+
+    async def synthesize_stream(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> AsyncIterator[np.ndarray]:
+        if profile_path is not None and not profile_path.exists():
+            raise FileNotFoundError(f"Voice profile not found: {profile_path}")
+        self.spoken_texts.append(text)
+        self.spoken_params.append(params)
+        self.spoken_profile_paths.append(profile_path)
+        for piece in self.voice_pieces:
+            yield piece
+
+    async def synthesize(
+        self,
+        text: str,
+        params: TtsProviderParams,
+        profile_path: Path | None = None,
+    ) -> tuple[np.ndarray, int]:
+        if profile_path is not None and not profile_path.exists():
+            raise FileNotFoundError(f"No voice profile at {profile_path}")
+        self.spoken_texts.append(text)
+        self.spoken_params.append(params)
+        self.spoken_profile_paths.append(profile_path)
+        return np.zeros(FAKE_SAMPLE_RATE, dtype=np.float32), FAKE_SAMPLE_RATE
+
+    async def create_voice_profile(
+        self,
+        reference_audio_path: str,
+        profile_path: Path,
+        params: TtsProviderParams,
+    ) -> None:
+        profile_path.write_bytes(b"fake voice profile")
+
+
 def recorded_journal_line(event_name: str) -> str:
     recorded_journal = TEST_KNOWN_EVENTS_FILE_LOCATION.read_text(encoding="utf-8")
     for line in recorded_journal.splitlines():
@@ -395,6 +448,7 @@ class EdCelesteTestEnvironment:
             self.fake_tts_providers = {
                 "edge": FakeEdgeTtsProvider(self.spoken_texts),
                 "chatterbox": FakeChatterboxTtsProvider(self.spoken_texts),
+                "pocket": FakePocketTtsProvider(self.spoken_texts),
             }
             self.played_audio: list[dict] = []
             tts_service = self.container.tts_service()
@@ -553,6 +607,29 @@ async def open_settings_section(edceleste, pilot: Pilot, section_id: str) -> Non
     await pilot.pause()
 
 
+SECONDS_TO_WAIT_FOR_LAYOUT = 5
+
+
+def build_click_that_waits_for_layout(original_click):
+    # pilot.click("<selector>") aims at the region the widget has when the click
+    # starts. A widget that is mounted but not laid out yet has an empty region
+    # at (0, 0), so the click lands in the corner of the screen and is lost
+    # without any error. That happens on a busy machine to the Clone voice
+    # buttons and to the input of the file picker. Waiting until the target has
+    # a region is the same thing a pilot does by looking at the screen
+    async def click(self: Pilot, widget=None, *arguments, **keyword_arguments):
+        if isinstance(widget, str):
+            give_up_at = time.monotonic() + SECONDS_TO_WAIT_FOR_LAYOUT
+            while time.monotonic() < give_up_at:
+                matches = self.app.screen.query(widget)
+                if matches and matches.first().region.area > 0:
+                    break
+                await self.pause(0.05)
+        return await original_click(self, widget, *arguments, **keyword_arguments)
+
+    return click
+
+
 @pytest.fixture
 def anyio_backend():
     # Textual runs on asyncio only
@@ -571,8 +648,16 @@ async def edceleste(tmp_path, monkeypatch):
     with allure.step("The voice profiles go to a voices folder in the temp folder"):
         monkeypatch.setattr(tts_service_module, "VOICES_DIR", tmp_path / "voices")
 
+    with allure.step("A click waits until its target is on the screen"):
+        monkeypatch.setattr(
+            Pilot, "click", build_click_that_waits_for_layout(Pilot.click)
+        )
+
     environment = EdCelesteTestEnvironment(tmp_path)
     environment.voices_folder = tmp_path / "voices"
+    # The profiles of Chatterbox, the engine the e2e voices are made for
+    environment.chatterbox_voices_folder = environment.voices_folder / "chatterbox"
+    environment.pocket_voices_folder = environment.voices_folder / "pocket"
     yield environment
 
     with allure.step("EDCeleste's services are unwired for the next test"):

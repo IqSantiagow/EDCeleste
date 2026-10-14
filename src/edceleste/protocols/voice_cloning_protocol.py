@@ -58,10 +58,14 @@ class VoiceCloningProtocol(Protocol):
         ends. params are the settings as they are on the screen now."""
         ...
 
-    async def play_sample_voice(self, profile_name: str) -> None:
+    async def play_sample_voice(
+        self, profile_name: str, params: TtsProviderParams
+    ) -> None:
         """Plays the sample made when the profile was cloned, nothing is
-        generated. Waits until it ends. Raises FileNotFoundError when the
-        sample file is missing."""
+        generated. The sample lies in the folder of the provider of params (the
+        settings as they are on the screen now). Waits until it ends. Raises
+        VoiceCloningException when that provider cannot clone voices and
+        FileNotFoundError when the sample file is missing."""
         ...
 
     async def play_audio_file(self, path_to_audio_file: str) -> None:
