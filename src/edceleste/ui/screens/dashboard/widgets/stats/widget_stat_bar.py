@@ -27,8 +27,6 @@ class WidgetStatBar(HorizontalGroup):
         self.label = label
 
     def compose(self) -> ComposeResult:
-        """Label, a thick progress bar out of 100 without ETA and percentage,
-        and a value text that starts as "-" until update_bar() runs."""
         yield Label(self.label, classes="stat-label")
         yield ThickProgressBar(
             total=FULL_PERCENT,

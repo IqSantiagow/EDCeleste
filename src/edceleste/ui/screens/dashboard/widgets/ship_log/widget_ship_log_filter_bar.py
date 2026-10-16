@@ -29,8 +29,6 @@ class WidgetShipLogFilterChip(Label):
         self.filter_value = filter_value
 
     def on_click(self, _: events.Click) -> None:
-        """Posts FilterSelected with this chip's value. The filter bar
-        highlights the chip and the ship log panel above it filters the rows."""
         self.post_message(WidgetShipLogFilterBar.FilterSelected(self.filter_value))
 
 
@@ -43,8 +41,6 @@ class WidgetShipLogFilterBar(HorizontalGroup):
             super().__init__()
 
     def compose(self) -> ComposeResult:
-        """One chip per SHIP_LOG_FILTERS entry. ALL starts highlighted, because
-        the panels start with the ALL filter."""
         for label, filter_value in SHIP_LOG_FILTERS:
             chip = WidgetShipLogFilterChip(label, filter_value)
             if filter_value == FILTER_ALL:

@@ -42,10 +42,6 @@ class WidgetShipLogExtendedPanel(Widget):
         self.active_filter = FILTER_ALL
 
     def compose(self) -> ComposeResult:
-        """The wide ship log. The LOG tab has the filter bar, a column header
-        (TIME, EVENT, SYSTEM, DETAILS) and an empty scroll for the rows. The
-        STN tab gets the real station market, the other cards are "NO DATA"
-        placeholders. Rows are mounted later by add_entry()."""
         with TabbedContent(initial=SHIP_LOG_TAB_LOG):
             with TabPane("LOG", id=SHIP_LOG_TAB_LOG):
                 yield WidgetShipLogFilterBar()
@@ -62,8 +58,6 @@ class WidgetShipLogExtendedPanel(Widget):
             )
 
     def on_mount(self) -> None:
-        """Waits for the first refresh, then mounts rows for entries that
-        arrived before the panel was ready."""
         self.call_after_refresh(self.rebuild_rows)
 
     def add_entry(self, entry: JournalLogViewModel) -> None:

@@ -57,8 +57,6 @@ class WidgetLabeledSliderRow(WidgetBaseInput):
         return steps / self._steps_per_unit()
 
     def compose(self) -> ComposeResult:
-        """Label, the Slider in whole steps, and a label with the decimal value
-        that on_slider_changed() keeps up to date."""
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             yield Slider(
@@ -74,11 +72,6 @@ class WidgetLabeledSliderRow(WidgetBaseInput):
             )
 
     def on_slider_changed(self, event: Slider.Changed) -> None:
-        """Runs on every slider move:
-        1. scales the whole step back to a decimal and stores it,
-        2. redraws the value label next to the slider,
-        3. posts ValueChanged with the decimal to the section container.
-        """
         self.value = self._from_slider_steps(event.value)
         self.query_one("#slider-value-label", Label).update(f"{self.value:g}")
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore

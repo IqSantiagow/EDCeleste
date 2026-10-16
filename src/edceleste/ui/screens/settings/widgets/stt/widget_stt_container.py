@@ -60,18 +60,9 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
-        """Starts loading the model and microphone lists. Until both are in,
-        compose() shows only a loading indicator."""
         self.call_later(self.fetch_stt_models_and_input_devices)
 
     def compose(self) -> ComposeResult:
-        """Runs again when models or input_devices change.
-
-        - one of the lists still None -> only a loading indicator,
-        - both loaded -> the enabled switch, the model select and the
-          microphone select. The microphone select shows device names but
-          holds the device index as text. No saved device means "".
-        """
         yield from super().compose()
         if self.models is None or self.input_devices is None:
             yield LoadingIndicator(id="loading-models-indicator")
@@ -127,13 +118,6 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
             self.input_devices = []
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        """Runs when a row posts ValueChanged. Writes the new value into
-        stt_model and posts SectionSettingsChanged(STT) to the settings screen.
-        Nothing is saved here.
-
-        The microphone comes as the device index in text. Anything that is not
-        a number (blank select) becomes None, the system default device.
-        """
         if message.sender_id == SttInputWidgetIds.STT_ENABLED_INPUT:
             self.stt_model.enabled = message.new_value
         elif message.sender_id == SttInputWidgetIds.STT_MODEL_INPUT:

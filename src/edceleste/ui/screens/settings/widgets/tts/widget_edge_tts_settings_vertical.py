@@ -39,13 +39,9 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
-        """Starts loading the Edge voice list. Until it is in, compose() shows
-        a loading indicator."""
         self.call_later(self.fetch_voices)
 
     def compose(self) -> ComposeResult:
-        """Runs again when voices is set: a loading indicator before, the voice
-        select after."""
         if self.voices is None:
             yield LoadingIndicator(id="loading-voices-indicator")
         else:

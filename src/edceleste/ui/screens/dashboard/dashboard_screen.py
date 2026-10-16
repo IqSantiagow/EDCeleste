@@ -57,19 +57,11 @@ class DashboardScreen(Screen):
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
-        """1. Loads the keybinds. A missing keybinds file only logs a warning.
-        2. Starts the LLM worker (show_llm_replies_and_status).
-        3. Starts the journal worker (show_journal_entries_in_ship_log).
-        """
         self.__load_keybinds()
         self.show_llm_replies_and_status()
         self.show_journal_entries_in_ship_log()
 
     def compose(self) -> ComposeResult:
-        """Header on top, footer at the bottom, and in between one grid with
-        the three stats panels, both ship log panels (wide and rail), COMMS
-        and the input row. The stats panels and the input get the repository,
-        the log panels and COMMS are fed by this screen's workers."""
         yield AppHeader()
         with Grid(id="app-container", classes="screen-grid"):
             yield WidgetNavigationStats(
@@ -139,13 +131,6 @@ class DashboardScreen(Screen):
         )
 
     def action_toggle_ship_log_expanded(self) -> None:
-        """Switch the journal between the rail and full width.
-
-        Which panel is visible and how the grid is laid out both follow from
-        this single class - ui/css.tcss does the rest. Cards listed in
-        ALWAYS_EXPANDED_TABS have no rail version, so while one of them is
-        open there is nothing to shrink down to.
-        """
         if self.active_ship_log_tab() in ALWAYS_EXPANDED_TABS:
             return
         self.query_one("#app-container", Grid).toggle_class("-ship-log-expanded")
@@ -184,6 +169,4 @@ class DashboardScreen(Screen):
                 self.query_one("#comms-col", WidgetCommsCol).response_state = item
 
     def on_unmount(self) -> None:
-        """Stops the game watcher (journal and status file polling) when the
-        dashboard goes away, so no tasks keep running after the app closes."""
         self.game_watcher_service.stop_watcher_service()
