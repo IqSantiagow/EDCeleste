@@ -60,7 +60,8 @@ Go through the steps in order. Do not call the work done before step 6 is done.
       scenario itself was wrong, and say so.
 6. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
    The `blind-signature-reader` subagent guesses the changed methods from names alone (wrong
-   guesses → rename), then from names plus docstrings (wrong guesses → better docstrings). It sees
+   guesses → rename), then from names plus docstrings (wrong guesses → better docstrings). Only
+   backend logic is checked, everything under `src/edceleste/ui/` is skipped. It sees
    only stripped copies made by `signature_check/strip_method_bodies.py`; a hook blocks every other read.
    Iterate until all changes are correctly guessed and the blind check passes.
 
@@ -78,6 +79,8 @@ Go through the steps in order. Do not call the work done before step 6 is done.
   that only stores its dependencies needs none, `__call__` of a use case carries the description.
   A name that lies or is vague gets renamed first (`process_game_state_change` that only stores →
   `remember_latest_game_state`)
+- Exception: a Textual method (`compose`, `on_mount`, `on_*`, `watch_*`, `action_*` and the like) gets
+  no docstring. The library defines what it does, so a docstring would only retell the Textual docs.
 
 ## Ape style code
 - Write a code so understandable that even an ape can understand it. Use simple names and exhausting function and variable names

@@ -1,6 +1,6 @@
 ---
 name: blind-check
-description: Two-stage blind check of the source files a change touched. Stage 1 gives the blind-signature-reader agent only the method names and types and fixes the names it gets wrong. Stage 2 gives it names plus docstrings, asks what each method returns, raises and changes, and makes the docstrings more descriptive where it guesses wrong. Use after a feature, a fix or a refactor, before the PR, or when the user says "blind check", "ślepy test", "sprawdź nazwy" or "sprawdź docstringi".
+description: Two-stage blind check of the backend logic a change touched (never the UI under src/edceleste/ui/). Stage 1 gives the blind-signature-reader agent only the method names and types and fixes the names it gets wrong. Stage 2 gives it names plus docstrings, asks what each method returns, raises and changes, and makes the docstrings more descriptive where it guesses wrong. Use after a feature, a fix or a refactor, before the PR, or when the user says "blind check", "ślepy test", "sprawdź nazwy" or "sprawdź docstringi".
 ---
 
 Checks that someone who never saw the code understands it from the names and the
@@ -18,6 +18,11 @@ Execute the steps in order.
 - If the user named files, use them.
 - Otherwise the script finds them itself: Python files under `src/edceleste` changed
   against `main`, uncommitted or new. Tests are never checked.
+- Only backend logic is checked. The script skips everything under `src/edceleste/ui/`
+  (screens, widgets, view models), also when the file is named, and prints each skipped
+  file on stderr. The Textual methods there (`compose`, `on_mount`, `on_*`, `watch_*`,
+  `action_*`) do what the library defines, so a blind reader has nothing to learn from
+  their names or docstrings and they carry no docstring. Never put a UI file back by hand.
 - Files without any function (plain models, constants) are skipped by the script.
 
 ## Step 2 — Stage 1: names only
@@ -40,9 +45,8 @@ Execute the steps in order.
    `get_models` that goes to the network → `fetch_available_model_names`.
    - Grep `src/`, `tests/` and `.claude/` for the old name as a word and inside longer
      names (`test_get_models_...`, `mock_get_models`), and rename all of them.
-   - Never rename dunder methods, Textual hooks (`compose`, `on_*`, `watch_*`,
-     `action_*`), pydantic fields, or methods every service shares (`cold_start`,
-     `reload_service`, `validate_settings`).
+   - Never rename dunder methods, pydantic fields, or methods every service shares
+     (`cold_start`, `reload_service`, `validate_settings`).
    - A name that is only weak, not wrong, can stay. Then stage 2 must cover it in
      the docstring.
 5. Run `ruff check`, `ruff format` and the tests of the touched files.
