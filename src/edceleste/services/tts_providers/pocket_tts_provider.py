@@ -43,6 +43,17 @@ NEXT_PIECE_FRAMES = 6
 MIN_REAL_TIME_FACTOR = 1.3
 # A shorter speech does not tell the speed: the first step of a text is slower
 MIN_SPEECH_SECONDS_TO_JUDGE_SPEED = 2.0
+# The model carries on from the end of the voice clip, so the clip must end in
+# silence. The app cuts a clip after 10 seconds, and one clip was cut in the
+# middle of an "s": every speech then began with that hiss (50-120 ms of noise
+# before the first word). With this silence after the clip it was gone in every
+# try.
+SILENCE_AFTER_CLIP_SECONDS = 0.5
+# The decoder of the model starts every speech with the same tick, whatever the
+# text: 8 samples (0.3 ms, about -42 dBFS). In a silent room it is heard as a
+# click before the voice, and the Voice Lab does not remove it. The speech comes
+# in from silence over this time.
+FADE_IN_SECONDS = 0.010
 
 
 def find_or_download_model_file() -> Path:
@@ -76,6 +87,21 @@ def take_frames(frames: Iterator[np.ndarray], count: int) -> list[np.ndarray]:
     return list(itertools.islice(frames, count))
 
 
+def fade_in_the_start_of_the_speech(
+    samples: np.ndarray, sample_rate: int
+) -> np.ndarray:
+    """A copy of samples whose first FADE_IN_SECONDS rise in a straight line
+    from silence to the original level, which hides the tick the decoder of the
+    model makes at the very start of a speech. The rest is the same, and the
+    array that was passed in is not changed. Samples shorter than the fade rise
+    over their whole length, and no samples give no samples."""
+    fade_samples = min(len(samples), int(FADE_IN_SECONDS * sample_rate))
+    faded = samples.copy()
+    rising = np.linspace(0.0, 1.0, fade_samples, endpoint=False, dtype=samples.dtype)
+    faded[:fade_samples] *= rising
+    return faded
+
+
 class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol):
     # The voice is learned from the first 10 seconds of a clip
     reference_seconds = 10.0
@@ -105,6 +131,7 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
         1. Loads the model if needed (this may download it the first time) and
            the voice profile when it is not the loaded one.
         2. Makes all the frames in a worker thread and joins them.
+        3. Fades in the first FADE_IN_SECONDS (see fade_in_the_start_of_the_speech).
         Returns the samples and the sample rate, plays nothing. Raises
         TypeError for params of another provider, ValueError when profile_path
         is None and FileNotFoundError for a missing profile file. A text with no
@@ -123,7 +150,9 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
         )
         if not frames:
             return np.zeros(0, dtype=np.float32), engine.sample_rate
-        return np.concatenate(frames), engine.sample_rate
+        speech = np.concatenate(frames)
+        faded_speech = fade_in_the_start_of_the_speech(speech, engine.sample_rate)
+        return faded_speech, engine.sample_rate
 
     async def synthesize_stream(
         self,
@@ -139,7 +168,9 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
         1. Loads the model and the voice profile exactly as synthesize() does.
         2. In a worker thread takes the frames of one piece from the model, so
            the event loop stays free, and gives the piece: mono float32 at
-           stream_sample_rate.
+           stream_sample_rate. The first piece is faded in over the first
+           FADE_IN_SECONDS (see fade_in_the_start_of_the_speech), the next ones
+           are given as the model made them.
         3. After the last piece judges the speed: when the model made a speech
            of 2 seconds or more less than MIN_REAL_TIME_FACTOR times faster
            than it is played, can_stream() says False from now on. Only the
@@ -173,6 +204,8 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
             if not piece_frames:
                 break
             piece = np.concatenate(piece_frames)
+            if samples_made == 0:
+                piece = fade_in_the_start_of_the_speech(piece, engine.sample_rate)
             samples_made += len(piece)
             yield piece
             frames_in_piece = NEXT_PIECE_FRAMES
@@ -204,8 +237,9 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
         1. Loads the model in a worker thread if needed (slow, and it may
            download the model the first time).
         2. Clears loaded_profile_path, because the file is about to change.
-        3. Reads the clip, mixes it down to mono, learns the voice and saves
-           it as float16, which is how the model stores its own voices.
+        3. Reads the clip, mixes it down to mono, adds SILENCE_AFTER_CLIP_SECONDS
+           of silence after it, learns the voice and saves it as float16, which
+           is how the model stores its own voices.
 
         Raises TypeError for params of another provider, before anything is
         loaded. A clip that cannot be read, or an error of the model, comes out
@@ -286,14 +320,20 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
         """Blocking part of create_voice_profile(), run in a worker thread.
         1. Reads the clip from reference_audio_path as float32 with soundfile.
         2. Mixes a stereo clip down to mono (the average of the channels).
-        3. Lets the model learn the voice from it, at the sample rate of the
-           clip (the model resamples it itself).
-        4. Saves the voice as float16 in profile_path, replacing a file that is
+        3. Adds SILENCE_AFTER_CLIP_SECONDS of silence after the clip, counted
+           in the sample rate of the clip. The model carries on from the end
+           of the clip, and a clip that ends in the middle of a sound (the app
+           cuts it after 10 seconds) starts every speech with that sound.
+        4. Lets the model learn the voice from the clip and the silence, at the
+           sample rate of the clip (the model resamples it itself).
+        5. Saves the voice as float16 in profile_path, replacing a file that is
            already there.
         Reads and writes the disk and runs the model, so it blocks. A clip that
         soundfile cannot read raises its error, and nothing is saved then."""
         samples, sample_rate = sf.read(reference_audio_path, dtype="float32")
         if samples.ndim > 1:
             samples = samples.mean(axis=1)
+        silence = np.zeros(int(SILENCE_AFTER_CLIP_SECONDS * sample_rate), np.float32)
+        samples = np.concatenate([samples, silence])
         voice = engine.clone_voice(samples, sample_rate=sample_rate)
         np.save(profile_path, voice.astype(np.float16))
