@@ -177,10 +177,17 @@ async def test_should_clone_a_second_recording_after_another_file(edceleste, tmp
                 "only the voice 'second_take' in the list",
             )
 
-        with allure.step("And the voices folder holds only its files"):
+        with allure.step("And the voices folder holds only its files and its replies"):
             assert voice_files_in_folder(edceleste) == [
+                "replies",
                 "second_take.pt",
                 "second_take_sample.wav",
+            ]
+
+        with allure.step("And the replies of the first, discarded clone are gone"):
+            replies_folder = edceleste.chatterbox_voices_folder / "replies"
+            assert [folder.name for folder in replies_folder.iterdir()] == [
+                "second_take"
             ]
 
 
@@ -233,6 +240,13 @@ async def test_should_refuse_a_taken_name_and_lose_no_voice(edceleste, tmp_path)
                 "commander_voice_sample.wav",
                 "narrator.pt",
                 "narrator_sample.wav",
+                "replies",
+            ]
+
+        with allure.step("And the replies folder holds only the replies of the clone"):
+            replies_folder = edceleste.chatterbox_voices_folder / "replies"
+            assert [folder.name for folder in replies_folder.iterdir()] == [
+                "commander_voice"
             ]
 
 
@@ -445,6 +459,7 @@ async def test_should_not_touch_the_recordings_kept_in_the_voices_folder(edceles
 
         with allure.step("And both recordings are still in the voices folder"):
             assert voice_files_in_folder(edceleste) == [
+                "replies",
                 "take.pt",
                 "take.wav",
                 "take_reference.wav",

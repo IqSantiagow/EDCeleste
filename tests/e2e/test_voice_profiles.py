@@ -7,6 +7,7 @@ from textual.pilot import Pilot
 from textual.widgets import Label, Select
 from textual.widgets._toast import Toast
 
+from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen import (
@@ -27,6 +28,15 @@ def write_voice_profile_files(edceleste, profile_name: str) -> None:
     (edceleste.chatterbox_voices_folder / f"{profile_name}_sample.wav").write_bytes(
         b"sample"
     )
+
+
+def write_replies_of_voice(edceleste, profile_name: str) -> list[str]:
+    replies_folder = edceleste.chatterbox_voices_folder / "replies" / profile_name
+    replies_folder.mkdir(parents=True, exist_ok=True)
+    reply_file_names = [build_reply_wav_file_name(text) for text in REPLY_TEXTS[:3]]
+    for reply_file_name in reply_file_names:
+        (replies_folder / reply_file_name).write_bytes(b"reply")
+    return sorted(reply_file_names)
 
 
 def write_voice_recording(folder, file_name: str, seconds: int):
@@ -286,6 +296,84 @@ async def test_should_remove_a_cloned_voice_after_switching_engine_without_savin
 
 
 @allure.title(
+    "Deleting a cloned voice also deletes its replies and keeps those of the others"
+)
+async def test_should_delete_the_replies_of_a_removed_voice_and_keep_the_others(
+    edceleste,
+):
+    with allure.step("Given the Commander has two cloned voices with their replies"):
+        write_voice_profile_files(edceleste, "narrator")
+        write_voice_profile_files(edceleste, "wingman")
+        write_replies_of_voice(edceleste, "narrator")
+        wingman_replies = write_replies_of_voice(edceleste, "wingman")
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander switched the engine to Chatterbox"):
+            await open_text_to_speech_settings(edceleste, pilot)
+            await switch_engine_to_chatterbox(edceleste, pilot)
+
+        with allure.step("When the Commander removes the voice 'narrator'"):
+            await pilot.click("#profile-row-narrator .profile-delete-button")
+
+        with allure.step("Then the list shows only 'wingman'"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: profile_names_in_list(pilot.app) == ["wingman"],
+                "only the voice 'wingman' in the list",
+            )
+
+        with allure.step("And the voices folder holds only 'wingman' and its replies"):
+            assert voice_files_in_folder(edceleste) == [
+                "replies",
+                "wingman.pt",
+                "wingman_sample.wav",
+            ]
+
+        with allure.step("And the replies of 'narrator' are gone"):
+            replies_folder = edceleste.chatterbox_voices_folder / "replies"
+            assert sorted(folder.name for folder in replies_folder.iterdir()) == [
+                "wingman"
+            ]
+
+        with allure.step("And all the replies of 'wingman' are still there"):
+            wingman_folder = edceleste.chatterbox_voices_folder / "replies" / "wingman"
+            assert sorted(file.name for file in wingman_folder.iterdir()) == (
+                wingman_replies
+            )
+
+
+@allure.title("Deleting the last cloned voice leaves no replies folder behind")
+async def test_should_leave_the_voices_folder_empty_after_removing_the_last_voice(
+    edceleste,
+):
+    with allure.step("Given the Commander has one cloned voice with its replies"):
+        write_voice_profile_files(edceleste, "narrator")
+        write_replies_of_voice(edceleste, "narrator")
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the Commander switched the engine to Chatterbox"):
+            await open_text_to_speech_settings(edceleste, pilot)
+            await switch_engine_to_chatterbox(edceleste, pilot)
+
+        with allure.step("When the Commander removes the voice 'narrator'"):
+            await pilot.click("#profile-row-narrator .profile-delete-button")
+
+        with allure.step("Then the list shows no voice"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: profile_names_in_list(pilot.app) == [],
+                "the list without voices",
+            )
+
+        with allure.step("And the voices folder is empty, replies folder included"):
+            assert voice_files_in_folder(edceleste) == []
+
+
+@allure.title(
     "A voice cloned before the engine is saved is still there after reopening"
 )
 async def test_should_keep_a_cloned_voice_when_the_engine_was_never_saved(
@@ -322,10 +410,11 @@ async def test_should_keep_a_cloned_voice_when_the_engine_was_never_saved(
                 "the voice 'commander' in the list",
             )
 
-        with allure.step("And its files are in the voices folder"):
+        with allure.step("And its files and its replies are in the voices folder"):
             assert voice_files_in_folder(edceleste) == [
                 "commander.pt",
                 "commander_sample.wav",
+                "replies",
             ]
 
         with allure.step("When the Commander leaves the settings without saving"):

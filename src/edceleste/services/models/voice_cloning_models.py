@@ -7,6 +7,7 @@ class VoiceCloningState(Enum):
     AUDIO_PROCESSED = auto()
     COMPLETED = auto()
     SAMPLE_CREATED = auto()
+    REPLIES_CREATED = auto()
 
 
 class VoiceAnalysisResult(TypedDict):
