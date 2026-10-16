@@ -41,8 +41,6 @@ class WidgetChatterboxTTSSettingsVertical(Vertical):
         self.chatterbox_params = chatterbox_params
 
     def compose(self) -> ComposeResult:
-        """The voice profiles block (shared with Pocket TTS), then the
-        Chatterbox params (exaggeration, pace, device, nano model)."""
         yield WidgetVoiceProfilesVertical(self.chatterbox_params)
 
         yield WidgetSectionHeader("CHATTERBOX PARAMS")

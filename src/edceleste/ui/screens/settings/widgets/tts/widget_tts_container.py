@@ -121,19 +121,6 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
         self.set_reactive(WidgetTTSContainer.params, tts_model.params)
 
     def compose(self) -> ComposeResult:
-        """Textual calls it for the first build and again every time params is
-        set (an engine switch), which builds the whole section anew. It gives,
-        in this order:
-        1. the hidden error box of the base container,
-        2. in a scroll area: the header "TTS SETTINGS", the location select
-           (Local or Remote, showing where the engine in params runs), the
-           engine select with only the engines of that location (showing the
-           engine in params),
-        3. the settings of that engine (Edge voice list, Chatterbox profiles
-           and params, or Pocket TTS profiles),
-        4. the volume slider and the Voice Lab block, which are the same for
-           every engine.
-        Raises AssertionError when params is still None."""
         yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("TTS SETTINGS")
@@ -172,29 +159,6 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
             yield WidgetVoiceLabSettingsVertical(self.tts_model)
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        """Gets ValueChanged from every row in this section, also from the Edge,
-        Chatterbox, Pocket TTS and Voice Lab blocks, because the message bubbles
-        up. It finds the row by message.sender_id and does not stop the message,
-        so it goes on up.
-
-        Writes the new value into tts_model or into the params of the active
-        engine, then posts SectionSettingsChanged(TTS) to the settings screen.
-        Nothing is saved here. Ordinary values: volume, the Edge voice, the
-        picked profile, the Chatterbox exaggeration, pace (cfg_weight in the
-        model), device and the Nano model switch, the Voice Lab switch and
-        sliders. An id this method does not know writes nothing, and the message
-        is still posted. Special cases:
-        - engine changed -> switch_to_engine_with_remembered_or_default_params()
-          with it. A blank pick of the select (not an engine) is ignored.
-        - location changed -> the same switch, with the first engine of the new
-          location. Picking the location that is already on the screen, or a
-          blank, does nothing.
-        - a field of one engine while another engine is active -> not
-          written, but the message is still posted.
-        - volume, exaggeration or pace that is not a number -> a notification
-          that names the allowed range, nothing written and no post.
-        An engine or location switch is posted too, after the switch.
-        """
         params = self.params
         assert params is not None, "params must be set before on_value_changed runs"
         match message.sender_id:

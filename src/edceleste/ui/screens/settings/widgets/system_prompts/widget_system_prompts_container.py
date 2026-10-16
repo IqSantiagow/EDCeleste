@@ -87,8 +87,6 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         self.set_reactive(WidgetSystemPromptsContainer.provider, llm_model.provider)
 
     def on_mount(self) -> None:
-        """Starts loading the model list of the provider on screen. Until it is
-        in, the model row shows a loading indicator."""
         self.call_later(self.fetch_models)
 
     async def fetch_models(self) -> None:
@@ -139,17 +137,6 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         self.query_one(WidgetTestConnectionRow).clear_result()
 
     def compose(self) -> ComposeResult:
-        """Runs again when provider or models change. Three groups:
-
-        1. CELESTE: provider select, API key (hidden), base URL, the model row
-           (see compose_model_row) and the test connection row.
-        2. INSTINCT: enabled switch, device select, the fixed model name and
-           the download status row.
-        3. PROMPTS: system prompt and user prompt text areas.
-
-        The on_submit callbacks of the rows only log, the values reach
-        llm_model through on_value_changed().
-        """
         yield from super().compose()
         with VerticalScroll():
             yield WidgetSectionHeader("CELESTE")
@@ -244,16 +231,6 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
         )
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        """Runs when a row posts ValueChanged. Writes the new value into
-        llm_model and always posts SectionSettingsChanged(LLM) to the settings
-        screen. Nothing is saved here.
-
-        Extra steps for some rows:
-        - provider type changed -> a new provider with an empty model, API key
-          and base URL, then the model list is fetched again,
-        - API key or base URL -> the model list is fetched again (network),
-        - model -> the connection test result is cleared.
-        """
         provider = self.provider
         assert provider is not None, "provider must be set before on_value_changed runs"
 

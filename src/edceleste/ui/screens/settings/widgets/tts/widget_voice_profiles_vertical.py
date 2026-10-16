@@ -53,22 +53,9 @@ class WidgetVoiceProfilesVertical(Vertical):
         self.settings_repository = settings_repository
 
     def on_mount(self) -> None:
-        """Reads the voice profile names from the voices folder of the engine
-        right after mounting, in the UI thread. The read is quick and cannot
-        fail for a missing folder (the list is just empty), so the loading
-        indicator of compose() never stays."""
         self.call_later(self.reload_profile_names_from_disk)
 
     def compose(self) -> ComposeResult:
-        """Runs again every time voice_profiles is set.
-
-        Not loaded yet (voice_profiles is None): only a loading indicator.
-        Loaded: the voice select (id tts-profile-input) with the profile names,
-        showing the profile named in params, or nothing when that name is not
-        in the list (e.g. its file is gone); then one row per cloned profile
-        with play and delete buttons, or the hint "No cloned profiles found"
-        when there is none; then the clone button (id clone-voice-button).
-        """
         if self.voice_profiles is None:
             yield LoadingIndicator(id="loading-voice-profiles-indicator")
         else:
@@ -108,12 +95,6 @@ class WidgetVoiceProfilesVertical(Vertical):
     def on_profile_row_profile_deleted(
         self, message: "ProfileRow.ProfileDeleted"
     ) -> None:
-        """A ProfileRow deleted its profile files, so the voice select must
-        drop that name. Reloads the list, which recomposes the block. The
-        profile name in params is not changed: when the deleted profile was
-        the picked voice, the select shows nothing until the pilot picks
-        another one, and saving the settings before that fails with "Profile
-        '<name>' does not exist." The message is not stopped, it bubbles up."""
         self.reload_profile_names_from_disk()
 
     @on(Button.Pressed, "#clone-voice-button")
@@ -188,7 +169,6 @@ class ProfileRow(Horizontal):
         self.params = params
 
     def compose(self) -> ComposeResult:
-        """The profile name with a "⧉" in front, a play and a delete button."""
         yield Label("⧉ " + self.profile_name, classes="profile-name")
         yield WidgetButton("▶", classes="profile-play-button")
         yield WidgetButton("✖", classes="profile-delete-button")

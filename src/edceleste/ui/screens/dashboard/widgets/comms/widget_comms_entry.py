@@ -20,8 +20,5 @@ class WidgetCommsEntry(HorizontalGroup):
         self.content = content
 
     def compose(self) -> ComposeResult:
-        """Two labels on one line: the speaker title ("YOU: ", "CELESTE: ",
-        ...) and the text. An entry_type not in _TITLES raises KeyError
-        here."""
         yield Label(_TITLES[self.entry_type], classes="comms-entry-title")
         yield Label(self.content, classes="comms-entry-content")

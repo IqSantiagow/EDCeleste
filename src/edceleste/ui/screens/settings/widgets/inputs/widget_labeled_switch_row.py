@@ -29,8 +29,6 @@ class WidgetLabeledSwitchRow(WidgetBaseInput):
         assert self.id is not None, "WidgetLabeledSwitchRow must have an id"
 
     def compose(self) -> ComposeResult:
-        """Label on the left, then the switch, then the hint when there is
-        one. The "with-hint" class changes the layout for that case."""
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             # with a hint the switch sits next to the label and the hint follows it
@@ -43,7 +41,5 @@ class WidgetLabeledSwitchRow(WidgetBaseInput):
                     yield Label(self.hint, classes="entry-hint")
 
     def on_switch_changed(self, event: Switch.Changed):
-        """Stores the new on/off state and posts ValueChanged with it to the
-        section container."""
         self.value = event.value
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore

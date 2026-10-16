@@ -29,8 +29,6 @@ class WidgetShipLogExtendedRow(HorizontalGroup):
         self.set_class(not is_even_row, "zebra-row")
 
     def compose(self) -> ComposeResult:
-        """One label per column of the wide log header: time with seconds,
-        category marker, event, system and details."""
         yield Label(format_time_long(self.entry.timestamp), classes="log-time")
         yield Label(CATEGORY_MARKER, classes="log-marker")
         yield Label(self.entry.event, classes="log-event")

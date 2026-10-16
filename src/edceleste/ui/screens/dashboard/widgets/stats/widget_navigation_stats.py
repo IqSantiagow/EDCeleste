@@ -59,9 +59,6 @@ class WidgetNavigationStats(Vertical):
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
-        """Label rows for system and security, body, status, next route
-        system and jumps left, allegiance and government, economy and
-        population. All start as "-" or empty until the first stats arrive."""
         with HorizontalGroup(classes="stat-row"):
             yield Label("SYSTEM", classes="stat-label")
             yield Label(NO_VALUE, classes="stat-value", id="navigation-system")
@@ -90,7 +87,6 @@ class WidgetNavigationStats(Vertical):
             yield Label(NO_VALUE, classes="stat-value", id="navigation-population")
 
     def on_mount(self) -> None:
-        """Starts the worker that keeps this panel up to date."""
         self.stream_navigation_stats()
 
     @work

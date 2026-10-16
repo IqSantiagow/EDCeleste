@@ -50,9 +50,6 @@ class WidgetFlightAndDriveStats(Vertical):
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
-        """Fuel and jump range as big digits, the tank bar, the scoop badge and
-        the reservoir. Everything starts at zero / IDLE until the first stats
-        arrive."""
         with HorizontalGroup(classes="stat-digits-row"):
             with Vertical():
                 yield Label("FUEL MAIN", classes="stat-label")
@@ -68,7 +65,6 @@ class WidgetFlightAndDriveStats(Vertical):
             yield Label("0.0 T", classes="stat-value", id="fuel-reservoir")
 
     def on_mount(self) -> None:
-        """Starts the worker that keeps this panel up to date."""
         self.stream_flight_and_drive_stats()
 
     @work

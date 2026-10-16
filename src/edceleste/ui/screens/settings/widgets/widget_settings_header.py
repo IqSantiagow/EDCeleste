@@ -13,8 +13,6 @@ class WidgetSettingsHeader(HorizontalGroup):
         super().__init__(classes="settings-header", **kwargs)
 
     def compose(self) -> ComposeResult:
-        """The "SETTINGS" title and the breadcrumb with the save state marker
-        (WidgetSettingsHeaderContent)."""
         yield Label(content="SETTINGS", id="settings-title")
         yield WidgetSettingsHeaderContent()
 
@@ -23,15 +21,12 @@ class WidgetSettingsHeaderContent(HorizontalGroup):
     save_state: reactive[SaveState] = reactive(SaveState.IDLE)
 
     def compose(self) -> ComposeResult:
-        """The breadcrumb and the save state marker, hidden at the start."""
         yield Label(" > SETTINGS", id="settings-header-label")
         yield Label(
             "", classes="warning-label hidden", id="settings-header-modified-indicator"
         )
 
     def watch_save_state(self) -> None:
-        """The settings screen sets save_state when the pilot changes a value
-        and when saving fails or succeeds. Nothing sets SAVING yet."""
         self._render_indicator()
 
     def _render_indicator(self) -> None:

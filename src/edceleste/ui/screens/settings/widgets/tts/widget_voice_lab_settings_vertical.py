@@ -57,14 +57,6 @@ class WidgetVoiceLabSettingsVertical(Vertical):
         self.settings_repository = settings_repository
 
     def compose(self) -> ComposeResult:
-        """Builds the block, top to bottom: the "VOICE LAB" section header, the
-        on/off switch, three 0.0-1.0 sliders (clarity, reverb, stereo width)
-        and the test button. The switch and the sliders start with the values
-        of tts_model.voice_lab and get ids from VoiceLabInputWidgetIds. The
-        sliders get the "voice-lab-slider" class, so set_sliders_visible() can
-        find them. The test button has its own id, VOICE_LAB_TEST_BUTTON_ID, and
-        stays visible when the effects are off, it then plays the plain
-        voice."""
         voice_lab = self.tts_model.voice_lab
         yield WidgetSectionHeader("VOICE LAB")
         yield WidgetLabeledSwitchRow(
@@ -94,16 +86,9 @@ class WidgetVoiceLabSettingsVertical(Vertical):
         yield WidgetButton("▶ Test voice", id=VOICE_LAB_TEST_BUTTON_ID)
 
     def on_mount(self) -> None:
-        """Textual hook, runs once after compose(). Hides the sliders when the
-        effects are off in tts_model.voice_lab, otherwise leaves them shown."""
         self.set_sliders_visible(self.tts_model.voice_lab.enabled)
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        """Gets ValueChanged from every row of this block. Only the one from
-        the on/off switch (found by its id) matters here: its new value shows
-        or hides the sliders. A slider message is ignored here. The message is
-        not stopped, so WidgetTTSContainer still gets it and writes the
-        values."""
         if message.sender_id == VoiceLabInputWidgetIds.VOICE_LAB_ENABLED_INPUT:
             self.set_sliders_visible(message.new_value)
 

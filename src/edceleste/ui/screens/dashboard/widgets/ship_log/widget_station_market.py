@@ -45,15 +45,11 @@ class WidgetStationMarket(Vertical):
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
-        """Empty station header, empty message label and an empty table. The
-        columns are added in on_mount(), the content in show_market()."""
         yield Label("", id=HEADER_ID)
         yield Label("", id=MESSAGE_ID, classes="ship-log-no-data")
         yield DataTable(id=TABLE_ID, cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
-        """Adds the STATION_MARKET_COLUMNS to the table and starts the worker
-        that keeps the market up to date."""
         table = self.query_one(f"#{TABLE_ID}", DataTable)
         for column_heading, column_width in STATION_MARKET_COLUMNS:
             table.add_column(column_heading, width=column_width)

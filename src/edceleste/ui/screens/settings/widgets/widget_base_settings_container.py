@@ -9,8 +9,6 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_base_input import (
 
 class ErrorContainer(Vertical):
     def compose(self) -> ComposeResult:
-        """A "NOT SAVED" title and an empty message line. Starts hidden,
-        show_validation_error() of the section container shows it."""
         yield Label("NOT SAVED", classes="error-label")
         yield Label("", classes="error-message-label")
         self.display = False
@@ -24,8 +22,6 @@ class WidgetBaseSettingsContainer(Vertical):
         assert self.id is not None, "WidgetBaseSettingsContainer must have an id"
 
     def compose(self) -> ComposeResult:
-        """Only the hidden error box. Every section calls this first with
-        `yield from super().compose()`, so the box sits on top."""
         yield ErrorContainer()
 
     def show_validation_error(self, error_message: str) -> None:

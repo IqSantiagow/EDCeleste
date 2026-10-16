@@ -51,14 +51,10 @@ class SystemCheckScreen(Screen[bool]):
         super().__init__(**kwargs)
 
     def on_mount(self) -> None:
-        """Puts the "PREFLIGHT" title on the panel border and starts the
-        start_system_check worker."""
         self.query_one("#system-check-panel").border_title = "PREFLIGHT"
         self.start_system_check()
 
     def compose(self):
-        """Celeste's logo on the left. On the right the EDCELESTE banner, one
-        "pending" row per service, and a progress bar that starts at 0."""
         with Horizontal(id="system-check-panel"):
             yield Static(CELESTE_LOGO, id="system-check-logo")
             with Vertical(id="system-check-checks"):
@@ -143,15 +139,6 @@ class SystemCheckRow(HorizontalGroup):
         self.service_name = service_name
 
     def compose(self):
-        """Runs again every time state or progress_text changes (recompose).
-
-        Always: the state marker ("[ok]", "[!!]", ...) and the readable
-        service name, both colored by the state class from ui/css.tcss.
-        Only when there is something to show:
-        - the progress text while "in_progress",
-        - "Error: ..." / "Warning: ..." when a message was set,
-        - "Disabled" for a disabled service.
-        """
         marker, state_class = STATE_MARKERS[self.state]
         yield Label(Content(marker), classes=f"system-check-marker {state_class}")
         yield Label(

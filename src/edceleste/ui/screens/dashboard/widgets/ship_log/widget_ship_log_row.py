@@ -35,8 +35,6 @@ class WidgetShipLogRow(HorizontalGroup):
         self.category = entry.category
 
     def compose(self) -> ComposeResult:
-        """Short time (no seconds), category marker, event, and system joined
-        with details in the last column."""
         yield Label(format_time_short(self.entry.timestamp), classes="log-time")
         yield Label(CATEGORY_MARKER, classes="log-marker")
         yield Label(self.entry.event, classes="log-event")

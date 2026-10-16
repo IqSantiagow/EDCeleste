@@ -39,8 +39,6 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         self.download_size: int | None = None
 
     def compose(self) -> ComposeResult:
-        """Spinner, status text, progress bar, download figures and one button.
-        All are drawn empty here, show_status() fills and hides them."""
         yield Label("Status:", classes="entry-label")
         with HorizontalGroup(id="instinct-status-content"):
             yield WidgetSpinner(id="instinct-status-spinner")
@@ -52,8 +50,6 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         yield WidgetButton("Download", id="instinct-status-button")
 
     def on_mount(self) -> None:
-        """Draws the status once, then redraws it every 0.1 s for as long as
-        the row lives, and starts fetching the download size."""
         self.show_status()
         # the download runs in the Instinct service, the row only draws it,
         # so it keeps going when the pilot leaves the settings

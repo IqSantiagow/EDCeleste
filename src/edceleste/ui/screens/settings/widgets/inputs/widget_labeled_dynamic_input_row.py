@@ -53,13 +53,6 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
         )
 
     def compose(self) -> ComposeResult:
-        """Runs again every time is_being_edited flips.
-
-        - editing -> an Input with the current value and the validators,
-        - not editing -> a Label with the value (dots for a password). The
-          label gets the yellow "warning-label" class when the value differs
-          from the saved one.
-        """
         with HorizontalGroup(id="settings-entry-row-container"):
             yield Label(self.label, classes="entry-label")
             with Container(id="settings-entry-value-container"):
@@ -102,8 +95,6 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
             self.refresh(recompose=True)
 
     def on_click(self, _: events.Click) -> None:
-        """A click anywhere on the row switches it to edit mode. The Input only
-        exists after the recompose, so focusing waits for the next refresh."""
         self.is_being_edited = True
         self.call_after_refresh(self.focus_input)
 
@@ -144,8 +135,6 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
             self._submit_value(event.input)
 
     def on_descendant_blur(self, _: events.DescendantBlur) -> None:
-        """Leaving the Input (click elsewhere, Tab) submits it like Enter, but
-        without running the validators."""
         if self.is_being_edited:
             self._submit_value(self.query_one(Input))
 
