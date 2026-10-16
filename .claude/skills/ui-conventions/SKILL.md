@@ -25,6 +25,10 @@ Rules for everything under `src/edceleste/ui/`.
 - Styling goes through Textual CSS in `ui/css.tcss`. No direct `rich` imports.
 - Use Textual built-in widgets (`ProgressBar`, `WidgetSpinner`, ...). Never hand-draw bars or spinner frames in a `Label`.
 
+## Docstrings
+
+- Textual methods (`compose`, `on_mount`, `on_*`, `watch_*`, `action_*`, `render`, ...) get no docstring: the library defines what they do. The blind check skips `ui/`, see `.claude/CLAUDE.md`.
+
 ## App lifecycle
 
 - `UIApp` (`ui/ui_app.py`) pushes `SystemCheckScreen` on mount; its `cold_start()` run starts `GameWatcherService`. When the check passes, `UIApp` pushes `DashboardScreen`, whose `on_unmount()` stops the watcher; when it fails, the app exits.
