@@ -13,6 +13,10 @@ Usage:
 --without-docstrings drops the docstrings too, so only the names and the types
 are left (stage 1 of the blind-check skill).
 
+Only backend logic is checked. Files under src/edceleste/ui/ (screens, widgets,
+view models) are skipped, also when they are given by name: what their Textual
+methods (compose, on_mount, on_*, watch_*, action_*) do is defined by the library.
+
 Writes the stripped copies to signature_check/stripped/ (same paths as in the
 repo, the folder is emptied first) and prints the report folder,
 signature_check/reports/, and then the paths of the copies. Pass them to the
@@ -27,6 +31,7 @@ import sys
 from pathlib import Path
 
 SOURCE_FOLDER = "src/edceleste"
+UI_FOLDER = Path(SOURCE_FOLDER) / "ui"
 STRIPPED_FOLDER = Path(__file__).parent / "stripped"
 REPORTS_FOLDER = Path(__file__).parent / "reports"
 
@@ -50,6 +55,13 @@ def find_changed_python_files() -> list[str]:
     return sorted(
         file for file in changed_files if file.endswith(".py") and Path(file).exists()
     )
+
+
+def is_ui_file(file: str) -> bool:
+    """True when the file lives under src/edceleste/ui/. The paths are resolved
+    first, so a Windows or a Unix spelling, relative or absolute, gives the same
+    answer."""
+    return Path(file).resolve().is_relative_to(UI_FOLDER.resolve())
 
 
 def keep_docstring_only(node: ast.AST) -> list[ast.stmt]:
@@ -111,7 +123,9 @@ def strip_method_bodies(source_code: str, keep_docstrings: bool = True) -> str:
 
 
 def main() -> None:
-    """Files without any function (plain models, constants) are skipped, there
+    """UI files are skipped, only backend logic is checked. Each skipped file is
+    listed on stderr, so stdout holds nothing but the report folder and the paths.
+    Files without any function (plain models, constants) are skipped too, there
     is nothing to guess in them. Copies and reports from an earlier run are deleted,
     so the agent never reads a stale file. Prints the report folder first and then
     one path per stripped copy."""
@@ -119,10 +133,13 @@ def main() -> None:
     keep_docstrings = "--without-docstrings" not in arguments
     files = [argument for argument in arguments if argument != "--without-docstrings"]
     files = files or find_changed_python_files()
+    for ui_file in filter(is_ui_file, files):
+        print(f"Skipped UI file (backend logic only): {ui_file}", file=sys.stderr)
+    files = [file for file in files if not is_ui_file(file)]
     shutil.rmtree(STRIPPED_FOLDER, ignore_errors=True)
     shutil.rmtree(REPORTS_FOLDER, ignore_errors=True)
     if not files:
-        print("No changed Python files under src/edceleste.")
+        print("No changed backend Python files under src/edceleste (ui/ is skipped).")
         return
 
     REPORTS_FOLDER.mkdir(parents=True)
