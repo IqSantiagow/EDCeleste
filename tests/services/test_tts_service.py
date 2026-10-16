@@ -19,6 +19,7 @@ from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
 )
 from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
 from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     EdgeParamsModel,
@@ -144,6 +145,22 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         (self.profiles_dir / f"{name}.pt").write_bytes(b"profile")
         if with_sample:
             (self.profiles_dir / f"{name}_sample.wav").write_bytes(b"sample")
+
+    def _make_replies_files(self, profile_name: str, *names: str) -> Path:
+        """Writes small files into the replies folder of a Chatterbox profile
+        and returns that folder. The path is spelled out here, so these tests
+        do not depend on build_replies_folder()."""
+        replies_folder = self.profiles_dir / "replies" / profile_name
+        replies_folder.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (replies_folder / name).write_bytes(name.encode())
+        return replies_folder
+
+    def _file_names_in(self, folder: Path) -> list[str]:
+        return sorted(path.name for path in folder.iterdir())
+
+    def _every_reply_file_name(self) -> list[str]:
+        return sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS)
 
     async def _collect_clone_states(self, audio_path, name, params):
         return [
@@ -569,6 +586,136 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(VoiceCloningException):
             self.service.get_cloning_provider_for(_make_edge_params())
 
+    # --- replies: folder and files ---
+
+    def test_build_replies_folder_puts_the_name_in_replies_of_the_provider(self):
+        for provider_type, name in [
+            ("edge", VOICE),
+            ("pocket", "celeste"),
+            ("chatterbox", "nova"),
+        ]:
+            with self.subTest(provider_type=provider_type):
+                self.assertEqual(
+                    self.service.build_replies_folder(provider_type, name),
+                    self.voices_dir / provider_type / "replies" / name,
+                )
+
+    def test_build_replies_folder_drops_folder_parts_of_the_name(self):
+        folder = self.service.build_replies_folder("pocket", "../x")
+
+        self.assertEqual(folder, self.voices_dir / "pocket" / "replies" / "x")
+
+    def test_build_replies_folder_raises_value_error_for_a_name_without_a_folder(
+        self,
+    ):
+        for name in ["", "..", "a/.."]:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.service.build_replies_folder("pocket", name)
+
+    async def test_prepare_replies_writes_a_wav_for_every_reply_text(self):
+        provider = _make_fake_cloning_provider()
+        replies_folder = self.input_dir / "replies"
+
+        await self.service.prepare_replies(
+            provider, _make_chatterbox_params(), None, replies_folder
+        )
+
+        self.assertEqual(
+            self._file_names_in(replies_folder), self._every_reply_file_name()
+        )
+        samples, sample_rate = sf.read(
+            str(replies_folder / build_reply_wav_file_name(REPLY_TEXTS[0]))
+        )
+        self.assertEqual(sample_rate, SAMPLE_RATE)
+        self.assertEqual(len(samples), 20)
+
+    async def test_prepare_replies_gives_the_provider_every_text_with_params_and_path(
+        self,
+    ):
+        provider = _make_fake_cloning_provider()
+        params = _make_chatterbox_params("nova")
+        profile_path = self.profiles_dir / "nova.pt"
+
+        await self.service.prepare_replies(
+            provider, params, profile_path, self.input_dir / "replies"
+        )
+
+        given_arguments = [call.args for call in provider.synthesize.await_args_list]
+        self.assertEqual(
+            given_arguments, [(text, params, profile_path) for text in REPLY_TEXTS]
+        )
+
+    async def test_prepare_replies_creates_the_missing_folder(self):
+        replies_folder = self.input_dir / "deeper" / "replies"
+
+        await self.service.prepare_replies(
+            _make_fake_cloning_provider(),
+            _make_chatterbox_params(),
+            None,
+            replies_folder,
+        )
+
+        self.assertTrue(replies_folder.is_dir())
+
+    async def test_prepare_replies_replaces_an_existing_file(self):
+        replies_folder = self.input_dir / "replies"
+        replies_folder.mkdir()
+        first_reply = replies_folder / build_reply_wav_file_name(REPLY_TEXTS[0])
+        first_reply.write_bytes(b"old")
+
+        await self.service.prepare_replies(
+            _make_fake_cloning_provider(),
+            _make_chatterbox_params(),
+            None,
+            replies_folder,
+        )
+
+        samples, _ = sf.read(str(first_reply))
+        self.assertEqual(len(samples), 20)
+
+    async def test_prepare_replies_works_for_a_remote_provider_without_a_profile(
+        self,
+    ):
+        edge_provider = EdgeTTSProvider()
+        edge_provider.synthesize = AsyncMock(
+            return_value=(np.full(20, 0.25), SAMPLE_RATE)
+        )
+        replies_folder = self.service.build_replies_folder("edge", VOICE)
+
+        await self.service.prepare_replies(
+            edge_provider, _make_edge_params(), None, replies_folder
+        )
+
+        self.assertEqual(
+            self._file_names_in(self.voices_dir / "edge" / "replies" / VOICE),
+            self._every_reply_file_name(),
+        )
+        given_profile_paths = {
+            call.args[2] for call in edge_provider.synthesize.await_args_list
+        }
+        self.assertEqual(given_profile_paths, {None})
+
+    async def test_prepare_replies_raises_the_provider_error_and_keeps_the_files_so_far(
+        self,
+    ):
+        provider = _make_fake_cloning_provider()
+        provider.synthesize.side_effect = [
+            (np.full(20, 0.25), SAMPLE_RATE),
+            (np.full(20, 0.25), SAMPLE_RATE),
+            OSError("no network"),
+        ]
+        replies_folder = self.input_dir / "replies"
+
+        with self.assertRaises(OSError):
+            await self.service.prepare_replies(
+                provider, _make_chatterbox_params(), None, replies_folder
+            )
+
+        self.assertEqual(
+            self._file_names_in(replies_folder),
+            sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS[:2]),
+        )
+
     # --- clone_voice ---
 
     async def test_clone_voice_yields_the_states_in_order(self):
@@ -587,6 +734,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
                 VoiceCloningState.AUDIO_PROCESSED,
                 VoiceCloningState.COMPLETED,
                 VoiceCloningState.SAMPLE_CREATED,
+                VoiceCloningState.REPLIES_CREATED,
             ],
         )
 
@@ -602,7 +750,8 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         create_args = provider.create_voice_profile.await_args.args
         self.assertEqual(create_args[1], self.profiles_dir / "nova.pt")
         self.assertIs(create_args[2], screen_params)
-        synthesize_args = provider.synthesize.await_args.args
+        # The first synthesis is the sample, the later ones are the replies
+        synthesize_args = provider.synthesize.await_args_list[0].args
         self.assertEqual(synthesize_args[0], DEFAULT_VOICE_SAMPLE_TEXT)
         self.assertEqual(synthesize_args[1].exaggeration, 1.5)
 
@@ -615,7 +764,8 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             str(audio_path), "nova", _make_chatterbox_params("old")
         )
 
-        synthesize_args = provider.synthesize.await_args.args
+        synthesize_args = provider.synthesize.await_args_list[0].args
+        self.assertEqual(synthesize_args[0], DEFAULT_VOICE_SAMPLE_TEXT)
         self.assertEqual(synthesize_args[1].profile, "nova")
         self.assertEqual(synthesize_args[2], self.profiles_dir / "nova.pt")
 
@@ -690,7 +840,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             str(audio_path), "nova", _make_chatterbox_params()
         )
 
-        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
+        self.assertEqual(states[-1], VoiceCloningState.REPLIES_CREATED)
 
     async def test_clone_voice_creates_missing_parent_folders_of_the_voices_folder(
         self,
@@ -717,7 +867,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             str(audio_path), "nova", _make_chatterbox_params()
         )
 
-        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
+        self.assertEqual(states[-1], VoiceCloningState.REPLIES_CREATED)
 
     async def test_clone_voice_wraps_a_provider_error_in_runtime_error(self):
         provider = self._use_saved_chatterbox()
@@ -807,7 +957,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             )
         self.addCleanup(shutil.rmtree, seen_clip_paths[0].parent, ignore_errors=True)
 
-        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
+        self.assertEqual(states[-1], VoiceCloningState.REPLIES_CREATED)
 
     async def test_clone_voice_gives_the_provider_only_reference_seconds_of_audio(
         self,
@@ -874,6 +1024,82 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(sf.info(str(audio_path)).frames, 12 * SAMPLE_RATE)
 
+    async def test_clone_voice_prepares_the_replies_in_the_folder_of_the_new_profile(
+        self,
+    ):
+        provider = self._use_saved_chatterbox()
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+
+        await self._collect_clone_states(
+            str(audio_path), "nova", _make_chatterbox_params("old")
+        )
+
+        replies_folder = self.profiles_dir / "replies" / "nova"
+        self.assertEqual(
+            self._file_names_in(replies_folder), self._every_reply_file_name()
+        )
+        # The first synthesis is the sample, the rest are the replies
+        reply_calls = provider.synthesize.await_args_list[1:]
+        self.assertEqual([call.args[0] for call in reply_calls], REPLY_TEXTS)
+        for reply_call in reply_calls:
+            self.assertEqual(reply_call.args[1].profile, "nova")
+            self.assertEqual(reply_call.args[2], self.profiles_dir / "nova.pt")
+
+    async def test_clone_voice_yields_replies_created_only_after_all_replies_are_made(
+        self,
+    ):
+        self._use_saved_chatterbox()
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+        replies_folder = self.profiles_dir / "replies" / "nova"
+        replies_written_at_state = {}
+
+        async for state in self.service.clone_voice(
+            str(audio_path), "nova", _make_chatterbox_params()
+        ):
+            replies_written_at_state[state] = len(list(replies_folder.glob("*.wav")))
+
+        self.assertEqual(replies_written_at_state[VoiceCloningState.SAMPLE_CREATED], 0)
+        self.assertEqual(
+            replies_written_at_state[VoiceCloningState.REPLIES_CREATED],
+            len(REPLY_TEXTS),
+        )
+
+    async def test_clone_voice_wraps_a_reply_error_in_runtime_error_and_keeps_sample(
+        self,
+    ):
+        provider = self._use_saved_chatterbox()
+        provider.synthesize.side_effect = [
+            (np.full(20, 0.25), SAMPLE_RATE),
+            OSError("no network"),
+        ]
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+
+        with self.assertRaises(RuntimeError) as context:
+            await self._collect_clone_states(
+                str(audio_path), "nova", _make_chatterbox_params()
+            )
+
+        self.assertIsInstance(context.exception.__cause__, OSError)
+        self.assertTrue((self.profiles_dir / "nova_sample.wav").exists())
+
+    async def test_clone_voice_raises_value_error_for_a_name_without_a_folder_at_once(
+        self,
+    ):
+        provider = self._use_saved_chatterbox()
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, 12)
+
+        with self.assertRaises(ValueError):
+            await self._collect_clone_states(
+                str(audio_path), "..", _make_chatterbox_params()
+            )
+
+        self.assertFalse(self.voices_dir.exists())
+        provider.create_voice_profile.assert_not_awaited()
+
     # --- profiles: regression, saved engine is Edge, screen is Chatterbox ---
 
     def test_profiles_can_be_managed_on_the_screen_while_the_saved_engine_is_edge(
@@ -938,6 +1164,43 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue((self.profiles_dir / "celeste.pt").exists())
 
+    def test_remove_profile_removes_the_folder_of_replies(self):
+        self._make_profile_files("celeste")
+        replies_folder = self._make_replies_files("celeste", "gear.wav")
+
+        self.service.remove_profile("celeste", _make_chatterbox_params())
+
+        self.assertFalse(replies_folder.exists())
+
+    def test_remove_profile_keeps_the_replies_of_other_profiles(self):
+        self._make_profile_files("celeste")
+        self._make_profile_files("nova")
+        self._make_replies_files("celeste", "gear.wav")
+        nova_replies_folder = self._make_replies_files("nova", "gear.wav")
+
+        self.service.remove_profile("celeste", _make_chatterbox_params())
+
+        self.assertEqual(self._file_names_in(nova_replies_folder), ["gear.wav"])
+
+    def test_remove_profile_removes_the_replies_folder_with_the_last_profile(self):
+        self._make_profile_files("celeste")
+        self._make_replies_files("celeste", "gear.wav")
+
+        self.service.remove_profile("celeste", _make_chatterbox_params())
+
+        self.assertFalse((self.profiles_dir / "replies").exists())
+
+    def test_remove_profile_raises_value_error_for_a_name_without_a_folder(self):
+        self._make_profile_files("celeste")
+        replies_folder = self._make_replies_files("celeste", "gear.wav")
+
+        for name in ["", ".."]:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.service.remove_profile(name, _make_chatterbox_params())
+
+        self.assertTrue((replies_folder / "gear.wav").exists())
+        self.assertTrue((self.profiles_dir / "celeste.pt").exists())
+
     # --- rename_profile ---
 
     def test_rename_profile_renames_the_profile_and_its_sample(self):
@@ -979,6 +1242,48 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_rename_profile_raises_voice_cloning_exception_for_edge_params(self):
         with self.assertRaises(VoiceCloningException):
             self.service.rename_profile("celeste", "nova", _make_edge_params())
+
+    def test_rename_profile_moves_the_folder_of_replies_with_its_files(self):
+        self._make_profile_files("celeste")
+        old_replies_folder = self._make_replies_files("celeste", "gear.wav")
+
+        self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
+
+        new_replies_folder = self.profiles_dir / "replies" / "nova"
+        self.assertEqual(self._file_names_in(new_replies_folder), ["gear.wav"])
+        self.assertFalse(old_replies_folder.exists())
+
+    def test_rename_profile_replaces_a_stale_folder_under_the_new_name(self):
+        self._make_profile_files("celeste")
+        self._make_replies_files("celeste", "gear.wav")
+        new_replies_folder = self._make_replies_files("nova", "stale.wav")
+
+        self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
+
+        self.assertEqual(self._file_names_in(new_replies_folder), ["gear.wav"])
+
+    def test_rename_profile_keeps_the_replies_when_the_new_name_is_taken(self):
+        self._make_profile_files("celeste")
+        self._make_profile_files("nova")
+        old_replies_folder = self._make_replies_files("celeste", "gear.wav")
+
+        with self.assertRaises(FileExistsError):
+            self.service.rename_profile("celeste", "nova", _make_chatterbox_params())
+
+        self.assertTrue((old_replies_folder / "gear.wav").exists())
+        self.assertFalse((self.profiles_dir / "replies" / "nova").exists())
+
+    def test_rename_profile_raises_value_error_for_a_name_without_a_folder_at_once(
+        self,
+    ):
+        self._make_profile_files("celeste")
+        replies_folder = self._make_replies_files("celeste", "gear.wav")
+
+        with self.assertRaises(ValueError):
+            self.service.rename_profile("celeste", "..", _make_chatterbox_params())
+
+        self.assertTrue((self.profiles_dir / "celeste.pt").exists())
+        self.assertTrue((replies_folder / "gear.wav").exists())
 
     # --- preview_voice_sample ---
 
@@ -1983,6 +2288,27 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((self.pocket_dir / "nova_sample.wav").exists())
         self.assertFalse(self.chatterbox_dir.exists())
 
+    async def test_clone_voice_for_pocket_prepares_the_replies_in_the_pocket_folder(
+        self,
+    ):
+        provider = self._use_saved_pocket()
+        audio_path = self.input_dir / "voice.wav"
+        _write_wav(audio_path, provider.reference_seconds)
+
+        _ = [
+            state
+            async for state in self.service.clone_voice(
+                str(audio_path), "nova", _make_pocket_params()
+            )
+        ]
+
+        replies_folder = self.pocket_dir / "replies" / "nova"
+        self.assertEqual(
+            sorted(path.name for path in replies_folder.iterdir()),
+            sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS),
+        )
+        self.assertFalse(self.chatterbox_dir.exists())
+
     async def test_clone_voice_accepts_a_name_taken_in_another_provider_folder(self):
         provider = self._use_saved_pocket()
         self._write_files(self.chatterbox_dir, "nova.pt")
@@ -1996,7 +2322,7 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
             )
         ]
 
-        self.assertEqual(states[-1], VoiceCloningState.SAMPLE_CREATED)
+        self.assertEqual(states[-1], VoiceCloningState.REPLIES_CREATED)
 
     def test_remove_profile_removes_only_the_files_of_the_provider_of_the_params(
         self,

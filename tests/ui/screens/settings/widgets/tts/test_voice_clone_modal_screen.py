@@ -1,8 +1,17 @@
 import unittest
 
+from edceleste.services.models.voice_cloning_models import VoiceCloningState
 from edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen import (
+    CLONING_STEP_LABELS,
     pick_free_profile_name,
 )
+
+
+class TestCloningStepLabels(unittest.TestCase):
+    def test_has_one_label_per_cloning_state(self):
+        # The modal ticks one row for every state clone_voice() yields, a state
+        # without a row raises IndexError and shows "Cloning failed"
+        self.assertEqual(len(CLONING_STEP_LABELS), len(VoiceCloningState))
 
 
 class TestPickFreeProfileName(unittest.TestCase):

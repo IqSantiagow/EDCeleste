@@ -4,6 +4,7 @@ import pytest
 import soundfile
 from textual.pilot import Pilot
 
+from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from tests.e2e.test_voice_profiles import (
     FAKE_SAMPLE_RATE_FOR_FILES,
@@ -97,7 +98,14 @@ async def test_should_clone_a_recording_into_the_pocket_voices_folder(
             assert files_in(edceleste.pocket_voices_folder) == [
                 "narrator.npy",
                 "narrator_sample.wav",
+                "replies",
             ]
+
+        with allure.step("And a spoken reply for every reply text is prepared"):
+            assert files_in(edceleste.pocket_voices_folder / "replies") == ["narrator"]
+            assert files_in(
+                edceleste.pocket_voices_folder / "replies" / "narrator"
+            ) == (sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS))
 
         with allure.step("And the Chatterbox voices folder has no new file"):
             assert files_in(edceleste.chatterbox_voices_folder) == []

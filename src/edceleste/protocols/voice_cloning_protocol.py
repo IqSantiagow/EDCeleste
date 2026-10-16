@@ -8,13 +8,15 @@ from edceleste.services.models.voice_cloning_models import (
 
 
 class VoiceCloningProtocol(Protocol):
-    """Voice profiles exist only for TTS providers that clone voices (chatterbox).
-    The methods that get params work for the provider the pilot has picked on
-    the screen, saved or not. With params of another provider they raise
-    VoiceCloningException, except get_available_profiles(), which returns an
-    empty list. A profile is a "<name>.pt" file plus a "<name>_sample.wav" file
-    in the voices folder. None of the methods change the settings, even for the
-    active profile."""
+    """Voice profiles exist only for TTS providers that clone voices (chatterbox
+    and pocket). The methods that get params work for the provider the pilot
+    has picked on the screen, saved or not. With params of another provider
+    they raise VoiceCloningException, except get_available_profiles(), which
+    returns an empty list. A profile is a profile file ("<name>.pt" for
+    Chatterbox, "<name>.npy" for Pocket TTS) plus a "<name>_sample.wav" file and
+    a "replies/<name>" folder of short spoken replies, all in the folder of its
+    provider inside the voices folder. None of the methods change the settings,
+    even for the active profile."""
 
     # Plain def: an async generator is iterated with "async for", never awaited
     def clone_voice(
@@ -23,12 +25,14 @@ class VoiceCloningProtocol(Protocol):
         """Slow, loads the voice model on first use. Takes the first seconds of
         the audio file and makes a profile from it. params are the settings as
         they are on the screen now (e.g. an unsaved device), not the saved
-        ones. Yields the steps in this
-        order: DIRECTORY_CREATED, AUDIO_PROCESSED, COMPLETED, SAMPLE_CREATED.
+        ones. Yields the steps in this order: DIRECTORY_CREATED,
+        AUDIO_PROCESSED, COMPLETED, SAMPLE_CREATED, REPLIES_CREATED (the last
+        one speaks every reply text, so it is the slowest).
         A profile with the same name is never overwritten, that raises
         FileExistsError. Raises FileNotFoundError
         for a missing file, ValueError for a clip shorter than the provider
-        needs (10 s for Chatterbox), RuntimeError when the model part fails
+        needs (10 s for Chatterbox) or for a name that is empty or "..",
+        RuntimeError when the model part fails
         and VoiceCloningException when the provider of params cannot clone.
         The errors come while iterating, not on the call."""
         ...
@@ -39,15 +43,20 @@ class VoiceCloningProtocol(Protocol):
         ...
 
     def remove_profile(self, profile_name: str, params: TtsProviderParams) -> None:
-        """Deletes the profile file and its sample file from disk. A missing
-        file is skipped, not an error."""
+        """Deletes the profile file, its sample file and its folder of replies
+        from disk, and the "replies" folder too when no other profile has
+        replies in it. A missing file or folder is skipped, not an error. Raises
+        ValueError for a name that is empty or ".." (nothing is deleted then) and
+        OSError for a profile or sample file that cannot be deleted."""
         ...
 
     def rename_profile(
         self, old_profile_name: str, new_profile_name: str, params: TtsProviderParams
     ) -> None:
-        """Renames the profile file and its sample file on disk, nothing is
-        cloned again. Raises FileExistsError when the new name is taken."""
+        """Renames the profile file, its sample file and its folder of replies
+        on disk, nothing is cloned again. Raises FileExistsError when the new
+        name is taken, FileNotFoundError when the old profile does not exist and
+        ValueError for a name that is empty or ".." (nothing is renamed then)."""
         ...
 
     async def preview_voice_sample(

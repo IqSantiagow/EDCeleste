@@ -33,7 +33,7 @@ class VoiceCloneSaveResult:
     set_as_active: bool
 
 
-# The 4 real steps clone_voice() reports (VoiceCloningState, in yield order).
+# The 5 real steps clone_voice() reports (VoiceCloningState, in yield order).
 # Labels describe what just finished, not marketing fluff - keep them tied to
 # what the provider actually does.
 CLONING_STEP_LABELS = [
@@ -41,6 +41,7 @@ CLONING_STEP_LABELS = [
     "Loading sample",
     "Extracting voice features",
     "Saving profile and demo sample",
+    "Preparing replies",
 ]
 
 
