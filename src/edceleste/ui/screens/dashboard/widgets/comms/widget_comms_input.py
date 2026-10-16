@@ -33,16 +33,11 @@ class WidgetCommsInput(VerticalGroup):
             super().__init__("[🎤]", id="comms-stt-button", flat=True, **kwargs)
 
         def on_mouse_down(self, event: MouseDown) -> None:
-            """Captures the mouse, so the release is caught even when the
-            pointer has left the button, and posts
-            CommsSttButtonAction(is_up=False) to WidgetCommsInput."""
             self.capture_mouse(capture=True)
             log.debug("STT button pressed, starting STT capture")
             self.post_message(WidgetCommsInput.CommsSttButtonAction(is_up=False))
 
         def on_mouse_up(self, event: MouseEvent) -> None:
-            """Releases the mouse capture and posts
-            CommsSttButtonAction(is_up=True) to WidgetCommsInput."""
             self.release_mouse()
             log.debug("STT button released, stopping STT capture")
             self.post_message(WidgetCommsInput.CommsSttButtonAction(is_up=True))
@@ -63,8 +58,6 @@ class WidgetCommsInput(VerticalGroup):
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
-        """The text input with the mic button next to it, and below them a
-        hidden "Celeste is thinking..." spinner that watch_llm_state() shows."""
         with HorizontalGroup(classes="comms-input-container"):
             yield Input(placeholder="Input LLM command", id="comms-input")
             yield WidgetCommsInput.CommsSttButton()
@@ -73,9 +66,6 @@ class WidgetCommsInput(VerticalGroup):
         )
 
     def watch_llm_state(self, new_state: LLMStatus) -> None:
-        """Runs when the dashboard screen sets llm_state from the LLM stream.
-        THINKING shows and starts the spinner, any other status stops and hides
-        it. The input stays usable while Celeste thinks."""
         log.debug("LLM state changed to: %s", new_state)
         indicator = self.query_one("#comms-thinking-indicator", WidgetSpinner)
         if new_state == LLMStatus.THINKING:
@@ -88,23 +78,6 @@ class WidgetCommsInput(VerticalGroup):
     @on(CommsSttButtonAction)
     @work
     async def on_comms_stt_button_action(self, message: CommsSttButtonAction) -> None:
-        """Push to talk, runs as a Textual worker.
-
-        Button down (is_up=False):
-        1. Starts recording from the microphone.
-        2. Sets stt_state=True, which locks the input (watch_stt_state).
-
-        Button up (is_up=True):
-        1. Stops recording and transcribes the audio in a thread, because
-           Whisper blocks.
-        2. Sets stt_state=False in every case, so the input is unlocked again.
-        3. If there is text, puts it in the input and submits it, so it goes
-           the same way as a typed command (send_pilot_message_from_input).
-           No text (None or empty) sends nothing.
-
-        Any error (STT disabled, already recording, nothing recorded) is shown
-        as an error toast and logged, never raised.
-        """
         if message.is_up:
             log.debug("STT button released, stopping STT capture")
             result = None
@@ -152,9 +125,6 @@ class WidgetCommsInput(VerticalGroup):
         self.ed_dashboard_repository.send_pilot_message(event.value)
 
     def watch_stt_state(self, new_state: bool) -> None:
-        """While recording (True) the input is disabled and says
-        "Listening...", so the pilot cannot type over the voice command. False
-        brings back the normal input."""
         if new_state:
             self.query_one("#comms-input", Input).disabled = True
             self.query_one("#comms-input", Input).placeholder = "Listening..."

@@ -28,8 +28,6 @@ class WidgetTestConnectionRow(HorizontalGroup):
         self.test_connection = test_connection
 
     def compose(self) -> ComposeResult:
-        """The spinner is stopped and the result label is empty until the
-        first press."""
         yield WidgetButton("Test connection", id="test-connection-button")
         yield WidgetSpinner("Testing...", id="test-connection-spinner")
         yield Label("", id="test-connection-result")

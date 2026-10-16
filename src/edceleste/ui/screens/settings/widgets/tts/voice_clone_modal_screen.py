@@ -77,7 +77,6 @@ class AnalysisCheckRow(Horizontal):
         self.check_hint = hint
 
     def compose(self):
-        """A green ✓ or a red ✗, then label, value and hint."""
         icon = "✓" if self.is_ok else "✗"
         icon_status_class = "success" if self.is_ok else "error"
         yield Label(
@@ -114,7 +113,6 @@ class AnalysisPhase(Static):
         super().__init__()
 
     def on_mount(self):
-        """Starts the analysis as soon as the step is shown."""
         self.run_analysis()
 
     @work
@@ -136,9 +134,6 @@ class AnalysisPhase(Static):
         await self.recompose()
 
     def compose(self):
-        """Before the analysis only "Analyzing sample...". After it: file name
-        and folder, the waveform with its length, the check rows, a play
-        button, and a red hint when the sample is not valid."""
         with Vertical(classes="voice-clone-body analysis-phase-body"):
             if self.analysis is None:
                 yield Label("Analyzing sample...", classes="analysis-status-label")
@@ -220,8 +215,6 @@ class CloningStepRow(Horizontal):
         self.step_label = label
 
     def compose(self):
-        """Starts as pending: the "○" icon, with a hidden spinner next to
-        it."""
         yield Label("○", classes="analysis-check-icon warning-label", id="step-icon")
         yield WidgetSpinner(classes="analysis-check-icon hidden", id="step-spinner")
         yield Label(self.step_label, classes="analysis-check-label")
@@ -293,13 +286,9 @@ class SavePhase(Static):
         super().__init__()
 
     def on_mount(self):
-        """Starts cloning as soon as the step is shown and keeps its worker in
-        clone_worker, so the modal can stop it on Cancel."""
         self.clone_worker = self.run_clone_voice()
 
     def compose(self):
-        """Not ready: "<file> → <profile name>" and one CloningStepRow per
-        step. Ready: the view from _compose_ready_view()."""
         with VerticalScroll(
             classes="voice-clone-body analysis-phase-body", id="save-phase-body"
         ):
@@ -488,9 +477,6 @@ class SavePhase(Static):
 
 class FilePickPhase(Static):
     def compose(self):
-        """Step 1 of the modal. The "Clone Voice" button opens the file picker,
-        the hidden label shows the picked file afterwards. The modal screen
-        handles both."""
         with Vertical(classes="voice-clone-body"):
             with Center():
                 yield WidgetButton("Clone Voice", id="clone-voice-button")
@@ -504,8 +490,6 @@ class PhaseBar(Static):
     phase = 1
 
     def compose(self):
-        """Three dots joined by lines over FILE, ANALYSIS and SAVE. Starts on
-        FILE."""
         with Vertical(classes="voice-clone-phase-bar"):
             with Horizontal(classes="voice-clone-phase-dots"):
                 yield Label("●───────", id="phase-dot-1")
@@ -563,13 +547,9 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
         self.settings_repository = settings_repository
 
     def on_mount(self):
-        """Sets the title drawn in the modal border."""
         self.border_title = "CLONE VOICE FROM FILE"
 
     def compose(self):
-        """Phase bar on top, the step body in the middle (FilePickPhase at the
-        start) and the footer: [X Cancel], a hidden [← Pick another] and a
-        disabled [Next →]."""
         with Vertical():
             yield PhaseBar()
             with Center(classes="voice-clone-body"):
@@ -703,7 +683,6 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     def on_analysis_phase_analysis_completed(
         self, message: AnalysisPhase.AnalysisCompleted
     ) -> None:
-        """Enables Next only for a valid sample."""
         self.query_one(
             "#voice-clone-next-button", WidgetButton
         ).disabled = not message.is_valid
@@ -711,8 +690,6 @@ class VoiceCloneModalScreen(ModalScreen[VoiceCloneSaveResult | None]):
     def on_save_phase_cloning_completed(
         self, message: SavePhase.CloningCompleted
     ) -> None:
-        """Success turns Next into an enabled [✓ Save profile]. Success or not,
-        [← Pick another] comes back as [← Another file]."""
         next_button = self.query_one("#voice-clone-next-button", WidgetButton)
         pick_another_button = self.query_one(
             "#voice-clone-pick-another-button", WidgetButton

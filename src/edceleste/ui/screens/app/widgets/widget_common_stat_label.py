@@ -26,9 +26,6 @@ class WidgetCommonStatLabel(Widget):
         self.color_reactivity = color_reactivity
 
     def compose(self):
-        """Key and value side by side ("CMDR " + value). When
-        color_reactivity is set, it first picks value_color from the value,
-        but that color is not used by any Label."""
         if self.color_reactivity:
             self.value_color = self.color_reactivity(self.stat_value)
         with Horizontal():

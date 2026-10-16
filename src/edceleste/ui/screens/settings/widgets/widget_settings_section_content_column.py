@@ -30,10 +30,6 @@ class WidgetSettingsSectionContentColumn(Vertical):
         self.keybinds = keybinds
 
     def compose(self) -> ComposeResult:
-        """One container per section inside a ContentSwitcher, keybinds shown
-        first. Each container id is "settings-<section>", the same id as its
-        item in WidgetSettingsSectionsColumn, so selecting an item switches to
-        the container with that id."""
         with ContentSwitcher(
             initial="settings-keybinds",
             id="settings-content-switcher",

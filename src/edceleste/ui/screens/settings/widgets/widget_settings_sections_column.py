@@ -29,17 +29,12 @@ class WidgetSettingsSectionsColumn(ListView):
             super().__init__()
 
     def compose(self) -> ComposeResult:
-        """One list item per entry in _SECTIONS_LABELS_WITH_ID, in that
-        order."""
         for item_id, label in _SECTIONS_LABELS_WITH_ID.items():
             yield WidgetSettingsSectionListItem(
                 label, id=item_id, classes="section-nav-item"
             )
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Runs on Enter or click on an item. Posts
-        WidgetSettingsSectionSelected with the item id. An item without an id
-        is ignored."""
         if event.item.id is None:
             return
         self.post_message(self.WidgetSettingsSectionSelected(section_id=event.item.id))
@@ -72,14 +67,11 @@ class WidgetSettingsSectionListItem(ListItem):
         self.label = label
 
     def compose(self) -> ComposeResult:
-        """The section name and a hidden "◉" modified marker after it."""
         with HorizontalGroup():
             yield Label(self.label, classes="section-label")
             yield Label("◉", classes="warning-label hidden")
 
     def watch_should_show_changed_indicator(self, should_show: bool) -> None:
-        """Shows or hides the "◉" marker when should_show_changed_indicator is
-        set by WidgetSettingsSectionsColumn."""
         self.query_one(".warning-label", Label).remove_class("hidden")
         if not should_show:
             self.query_one(".warning-label", Label).add_class("hidden")

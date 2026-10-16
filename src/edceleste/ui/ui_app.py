@@ -47,9 +47,6 @@ class UIApp(App):
         self.system_check_repository = system_check_repository
 
     def on_mount(self) -> None:
-        """App start: switches to the amber theme and opens the system check
-        screen first. The dashboard comes later, from
-        open_dashboard_or_exit_after_system_check()."""
         self.register_theme(amber_theme)
         self.theme = "amber"
         self.push_screen(
@@ -74,6 +71,4 @@ class UIApp(App):
         )
 
     def action_push_settings(self) -> None:
-        """Bound to ctrl+r on the dashboard ("app.push_settings"). Opens the
-        settings screen on top, so closing it brings the dashboard back."""
         self.push_screen(SettingsScreen(settings_repository=self.settings_repository))

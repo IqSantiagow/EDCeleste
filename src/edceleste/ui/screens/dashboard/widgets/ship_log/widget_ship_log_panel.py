@@ -36,9 +36,6 @@ class WidgetShipLogPanel(Widget):
         self.active_filter = FILTER_ALL
 
     def compose(self) -> ComposeResult:
-        """The narrow ship log: a LOG tab with the filter bar and an empty
-        scroll for the rows, then the other cockpit cards as "NO DATA"
-        placeholders. Rows are mounted later by add_entry()."""
         with TabbedContent(initial=SHIP_LOG_TAB_LOG):
             with TabPane("LOG", id=SHIP_LOG_TAB_LOG):
                 yield WidgetShipLogFilterBar()
@@ -46,8 +43,6 @@ class WidgetShipLogPanel(Widget):
             yield from compose_placeholder_tab_panes()
 
     def on_mount(self) -> None:
-        """Waits for the first refresh, then mounts rows for entries that
-        arrived before the panel was ready."""
         self.call_after_refresh(self.rebuild_rows)
 
     def add_entry(self, entry: JournalLogViewModel) -> None:

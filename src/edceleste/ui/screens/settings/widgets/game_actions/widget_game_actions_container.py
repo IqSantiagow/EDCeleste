@@ -35,8 +35,6 @@ class WidgetGameActionsContainer(WidgetBaseSettingsContainer):
         self.game_actions_model = game_actions_model
 
     def compose(self) -> ComposeResult:
-        """Only one switch: whether Celeste may press game keys with the
-        PerformGameAction tool."""
         yield from super().compose()
         with Vertical():
             yield WidgetSectionHeader("GAME ACTIONS")
@@ -47,9 +45,6 @@ class WidgetGameActionsContainer(WidgetBaseSettingsContainer):
             )
 
     def on_value_changed(self, message: ValueChanged) -> None:
-        """Runs when the switch row posts ValueChanged. Writes the new on/off
-        into the model and posts SectionSettingsChanged(GAME_ACTIONS) to the
-        settings screen. Nothing is saved here."""
         if message.sender_id == GameActionsInputWidgetIds.GAME_ACTIONS_ENABLED_INPUT:
             self.game_actions_model.enabled = message.new_value
 

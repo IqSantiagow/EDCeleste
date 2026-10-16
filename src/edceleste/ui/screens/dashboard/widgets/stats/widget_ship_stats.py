@@ -53,10 +53,6 @@ class WidgetShipStats(Vertical):
         self.ed_dashboard_repository = ed_dashboard_repository
 
     def compose(self) -> ComposeResult:
-        """Hull and shield bars, modules, pips, the four ship flags (gear,
-        hardpoints, lights, shields), mass with the cargo bar, legal status and
-        rebuy cost. Everything starts at zero / "-" until the first stats
-        arrive."""
         with HorizontalGroup(classes="stat-row"):
             yield WidgetStatBar("HULL", id="hull-bar")
             yield WidgetStatBar("SHIELDS", id="shields-bar")
@@ -84,7 +80,6 @@ class WidgetShipStats(Vertical):
             yield Label("0 CR", classes="stat-value", id="ship-rebuy")
 
     def on_mount(self) -> None:
-        """Starts the worker that keeps this panel up to date."""
         self.stream_ship_stats()
 
     @work
