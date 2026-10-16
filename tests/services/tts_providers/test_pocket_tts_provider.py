@@ -493,7 +493,7 @@ class CreateVoiceProfileTest(PocketProviderTestCase):
 
         samples, sample_rate = self.engines[0].clone_calls[0]
         self.assertEqual(sample_rate, 16000)
-        self.assertEqual(len(samples), 16000)
+        np.testing.assert_allclose(samples[:16000], 0.5)
 
     async def test_mixes_a_stereo_clip_down_to_mono(self):
         await self.provider.create_voice_profile(
@@ -504,7 +504,31 @@ class CreateVoiceProfileTest(PocketProviderTestCase):
 
         samples, _ = self.engines[0].clone_calls[0]
         self.assertEqual(samples.ndim, 1)
-        np.testing.assert_allclose(samples, 0.3, atol=1e-6)
+        np.testing.assert_allclose(samples[:16000], 0.3, atol=1e-6)
+
+    async def test_adds_half_a_second_of_silence_after_the_clip(self):
+        await self.provider.create_voice_profile(
+            str(self._write_clip(sample_rate=16000)),
+            self.folder / "new.npy",
+            _make_pocket_params(),
+        )
+
+        samples, _ = self.engines[0].clone_calls[0]
+        self.assertEqual(len(samples), 16000 + 8000)
+        np.testing.assert_allclose(samples[:16000], 0.5)
+        np.testing.assert_array_equal(samples[16000:], 0)
+
+    async def test_counts_the_silence_in_the_sample_rate_of_the_clip(self):
+        await self.provider.create_voice_profile(
+            str(self._write_clip(sample_rate=44100)),
+            self.folder / "new.npy",
+            _make_pocket_params(),
+        )
+
+        samples, sample_rate = self.engines[0].clone_calls[0]
+        self.assertEqual(sample_rate, 44100)
+        self.assertEqual(len(samples), 44100 + 22050)
+        np.testing.assert_array_equal(samples[44100:], 0)
 
     async def test_makes_the_next_speech_read_the_profile_file_again(self):
         params = _make_pocket_params()
