@@ -209,9 +209,8 @@ class PocketTTSProviderClassTest(unittest.TestCase):
         self.assertIsInstance(provider, CloningTTSProviderProtocol)
         self.assertIsInstance(provider, StreamingTTSProviderProtocol)
 
-    def test_profiles_are_npy_files_in_the_pocket_folder(self):
+    def test_profiles_are_npy_files(self):
         self.assertEqual(PocketTTSProvider.profile_file_extension, ".npy")
-        self.assertEqual(PocketTTSProvider.profile_folder_name, "pocket")
 
     def test_learns_a_voice_from_ten_seconds_and_speaks_at_24_khz(self):
         self.assertEqual(PocketTTSProvider.reference_seconds, 10.0)

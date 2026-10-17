@@ -9,6 +9,7 @@ from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from tests.e2e.test_voice_profiles import (
     FAKE_SAMPLE_RATE_FOR_FILES,
     click_save_profile,
+    entries_of_the_profiles_in,
     clone_recording_until_profile_is_ready,
     open_text_to_speech_settings,
     profile_names_in_list,
@@ -22,24 +23,25 @@ pytestmark = [pytest.mark.anyio, allure.feature("Pocket TTS voices")]
 
 
 def write_pocket_voice_files(edceleste, profile_name: str) -> None:
-    edceleste.pocket_voices_folder.mkdir(parents=True, exist_ok=True)
-    (edceleste.pocket_voices_folder / f"{profile_name}.npy").write_bytes(b"voice")
-    (edceleste.pocket_voices_folder / f"{profile_name}_sample.wav").write_bytes(
-        b"sample"
-    )
+    profile_folder = edceleste.pocket_voices_folder / profile_name
+    profile_folder.mkdir(parents=True, exist_ok=True)
+    (profile_folder / "profile.npy").write_bytes(b"voice")
+    (profile_folder / "sample.wav").write_bytes(b"sample")
 
 
 def write_playable_pocket_sample(edceleste, profile_name: str) -> None:
-    edceleste.pocket_voices_folder.mkdir(parents=True, exist_ok=True)
+    profile_folder = edceleste.pocket_voices_folder / profile_name
+    profile_folder.mkdir(parents=True, exist_ok=True)
     one_second_of_silence = np.zeros(FAKE_SAMPLE_RATE_FOR_FILES)
     soundfile.write(
-        edceleste.pocket_voices_folder / f"{profile_name}_sample.wav",
+        profile_folder / "sample.wav",
         one_second_of_silence,
         FAKE_SAMPLE_RATE_FOR_FILES,
     )
 
 
 def files_in(folder) -> list[str]:
+    """The names in a folder, sorted, [] when it is not there."""
     if not folder.exists():
         return []
     return sorted(file.name for file in folder.iterdir())
@@ -95,20 +97,20 @@ async def test_should_clone_a_recording_into_the_pocket_voices_folder(
             )
 
         with allure.step("And its files are in the Pocket TTS voices folder"):
-            assert files_in(edceleste.pocket_voices_folder) == [
-                "narrator.npy",
-                "narrator_sample.wav",
-                "replies",
+            assert entries_of_the_profiles_in(edceleste.pocket_voices_folder) == [
+                "narrator/profile.npy",
+                "narrator/replies",
+                "narrator/sample.wav",
             ]
 
         with allure.step("And a spoken reply for every reply text is prepared"):
-            assert files_in(edceleste.pocket_voices_folder / "replies") == ["narrator"]
-            assert files_in(
-                edceleste.pocket_voices_folder / "replies" / "narrator"
-            ) == (sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS))
+            narrator_replies = edceleste.pocket_voices_folder / "narrator" / "replies"
+            assert files_in(narrator_replies) == (
+                sorted(build_reply_wav_file_name(text) for text in REPLY_TEXTS)
+            )
 
         with allure.step("And the Chatterbox voices folder has no new file"):
-            assert files_in(edceleste.chatterbox_voices_folder) == []
+            assert entries_of_the_profiles_in(edceleste.chatterbox_voices_folder) == []
 
 
 @allure.title("Pocket TTS lists only its own voices, not the ones of Chatterbox")
@@ -177,12 +179,12 @@ async def test_should_delete_a_pocket_voice_and_keep_the_chatterbox_voice_with_i
             )
 
         with allure.step("And the Pocket TTS voices folder is empty"):
-            assert files_in(edceleste.pocket_voices_folder) == []
+            assert entries_of_the_profiles_in(edceleste.pocket_voices_folder) == []
 
         with allure.step("And the Chatterbox voice 'narrator' is still there"):
-            assert files_in(edceleste.chatterbox_voices_folder) == [
-                "narrator.pt",
-                "narrator_sample.wav",
+            assert entries_of_the_profiles_in(edceleste.chatterbox_voices_folder) == [
+                "narrator/profile.pt",
+                "narrator/sample.wav",
             ]
 
 
@@ -195,7 +197,7 @@ async def test_should_play_the_sample_of_a_pocket_voice(edceleste):
         write_pocket_voice_files(edceleste, "narrator")
         write_playable_pocket_sample(edceleste, "narrator")
         write_voice_profile_files(edceleste, "narrator")
-        (edceleste.chatterbox_voices_folder / "narrator_sample.wav").unlink()
+        (edceleste.chatterbox_voices_folder / "narrator/sample.wav").unlink()
 
     async with edceleste.run_app() as pilot:
         await edceleste.boot_to_dashboard(pilot, step_keyword="And")
