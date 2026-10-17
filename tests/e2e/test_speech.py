@@ -59,8 +59,10 @@ async def test_should_speak_with_the_saved_cloned_voice(edceleste):
         yield "Copy that, Commander."
 
     with allure.step("Given Chatterbox is saved with the cloned voice 'narrator'"):
-        edceleste.chatterbox_voices_folder.mkdir(parents=True)
-        (edceleste.chatterbox_voices_folder / "narrator.pt").write_bytes(b"voice")
+        (edceleste.chatterbox_voices_folder / "narrator").mkdir(parents=True)
+        (edceleste.chatterbox_voices_folder / "narrator/profile.pt").write_bytes(
+            b"voice"
+        )
         edceleste.save_tts_settings(
             TTSModel(
                 provider="chatterbox",
@@ -96,7 +98,7 @@ async def test_should_speak_with_the_saved_cloned_voice(edceleste):
             "And it uses the voice file 'narrator' from the voices folder"
         ):
             assert chatterbox_engine.spoken_profile_paths == [
-                edceleste.chatterbox_voices_folder / "narrator.pt"
+                edceleste.chatterbox_voices_folder / "narrator/profile.pt"
             ]
 
         with allure.step("And it uses the saved exaggeration and pace"):
@@ -117,8 +119,8 @@ async def test_should_speak_with_the_saved_pocket_voice(edceleste):
     with allure.step(
         "Given Pocket TTS is saved with the cloned voice 'narrator', Voice Lab off"
     ):
-        edceleste.pocket_voices_folder.mkdir(parents=True)
-        (edceleste.pocket_voices_folder / "narrator.npy").write_bytes(b"voice")
+        (edceleste.pocket_voices_folder / "narrator").mkdir(parents=True)
+        (edceleste.pocket_voices_folder / "narrator/profile.npy").write_bytes(b"voice")
         edceleste.save_tts_settings(
             TTSModel(
                 provider="pocket",
@@ -149,7 +151,7 @@ async def test_should_speak_with_the_saved_pocket_voice(edceleste):
             "And it uses the voice file 'narrator' from the Pocket TTS folder"
         ):
             assert pocket_engine.spoken_profile_paths[-1] == (
-                edceleste.pocket_voices_folder / "narrator.npy"
+                edceleste.pocket_voices_folder / "narrator/profile.npy"
             )
 
         with allure.step("And the speakers play the voice at the saved volume"):

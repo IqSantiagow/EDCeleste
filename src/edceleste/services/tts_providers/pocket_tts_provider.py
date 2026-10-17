@@ -107,7 +107,6 @@ class PocketTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProtocol
     reference_seconds = 10.0
     # The voice profile is the array the voice encoder makes, saved by numpy
     profile_file_extension = ".npy"
-    profile_folder_name = "pocket"
     # The audio decoder always makes 24 kHz
     stream_sample_rate = 24000
 

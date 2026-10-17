@@ -23,15 +23,14 @@ FAKE_SAMPLE_RATE_FOR_FILES = 24000
 
 
 def write_voice_profile_files(edceleste, profile_name: str) -> None:
-    edceleste.chatterbox_voices_folder.mkdir(parents=True, exist_ok=True)
-    (edceleste.chatterbox_voices_folder / f"{profile_name}.pt").write_bytes(b"voice")
-    (edceleste.chatterbox_voices_folder / f"{profile_name}_sample.wav").write_bytes(
-        b"sample"
-    )
+    profile_folder = edceleste.chatterbox_voices_folder / profile_name
+    profile_folder.mkdir(parents=True, exist_ok=True)
+    (profile_folder / "profile.pt").write_bytes(b"voice")
+    (profile_folder / "sample.wav").write_bytes(b"sample")
 
 
 def write_replies_of_voice(edceleste, profile_name: str) -> list[str]:
-    replies_folder = edceleste.chatterbox_voices_folder / "replies" / profile_name
+    replies_folder = edceleste.chatterbox_voices_folder / profile_name / "replies"
     replies_folder.mkdir(parents=True, exist_ok=True)
     reply_file_names = [build_reply_wav_file_name(text) for text in REPLY_TEXTS[:3]]
     for reply_file_name in reply_file_names:
@@ -55,10 +54,27 @@ def profile_names_in_list(app: App) -> list[str]:
     return [str(label.content).removeprefix("⧉ ") for label in labels]
 
 
-def voice_files_in_folder(edceleste) -> list[str]:
-    if not edceleste.chatterbox_voices_folder.exists():
+def entries_of_the_profiles_in(voices_folder) -> list[str]:
+    """What the folder of a provider holds, sorted: for every profile folder one
+    entry per file or folder in it ("narrator/profile.pt", "narrator/replies"),
+    "name/" for an empty profile folder, and the plain name of anything else
+    (e.g. a recording kept there)."""
+    if not voices_folder.exists():
         return []
-    return sorted(file.name for file in edceleste.chatterbox_voices_folder.iterdir())
+    entries = []
+    for entry in voices_folder.iterdir():
+        if not entry.is_dir():
+            entries.append(entry.name)
+            continue
+        inner_names = [inner.name for inner in entry.iterdir()]
+        entries += [f"{entry.name}/{name}" for name in inner_names] or [
+            f"{entry.name}/"
+        ]
+    return sorted(entries)
+
+
+def voice_files_in_folder(edceleste) -> list[str]:
+    return entries_of_the_profiles_in(edceleste.chatterbox_voices_folder)
 
 
 def engine_shown(app: App) -> str:
@@ -107,10 +123,11 @@ async def open_text_to_speech_settings(edceleste, pilot: Pilot) -> None:
 
 
 def write_playable_sample(edceleste, profile_name: str) -> None:
-    edceleste.chatterbox_voices_folder.mkdir(parents=True, exist_ok=True)
+    profile_folder = edceleste.chatterbox_voices_folder / profile_name
+    profile_folder.mkdir(parents=True, exist_ok=True)
     one_second_of_silence = np.zeros(FAKE_SAMPLE_RATE_FOR_FILES)
     soundfile.write(
-        edceleste.chatterbox_voices_folder / f"{profile_name}_sample.wav",
+        profile_folder / "sample.wav",
         one_second_of_silence,
         FAKE_SAMPLE_RATE_FOR_FILES,
     )
@@ -287,8 +304,8 @@ async def test_should_remove_a_cloned_voice_after_switching_engine_without_savin
 
         with allure.step("And the files of 'narrator' are gone from the voices folder"):
             assert voice_files_in_folder(edceleste) == [
-                "wingman.pt",
-                "wingman_sample.wav",
+                "wingman/profile.pt",
+                "wingman/sample.wav",
             ]
 
         with allure.step("And the Commander is still in the settings"):
@@ -326,19 +343,16 @@ async def test_should_delete_the_replies_of_a_removed_voice_and_keep_the_others(
 
         with allure.step("And the voices folder holds only 'wingman' and its replies"):
             assert voice_files_in_folder(edceleste) == [
-                "replies",
-                "wingman.pt",
-                "wingman_sample.wav",
+                "wingman/profile.pt",
+                "wingman/replies",
+                "wingman/sample.wav",
             ]
 
-        with allure.step("And the replies of 'narrator' are gone"):
-            replies_folder = edceleste.chatterbox_voices_folder / "replies"
-            assert sorted(folder.name for folder in replies_folder.iterdir()) == [
-                "wingman"
-            ]
+        with allure.step("And nothing of 'narrator' is left, its replies included"):
+            assert not (edceleste.chatterbox_voices_folder / "narrator").exists()
 
         with allure.step("And all the replies of 'wingman' are still there"):
-            wingman_folder = edceleste.chatterbox_voices_folder / "replies" / "wingman"
+            wingman_folder = edceleste.chatterbox_voices_folder / "wingman" / "replies"
             assert sorted(file.name for file in wingman_folder.iterdir()) == (
                 wingman_replies
             )
@@ -412,9 +426,9 @@ async def test_should_keep_a_cloned_voice_when_the_engine_was_never_saved(
 
         with allure.step("And its files and its replies are in the voices folder"):
             assert voice_files_in_folder(edceleste) == [
-                "commander.pt",
-                "commander_sample.wav",
-                "replies",
+                "commander/profile.pt",
+                "commander/replies",
+                "commander/sample.wav",
             ]
 
         with allure.step("When the Commander leaves the settings without saving"):
