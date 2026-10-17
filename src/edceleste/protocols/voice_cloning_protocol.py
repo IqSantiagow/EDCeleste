@@ -12,11 +12,10 @@ class VoiceCloningProtocol(Protocol):
     and pocket). The methods that get params work for the provider the pilot
     has picked on the screen, saved or not. With params of another provider
     they raise VoiceCloningException, except get_available_profiles(), which
-    returns an empty list. A profile is a profile file ("<name>.pt" for
-    Chatterbox, "<name>.npy" for Pocket TTS) plus a "<name>_sample.wav" file and
-    a "replies/<name>" folder of short spoken replies, all in the folder of its
-    provider inside the voices folder. None of the methods change the settings,
-    even for the active profile."""
+    returns an empty list. A profile is a folder voices/<provider>/<name> that
+    holds the profile file (profile.pt for Chatterbox, profile.npy for Pocket
+    TTS), sample.wav and a "replies" folder of short spoken replies. None of
+    the methods change the settings, even for the active profile."""
 
     # Plain def: an async generator is iterated with "async for", never awaited
     def clone_voice(
@@ -38,25 +37,26 @@ class VoiceCloningProtocol(Protocol):
         ...
 
     def get_available_profiles(self, params: TtsProviderParams) -> list[str]:
-        """Reads the voices folder on disk. Names come without ".pt". Empty
-        when the folder does not exist yet."""
+        """Reads the voices folder on disk. Names are the folders of the
+        profiles of the provider of params that hold a profile file. Empty when
+        the folder does not exist yet."""
         ...
 
     def remove_profile(self, profile_name: str, params: TtsProviderParams) -> None:
-        """Deletes the profile file, its sample file and its folder of replies
-        from disk, and the "replies" folder too when no other profile has
-        replies in it. A missing file or folder is skipped, not an error. Raises
-        ValueError for a name that is empty or ".." (nothing is deleted then) and
-        OSError for a profile or sample file that cannot be deleted."""
+        """Deletes the whole folder of the profile from disk: the profile file,
+        the sample and the replies. A missing folder is skipped, not an error.
+        Raises ValueError for a name that is empty or ".." (nothing is deleted
+        then) and OSError for a file that cannot be deleted."""
         ...
 
     def rename_profile(
         self, old_profile_name: str, new_profile_name: str, params: TtsProviderParams
     ) -> None:
-        """Renames the profile file, its sample file and its folder of replies
-        on disk, nothing is cloned again. Raises FileExistsError when the new
-        name is taken, FileNotFoundError when the old profile does not exist and
-        ValueError for a name that is empty or ".." (nothing is renamed then)."""
+        """Renames the folder of the profile on disk, so the profile file, the
+        sample and the replies move with it, nothing is cloned again. Raises
+        FileExistsError when the new name is taken, FileNotFoundError when the
+        old profile does not exist and ValueError for a name that is empty or
+        ".." (nothing is renamed then)."""
         ...
 
     async def preview_voice_sample(

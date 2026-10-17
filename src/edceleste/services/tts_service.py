@@ -146,8 +146,10 @@ def find_voices_directory(operating_system_name: str = os.name) -> Path:
 
 VOICES_DIR = find_voices_directory()
 
-# Inside the folder of a provider: replies/<profile name>/<reply>.wav
-REPLIES_FOLDER_NAME = "replies"
+# What lies in the folder of a profile, voices/<provider>/<profile name>/
+PROFILE_FILE_STEM = "profile"  # plus the extension of the provider, profile.npy
+SAMPLE_FILE_NAME = "sample.wav"
+REPLIES_FOLDER_NAME = "replies"  # holds one <reply>.wav for every reply text
 
 NO_VOICE_PROFILES_MESSAGE = (
     "The active TTS provider does not support voice profiles. "
@@ -434,7 +436,7 @@ class TTSService:
             return SettingsIssueModel(
                 section="tts",
                 field="profile",
-                message=f"Profile '{profile_path.stem}' does not exist.",
+                message=f"Profile '{profile_path.parent.name}' does not exist.",
             )
         return None
 
@@ -459,40 +461,52 @@ class TTSService:
         active. Network errors are raised."""
         return [voice["ShortName"] for voice in await edge_tts.list_voices()]
 
-    def build_profile_path(
-        self,
-        provider: CloningTTSProviderProtocol,
-        profile_name: str,
-        file_extension: str,
-    ) -> Path:
-        """Puts "<profile_name><file_extension>", e.g. "celeste.pt" or
-        "celeste_sample.wav", in the folder of the provider inside the voices
-        folder (voices/chatterbox, voices/pocket). Any folder part of the name
-        is dropped, so a name like "../x" cannot reach outside that folder.
-        Does not check that the file exists."""
-        return (
-            VOICES_DIR
-            / provider.profile_folder_name
-            / (Path(profile_name).name + file_extension)
-        )
-
-    def build_replies_folder(self, provider_type: str, profile_name: str) -> Path:
-        """The folder with the prepared replies of one profile:
-        "<voices>/<provider_type>/replies/<profile_name>". The same for every
-        provider. A profile is a cloned voice (voices/pocket/replies/celeste) or
-        a voice picked from the list of a remote provider (voices/edge/replies/
-        en-US-AriaNeural). provider_type is the name of the provider in
-        TTS_PROVIDER_CLASSES (params.type). Any folder part of the name is
-        dropped, so a name like "../x" cannot reach outside the replies folder.
-        Does not check that the folder exists.
+    def build_profile_folder(self, provider_type: str, profile_name: str) -> Path:
+        """The folder of one profile: "<voices>/<provider_type>/<profile_name>".
+        Everything of the profile lies in it: the profile file, the sample and
+        the folder of replies. The same for every provider. A profile is a
+        cloned voice (voices/pocket/celeste) or a voice picked from the list of
+        a remote provider (voices/edge/en-US-AriaNeural). provider_type is the
+        name of the provider in TTS_PROVIDER_CLASSES (params.type). Any folder
+        part of the name is dropped, so a name like "../x" cannot reach outside
+        the folder of the provider. Does not check that the folder exists.
         Raises ValueError for a name that is empty or ".." after that, because
-        its folder would be the replies folder itself or the folder of the
-        provider, and a profile that is removed deletes its folder."""
+        its folder would be the folder of the provider or the voices folder,
+        and a profile that is removed deletes its folder."""
         folder_name = Path(profile_name).name
         if folder_name in ("", ".."):
-            raise ValueError(f"'{profile_name}' cannot name a folder of replies.")
+            raise ValueError(f"'{profile_name}' cannot name a folder of a profile.")
 
-        return VOICES_DIR / provider_type / REPLIES_FOLDER_NAME / folder_name
+        return VOICES_DIR / provider_type / folder_name
+
+    def build_profile_path(
+        self, provider_type: str, profile_name: str, file_extension: str
+    ) -> Path:
+        """The voice profile file of a cloned profile: "profile" plus the
+        extension of the provider, in the folder of the profile, e.g.
+        voices/pocket/celeste/profile.npy. Does not check that the file exists.
+        Raises ValueError for a name without a folder (see
+        build_profile_folder)."""
+        return self.build_profile_folder(provider_type, profile_name) / (
+            PROFILE_FILE_STEM + file_extension
+        )
+
+    def build_sample_path(self, provider_type: str, profile_name: str) -> Path:
+        """The demo sample of a cloned profile in the folder of the profile,
+        e.g. voices/pocket/celeste/sample.wav. Does not check that the file
+        exists. Raises ValueError for a name without a folder (see
+        build_profile_folder)."""
+        return self.build_profile_folder(provider_type, profile_name) / SAMPLE_FILE_NAME
+
+    def build_replies_folder(self, provider_type: str, profile_name: str) -> Path:
+        """The folder with the prepared replies of one profile, inside the folder
+        of the profile, e.g. voices/pocket/celeste/replies or
+        voices/edge/en-US-AriaNeural/replies. Does not check that the folder
+        exists. Raises ValueError for a name without a folder (see
+        build_profile_folder)."""
+        return (
+            self.build_profile_folder(provider_type, profile_name) / REPLIES_FOLDER_NAME
+        )
 
     async def prepare_replies(
         self,
@@ -529,13 +543,16 @@ class TTSService:
         self, provider: TTSProviderProtocol, params: TtsProviderParams
     ) -> Path | None:
         """The voice profile file named in params, for a provider that clones
-        voices. None for the other providers (Edge has no profiles)."""
+        voices, e.g. voices/pocket/celeste/profile.npy. None for the other
+        providers (Edge has no profile file). Does not check that the file
+        exists. Raises ValueError for a profile name that is empty or ".."
+        (see build_profile_folder)."""
         if not isinstance(provider, CloningTTSProviderProtocol):
             return None
 
         profile_name = getattr(params, "profile")
         return self.build_profile_path(
-            provider, profile_name, provider.profile_file_extension
+            params.type, profile_name, provider.profile_file_extension
         )
 
     def get_active_or_new_provider_for(
@@ -582,41 +599,43 @@ class TTSService:
         state is asked for, so every error comes out while iterating.
 
         1. Raises VoiceCloningException when the provider of params cannot
-           clone. Creates the folder of that provider inside the voices folder
-           (and the voices folder). Raises FileNotFoundError when the
-           audio file does not exist and FileExistsError when a profile with
-           this name exists already (an existing voice is never replaced). The
-           folders are made before these two checks, so both errors can leave
-           the folder of the provider behind.
+           clone. Creates the folder of the profile, voices/<provider>/<name>
+           (and the folders above it). Raises FileNotFoundError when the
+           audio file does not exist and FileExistsError when the profile file
+           of this name exists already (an existing voice is never replaced; a
+           folder of that name without a profile file, left by a clone that did
+           not get that far, is used again). The folder is made before these
+           two checks, so a missing audio file leaves an empty folder of the
+           profile behind.
            Folder parts of profile_name are dropped ("../x" -> "x"). Raises
            ValueError for a name that is empty or ".." after that (see
-           build_replies_folder), before anything is created. Yields
+           build_profile_folder), before anything is created. Yields
            DIRECTORY_CREATED.
         2. Raises ValueError when the clip is shorter than the provider needs.
            Reads only that many seconds of it. Yields AUDIO_PROCESSED.
         3. Writes those seconds into a new temporary folder, outside the voices
            folder, and lets the provider learn the voice from them and save
-           the profile file in the voices folder. Yields COMPLETED.
-        4. Generates <name>_sample.wav with DEFAULT_VOICE_SAMPLE_TEXT. Yields
-           SAMPLE_CREATED.
-        5. Prepares the replies of the new voice (prepare_replies) in
-           replies/<name> inside the folder of the provider. Slow, one
-           synthesis per text of REPLY_TEXTS. Yields REPLIES_CREATED and ends.
+           the profile file in the folder of the profile. Yields COMPLETED.
+        4. Generates sample.wav in the folder of the profile with
+           DEFAULT_VOICE_SAMPLE_TEXT. Yields SAMPLE_CREATED.
+        5. Prepares the replies of the new voice (prepare_replies) in the
+           replies folder of the profile. Slow, one synthesis per text of
+           REPLY_TEXTS. Yields REPLIES_CREATED and ends.
 
         Any error in steps 3 to 5 is raised again as RuntimeError, with the
         original error as its cause. A cancel is not wrapped. A cancel during
-        step 3 leaves no profile file. An error or a cancel after COMPLETED
-        leaves the profile file, the sample and the replies made so far on
-        disk, the caller deletes them with remove_profile(). The temporary
-        folder is always deleted. When that fails (on Windows a file still
-        open in the model thread), the folder is left in the system temp
-        folder and no error is raised.
+        step 3 leaves no profile file. An error or a cancel at any step leaves
+        the folder of the profile on disk (empty before COMPLETED, after it
+        with the profile file, the sample and the replies made so far), and
+        the caller deletes it with remove_profile(), which deletes the whole
+        folder of the profile. The temporary folder is always deleted.
+        When that fails (on Windows a file still open in the model thread), the
+        folder is left in the system temp folder and no error is raised.
         """
         provider = self.get_cloning_provider_for(params)
         profile_path = self.build_profile_path(
-            provider, profile_name, provider.profile_file_extension
+            params.type, profile_name, provider.profile_file_extension
         )
-        replies_folder = self.build_replies_folder(params.type, profile_name)
 
         profile_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -662,15 +681,16 @@ class TTSService:
             samples, sample_rate = await provider.synthesize(
                 DEFAULT_VOICE_SAMPLE_TEXT, new_profile_params, profile_path
             )
-            sample_path = self.build_profile_path(
-                provider, f"{profile_name}_sample", ".wav"
-            )
+            sample_path = self.build_sample_path(params.type, profile_name)
             sf.write(sample_path, samples, sample_rate)
 
             yield VoiceCloningState.SAMPLE_CREATED
 
             await self.prepare_replies(
-                provider, new_profile_params, profile_path, replies_folder
+                provider,
+                new_profile_params,
+                profile_path,
+                self.build_replies_folder(params.type, profile_name),
             )
 
             yield VoiceCloningState.REPLIES_CREATED
@@ -685,100 +705,75 @@ class TTSService:
             clip_folder.cleanup()
 
     def get_available_profiles(self, params: TtsProviderParams) -> list[str]:
-        """Voice profile names from the folder of the provider of params inside
-        the voices folder (the settings as they are on the screen, saved or
-        not), without the file extension. Empty when that provider cannot clone
-        voices, or its folder does not exist yet. The profiles of another
-        provider are not listed."""
+        """Voice profile names of the provider of params (the settings as they
+        are on the screen, saved or not): the names of the folders in
+        voices/<provider> that hold a profile file. A folder without one (a
+        clone that did not get that far) and a file lying in the folder of the
+        provider (a profile of the old layout) are not listed. Empty when that
+        provider cannot clone voices, or its folder does not exist yet. The
+        profiles of another provider are not listed. The order is the one of
+        the disk."""
         try:
             provider = self.get_cloning_provider_for(params)
         except VoiceCloningException:
             return []
 
-        profile_folder = VOICES_DIR / provider.profile_folder_name
-        if not profile_folder.exists():
+        provider_folder = VOICES_DIR / params.type
+        if not provider_folder.exists():
             return []
 
-        file_extension = provider.profile_file_extension
         return [
-            profile_file.name.removesuffix(file_extension)
-            for profile_file in profile_folder.iterdir()
-            if profile_file.is_file() and profile_file.name.endswith(file_extension)
+            profile_folder.name
+            for profile_folder in provider_folder.iterdir()
+            if self.build_profile_path(
+                params.type, profile_folder.name, provider.profile_file_extension
+            ).is_file()
         ]
 
     def remove_profile(self, profile_name: str, params: TtsProviderParams) -> None:
-        """Deletes the profile file, its <name>_sample.wav and its folder of
-        replies (with everything in it) from the folder of the provider. When
-        that was the last folder of replies, the "replies" folder itself is
-        deleted too, so the folder of the provider can be empty again. A file or
-        folder that is not there is skipped. The settings are not changed,
-        they may still point at it. params are the settings as they are on the
-        screen now. Raises VoiceCloningException when their provider cannot
-        clone voices and ValueError for a name that is empty or ".." (see
-        build_replies_folder), before anything is deleted. A profile or sample
-        file that cannot be deleted (on Windows a file in use) raises OSError,
-        errors while deleting the replies are ignored."""
-        provider = self.get_cloning_provider_for(params)
+        """Deletes the whole folder of the profile, with the profile file, the
+        sample and the replies in it. A folder that is not there is skipped. The
+        settings are not changed, they may still point at it. params are the
+        settings as they are on the screen now. Raises VoiceCloningException
+        when their provider cannot clone voices and ValueError for a name that
+        is empty or ".." (see build_profile_folder), before anything is
+        deleted. A file that cannot be deleted (on Windows a file in use) raises
+        OSError, and what was already deleted stays deleted."""
+        self.get_cloning_provider_for(params)
+        profile_folder = self.build_profile_folder(params.type, profile_name)
 
-        profile_path = self.build_profile_path(
-            provider, profile_name, provider.profile_file_extension
-        )
-        sample_path = self.build_profile_path(
-            provider, f"{profile_name}_sample", ".wav"
-        )
-        replies_folder = self.build_replies_folder(params.type, profile_name)
-
-        profile_path.unlink(missing_ok=True)
-        sample_path.unlink(missing_ok=True)
-        shutil.rmtree(replies_folder, ignore_errors=True)
         try:
-            replies_folder.parent.rmdir()
-        except OSError:
-            pass  # Other profiles still have replies, or the folder is not there
+            shutil.rmtree(profile_folder)
+        except FileNotFoundError:
+            pass  # Nothing to delete
 
     def rename_profile(
         self, old_profile_name: str, new_profile_name: str, params: TtsProviderParams
     ) -> None:
-        """Renames the profile file, its sample and its folder of replies on
-        disk, nothing is cloned or spoken again. params are the settings as they
-        are on the screen now. Raises VoiceCloningException when their provider
-        cannot clone voices, FileExistsError when the new name is taken and
-        FileNotFoundError when the old profile does not exist. A missing sample
-        or folder of replies is skipped. A folder of replies already lying under
-        the new name belongs to no profile (the profile file was checked to be
-        free), so it is deleted first. Raises ValueError for a name that is empty
-        or ".." (see build_replies_folder), before anything is renamed. The same
-        old and new name counts as taken (FileExistsError). The three renames go
-        one after another: when one fails (e.g. a file in use), the ones already
-        done stay and nothing is rolled back. The settings are not changed."""
+        """Renames the folder of the profile, so the profile file, the sample and
+        the replies in it move together, nothing is cloned or spoken again.
+        params are the settings as they are on the screen now. Raises
+        VoiceCloningException when their provider cannot clone voices,
+        FileExistsError when the new name is taken (the same old and new name
+        counts as taken) and FileNotFoundError when the old profile does not
+        exist. A folder already lying under the new name without a profile file
+        belongs to no profile (a clone that did not get that far), so it is
+        deleted first. Raises ValueError for a name that is empty or ".." (see
+        build_profile_folder), before anything is renamed. The settings are not
+        changed."""
         provider = self.get_cloning_provider_for(params)
 
-        old_profile_path = self.build_profile_path(
-            provider, old_profile_name, provider.profile_file_extension
-        )
+        old_profile_folder = self.build_profile_folder(params.type, old_profile_name)
+        new_profile_folder = self.build_profile_folder(params.type, new_profile_name)
         new_profile_path = self.build_profile_path(
-            provider, new_profile_name, provider.profile_file_extension
+            params.type, new_profile_name, provider.profile_file_extension
         )
-        old_replies_folder = self.build_replies_folder(params.type, old_profile_name)
-        new_replies_folder = self.build_replies_folder(params.type, new_profile_name)
 
         if new_profile_path.exists():
             raise FileExistsError(f"Voice profile '{new_profile_name}' already exists.")
 
-        old_profile_path.rename(new_profile_path)
-
-        old_sample_path = self.build_profile_path(
-            provider, f"{old_profile_name}_sample", ".wav"
-        )
-        new_sample_path = self.build_profile_path(
-            provider, f"{new_profile_name}_sample", ".wav"
-        )
-        if old_sample_path.exists():
-            old_sample_path.rename(new_sample_path)
-
-        if old_replies_folder.exists():
-            shutil.rmtree(new_replies_folder, ignore_errors=True)
-            old_replies_folder.rename(new_replies_folder)
+        shutil.rmtree(new_profile_folder, ignore_errors=True)
+        old_profile_folder.rename(new_profile_folder)
 
     async def preview_voice_sample(
         self, profile_name: str, text: str, params: TtsProviderParams
@@ -790,7 +785,7 @@ class TTSService:
         provider cannot clone voices, FileNotFoundError for a missing profile."""
         provider = self.get_cloning_provider_for(params)
         profile_path = self.build_profile_path(
-            provider, profile_name, provider.profile_file_extension
+            params.type, profile_name, provider.profile_file_extension
         )
 
         samples, sample_rate = await provider.synthesize(
@@ -848,14 +843,13 @@ class TTSService:
         self, profile_name: str, params: TtsProviderParams
     ) -> None:
         """Plays the sample saved when the profile was cloned, from the folder
-        of the provider of params (the settings as they are on the screen now),
-        and waits until it has played. No speech is generated and no model is
-        loaded. Raises VoiceCloningException when that provider cannot clone
-        voices and FileNotFoundError when the sample file is missing."""
-        provider = self.get_cloning_provider_for(params)
-        sample_path = self.build_profile_path(
-            provider, f"{profile_name}_sample", ".wav"
-        )
+        of the profile of the provider of params (the settings as they are on
+        the screen now), and waits until it has played. No speech is generated
+        and no model is loaded. Raises VoiceCloningException when that provider
+        cannot clone voices and FileNotFoundError when the sample file is
+        missing."""
+        self.get_cloning_provider_for(params)
+        sample_path = self.build_sample_path(params.type, profile_name)
 
         if not sample_path.exists():
             raise FileNotFoundError(

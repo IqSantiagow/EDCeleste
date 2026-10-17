@@ -149,7 +149,7 @@ async def test_should_not_save_the_selected_voice_after_it_was_deleted(edceleste
         with allure.step("Then saving either refuses or stores a voice that exists"):
             stored_voice = saved_config(edceleste)["tts"]["params"]["profile"]
             voice_file_exists = (
-                edceleste.chatterbox_voices_folder / f"{stored_voice}.pt"
+                edceleste.chatterbox_voices_folder / stored_voice / "profile.pt"
             ).exists()
             saving_was_refused = save_state_text(pilot.app) == "◉ ERROR DURING SAVING"
             assert saving_was_refused or voice_file_exists, (
