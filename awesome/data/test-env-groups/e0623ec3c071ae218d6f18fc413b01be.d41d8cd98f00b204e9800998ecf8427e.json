@@ -1,0 +1,1 @@
+{"id":"e0623ec3c071ae218d6f18fc413b01be.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_open_speaker_falls_back_to_the_default_speaker_when_wasapi_fails","name":"test_open_speaker_falls_back_to_the_default_speaker_when_wasapi_fails","status":"passed","testResultsByEnv":{"default":"5e722a60a3bd2c1f1055a5a8d0a1973f"}}

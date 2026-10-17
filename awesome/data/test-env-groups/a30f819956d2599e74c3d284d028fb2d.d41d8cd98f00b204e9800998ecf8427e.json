@@ -1,0 +1,1 @@
+{"id":"a30f819956d2599e74c3d284d028fb2d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_pocket_tts#test_should_play_the_sample_of_a_pocket_voice","name":"The play button of a Pocket TTS voice plays its saved sample","status":"passed","testResultsByEnv":{"default":"9326bbb9f1e8ec2f7d2d5c37aea7699b"}}

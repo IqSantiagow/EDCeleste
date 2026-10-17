@@ -1,0 +1,1 @@
+{"id":"7e1f2c3d2cdb47cff8db5d6d16856667.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_profiles#test_should_keep_a_cloned_voice_when_the_engine_was_never_saved","name":"A voice cloned before the engine is saved is still there after reopening","status":"passed","testResultsByEnv":{"default":"53150058273ae2ff07402c95febe7bad"}}

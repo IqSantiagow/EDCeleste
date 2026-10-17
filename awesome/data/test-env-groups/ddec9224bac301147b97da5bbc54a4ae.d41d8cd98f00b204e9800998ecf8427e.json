@@ -1,0 +1,1 @@
+{"id":"ddec9224bac301147b97da5bbc54a4ae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_get_available_device_returns_the_answer_of_the_cloning_provider","name":"test_get_available_device_returns_the_answer_of_the_cloning_provider","status":"passed","testResultsByEnv":{"default":"49aa77262fb8c259775c284d727270b4"}}

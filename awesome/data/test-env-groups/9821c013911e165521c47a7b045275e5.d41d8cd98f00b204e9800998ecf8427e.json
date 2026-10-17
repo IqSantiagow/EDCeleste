@@ -1,0 +1,1 @@
+{"id":"9821c013911e165521c47a7b045275e5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderSynthesizeTest#test_synthesize_returns_samples_and_sample_rate","name":"test_synthesize_returns_samples_and_sample_rate","status":"passed","testResultsByEnv":{"default":"acb78c7e07d273cbc65876c7086989ef"}}

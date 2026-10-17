@@ -1,0 +1,1 @@
+{"id":"4ef9cc2b531f866e58e395f92ae97086.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderStreamingProtocolTest#test_edge_does_not_count_as_a_streaming_provider","name":"test_edge_does_not_count_as_a_streaming_provider","status":"passed","testResultsByEnv":{"default":"5e62a4d624d1ef67bebe6531e93e4f35"}}

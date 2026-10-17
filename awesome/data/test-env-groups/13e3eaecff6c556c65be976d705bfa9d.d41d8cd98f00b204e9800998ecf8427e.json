@@ -1,0 +1,1 @@
+{"id":"13e3eaecff6c556c65be976d705bfa9d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.settings.test_settings_repository.TestSettingsRepository#test_should_delegate_fetch_available_model_names_to_use_case","name":"test_should_delegate_fetch_available_model_names_to_use_case","status":"passed","testResultsByEnv":{"default":"616aca3026d00564c757cf33b5f3e7cf"}}

@@ -1,0 +1,1 @@
+{"id":"b3d8eb84e07098710be1e6c7780c8b2a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.InstinctModelLoadingTest#test_warm_up_asks_only_the_small_question_when_there_is_no_game_state","name":"test_warm_up_asks_only_the_small_question_when_there_is_no_game_state","status":"passed","testResultsByEnv":{"default":"d539743252119b849b0040b1f7dc9789"}}

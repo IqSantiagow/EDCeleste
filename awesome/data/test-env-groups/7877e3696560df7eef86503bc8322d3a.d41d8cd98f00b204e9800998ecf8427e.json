@@ -1,0 +1,1 @@
+{"id":"7877e3696560df7eef86503bc8322d3a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_streaming_voice#test_should_speak_the_next_answer_after_the_voice_engine_broke","name":"A voice engine that breaks in the middle of an answer does not silence the next one","status":"passed","testResultsByEnv":{"default":"a9477d25ce68ea22d87f4a8240d1c264"}}

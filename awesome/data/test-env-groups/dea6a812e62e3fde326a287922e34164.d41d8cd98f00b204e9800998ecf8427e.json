@@ -1,0 +1,1 @@
+{"id":"dea6a812e62e3fde326a287922e34164.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_save_the_engine_and_its_voice_to_config_yaml","name":"A changed Edge voice is saved to config.yaml as the engine and its params","status":"passed","testResultsByEnv":{"default":"7ef7815800f67757bdff391331e0d3c8"}}

@@ -1,0 +1,1 @@
+{"id":"b376751c8b79fbf20ac254832fb66b75.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_game_state.TestGameState#test_should_rebuild_game_state_text_and_keep_old_data_not_in_event","name":"test_should_rebuild_game_state_text_and_keep_old_data_not_in_event","status":"passed","testResultsByEnv":{"default":"dc2d553161daf23dc1fed0cc15293f80"}}

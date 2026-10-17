@@ -1,0 +1,1 @@
+{"id":"8111e8c8e73a91f73778591238854d26.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_speak_while_synthesizing_works_on_float32_audio_all_the_way","name":"test_speak_while_synthesizing_works_on_float32_audio_all_the_way","status":"passed","testResultsByEnv":{"default":"9be276bc3380baa3f0cf377daf7a6e17"}}

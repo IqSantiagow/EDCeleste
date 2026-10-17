@@ -1,0 +1,1 @@
+{"id":"24769904e8267fe828b3eb3da52a9a98.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_open_speaker_uses_the_default_speaker_on_other_systems","name":"test_open_speaker_uses_the_default_speaker_on_other_systems","status":"passed","testResultsByEnv":{"default":"7c6fa6bb844e096a1845d45711670ade"}}

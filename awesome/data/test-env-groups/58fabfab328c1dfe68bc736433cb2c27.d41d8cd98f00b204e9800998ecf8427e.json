@@ -1,0 +1,1 @@
+{"id":"58fabfab328c1dfe68bc736433cb2c27.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_save_pocket_tts_and_its_voice_after_switching_to_local","name":"Saving after switching the location to Local stores Pocket TTS and its voice","status":"passed","testResultsByEnv":{"default":"7337e37f01980ec9e2822fd04ce7302e"}}

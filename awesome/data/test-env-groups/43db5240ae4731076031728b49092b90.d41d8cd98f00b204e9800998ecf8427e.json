@@ -1,0 +1,1 @@
+{"id":"43db5240ae4731076031728b49092b90.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_streaming_voice#test_should_apply_voice_lab_to_the_whole_streamed_voice","name":"The Voice Lab effects cover the whole streamed voice and the reverb rings out after the last word","status":"passed","testResultsByEnv":{"default":"4cfaee41979dac2655b29e4382b25c71"}}

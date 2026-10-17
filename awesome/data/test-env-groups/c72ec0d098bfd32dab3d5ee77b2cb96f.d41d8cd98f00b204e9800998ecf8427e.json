@@ -1,0 +1,1 @@
+{"id":"c72ec0d098bfd32dab3d5ee77b2cb96f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderSynthesizeTest#test_synthesize_rejects_params_of_another_provider","name":"test_synthesize_rejects_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"636dfaf9c03cf120c209b582fdf1e4a5"}}

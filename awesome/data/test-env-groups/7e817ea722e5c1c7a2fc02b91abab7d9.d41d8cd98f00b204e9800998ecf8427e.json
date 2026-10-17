@@ -1,0 +1,1 @@
+{"id":"7e817ea722e5c1c7a2fc02b91abab7d9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_instinct_fast_commands#test_should_send_the_command_to_celeste_when_the_model_runs_on_the_cpu","name":"A model that runs on the CPU is not used for commands","status":"passed","testResultsByEnv":{"default":"2a465cce465b62d98bc83edcd4b96cd0"}}

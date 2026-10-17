@@ -1,0 +1,1 @@
+{"id":"6c1af93889a988559542f396089b025d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.CanDecideCommandsTest#test_is_false_when_the_model_runs_on_the_cpu","name":"test_is_false_when_the_model_runs_on_the_cpu","status":"passed","testResultsByEnv":{"default":"41206e67a55faada994a4b68d3a372d3"}}

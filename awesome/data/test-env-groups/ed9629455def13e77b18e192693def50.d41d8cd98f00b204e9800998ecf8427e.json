@@ -1,0 +1,1 @@
+{"id":"ed9629455def13e77b18e192693def50.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderSynthesizeTest#test_synthesize_rejects_params_of_another_provider","name":"test_synthesize_rejects_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"1889ebf9396af521ebcdde5ca786ed42"}}

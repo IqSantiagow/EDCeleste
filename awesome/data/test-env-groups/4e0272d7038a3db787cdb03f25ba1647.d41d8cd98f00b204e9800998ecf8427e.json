@@ -1,0 +1,1 @@
+{"id":"4e0272d7038a3db787cdb03f25ba1647.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeStreamTest#test_gives_four_frames_first_then_six_then_the_rest","name":"test_gives_four_frames_first_then_six_then_the_rest","status":"passed","testResultsByEnv":{"default":"bf8e5a29c3b24193695e7810b43f01f3"}}

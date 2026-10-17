@@ -1,0 +1,1 @@
+{"id":"c2edf8eb085eabf0f1c79d9bda9814b3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_speak_while_synthesizing_stops_the_player_when_the_provider_fails","name":"test_speak_while_synthesizing_stops_the_player_when_the_provider_fails","status":"passed","testResultsByEnv":{"default":"85da2d523739033174004bc0b0460e88"}}

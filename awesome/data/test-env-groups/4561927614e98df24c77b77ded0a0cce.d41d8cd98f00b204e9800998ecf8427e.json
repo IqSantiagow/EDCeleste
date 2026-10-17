@@ -1,0 +1,1 @@
+{"id":"4561927614e98df24c77b77ded0a0cce.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_open_speaker_uses_wasapi_with_low_latency_on_windows","name":"test_open_speaker_uses_wasapi_with_low_latency_on_windows","status":"passed","testResultsByEnv":{"default":"37ec15965d278082f74707639a491020"}}

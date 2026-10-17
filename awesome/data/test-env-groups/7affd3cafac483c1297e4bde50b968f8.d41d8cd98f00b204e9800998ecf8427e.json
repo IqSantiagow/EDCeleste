@@ -1,0 +1,1 @@
+{"id":"7affd3cafac483c1297e4bde50b968f8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeTest#test_loads_the_model_once_with_four_threads","name":"test_loads_the_model_once_with_four_threads","status":"passed","testResultsByEnv":{"default":"a40c37a5640423f1c46b163046f9a0eb"}}

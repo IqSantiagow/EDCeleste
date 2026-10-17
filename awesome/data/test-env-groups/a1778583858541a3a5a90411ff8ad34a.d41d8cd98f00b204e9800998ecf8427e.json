@@ -1,0 +1,1 @@
+{"id":"a1778583858541a3a5a90411ff8ad34a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderMakeAudioPiecesTest#test_pieces_are_float32_numpy_arrays","name":"test_pieces_are_float32_numpy_arrays","status":"passed","testResultsByEnv":{"default":"8ee3c4fbf30f1646064d3b0c1169fc36"}}

@@ -1,0 +1,1 @@
+{"id":"e85f69e0ea39c6ab8809e0a455a76952.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_speak_while_synthesizing_leaves_no_unread_error_of_the_player","name":"test_speak_while_synthesizing_leaves_no_unread_error_of_the_player","status":"passed","testResultsByEnv":{"default":"e10ce6f88d2012bbf1c8f46cbcf5ce0e"}}

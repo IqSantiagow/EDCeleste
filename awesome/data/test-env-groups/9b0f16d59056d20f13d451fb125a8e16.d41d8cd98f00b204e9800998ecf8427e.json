@@ -1,0 +1,1 @@
+{"id":"9b0f16d59056d20f13d451fb125a8e16.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stt_stop_recording_use_case.TestSttStopRecordingUseCase#test_should_return_transcription_from_stt_protocol","name":"test_should_return_transcription_from_stt_protocol","status":"passed","testResultsByEnv":{"default":"7422601d45b19b2de11e772f5cda495f"}}

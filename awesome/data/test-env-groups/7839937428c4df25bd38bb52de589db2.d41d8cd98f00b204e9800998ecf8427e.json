@@ -1,0 +1,1 @@
+{"id":"7839937428c4df25bd38bb52de589db2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_cloning#test_should_play_the_sample_of_a_cloned_voice","name":"The play button of a cloned voice plays its saved sample","status":"passed","testResultsByEnv":{"default":"9fea4414c4fa22d520efb5db8c262ee0"}}

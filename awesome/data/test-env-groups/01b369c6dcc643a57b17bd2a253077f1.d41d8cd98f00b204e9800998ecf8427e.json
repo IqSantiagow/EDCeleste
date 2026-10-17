@@ -1,0 +1,1 @@
+{"id":"01b369c6dcc643a57b17bd2a253077f1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_speak_while_synthesizing_ends_the_player_after_the_last_piece","name":"test_speak_while_synthesizing_ends_the_player_after_the_last_piece","status":"passed","testResultsByEnv":{"default":"7845978a40dba82d88a7e396d28dbf41"}}

@@ -1,0 +1,1 @@
+{"id":"acb7fb23b882d414ee57a7d6ecb6c543.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_open_speaker_uses_the_default_speaker_when_windows_has_no_wasapi","name":"test_open_speaker_uses_the_default_speaker_when_windows_has_no_wasapi","status":"passed","testResultsByEnv":{"default":"354ff29a2bcdea56d0554b8d1a471fa7"}}

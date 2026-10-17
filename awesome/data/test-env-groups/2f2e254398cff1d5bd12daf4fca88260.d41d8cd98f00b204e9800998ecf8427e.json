@@ -1,0 +1,1 @@
+{"id":"2f2e254398cff1d5bd12daf4fca88260.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceStreams#test_status_events_still_update_projections_despite_being_excluded","name":"test_status_events_still_update_projections_despite_being_excluded","status":"passed","testResultsByEnv":{"default":"f918686fde7b7c34f64fa349c46b5918"}}

@@ -1,0 +1,1 @@
+{"id":"90f71d2e8055c27a7c374937c750c35b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_synthesize_and_play_makes_the_whole_audio_when_it_cannot_stream","name":"test_synthesize_and_play_makes_the_whole_audio_when_it_cannot_stream","status":"passed","testResultsByEnv":{"default":"8f6dcdfce8af71803f7119dde3b42481"}}

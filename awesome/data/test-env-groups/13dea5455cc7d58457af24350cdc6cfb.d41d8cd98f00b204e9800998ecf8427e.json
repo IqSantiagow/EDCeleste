@@ -1,0 +1,1 @@
+{"id":"13dea5455cc7d58457af24350cdc6cfb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_game_state.TestGameState#test_should_process_event_and_rebuild_game_state_text_soft_assert","name":"test_should_process_event_and_rebuild_game_state_text_soft_assert","status":"passed","testResultsByEnv":{"default":"8c304d8d9c7bbc6ec7522c91f3f77c46"}}
