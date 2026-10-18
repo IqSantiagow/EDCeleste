@@ -86,8 +86,10 @@ async def test_should_show_an_event_written_to_the_journal_in_the_ship_log(edcel
   test trwał ~5 s. Pod pytestem + `anyio` ten sam test trwa ~1 s.
 - `app.workers.wait_for_complete()` wisi na Dashboardzie (workery streamują
   w nieskończoność) — stąd `wait_until`.
-- Watcher czyta journal od końca (`seek(0, 2)`), więc eventy dopisujemy dopiero
-  po starcie Dashboardu.
+- Watcher przy starcie czyta journal od początku po cichu (ładowanie: bez
+  reakcji, bez LLM, bez wpisów w ship logu), a dopiero potem śledzi go na żywo.
+  Eventy, które mają pokazać się w ship logu albo wywołać reakcję, dopisujemy
+  więc dopiero po starcie Dashboardu.
 - Config testowy ma wszystkie `event_reactions` wyłączone — `LoadGame: true`
   wywołałby automatyczną odpowiedź LLM w środku scenariusza.
 - `LLMService.test_connection` korzysta teraz z `build_model`, więc jedna

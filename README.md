@@ -20,7 +20,7 @@ Celeste follows your game as it happens, talks with you, and presses keys for yo
 
 ## What Celeste does
 
-- **Knows your game.** She reads the game's journal and status files live: where you are, what you fly, your fuel, cargo and the station market. Every answer starts from that picture.
+- **Knows your game.** She reads the game's journal and status files live: where you are, what you fly, your fuel, cargo and the station market. Every answer starts from that picture. Start the app in the middle of a session and she knows the situation from the first second: she reads the newest journal from the beginning in silence, with no reaction and no LLM request, and follows it live afterwards.
 - **Listens.** Speak instead of typing. A local Whisper model turns speech into text on your machine, primed with Elite Dangerous vocabulary.
 - **Talks back.** Replies are spoken with a Microsoft Edge voice, or with your own cloned voice running locally: Chatterbox (graphics card) or Pocket TTS (processor only, no graphics card memory). Voice profiles are recorded and managed in the app. Voice Lab makes her sound like she speaks inside the ship: a sharper voice, a short cabin reverb and stereo width, each on its own slider.
 - **Presses keys.** She uses your own keybindings and presses keys only into the game window, never into the terminal. Off until you switch it on.
