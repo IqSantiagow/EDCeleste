@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 import unittest
@@ -13,6 +14,9 @@ from edceleste.services.models.game_events import (
     MarketEvent,
     StatusEvent,
     UnknownCheckedEvent,
+)
+from edceleste.services.models.startup_loading_finished_event import (
+    StartupLoadingFinishedEvent,
 )
 from edceleste.services.models.settings_model import (
     LLMModel,
@@ -88,84 +92,309 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(FileNotFoundError):
             watcher._GameWatcherService__get_latest_journal_filepath()  # type: ignore
 
+    # --- following the journal live ---
+
     async def test_follow_journal_lines(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
+        watcher = self._make_watcher()
 
-        with patch("builtins.open", mock_open()) as m:
-            mock_open_file = m()
+        def readline_side_effect():
+            yield event1.model_dump_json()
+            yield event2.model_dump_json()
+            watcher.stop_watcher_service()
+            yield ""
 
-            watcher = self._make_watcher()
+        journal_file = Mock()
+        journal_file.readline.side_effect = readline_side_effect()
 
-            def readline_side_effect():
-                yield event1.model_dump_json()
-                yield event2.model_dump_json()
-                watcher.stop_watcher_service()
-                yield ""
-
-            mock_open_file.readline.side_effect = readline_side_effect()
-
-            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
-
-            self.assertEqual(
-                self.mock_event_bus.publish.await_args_list,
-                [((event1,),), ((event2,),)],
+        await (
+            watcher._GameWatcherService__follow_open_journal_file_and_publish_new_lines(
+                journal_file
             )
+        )  # type: ignore
+
+        # The expected events are live ones (is_startup_loading False), the
+        # comparison includes that flag.
+        self.assertEqual(
+            self.mock_event_bus.publish.await_args_list,
+            [((event1,),), ((event2,),)],
+        )
+        for published_call in self.mock_event_bus.publish.await_args_list:
+            self.assertFalse(published_call.args[0].is_startup_loading)
 
     async def test_should_stop_emitting_events_on_stop_signal(self):
         event1 = self._make_event("SomeEvent1")
+        watcher = self._make_watcher()
 
-        with patch("builtins.open", mock_open()) as m:
-            mock_open_file = m()
+        def readline_side_effect():
+            yield event1.model_dump_json()
+            watcher.stop_watcher_service()
+            yield ""
 
-            watcher = self._make_watcher()
+        journal_file = Mock()
+        journal_file.readline.side_effect = readline_side_effect()
 
-            def readline_side_effect():
-                yield event1.model_dump_json()
-                watcher.stop_watcher_service()
-                yield ""
+        await (
+            watcher._GameWatcherService__follow_open_journal_file_and_publish_new_lines(
+                journal_file
+            )
+        )  # type: ignore
 
-            mock_open_file.readline.side_effect = readline_side_effect()
-
-            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
-
-            self.mock_event_bus.publish.assert_awaited_once_with(event1)
+        self.mock_event_bus.publish.assert_awaited_once_with(event1)
 
     async def test_should_start_emitting_events(self):
         event1 = self._make_event("SomeEvent1")
         event2 = self._make_event("SomeEvent2")
         event3 = self._make_event("SomeEvent3")
+        watcher = self._make_watcher()
 
-        with patch("builtins.open", mock_open()) as m:
-            mock_open_file = m()
+        def readline_side_effect():
+            yield event1.model_dump_json()
+            yield event2.model_dump_json()
+            watcher.stop_watcher_service()
+            yield ""
+            yield event3.model_dump_json()
+            watcher.stop_watcher_service()
+            yield ""
 
-            watcher = self._make_watcher()
+        journal_file = Mock()
+        journal_file.readline.side_effect = readline_side_effect()
 
-            def readline_side_effect():
-                yield event1.model_dump_json()
-                yield event2.model_dump_json()
-                watcher.stop_watcher_service()
-                yield ""
-                yield event3.model_dump_json()
-                watcher.stop_watcher_service()
-                yield ""
+        await (
+            watcher._GameWatcherService__follow_open_journal_file_and_publish_new_lines(
+                journal_file
+            )
+        )  # type: ignore
 
-            mock_open_file.readline.side_effect = readline_side_effect()
+        self.assertEqual(
+            self.mock_event_bus.publish.await_args_list,
+            [((event1,),), ((event2,),)],
+        )
 
-            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
+        watcher.exit_signal = False
+        await (
+            watcher._GameWatcherService__follow_open_journal_file_and_publish_new_lines(
+                journal_file
+            )
+        )  # type: ignore
 
-            self.assertEqual(
-                self.mock_event_bus.publish.await_args_list,
-                [((event1,),), ((event2,),)],
+        self.assertEqual(
+            self.mock_event_bus.publish.await_args_list,
+            [((event1,),), ((event2,),), ((event3,),)],
+        )
+
+    # --- loading what the game wrote before the app started ---
+
+    async def _load_side_file(self, watcher, file_name, event_model):
+        """Calls the private loading of one side file and returns its result."""
+        return await watcher._GameWatcherService__publish_side_file_already_on_disk(  # type: ignore
+            file_name, event_model
+        )
+
+    async def test_lines_already_in_the_journal_are_published_as_startup_loading(
+        self,
+    ):
+        event1 = self._make_event("SomeEvent1")
+        event2 = self._make_event("SomeEvent2")
+        watcher = self._make_watcher()
+        journal_file = Mock()
+        journal_file.readline.side_effect = [
+            event1.model_dump_json(),
+            event2.model_dump_json(),
+            "",
+        ]
+
+        await watcher._GameWatcherService__publish_lines_already_in_journal(  # type: ignore
+            journal_file
+        )
+
+        published_events = [
+            published_call.args[0]
+            for published_call in self.mock_event_bus.publish.await_args_list
+        ]
+        self.assertEqual(
+            [event.event for event in published_events], ["SomeEvent1", "SomeEvent2"]
+        )
+        for published_event in published_events:
+            self.assertTrue(published_event.is_startup_loading)
+
+    async def test_loading_skips_a_line_that_does_not_parse_and_goes_on(self):
+        event1 = self._make_event("SomeEvent1")
+        event2 = self._make_event("SomeEvent2")
+        watcher = self._make_watcher()
+        journal_file = Mock()
+        journal_file.readline.side_effect = [
+            event1.model_dump_json(),
+            "this is not a journal line",
+            event2.model_dump_json(),
+            "",
+        ]
+
+        await watcher._GameWatcherService__publish_lines_already_in_journal(  # type: ignore
+            journal_file
+        )
+
+        published_names = [
+            published_call.args[0].event
+            for published_call in self.mock_event_bus.publish.await_args_list
+        ]
+        self.assertEqual(published_names, ["SomeEvent1", "SomeEvent2"])
+
+    async def test_loading_stops_when_exit_signal_is_set(self):
+        event1 = self._make_event("SomeEvent1")
+        event2 = self._make_event("SomeEvent2")
+        watcher = self._make_watcher()
+
+        def readline_side_effect():
+            yield event1.model_dump_json()
+            watcher.exit_signal = True
+            yield event2.model_dump_json()
+
+        journal_file = Mock()
+        journal_file.readline.side_effect = readline_side_effect()
+
+        await watcher._GameWatcherService__publish_lines_already_in_journal(  # type: ignore
+            journal_file
+        )
+
+        # event2 was already read when the signal came, but the loop checks
+        # the signal before every read, so it is not read a third time.
+        self.assertEqual(journal_file.readline.call_count, 2)
+
+    async def test_side_file_already_on_disk_is_published_as_startup_loading(self):
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=1, Flags2=0
+        )
+        watcher = self._make_watcher()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            patch(
+                "edceleste.services.game_watcher_service.os.path.getmtime",
+                return_value=123.5,
+            ),
+            patch("builtins.open", mock_open(read_data=status_event.model_dump_json())),
+        ):
+            modified_time = await self._load_side_file(
+                watcher, "Status.json", StatusEvent
             )
 
-            watcher.exit_signal = False
-            await watcher._GameWatcherService__publish_new_journal_lines(JOURNAL_FILE)  # type: ignore
+        self.assertEqual(modified_time, 123.5)
+        published_event = self.mock_event_bus.publish.await_args.args[0]
+        self.assertEqual(published_event.Flags, 1)
+        self.assertTrue(published_event.is_startup_loading)
 
-            self.assertEqual(
-                self.mock_event_bus.publish.await_args_list,
-                [((event1,),), ((event2,),), ((event3,),)],
+    async def test_side_file_missing_at_loading_publishes_nothing_and_has_no_time(
+        self,
+    ):
+        watcher = self._make_watcher()
+
+        with patch(
+            "edceleste.services.game_watcher_service.os.path.isfile",
+            return_value=False,
+        ):
+            modified_time = await self._load_side_file(
+                watcher, "Market.json", MarketEvent
             )
+
+        self.assertIsNone(modified_time)
+        self.mock_event_bus.publish.assert_not_awaited()
+
+    async def test_empty_or_broken_side_file_at_loading_publishes_nothing(self):
+        for file_content in ["", "not valid json"]:
+            with self.subTest(file_content=file_content):
+                watcher = self._make_watcher()
+
+                with (
+                    patch(
+                        "edceleste.services.game_watcher_service.os.path.isfile",
+                        return_value=True,
+                    ),
+                    patch(
+                        "edceleste.services.game_watcher_service.os.path.getmtime",
+                        return_value=77,
+                    ),
+                    patch("builtins.open", mock_open(read_data=file_content)),
+                ):
+                    modified_time = await self._load_side_file(
+                        watcher, "Status.json", StatusEvent
+                    )
+
+                # The file counts as seen, so the live watcher waits for the
+                # next change instead of reading the same broken file again.
+                self.assertEqual(modified_time, 77)
+                self.mock_event_bus.publish.assert_not_awaited()
+
+    async def test_side_file_that_cannot_be_read_at_loading_is_logged_not_raised(
+        self,
+    ):
+        # An error here must not end the whole loading task: the journal still
+        # has to be followed, and the live watcher tries the file again.
+        watcher = self._make_watcher()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            patch(
+                "edceleste.services.game_watcher_service.os.path.getmtime",
+                return_value=77,
+            ),
+            patch("builtins.open", side_effect=PermissionError("held by the game")),
+            self.assertLogs(
+                "edceleste.services.game_watcher_service", level="ERROR"
+            ) as logs,
+        ):
+            modified_time = await self._load_side_file(
+                watcher, "Status.json", StatusEvent
+            )
+
+        self.assertIsNone(modified_time)
+        self.mock_event_bus.publish.assert_not_awaited()
+        self.assertIn("Cannot read Status.json at startup", logs.output[0])
+
+    async def test_live_side_watcher_skips_the_version_loaded_at_startup(self):
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=1, Flags2=0
+        )
+        watcher = self._make_watcher()
+        modified_times = [100, 100, 200]
+
+        sleep_calls = []
+
+        async def fake_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) >= 3:
+                watcher.stop_watcher_service()
+
+        with (
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=True,
+            ),
+            patch(
+                "edceleste.services.game_watcher_service.os.path.getmtime",
+                side_effect=modified_times,
+            ),
+            patch("builtins.open", mock_open(read_data=status_event.model_dump_json())),
+            patch(
+                "edceleste.services.game_watcher_service.asyncio.sleep",
+                new=AsyncMock(side_effect=fake_sleep),
+            ),
+        ):
+            await watcher.watch_status_file_and_publish_event(last_modified_time=100)
+
+        # Passes 1 and 2 see the loaded version 100. Only the rewrite at
+        # version 200 is published, and it is a live event.
+        self.mock_event_bus.publish.assert_awaited_once_with(status_event)
+        self.assertFalse(
+            self.mock_event_bus.publish.await_args.args[0].is_startup_loading
+        )
 
     def test_validate_settings_reports_issue_when_journal_path_missing(self):
         watcher = self._make_watcher()
@@ -421,19 +650,33 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_event_bus.publish.assert_awaited_once_with(market_event)
 
-    async def test_start_watcher_service_starts_a_task_per_watched_file(self):
-        """The journal plus one task for every side file. Tests elsewhere stub
-        these out by name, so a new one must not go unnoticed."""
+    async def test_start_starts_the_loading_task_then_a_task_per_side_file(
+        self,
+    ):
+        """One task at the start (it loads the game state and follows the
+        journal), the Status.json and Market.json watchers join it when the
+        loading is done. Tests elsewhere stub these out by name, so a new one
+        must not go unnoticed."""
         watcher = self._make_watcher()
 
         with (
             patch.object(GameWatcherService, "watch_status_file_and_publish_event"),
             patch.object(GameWatcherService, "watch_market_file_and_publish_event"),
             patch.object(
-                GameWatcherService, "_GameWatcherService__publish_new_journal_lines"
+                GameWatcherService,
+                "_GameWatcherService__follow_open_journal_file_and_publish_new_lines",
             ),
+            patch(
+                "edceleste.services.game_watcher_service.os.path.isfile",
+                return_value=False,
+            ),
+            patch("builtins.open", mock_open(read_data="")),
         ):
             watcher.start_watcher_service()
+            self.assertEqual(len(watcher._game_watcher_tasks), 1)
+
+            await asyncio.sleep(0)
+
             self.assertEqual(len(watcher._game_watcher_tasks), 3)
             watcher.stop_watcher_service()
 
@@ -445,6 +688,172 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
             watcher.start_watcher_service()
 
         self.assertEqual(watcher._game_watcher_tasks, [])
+
+
+class StartupLoadingOnDiskTest(unittest.IsolatedAsyncioTestCase):
+    """Real temporary folder, real files and the real asyncio tasks of the
+    watcher. Only the event bus is a recorder, so the order of what the watcher
+    publishes can be checked."""
+
+    LINE_TIMESTAMP = "2026-10-18T12:00:00Z"
+
+    def setUp(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.folder = Path(temp_dir.name)
+        self.journal_file = self.folder / "Journal.2026-10-18T120000.01.log"
+        self.journal_file.touch()
+
+        self.published: list[tuple[str, bool]] = []
+        self.when_loading_is_finished = lambda: None
+        event_bus = Mock()
+        event_bus.publish = AsyncMock(side_effect=self._record_published_event)
+        self.watcher = GameWatcherService(
+            journal_path=str(self.folder),
+            event_bus=event_bus,
+            settings_service=Mock(),
+        )
+
+    async def asyncTearDown(self):
+        # The watcher keeps the journal file open. Wait until its tasks are
+        # gone, otherwise Windows cannot delete the temporary folder.
+        watcher_tasks = list(self.watcher._game_watcher_tasks)
+        self.watcher.stop_watcher_service()
+        await asyncio.gather(*watcher_tasks, return_exceptions=True)
+
+    async def _record_published_event(self, event) -> None:
+        """Writes down (event name, is it a startup loading event)."""
+        if isinstance(event, StartupLoadingFinishedEvent):
+            self.published.append(("StartupLoadingFinished", False))
+            self.when_loading_is_finished()
+            return
+        self.published.append((event.event, event.is_startup_loading))
+
+    def _append_journal_line(self, event_name: str) -> None:
+        with self.journal_file.open("a", encoding="utf-8") as journal:
+            journal.write(
+                f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"{event_name}"}}\n'
+            )
+
+    def _write_status_file(self) -> None:
+        (self.folder / "Status.json").write_text(
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"Status","Flags":0,"Flags2":0}}',
+            encoding="utf-8",
+        )
+
+    def _write_market_file(self) -> None:
+        (self.folder / "Market.json").write_text(
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"Market","MarketID":1,'
+            '"StationName":"Fan Horizons","StarSystem":"Beta Sculptoris","Items":[]}',
+            encoding="utf-8",
+        )
+
+    async def _wait_until(self, condition) -> None:
+        """Fails the test with a TimeoutError when the condition does not come
+        true within 5 s."""
+        async with asyncio.timeout(5):
+            while not condition():
+                await asyncio.sleep(0.02)
+
+    def _was_published(self, event_name: str) -> bool:
+        return any(name == event_name for name, _ in self.published)
+
+    async def test_loading_reads_the_journal_from_the_first_line_then_follows_new_lines(
+        self,
+    ):
+        self._append_journal_line("OldEvent1")
+        self._append_journal_line("OldEvent2")
+        self._write_status_file()
+        self._write_market_file()
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        self._append_journal_line("LiveEvent")
+        await self._wait_until(lambda: self._was_published("LiveEvent"))
+
+        self.assertEqual(
+            self.published,
+            [
+                ("OldEvent1", True),
+                ("OldEvent2", True),
+                ("Status", True),
+                ("Market", True),
+                ("StartupLoadingFinished", False),
+                ("LiveEvent", False),
+            ],
+        )
+
+    async def test_side_files_loaded_at_startup_are_not_published_again_as_live(
+        self,
+    ):
+        self._write_status_file()
+        self._write_market_file()
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        # The side file watchers check once a second. Wait for more than one
+        # round, so a second publication of the loaded files would show up.
+        await asyncio.sleep(1.5)
+
+        self.assertEqual(
+            self.published,
+            [
+                ("Status", True),
+                ("Market", True),
+                ("StartupLoadingFinished", False),
+            ],
+        )
+
+    async def test_side_file_rewritten_after_startup_is_published_as_live(self):
+        self._write_status_file()
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        # Some file systems only change the modified time every few
+        # milliseconds, so make the new version clearly newer.
+        status_path = self.folder / "Status.json"
+        newer_time = status_path.stat().st_mtime + 10
+        self._write_status_file()
+        os.utime(status_path, (newer_time, newer_time))
+        await self._wait_until(lambda: ("Status", False) in self.published)
+
+        self.assertEqual(
+            self.published,
+            [
+                ("Status", True),
+                ("StartupLoadingFinished", False),
+                ("Status", False),
+            ],
+        )
+
+    async def test_line_written_between_loading_and_live_following_is_not_lost(self):
+        self._append_journal_line("OldEvent")
+        self.when_loading_is_finished = lambda: self._append_journal_line(
+            "WrittenInBetween"
+        )
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("WrittenInBetween"))
+
+        self.assertEqual(
+            self.published,
+            [
+                ("OldEvent", True),
+                ("StartupLoadingFinished", False),
+                ("WrittenInBetween", False),
+            ],
+        )
+
+    async def test_an_empty_journal_without_side_files_finishes_loading_at_once(self):
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        self._append_journal_line("FirstLiveEvent")
+        await self._wait_until(lambda: self._was_published("FirstLiveEvent"))
+
+        self.assertEqual(
+            self.published,
+            [("StartupLoadingFinished", False), ("FirstLiveEvent", False)],
+        )
 
 
 class JournalFilesOnDiskTest(unittest.TestCase):

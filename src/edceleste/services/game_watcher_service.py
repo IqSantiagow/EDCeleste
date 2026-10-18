@@ -2,14 +2,17 @@ import asyncio
 import glob
 import logging
 import os
-from typing import AsyncGenerator
+from typing import AsyncGenerator, TextIO
 
 from pydantic import TypeAdapter, ValidationError
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.cold_start_status import ColdStartStatus
-from edceleste.services.models.game_events import MarketEvent, StatusEvent
+from edceleste.services.models.game_events import GameEvent, MarketEvent, StatusEvent
 from edceleste.services.models.journal_event import JournalEvent
+from edceleste.services.models.startup_loading_finished_event import (
+    StartupLoadingFinishedEvent,
+)
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
@@ -47,28 +50,31 @@ class GameWatcherService:
         self._game_watcher_tasks: list[asyncio.Task] = []
 
     def start_watcher_service(self) -> None:
-        """Starts three asyncio tasks on the running loop, each publishes game
-        events on the event bus:
-        1. new lines of the newest Journal*.log file,
-        2. Status.json,
-        3. Market.json.
+        """Starts one asyncio task on the running loop, so it needs a running
+        loop. The task publishes game events on the event bus in two phases
+        (see __load_game_state_then_follow_the_game_files):
+        1. loading: everything the game had already written, silently,
+        2. live: new lines of the newest Journal*.log file, Status.json and
+           Market.json. The Status.json and Market.json watchers are two more
+           tasks, which the first task starts when the loading is done.
+        Sets exit_signal back to False, so the loops can run again after a
+        stop. Returns at once, it does not wait for the task.
         Raises FileNotFoundError, before any task starts, when journal_path has
         no journal file. The journal file is picked only here, a new journal
         file written later by the game is not followed.
+        Calling it twice without stop_watcher_service in between starts a
+        second set of tasks, then every event is published twice.
+        reload_service always stops first.
         """
         latest_journal_file_path = self.__get_latest_journal_filepath()
 
         self.exit_signal = False
         self._game_watcher_tasks.append(
             asyncio.create_task(
-                self.__publish_new_journal_lines(latest_journal_file_path)
+                self.__load_game_state_then_follow_the_game_files(
+                    latest_journal_file_path
+                )
             )
-        )
-        self._game_watcher_tasks.append(
-            asyncio.create_task(self.watch_status_file_and_publish_event())
-        )
-        self._game_watcher_tasks.append(
-            asyncio.create_task(self.watch_market_file_and_publish_event())
         )
 
     def stop_watcher_service(self) -> None:
@@ -80,31 +86,109 @@ class GameWatcherService:
                 task.cancel()
             self._game_watcher_tasks.clear()
 
-    async def __publish_new_journal_lines(self, journal_file_path: str) -> None:
-        """Follows the journal file like "tail -f" until exit_signal is set.
+    async def __load_game_state_then_follow_the_game_files(
+        self, journal_file_path: str
+    ) -> None:
+        """The whole life of the watcher, in this order:
 
-        1. Jumps to the end of the file, so lines written before the start are
-           skipped.
+        1. Loading: reads the journal from its first line to its end, then
+           Status.json and Market.json once. Every event gets
+           is_startup_loading=True, so it only builds the game state: no
+           reaction, no LLM request.
+        2. Publishes StartupLoadingFinishedEvent.
+        3. Live: starts the Status.json and Market.json watchers (they skip
+           the file version already loaded) and follows new journal lines on
+           the same open file, from the place where the loading stopped, so no
+           line written in between is lost.
+        Runs until exit_signal is set or the task is cancelled. Stopping the
+        watcher cancels this task, so a loading that is stopped halfway does
+        not publish StartupLoadingFinishedEvent. The journal file is closed
+        when the method ends. An OSError when the journal file cannot be
+        opened ends the task with that error, nothing is published.
+        """
+        with open(journal_file_path, "r") as journal_file:
+            await self.__publish_lines_already_in_journal(journal_file)
+            status_modified_time = await self.__publish_side_file_already_on_disk(
+                "Status.json", StatusEvent
+            )
+            market_modified_time = await self.__publish_side_file_already_on_disk(
+                "Market.json", MarketEvent
+            )
+            await self.event_bus.publish(StartupLoadingFinishedEvent())
+
+            self._game_watcher_tasks.append(
+                asyncio.create_task(
+                    self.watch_status_file_and_publish_event(status_modified_time)
+                )
+            )
+            self._game_watcher_tasks.append(
+                asyncio.create_task(
+                    self.watch_market_file_and_publish_event(market_modified_time)
+                )
+            )
+            await self.__follow_open_journal_file_and_publish_new_lines(journal_file)
+
+    async def __publish_lines_already_in_journal(self, journal_file: TextIO) -> None:
+        """Reads the open journal file from its current place to its end (the
+        caller has just opened it, so that is the first line) and publishes
+        every line as an event with is_startup_loading=True. Stops earlier when
+        exit_signal is set. Returns nothing.
+
+        The file position stays at the end of what was read. The live follower
+        (__follow_open_journal_file_and_publish_new_lines) continues from there.
+
+        After every line it gives the event loop a turn, because a long
+        journal has thousands of lines and the UI must stay alive meanwhile.
+        A line that does not parse is logged and skipped. That includes a last
+        line the game has not finished writing, it is lost."""
+        while not self.exit_signal:
+            line = journal_file.readline()
+            if not line:
+                return
+            await self.__publish_journal_line(line, is_startup_loading=True)
+            await asyncio.sleep(0)
+
+    async def __follow_open_journal_file_and_publish_new_lines(
+        self, journal_file: TextIO
+    ) -> None:
+        """Follows the open journal file like "tail -f" until exit_signal is
+        set.
+
+        1. Starts at the current place of the file, so the lines read by the
+           loading are not published again.
         2. Checks for a new line every 0.1 s.
         3. Parses every new line as a JournalEvent (unknown events become
-           UnknownCheckedEvent) and publishes it on the event bus.
-        A line that does not parse is logged and skipped.
+           UnknownCheckedEvent) and publishes it on the event bus as a live
+           event.
+        A line that does not parse is logged and skipped. That includes a line
+        the game is writing right now and has not finished, it is lost. An
+        error of the read itself is not caught: it ends this task.
         """
-        with open(journal_file_path, "r") as f:
-            f.seek(0, 2)
-            while True:
-                if self.exit_signal:
-                    break
-                line = f.readline()
-                if not line:
-                    await asyncio.sleep(0.1)
-                    continue
-                try:
-                    event = self.adapter.validate_json(line.strip())
-                    await self.event_bus.publish(event)
-                except ValidationError:
-                    logger.error("Error during validation for event: %s", line)
-                    continue
+        while True:
+            if self.exit_signal:
+                break
+            line = journal_file.readline()
+            if not line:
+                await asyncio.sleep(0.1)
+                continue
+            await self.__publish_journal_line(line, is_startup_loading=False)
+
+    async def __publish_journal_line(self, line: str, is_startup_loading: bool) -> None:
+        """Parses one journal line as a JournalEvent (an event name we do not
+        know becomes UnknownCheckedEvent), sets is_startup_loading on it and
+        publishes it on the event bus. Waits until every subscriber has
+        handled it.
+
+        A line that does not parse (bad JSON, fields that fail the model, an
+        empty line) is logged and skipped, nothing is published and nothing is
+        raised. Errors of the subscribers do not come back, the event bus
+        swallows them."""
+        try:
+            event = self.adapter.validate_json(line.strip())
+            event.is_startup_loading = is_startup_loading
+            await self.event_bus.publish(event)
+        except ValidationError:
+            logger.error("Error during validation for event: %s", line)
 
     def __get_latest_journal_filepath(self) -> str:
         """Looks in the folder self.journal_path and returns the full path of
@@ -167,7 +251,14 @@ class GameWatcherService:
     def reload_service(self) -> None:
         """Takes the journal path from the current settings, stops the running
         watcher tasks and starts new ones. Raises FileNotFoundError when the
-        new path has no journal file, then nothing is watched."""
+        new path has no journal file, then nothing is watched (the old watcher
+        is already stopped).
+
+        The new task loads the journal from its first line again, silently
+        (see start_watcher_service), and publishes a second
+        StartupLoadingFinishedEvent. Nothing clears the projections first.
+        They overwrite their values, so the same events give the same game
+        state."""
         new_settings = self.__settings_service.get_settings()
         self.journal_path = new_settings.paths.journal_path
         self.stop_watcher_service()
@@ -177,7 +268,8 @@ class GameWatcherService:
         """Startup check shown in the system check screen.
 
         1. Yields a "not completed" status, so the UI shows a spinner.
-        2. Starts watching the game files (reload_service).
+        2. Starts watching the game files (reload_service). The loading of the
+           game state runs on in the background, the check does not wait for it.
         3. Yields the status again with completed=True, and the error text in
            message when starting failed.
         Never raises. It is critical: when it fails the system check stops and
@@ -200,29 +292,117 @@ class GameWatcherService:
             status.message = str(e)
             yield status
 
-    async def watch_status_file_and_publish_event(self) -> None:
+    async def watch_status_file_and_publish_event(
+        self, last_modified_time: float | None = None
+    ) -> None:
         """Publishes a StatusEvent every time the game rewrites Status.json
-        (ship flags, fuel, pips). Runs until exit_signal is set."""
-        await self.__watch_side_file_and_publish_event("Status.json", StatusEvent)
+        (ship flags, fuel, pips). Runs until exit_signal is set. Returns
+        nothing. It is public, but the watcher task starts it, so calling it
+        from outside adds a second watcher of the same file.
 
-    async def watch_market_file_and_publish_event(self) -> None:
+        last_modified_time is the version of the file that is already known
+        (loaded at startup), as os.path.getmtime gives it: seconds as a
+        float. That version is not published again. None means every version
+        counts as new."""
+        await self.__watch_side_file_and_publish_event(
+            "Status.json", StatusEvent, last_modified_time
+        )
+
+    async def watch_market_file_and_publish_event(
+        self, last_modified_time: float | None = None
+    ) -> None:
         """Publishes a MarketEvent every time the game rewrites Market.json
-        (commodities of the station market). Runs until exit_signal is set."""
-        await self.__watch_side_file_and_publish_event("Market.json", MarketEvent)
+        (commodities of the station market). Runs until exit_signal is set.
+        Returns nothing. The game writes Market.json only after the pilot
+        opens a market, until then it logs a warning every second. It is
+        public, but the watcher task starts it, so calling it from outside
+        adds a second watcher of the same file.
 
-    async def __watch_side_file_and_publish_event(self, file_name, event_model) -> None:
+        last_modified_time is the version of the file that is already known
+        (loaded at startup), as os.path.getmtime gives it: seconds as a
+        float. That version is not published again. None means every version
+        counts as new."""
+        await self.__watch_side_file_and_publish_event(
+            "Market.json", MarketEvent, last_modified_time
+        )
+
+    def __read_side_file_event(
+        self, file_name: str, event_model: type[GameEvent]
+    ) -> GameEvent | None:
+        """Reads the whole file file_name in the journal folder
+        (self.journal_path) and parses it as event_model. Publishes nothing.
+        Returns the event. Returns None for an empty file, and for a file that
+        does not parse (that one is logged, for example when the game is
+        rewriting it right now). Raises OSError when the file cannot be
+        opened."""
+        file_path = os.path.join(self.journal_path, file_name)
+        with open(file_path, "r") as f:
+            text = f.read()
+        if not text:
+            return None
+        try:
+            return event_model.model_validate_json(text)
+        except ValidationError:
+            logger.error(
+                "Error during validation for %s event: %s",
+                file_name,
+                text,
+            )
+            return None
+
+    async def __publish_side_file_already_on_disk(
+        self, file_name: str, event_model: type[GameEvent]
+    ) -> float | None:
+        """Loads one side file (Status.json or Market.json) at startup. When
+        the file is there, publishes its content once as an event with
+        is_startup_loading=True and waits until the subscribers have handled it.
+
+        Returns the modified time of the file that was read, so the live
+        watcher does not publish the same version again. That also holds when
+        the file is empty or does not parse: nothing is published, but the time
+        is returned, and the live watcher waits for the next rewrite.
+        Returns None when the file does not exist yet (the game writes
+        Market.json only after the pilot opens a market), then a file that
+        appears later is live. Also returns None, and logs the error, when the
+        file cannot be read (OSError, for example while the game holds it): the
+        live watcher then reads it as a live event, and the journal keeps being
+        followed."""
+        file_path = os.path.join(self.journal_path, file_name)
+        if not os.path.isfile(file_path):
+            return None
+
+        try:
+            modified_time = os.path.getmtime(file_path)
+            event = self.__read_side_file_event(file_name, event_model)
+        except OSError:
+            logger.exception("Cannot read %s at startup: %s", file_name, file_path)
+            return None
+        if event is not None:
+            event.is_startup_loading = True
+            await self.event_bus.publish(event)
+        return modified_time
+
+    async def __watch_side_file_and_publish_event(
+        self,
+        file_name: str,
+        event_model: type[GameEvent],
+        last_modified_time: float | None,
+    ) -> None:
         """Checks the file next to the journal once a second until exit_signal
         is set.
 
         - File missing -> logs a warning and checks again in 1 s.
-        - Modified time changed -> reads the whole file, parses it as
-          event_model and publishes it on the event bus. The first check
-          always counts as changed.
+        - Modified time differs from last_modified_time -> reads the whole
+          file, parses it as event_model and publishes it on the event bus as
+          a live event.
         - Empty file -> nothing is published.
-        A file that does not parse is logged and skipped.
+        A file that does not parse is logged and skipped. The modified time is
+        remembered before the file is read, so an empty or broken version is
+        logged once, not every second, and the next rewrite is tried again.
+        An OSError while reading is not caught: it ends this watcher task and
+        the other tasks go on.
         """
         file_path = os.path.join(self.journal_path, file_name)
-        last_modified_time = None
         while True:
             if self.exit_signal:
                 break
@@ -239,17 +419,8 @@ class GameWatcherService:
             current_modified_time = os.path.getmtime(file_path)
             if current_modified_time != last_modified_time:
                 last_modified_time = current_modified_time
-                with open(file_path, "r") as f:
-                    line = f.read()
-                    if line:
-                        try:
-                            event = event_model.model_validate_json(line)
-                            await self.event_bus.publish(event)
-                        except ValidationError:
-                            logger.error(
-                                "Error during validation for %s event: %s",
-                                file_name,
-                                line,
-                            )
+                event = self.__read_side_file_event(file_name, event_model)
+                if event is not None:
+                    await self.event_bus.publish(event)
 
             await asyncio.sleep(1)

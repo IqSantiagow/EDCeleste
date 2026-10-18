@@ -108,6 +108,39 @@ class EventReactionsServiceTest(unittest.IsolatedAsyncioTestCase):
             EventReactionEvent(event=loaded_game_event)
         )
 
+    async def test_no_reaction_for_a_startup_loading_event_even_when_enabled(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            event_reactions={"LoadGame": True}
+        )
+        event_bus = Mock(spec=EventBus)
+        service = self._make_service(event_bus)
+
+        await service.publish_reaction_if_enabled(
+            _loaded_game_event(is_startup_loading=True)
+        )
+
+        event_bus.publish.assert_not_called()
+
+    async def test_startup_loading_event_on_real_bus_triggers_no_reaction(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            event_reactions={"LoadGame": True}
+        )
+        event_bus = EventBus()
+        service = EventReactionsService(
+            event_bus=event_bus, settings_service=self.settings_service
+        )
+        service.reload_service()
+        subscriber = AsyncMock()
+        event_bus.subscribe(EventReactionEvent, subscriber)
+
+        await event_bus.publish(_loaded_game_event(is_startup_loading=True))
+        subscriber.assert_not_called()
+
+        # The same event as a live one does get its reaction, so the silence
+        # above comes from the flag and not from a broken setup.
+        await event_bus.publish(_loaded_game_event(is_startup_loading=False))
+        subscriber.assert_called_once()
+
     def test_validate_settings_returns_issue_for_non_mapping_event_reaction(self):
         service = self._make_service()
         new_settings = _make_settings()

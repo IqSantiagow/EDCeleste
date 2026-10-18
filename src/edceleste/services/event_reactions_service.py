@@ -32,10 +32,16 @@ class EventReactionsService:
         EventReactionEvent, which LLMService turns into an LLM request. Events
         missing from the settings count as switched off.
 
+        An event that is part of the startup loading (is_startup_loading, the
+        game wrote it before the app started) never gets a reaction, even when
+        its reaction is switched on.
+
         Uses the settings read by the last reload_service(). Before the first
         reload_service() self.settings does not exist yet and this raises
         AttributeError, which the event bus logs and swallows.
         """
+        if event.is_startup_loading:
+            return
         if self.settings.event_reactions.reactions.get(event.event, False):
             await self.event_bus.publish(EventReactionEvent(event=event))
 

@@ -2,6 +2,8 @@ from datetime import datetime
 from enum import IntFlag
 from typing import Literal, Optional
 
+from pydantic import Field
+
 from edceleste.services.models.game_models import (
     FactionModel,
     BaseFactionModel,
@@ -13,6 +15,11 @@ from edceleste.services.models.pydantic_base_models import IgnoreExtraFieldsMode
 class GameEvent(IgnoreExtraFieldsModel):
     timestamp: datetime
     event: str
+    # True for what the game had already written when the app started. Such an
+    # event only builds the game state: no reaction, no LLM request, nothing in
+    # the live journal log. The watcher sets it, it is never read from a file,
+    # and exclude=True keeps it out of every JSON dump (e.g. the LLM prompt).
+    is_startup_loading: bool = Field(default=False, exclude=True)
 
 
 class LoadedGameEvent(GameEvent):
