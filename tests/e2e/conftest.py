@@ -536,9 +536,20 @@ class EdCelesteTestEnvironment:
         with self.journal_file.open("a", encoding="utf-8") as journal:
             journal.write(recorded_journal_line(event_name) + "\n")
 
-    def write_status_file(self) -> None:
+    def write_status_file(
+        self, fuel_main: float | None = None, cargo: float | None = None
+    ) -> None:
+        # Without arguments the file is the same as it always was
+        extra_fields = ""
+        if cargo is not None:
+            extra_fields += f', "Cargo":{cargo}'
+        if fuel_main is not None:
+            extra_fields += (
+                f', "Fuel":{{ "FuelMain":{fuel_main}, "FuelReservoir":0.4 }}'
+            )
         self.status_file.write_text(
-            '{ "timestamp":"2026-10-05T12:00:00Z", "event":"Status", "Flags":0 }',
+            '{ "timestamp":"2026-10-05T12:00:00Z", "event":"Status", "Flags":0'
+            f"{extra_fields} }}",
             encoding="utf-8",
         )
 
@@ -569,6 +580,18 @@ class EdCelesteTestEnvironment:
             f"{selector} to finish its press animation",
         )
         await pilot.click(selector)
+
+    async def open_dashboard(self, pilot: Pilot, step_keyword: str = "Given") -> None:
+        # Unlike boot_to_dashboard it writes nothing to the journal: a test that
+        # starts Celeste on game files written before, must not add a live LoadGame
+        with allure.step(f"{step_keyword} Celeste starts and the dashboard opens"):
+            await self.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, DashboardScreen),
+                "the dashboard after the preflight",
+            )
+            # Lets the dashboard finish mounting and its workers start listening
+            await pilot.pause()
 
     async def boot_to_dashboard(
         self, pilot: Pilot, step_keyword: str = "Given"

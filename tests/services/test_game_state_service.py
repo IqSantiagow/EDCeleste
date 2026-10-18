@@ -1,14 +1,20 @@
 import asyncio
 from datetime import datetime
 import unittest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.game_state_service import GameStateService
 from edceleste.services.models.game_events import (
+    GameEvent,
     LoadedGameEvent,
     StatusEvent,
     StatusFlags,
+    StatusFuelModel,
+)
+from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.startup_loading_finished_event import (
+    StartupLoadingFinishedEvent,
 )
 from tests.projection.test_market_projection import (
     make_docked_event,
@@ -351,6 +357,230 @@ class TestGameStateServiceProjectionText(unittest.IsolatedAsyncioTestCase):
         await service.process_event(_loaded_game_event())
 
         self.assertNotIn("Current game state is", service.get_game_state_projection())
+
+
+def _as_startup_loading(event: GameEvent) -> GameEvent:
+    """A copy of the event, as the watcher publishes it while the app loads
+    what the game wrote before the start."""
+    return event.model_copy(update={"is_startup_loading": True})
+
+
+class TestGameStateServiceStartupLoading(unittest.IsolatedAsyncioTestCase):
+    async def _first_snapshot(self, service: GameStateService):
+        stream = service.stream_game_stats()
+        snapshot = await stream.__anext__()
+        await stream.aclose()
+        return snapshot
+
+    async def test_startup_loading_event_updates_the_projections(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+
+        snapshot = await self._first_snapshot(service)
+        self.assertEqual(snapshot.player.name, "TestCommander")
+        self.assertEqual(snapshot.player.ship, "Sidewinder")
+
+    async def test_startup_loading_event_publishes_no_game_state_changed_event(self):
+        event_bus = Mock(spec=EventBus)
+        service = GameStateService(event_bus)
+
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+        event_bus.publish.assert_not_called()
+
+        # A live event does publish, so the silence above comes from the flag.
+        await service.process_event(_loaded_game_event())
+        event_bus.publish.assert_awaited_once()
+
+    async def test_startup_loading_event_does_not_reach_the_journal_stream(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_journal_events()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+        live_event = _loaded_game_event(Ship="Anaconda")
+        await service.process_event(live_event)
+
+        # If the loading event had been queued, this would be that event.
+        received = await pending
+        self.assertIs(received, live_event)
+        await stream.aclose()
+
+    async def test_startup_loading_events_do_not_wake_the_stats_and_market_streams(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+        stats_stream = service.stream_game_stats()
+        market_stream = service.stream_market()
+        await stats_stream.__anext__()
+        await market_stream.__anext__()
+        stats_pending = asyncio.ensure_future(stats_stream.__anext__())
+        market_pending = asyncio.ensure_future(market_stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(_as_startup_loading(_status_event()))
+        await service.process_event(_as_startup_loading(make_docked_event()))
+        await asyncio.sleep(0)
+
+        self.assertFalse(stats_pending.done())
+        self.assertFalse(market_pending.done())
+
+        # The same events as live ones wake the streams, so the quiet above
+        # comes from the flag.
+        await service.process_event(_status_event())
+        await service.process_event(make_docked_event())
+        await stats_pending
+        await market_pending
+        await stats_stream.aclose()
+        await market_stream.aclose()
+
+    async def test_finishing_the_loading_wakes_the_stats_and_market_streams_once(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+        stats_stream = service.stream_game_stats()
+        market_stream = service.stream_market()
+        await stats_stream.__anext__()
+        await market_stream.__anext__()
+        stats_pending = asyncio.ensure_future(stats_stream.__anext__())
+        market_pending = asyncio.ensure_future(market_stream.__anext__())
+        await asyncio.sleep(0)
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+        await service.process_event(_as_startup_loading(make_docked_event()))
+        await service.process_event(_as_startup_loading(make_market_event()))
+
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+
+        stats_snapshot = await stats_pending
+        market_snapshot = await market_pending
+        self.assertEqual(stats_snapshot.player.name, "TestCommander")
+        self.assertTrue(market_snapshot.is_docked)
+        self.assertTrue(market_snapshot.is_market_data_current)
+        # Once means once: no second snapshot is waiting in either stream.
+        stats_again = asyncio.ensure_future(stats_stream.__anext__())
+        market_again = asyncio.ensure_future(market_stream.__anext__())
+        await asyncio.sleep(0)
+        self.assertFalse(stats_again.done())
+        self.assertFalse(market_again.done())
+        stats_again.cancel()
+        market_again.cancel()
+        await asyncio.gather(stats_again, market_again, return_exceptions=True)
+        await stats_stream.aclose()
+        await market_stream.aclose()
+
+    async def test_finishing_the_loading_does_not_wake_the_journal_stream(self):
+        service = GameStateService(Mock(spec=EventBus))
+        stream = service.stream_journal_events()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+        await asyncio.sleep(0)
+
+        self.assertFalse(pending.done())
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+        await stream.aclose()
+
+    async def test_finishing_the_loading_publishes_the_game_state_once(self):
+        event_bus = Mock(spec=EventBus)
+        service = GameStateService(event_bus)
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+
+        event_bus.publish.assert_awaited_once()
+        published_event = event_bus.publish.await_args.args[0]
+        self.assertIsInstance(published_event, GameStateChangedEvent)
+        self.assertIn("Commander name is TestCommander.", published_event.game_state)
+        self.assertEqual(
+            published_event.game_state, service.get_game_state_projection()
+        )
+
+    async def test_finishing_a_loading_without_any_event_leaves_the_state_unknown(
+        self,
+    ):
+        # An empty journal and no side files: nothing is known about the game.
+        # The state text must stay empty (the fuel part would fill it with
+        # "0.0"), because Instinct and the LLM take an empty text for "the game
+        # has not started".
+        event_bus = Mock(spec=EventBus)
+        service = GameStateService(event_bus)
+        stream = service.stream_game_stats()
+        await stream.__anext__()
+        pending = asyncio.ensure_future(stream.__anext__())
+        await asyncio.sleep(0)
+
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+        await asyncio.sleep(0)
+
+        event_bus.publish.assert_not_called()
+        self.assertEqual(service.get_game_state_projection(), "")
+        self.assertFalse(pending.done())
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+        await stream.aclose()
+
+    async def test_service_listens_for_the_finished_event_on_the_event_bus(self):
+        event_bus = EventBus()
+        service = GameStateService(event_bus)
+        game_state_listener = AsyncMock()
+        event_bus.subscribe(GameStateChangedEvent, game_state_listener)
+        await event_bus.publish(_as_startup_loading(_loaded_game_event()))
+        game_state_listener.assert_not_called()
+
+        await event_bus.publish(StartupLoadingFinishedEvent())
+
+        game_state_listener.assert_called_once()
+        self.assertIn("TestCommander", game_state_listener.call_args.args[0].game_state)
+        self.assertIn("TestCommander", service.get_game_state_projection())
+
+    async def test_loading_the_same_events_twice_gives_the_same_state(self):
+        service = GameStateService(Mock(spec=EventBus))
+        loading_events = [
+            _as_startup_loading(_loaded_game_event()),
+            _as_startup_loading(make_docked_event()),
+            _as_startup_loading(make_market_event()),
+            _as_startup_loading(
+                StatusEvent(
+                    event="Status",
+                    timestamp=datetime.now(),
+                    Flags=0,
+                    Flags2=0,
+                    Pips=[4, 4, 4],
+                    Cargo=12.0,
+                    Fuel=StatusFuelModel(FuelMain=3.5, FuelReservoir=0.3),
+                )
+            ),
+        ]
+
+        for event in loading_events:
+            await service.process_event(event)
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+        state_after_first_loading = service.get_game_state_projection()
+        stats_after_first_loading = await self._first_snapshot(service)
+
+        for event in loading_events:
+            await service.process_event(event)
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+
+        self.assertEqual(state_after_first_loading, service.get_game_state_projection())
+        self.assertEqual(stats_after_first_loading, await self._first_snapshot(service))
+        self.assertEqual(stats_after_first_loading.ship.cargo_current, 12.0)
 
 
 if __name__ == "__main__":
