@@ -16,7 +16,7 @@ Celeste follows your game as it happens, talks with you, and presses keys for yo
 
 ![EDCeleste dashboard: navigation, flight and ship panels on top, the COMMS conversation with Celeste on the left and the ship log on the right](docs/screenshots/dashboard.png)
 
-> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, presses the key for a single command when it runs on the GPU; a command combined with a question and the check of the ship's state are next ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
+> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, presses the key for a single command when it runs on the GPU. Before any key is pressed, by Instinct or by Celeste, the ship's state is checked: the landing gear, the cargo scoop and the hardpoints are refused when the ship cannot use them, and the reply says why. A command combined with a question and the "already deployed" check are next ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
 
 ## What Celeste does
 

@@ -44,6 +44,8 @@ def _game_stats_snapshot(
             is_in_supercruise=False,
             route_next_star_system="",
             route_remaining_jumps=0,
+            is_docked=False,
+            is_in_fsd_jump=False,
         ),
         flight_drive=FlightDriveStats(
             fuel_level=0.0,
@@ -54,6 +56,7 @@ def _game_stats_snapshot(
             fsd_module_item="",
         ),
         ship=ShipStats(
+            is_landed=False,
             is_landing_gear_down=False,
             are_hardpoints_deployed=False,
             are_lights_on=False,

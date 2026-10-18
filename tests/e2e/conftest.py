@@ -537,9 +537,13 @@ class EdCelesteTestEnvironment:
             journal.write(recorded_journal_line(event_name) + "\n")
 
     def write_status_file(
-        self, fuel_main: float | None = None, cargo: float | None = None
+        self,
+        fuel_main: float | None = None,
+        cargo: float | None = None,
+        flags: int = 0,
     ) -> None:
-        # Without arguments the file is the same as it always was
+        # Without arguments the file is the same as it always was. flags is the
+        # bit field of the game: 1 docked, 2 landed, 16 supercruise
         extra_fields = ""
         if cargo is not None:
             extra_fields += f', "Cargo":{cargo}'
@@ -548,8 +552,8 @@ class EdCelesteTestEnvironment:
                 f', "Fuel":{{ "FuelMain":{fuel_main}, "FuelReservoir":0.4 }}'
             )
         self.status_file.write_text(
-            '{ "timestamp":"2026-10-05T12:00:00Z", "event":"Status", "Flags":0'
-            f"{extra_fields} }}",
+            '{ "timestamp":"2026-10-05T12:00:00Z", "event":"Status", '
+            f'"Flags":{flags}{extra_fields} }}',
             encoding="utf-8",
         )
 

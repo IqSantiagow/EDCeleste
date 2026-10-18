@@ -13,12 +13,10 @@ import httpx
 
 from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.protocols.keybinds_protocol import KeybindsProtocol
+from edceleste.protocols.tool_protocol import ToolProtocol
 from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
     DownloadCancelled,
-)
-from edceleste.services.exceptions.game_window_exception import (
-    GameWindowNotFoundException,
 )
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.instinct_actions import (
@@ -47,9 +45,6 @@ SECONDS_BETWEEN_PROGRESS_UPDATES = 0.2
 # A slower model call is not waited for, the message goes to the LLM instead
 FAST_COMMAND_TIMEOUT_SECONDS = 1.0
 SCORES_IN_LOG = 3
-
-# The same sentence the PerformGameAction tool gives the LLM in this case
-GAME_WINDOW_NOT_FOUND_REPLY = "Game window not found, nothing was pressed."
 
 DeviceChoice = Literal["auto", "cuda", "cpu"]
 
@@ -130,14 +125,17 @@ class InstinctService:
         download_service: DecisionModelDownloadService,
         keybinds_protocol: KeybindsProtocol,
         game_state_protocol: GameStateProtocol,
+        perform_game_action: ToolProtocol,
     ) -> None:
         """Only stores the dependencies and creates the lock that lets one
         thread at a time use the model. Nothing is downloaded or loaded here,
-        that starts in reload_service()."""
+        that starts in reload_service(). perform_game_action is the same tool
+        the LLM calls, so a key is pressed (or refused) by one set of rules."""
         self.settings_service = settings_service
         self.download_service = download_service
         self.keybinds_protocol = keybinds_protocol
         self.game_state_protocol = game_state_protocol
+        self.perform_game_action = perform_game_action
         self.model_lock = threading.Lock()
 
     def validate_settings(
@@ -387,12 +385,13 @@ class InstinctService:
     # ----- Fast commands -----
 
     async def try_fast_command(self, pilot_message: str) -> str | None:
-        """Presses the key the pilot asked for, without the LLM. Returns the
+        """Does the action the pilot asked for, without the LLM. Returns the
         short reply for COMMS: "Done: <action in plain words>", e.g. "Done:
-        Landing gear toggle", when a key was pressed, or
-        GAME_WINDOW_NOT_FOUND_REPLY when the model picked an action but the game
-        is not running. None means "not handled", and then the caller sends the
-        message to the LLM as before.
+        Landing gear toggle", when a key was pressed. When the PerformGameAction
+        tool did not press it (the ship cannot do it now, or the game window was
+        not found) the reply is the text of the tool, e.g. "Landing gear
+        unavailable: the ship is in supercruise." None means "not handled",
+        and then the caller sends the message to the LLM as before.
 
         1. Nothing is asked when can_decide_commands() is False, when no
            action has a keyboard key or when there is no game state yet. The
@@ -401,16 +400,21 @@ class InstinctService:
         2. Asks the model in a worker thread. It gets FAST_COMMAND_TIMEOUT_SECONDS,
            the model is never waited for longer.
         3. The model picks one option. "none" means the pilot is talking or
-           asking, so nothing is pressed. An action gets its key pressed.
+           asking, so nothing is done. An action goes to the PerformGameAction
+           tool, which has all the rules (see get_unavailable_reason there) and
+           presses the key. The tool answers with a ToolReturn: "is_error" or
+           "unavailable" in its metadata means the key was not pressed and its
+           text is the reply, anything else means the key was pressed.
         4. Logs one line: the message, the best scores, the chosen action and
-           the time from the message to the key press.
+           the time from the message to the end of the tool.
 
-        Never raises. A timeout, a model error, a wrong answer or a key press
-        that fails for another reason are logged and give None (a call that ran
-        out of time keeps running in its thread and holds the model, so the next
-        command may wait for it). A missing game window is a normal case, not
-        an error: we already know the message is a command, so the LLM would
-        only fail the same way after seconds, and the reply comes at once.
+        Never raises. A timeout, a model error, a wrong answer or a tool that
+        raises are logged and give None (a call that ran out of time keeps
+        running in its thread and holds the model, so the next command may wait
+        for it). A tool that answers "unavailable" or with an error (e.g. no
+        game window) is a normal case, not a failure: we already know the
+        message is a command, so the LLM would only say the same after seconds,
+        and the reply comes at once.
         """
         start = time.perf_counter()
         try:
@@ -438,7 +442,7 @@ class InstinctService:
                 )
                 return None
             action = EdAction(answer["choice"])
-            await self.keybinds_protocol.press_keys_for_action(action)
+            tool_result = await self.perform_game_action.execute(action)
         except TimeoutError:
             logger.warning(
                 "Fast command %r: the model needed more than %.1f s, the message "
@@ -447,17 +451,22 @@ class InstinctService:
                 FAST_COMMAND_TIMEOUT_SECONDS,
             )
             return None
-        except GameWindowNotFoundException:
-            logger.info(
-                "Fast command %r: the game window was not found, nothing was pressed",
-                pilot_message,
-            )
-            return GAME_WINDOW_NOT_FOUND_REPLY
         except Exception:
             logger.exception(
                 "Fast command %r failed, the message goes to the LLM", pilot_message
             )
             return None
+
+        tool_metadata = tool_result.metadata or {}
+        if tool_metadata.get("is_error") or tool_metadata.get("unavailable"):
+            reply = str(tool_result.return_value)
+            logger.info(
+                "Fast command %r: %s was not done (%s)",
+                pilot_message,
+                action.value,
+                reply,
+            )
+            return reply
 
         logger.info(
             "Fast command %r: Instinct pressed %s in %.0f ms (%s)",

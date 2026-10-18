@@ -33,6 +33,12 @@ class GameStateProtocol(Protocol):
         purpose, so the commodity table is not rebuilt every second."""
         ...
 
+    def get_game_stats(self) -> GameStatsSnapshot:
+        """The current stats right now, as the last Status.json update left
+        them (about one second old at most). Nothing is read from the disk.
+        Before the first Status.json the flags are all False."""
+        ...
+
     def get_game_state_projection(self) -> str:
         """The game state as text for the LLM prompt, as it was built after
         the last game event (a call does not rebuild it): one line per part,

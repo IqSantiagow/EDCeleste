@@ -199,10 +199,15 @@ class GameStateService:
             "Game state projection refreshed: %s", self.__game_state_projection
         )
 
-    def __build_game_stats_snapshot(self) -> GameStatsSnapshot:
-        """Copies the current values out of the projections for the dashboard
-        cards. A value the game has not sent yet becomes "" or 0 for the fields
-        that cannot be None."""
+    def get_game_stats(self) -> GameStatsSnapshot:
+        """Copies the current values out of the projections into a new frozen
+        GameStatsSnapshot (later events do not change it), nothing is read from
+        the disk. Never returns None and raises nothing. The ship flags are as
+        fresh as the last Status.json update (the game writes it about every
+        second). Used for the dashboard cards and by PerformGameAction to check
+        whether an action is possible. A value the game has not sent yet
+        becomes "" or 0 for the fields that cannot be None, and a flag stays
+        False."""
         return GameStatsSnapshot(
             player=PlayerStats(
                 name=self.__player_projection.player_name or "",
@@ -226,6 +231,8 @@ class GameStateService:
                 or "",
                 route_remaining_jumps=self.__location_projection.route_remaining_jumps
                 or 0,
+                is_docked=self.__location_projection.is_docked,
+                is_in_fsd_jump=self.__location_projection.is_in_fsd_jump,
             ),
             flight_drive=FlightDriveStats(
                 fuel_level=self.__fuel_projection.fuel_level,
@@ -236,6 +243,7 @@ class GameStateService:
                 fsd_module_item=self.__loadout_projection.fsd_module_item or "",
             ),
             ship=ShipStats(
+                is_landed=self.__ship_projection.is_landed,
                 is_landing_gear_down=self.__ship_projection.is_landing_gear_down,
                 are_hardpoints_deployed=self.__ship_projection.are_hardpoints_deployed,
                 are_lights_on=self.__ship_projection.are_lights_on,
@@ -269,10 +277,10 @@ class GameStateService:
         self.__status_queue_watchers.append(queue)
 
         try:
-            yield self.__build_game_stats_snapshot()
+            yield self.get_game_stats()
             while True:
                 await queue.get()
-                yield self.__build_game_stats_snapshot()
+                yield self.get_game_stats()
         finally:
             self.__status_queue_watchers.remove(queue)
 
