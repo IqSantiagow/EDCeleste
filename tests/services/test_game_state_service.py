@@ -47,8 +47,62 @@ def _loaded_game_event(**overrides) -> LoadedGameEvent:
     return LoadedGameEvent(**defaults)
 
 
-def _status_event() -> StatusEvent:
-    return StatusEvent(event="Status", timestamp=datetime.now(), Flags=0, Flags2=0)
+def _status_event(flags: int = 0) -> StatusEvent:
+    return StatusEvent(event="Status", timestamp=datetime.now(), Flags=flags, Flags2=0)
+
+
+class TestGameStateServiceGameStats(unittest.IsolatedAsyncioTestCase):
+    """get_game_stats() is what PerformGameAction asks before it presses a key."""
+
+    async def test_get_game_stats_returns_the_current_stats_without_a_stream(self):
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(_loaded_game_event())
+
+        snapshot = service.get_game_stats()
+
+        self.assertEqual(snapshot.player.name, "TestCommander")
+        self.assertEqual(snapshot.player.ship, "Sidewinder")
+
+    async def test_get_game_stats_reports_docked_landed_and_hyperspace_jump_from_status(
+        self,
+    ):
+        readers = {
+            StatusFlags.Docked: lambda stats: stats.navigation.is_docked,
+            StatusFlags.Landed: lambda stats: stats.ship.is_landed,
+            StatusFlags.FsdJump: lambda stats: stats.navigation.is_in_fsd_jump,
+        }
+        for flag, reads_own_field in readers.items():
+            with self.subTest(flag=flag.name):
+                service = GameStateService(Mock(spec=EventBus))
+
+                await service.process_event(_status_event(flags=flag))
+                stats = service.get_game_stats()
+
+                self.assertTrue(reads_own_field(stats))
+                for other_flag, reads_other_field in readers.items():
+                    if other_flag != flag:
+                        self.assertFalse(reads_other_field(stats))
+
+    async def test_get_game_stats_clears_the_flags_when_the_next_status_has_none(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(_status_event(flags=StatusFlags.Docked))
+
+        await service.process_event(_status_event(flags=0))
+        stats = service.get_game_stats()
+
+        self.assertFalse(stats.navigation.is_docked)
+
+    async def test_get_game_stats_flags_are_false_before_the_first_status(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        stats = service.get_game_stats()
+
+        self.assertFalse(stats.navigation.is_docked)
+        self.assertFalse(stats.navigation.is_in_fsd_jump)
+        self.assertFalse(stats.navigation.is_in_supercruise)
+        self.assertFalse(stats.ship.is_landed)
 
 
 class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):
