@@ -176,6 +176,7 @@ class Container(containers.DeclarativeContainer):
         PerformGameAction,
         keybind_service=keybinds_service,
         settings_service=settings_service,
+        game_state_protocol=game_state_service,
     )
 
     # ----- MCP------
@@ -195,6 +196,7 @@ class Container(containers.DeclarativeContainer):
         download_service=decision_model_download_service,
         keybinds_protocol=keybinds_service,
         game_state_protocol=game_state_service,
+        perform_game_action=perform_game_action,
     )
 
     voice_lab_service = providers.Singleton(

@@ -61,6 +61,8 @@ def make_navigation_stats(**overrides) -> NavigationStats:
         is_in_supercruise=False,
         route_next_star_system="Alpha Centauri",
         route_remaining_jumps=3,
+        is_docked=False,
+        is_in_fsd_jump=False,
     )
     defaults.update(overrides)
     return NavigationStats(**defaults)  # type: ignore
@@ -81,6 +83,7 @@ def make_flight_drive_stats(**overrides) -> FlightDriveStats:
 
 def make_ship_stats(**overrides) -> ShipStats:
     defaults = dict(
+        is_landed=False,
         is_landing_gear_down=False,
         are_hardpoints_deployed=False,
         are_lights_on=False,

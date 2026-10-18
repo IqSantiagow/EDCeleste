@@ -21,6 +21,8 @@ class NavigationStats:
     is_in_supercruise: bool
     route_next_star_system: str
     route_remaining_jumps: int
+    is_docked: bool
+    is_in_fsd_jump: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +37,7 @@ class FlightDriveStats:
 
 @dataclass(frozen=True, slots=True)
 class ShipStats:
+    is_landed: bool
     is_landing_gear_down: bool
     are_hardpoints_deployed: bool
     are_lights_on: bool

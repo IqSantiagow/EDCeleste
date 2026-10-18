@@ -45,15 +45,19 @@ class InstinctProtocol(BaseServiceProtocol, Protocol):
     async def try_fast_command(self, pilot_message: str) -> str | None:
         """Presses the key of the ship action the pilot asked for, without the
         LLM, and returns the short reply for COMMS: "Done: <action in plain
-        words>", e.g. "Done: Landing gear toggle". When the pilot asked for an
-        action but the game is not running, the reply says so at once ("Game
-        window not found, nothing was pressed."). None means "not handled": the
-        pilot only talks or asks, Instinct is off, not loaded, runs on the CPU
-        (too slow), game actions are off, or the model failed or ran out of its
-        time limit (about one second). Then the caller sends the message to the
-        LLM. Never raises. Goes to the model in a worker thread, so it can take
-        up to the time limit. A call that ran out of time keeps the model busy
-        until it ends."""
+        words>", e.g. "Done: Landing gear toggle". When the ship cannot do the
+        action now, nothing is pressed and the reply says why ("Landing gear
+        unavailable: the ship is in supercruise."). When the game is not
+        running, the reply says so at once ("Game window not found, nothing was
+        pressed."). These texts are the answer of the PerformGameAction tool,
+        the one place that decides whether a key is pressed.
+        None means "not handled": the pilot only talks or asks, Instinct is
+        off, not loaded, runs on the CPU (too slow), game actions are off,
+        there is no game state yet, the model failed or ran out of its time
+        limit (about one second), or the tool raised. Then the caller sends the
+        message to the LLM. Never raises. Goes to the model in a worker thread,
+        so it can take up to the time limit. A call that ran out of time keeps
+        the model busy until it ends."""
         ...
 
     def cancel_download(self) -> None:
