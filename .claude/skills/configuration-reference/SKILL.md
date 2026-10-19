@@ -1,6 +1,6 @@
 ---
 name: configuration-reference
-description: Reference for EDCeleste configuration — the .env bootstrap file (AppConfig) and config.yaml user settings (SettingsService / SettingsModel): every key for paths, llm, tts, voice_lab, stt, event_reactions and game_actions, and how settings load. Use when reading, adding or changing a setting, debugging startup config errors, or writing tests that touch settings.
+description: Reference for EDCeleste configuration — the .env bootstrap file (AppConfig) and config.yaml user settings (SettingsService / SettingsModel): every key for paths, llm, tts (with ship_effect), stt, event_reactions and game_actions, and how settings load. Use when reading, adding or changing a setting, debugging startup config errors, or writing tests that touch settings.
 ---
 
 Two independent, both-gitignored config sources.
@@ -21,7 +21,7 @@ User/runtime settings, loaded via `services/settings_service.py` (`SettingsServi
 - `llm.instinct` — `enabled` and `device` (`auto` | `cuda` | `cpu`) of Instinct, the local fast-command model. `InstinctService` downloads it on first use to `%LOCALAPPDATA%\EDCeleste\models` and loads it; its repo and revision are fixed in `decision_model_download_service.py`. It decides commands only when the model runs on the GPU (on the CPU every message goes to the LLM) and only when `game_actions.enabled` is on.
 - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
 - `tts.provider` — `edge` (`voice`), `chatterbox` (`profile`, `exaggeration`, `cfg_weight`, `device`, `nano`) or `pocket` (`profile`; CPU only, `PocketTTSProvider`); `tts.volume` is `0.0`–`1.0`. Voice profiles live in `%LOCALAPPDATA%\EDCeleste\voices\<provider>\` (`chatterbox`, `pocket`)
-- `tts.voice_lab` — voice effects for either engine (`VoiceLabService` in `services/voice_lab_service.py`, applied to the whole voice right before `sd.play`, and for a Chatterbox voice that speaks in pieces on the audio so far, every time a piece is made): `enabled`, `clarity`, `reverb`, `stereo_width`, each `0.0`–`1.0`, `0.5` = fitted to Celeste's voice clip
+- `tts.ship_effect` — `true` | `false` (default `true`): the ship effect for every engine, one fixed chain with nothing to set (`ShipVoiceEffect` in `services/ship_voice_effect.py`, made new for every reply; `TTSService` puts every piece of a streamed voice through it as the piece is made, and a voice that is made whole through it right before `sd.play`). An old `tts.voice_lab` block in a config.yaml is ignored
 - `stt.enabled` / `stt.model` / `stt.input_device`
 - `event_reactions.reactions` — per-journal-event booleans for automatic replies
 - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)

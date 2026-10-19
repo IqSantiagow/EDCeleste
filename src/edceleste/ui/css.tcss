@@ -662,8 +662,21 @@ WidgetPathsContainer WidgetLabeledDynamicInputRow {
    clip their own rows instead of scrolling.
    ============================================================ */
 WidgetChatterboxTTSSettingsVertical,
-WidgetEdgeTTSSettingsVertical {
+WidgetEdgeTTSSettingsVertical,
+WidgetVoiceProfilesVertical,
+WidgetVoiceTestButton {
     height: auto;
+}
+
+/* the profiles block ends with the clone button, keep a gap before the volume */
+WidgetVoiceProfilesVertical {
+    margin-bottom: 1;
+}
+
+/* volume (1 row) and the ship effect switch are in the section's own scroll,
+   not in a block above, so they need their gap here */
+#volume-input {
+    margin-bottom: 1;
 }
 
 /* Row types differ in intrinsic height (select: 1, switch: 2, slider: 1),
@@ -1344,23 +1357,8 @@ WidgetInstinctStatusRow {
     color: $font-muted-color;
 }
 
-/* Voice Lab: one label width, so the sliders line up under the switch */
-WidgetVoiceLabSettingsVertical {
-    height: auto;
-    margin-top: 1;
-}
-
-/* the switch row already ends with an empty line, so only the sliders need a gap */
-WidgetVoiceLabSettingsVertical WidgetLabeledSliderRow {
-    margin-bottom: 1;
-}
-
-WidgetVoiceLabSettingsVertical .entry-label {
-    width: 16;
-}
-
-/* same look as the clone button of the Chatterbox block: a flat green text */
-#voice-lab-test-button {
+/* same look as the clone button: a flat green text */
+#voice-test-button {
     width: auto;
     min-width: 0;
     padding: 0;

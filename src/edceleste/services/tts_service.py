@@ -30,6 +30,7 @@ from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
 )
 from edceleste.services.settings_service import SettingsService
+from edceleste.services.ship_voice_effect import ShipVoiceEffect
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
     ChatterboxTTSProvider,
 )
@@ -40,7 +41,6 @@ from edceleste.services.tts_providers.tts_provider_protocol import (
     StreamingTTSProviderProtocol,
     TTSProviderProtocol,
 )
-from edceleste.services.voice_lab_service import VoiceLabService
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,8 @@ DEFAULT_VOICE_SAMPLE_TEXT = "Hello Commander. How can I assist you today?"
 # Spoken without sound at startup, so the voice model is loaded and its first
 # run is behind it before the first reply
 WARM_UP_TEXT = "Ready, Commander."
-# Long enough to hear the reverb ring out, with a few "s" sounds for the clarity
-VOICE_LAB_TEST_TEXT = (
+# Long enough to hear the ship effect ring out
+VOICE_TEST_TEXT = (
     "Commander, all systems are online. "
     "Shields are up, and the ship is ready when you are."
 )
@@ -172,7 +172,6 @@ class TTSService:
         self,
         event_bus: EventBus,
         settings_service: SettingsService,
-        voice_lab_service: VoiceLabService,
     ) -> None:
         """Only stores the dependencies and subscribes to the event bus. The
         provider stays None until reload_service() builds it.
@@ -182,7 +181,6 @@ class TTSService:
         """
         self.__event_bus = event_bus
         self.__settings_service = settings_service
-        self.__voice_lab_service = voice_lab_service
         self.__event_bus.subscribe(TTSEvent, self.speak_text_from_tts_event)
 
     def build_provider(self, provider_type: str) -> TTSProviderProtocol:
@@ -194,9 +192,9 @@ class TTSService:
 
     async def synthesize_and_play(self, text: str) -> None:
         """Turns the text into speech AND plays it on the speakers, with the
-        Voice Lab effects (when they are switched on in the saved settings)
-        and the saved volume. Waits until the audio has finished, so the next
-        text is not spoken over this one.
+        ship effect (when it is switched on in the saved settings) and the saved
+        volume. Waits until the audio has finished, so the next text is not
+        spoken over this one.
 
         A provider that can speak in pieces for the saved params (Chatterbox on
         a GPU, Pocket TTS) speaks through speak_while_synthesizing(), so the
@@ -223,10 +221,9 @@ class TTSService:
                 tts_settings.params,
                 tts_settings.volume,
                 profile_path,
+                tts_settings.ship_effect,
             )
             return
-
-        apply_voice_lab_effects = tts_settings.voice_lab.enabled
 
         samples, sample_rate = await self.provider.synthesize(
             text, tts_settings.params, profile_path
@@ -235,7 +232,7 @@ class TTSService:
             samples,
             sample_rate,
             tts_settings.volume,
-            apply_voice_lab_effects=apply_voice_lab_effects,
+            with_ship_effect=tts_settings.ship_effect,
         )
 
     async def speak_while_synthesizing(
@@ -245,30 +242,34 @@ class TTSService:
         params: TtsProviderParams,
         volume: float,
         profile_path: Path | None,
+        with_ship_effect: bool,
     ) -> None:
         """Speaks the text while the provider is still making it. Returns when
         the voice has been played to the end.
 
-        A worker thread (play_pieces) plays what is put in a queue. Here every
-        piece the provider makes is added to the audio so far, and the Voice
-        Lab effects are run on ALL of it, not on the piece alone, so a filter or
-        the reverb does not start again at every piece. The effects only look
-        back in time, so the part that was already queued comes out the same,
-        and only the new samples are put in the queue, at the volume. After the
-        last piece the rest of the output (the reverb ringing out) is queued.
-        Running the effects again over the audio so far costs 40 ms for 10
-        seconds of speech.
+        A worker thread (play_pieces) plays what is put in a queue. With
+        with_ship_effect one ShipVoiceEffect is made for this reply (it keeps
+        its state from piece to piece, so the pieces together sound like the
+        whole reply) and every piece the provider makes goes through it in a
+        worker thread, then into the queue at the volume. After the last piece
+        the rest of the effect (the echo and the rooms ringing out) is queued.
+        Without it the pieces go to the queue as they come. params and
+        profile_path are given to provider.synthesize_stream() as they are.
+        volume is the saved volume, a factor from 0 to 1.
 
-        The effects are always asked for: VoiceLabService.apply_effects gives
-        the audio back untouched when Voice Lab is switched off in the saved
-        settings. volume is the saved volume, a factor from 0 to 1.
-
-        The player is stopped also when the provider fails, and that error is
-        raised (an error of the player is dropped then). An error of the player
+        If the ShipVoiceEffect cannot be made, its error is raised at once, before
+        the player or the provider is started. The player is stopped also when
+        the provider fails, and that error is raised (an error of the player is
+        dropped then). An error of the player
         (sounddevice.PortAudioError, e.g. no speaker can be opened) is raised
         only at the end, after the whole voice was made, because the player is
         awaited last.
         """
+        # Made before the player starts: when making it fails, nothing is
+        # running yet that would wait for a piece forever.
+        ship_effect = (
+            ShipVoiceEffect(provider.stream_sample_rate) if with_ship_effect else None
+        )
         pieces_to_play: queue.Queue[np.ndarray | None] = queue.Queue()
         player = asyncio.create_task(
             asyncio.to_thread(
@@ -280,23 +281,15 @@ class TTSService:
         # from warning that it was never retrieved. When the provider is fine,
         # the error of the player is still raised by the await at the end.
         player.add_done_callback(lambda task: task.cancelled() or task.exception())
-        audio_so_far = np.zeros(0, dtype=np.float32)
-        audio_with_effects = audio_so_far
-        samples_queued = 0
 
         try:
             async for piece in provider.synthesize_stream(text, params, profile_path):
-                audio_so_far = np.concatenate([audio_so_far, piece])
-                audio_with_effects = await asyncio.to_thread(
-                    self.__voice_lab_service.apply_effects,
-                    audio_so_far,
-                    provider.stream_sample_rate,
-                )
-                new_samples = audio_with_effects[samples_queued : len(audio_so_far)]
-                pieces_to_play.put(new_samples * volume)
-                samples_queued = len(audio_so_far)
+                if ship_effect is not None:
+                    piece = await asyncio.to_thread(ship_effect.process, piece)
+                pieces_to_play.put(piece * volume)
 
-            pieces_to_play.put(audio_with_effects[samples_queued:] * volume)
+            if ship_effect is not None:
+                pieces_to_play.put(ship_effect.finish() * volume)
         finally:
             pieces_to_play.put(None)
         await player
@@ -310,10 +303,11 @@ class TTSService:
         hardware, the same as play_samples() is for a whole voice.
 
         Every piece is mono (samples) or stereo (samples x 2) float32. A mono
-        piece is played from both speakers. An empty piece (what is left after
-        the last piece when the effects add no tail) is skipped, because a write
-        of zero samples to a speaker is not worth the risk of an error of the
-        driver. When the next piece is late, the speaker plays silence. The
+        piece is played from both speakers. An empty piece (a provider may make
+        one) is skipped, because a write of zero samples to a speaker is not
+        worth the risk of an error of the driver. The tail of the ship effect
+        is never empty, it comes as one stereo piece after the last piece of the
+        voice. When the next piece is late, the speaker plays silence. The
         speaker is closed when the function ends, also after an error. The
         queue has no size limit, and without the None at the end the function
         waits for it for ever.
@@ -395,18 +389,35 @@ class TTSService:
         samples: np.ndarray,
         sample_rate: int,
         volume: float,
-        apply_voice_lab_effects: bool,
+        with_ship_effect: bool = False,
     ) -> None:
         """Plays the samples at the volume and waits until they have played.
-        With apply_voice_lab_effects the Voice Lab effects are added first, and
-        that makes the audio longer (the reverb rings out)."""
+        samples are mono or stereo floats between -1 and 1, volume is a factor
+        from 0 to 1 that is applied after the effect. The samples passed in are
+        not changed. With with_ship_effect the whole audio goes through a new
+        ShipVoiceEffect first (in a worker thread), and that makes it stereo and
+        longer (the echo and the rooms ring out). Plays with sd.play, the
+        default way of sounddevice, and then sleeps for the length of the
+        audio. Errors of sounddevice are raised."""
         import sounddevice as sd
 
-        if apply_voice_lab_effects:
-            samples = self.__voice_lab_service.apply_effects(samples, sample_rate)
+        if with_ship_effect:
+            samples = await asyncio.to_thread(
+                self.add_ship_effect_to_whole_audio, samples, sample_rate
+            )
 
         sd.play(samples * volume, sample_rate)  # type: ignore
         await asyncio.sleep(len(samples) / sample_rate)
+
+    def add_ship_effect_to_whole_audio(
+        self, samples: np.ndarray, sample_rate: int
+    ) -> np.ndarray:
+        """The whole audio through a new ShipVoiceEffect, followed by the tail
+        that rings out after it. In: mono or stereo samples. Out: stereo
+        float32 samples, longer than the input by the tail. The samples passed
+        in are not changed. Blocking, so callers run it in a worker thread."""
+        ship_effect = ShipVoiceEffect(sample_rate)
+        return np.concatenate([ship_effect.process(samples), ship_effect.finish()])
 
     def validate_settings(
         self, new_settings: SettingsModel
@@ -524,7 +535,7 @@ class TTSService:
         provider as they are (profile_path is None for Edge).
 
         Creates replies_folder when it is not there. A file that exists is
-        replaced. Voice Lab effects and the volume are not added, they are
+        replaced. The ship effect and the volume are not added, they are
         added when a reply is played. Slow: one synthesis per text. A provider
         error is raised at once, the files made until then stay on disk."""
         replies_folder.mkdir(parents=True, exist_ok=True)
@@ -779,7 +790,7 @@ class TTSService:
         self, profile_name: str, text: str, params: TtsProviderParams
     ) -> None:
         """Speaks the text with the profile's voice at the saved volume, without
-        Voice Lab effects, and waits until it has played. Nothing is written to
+        the ship effect, and waits until it has played. Nothing is written to
         disk, so the saved sample stays as it is. params are the settings as
         they are on the screen now. Raises VoiceCloningException when their
         provider cannot clone voices, FileNotFoundError for a missing profile."""
@@ -792,28 +803,25 @@ class TTSService:
             text, params.model_copy(update={"profile": profile_name}), profile_path
         )
         volume = self.__settings_service.get_settings().tts.volume
-        await self.play_samples(
-            samples, sample_rate, volume, apply_voice_lab_effects=False
-        )
+        await self.play_samples(samples, sample_rate, volume)
 
-    async def play_voice_lab_test_sentence(self, tts_settings: TTSModel) -> None:
-        """Lets the pilot hear the Voice Lab: speaks VOICE_LAB_TEST_TEXT and
-        waits until it has played. tts_settings are the settings as they are on
-        the screen now, saved or not: the engine, the volume and the Voice Lab
-        switch and sliders all come from them, so a change is heard before it is
-        saved. Nothing is saved or written to disk.
+    async def play_voice_test_sentence(self, tts_settings: TTSModel) -> None:
+        """Lets the pilot hear the voice: speaks VOICE_TEST_TEXT and waits until
+        it has played. tts_settings are the settings as they are on the screen
+        now, saved or not: the engine, the volume and the ship effect switch all
+        come from them, so a change is heard before it is saved. Nothing is
+        saved or written to disk.
 
         1. Takes the provider of the engine on the screen
            (get_active_or_new_provider_for) and lets it check its params. A
            problem, e.g. no voice or no profile picked, is raised as ValueError
            with its message.
-        2. Speaks the sentence. Edge goes to the network. Chatterbox and
-           Pocket TTS load their model on first use, and again on every call
+        2. Speaks the whole sentence first. Edge goes to the network. Chatterbox
+           and Pocket TTS load their model on first use, and again on every call
            when the engine on the screen is not the saved one (a throwaway
            provider).
-        3. Adds the Voice Lab effects from tts_settings. Switched off -> the
-           plain voice, as Celeste would sound.
-        4. Plays the result at the volume of tts_settings.
+        3. Plays the result at the volume of tts_settings, through the ship
+           effect when tts_settings.ship_effect is on, as Celeste would sound.
         Provider errors are raised, e.g. no network or a profile file that is
         gone (FileNotFoundError).
         """
@@ -827,16 +835,13 @@ class TTSService:
             provider, tts_settings.params
         )
         samples, sample_rate = await provider.synthesize(
-            VOICE_LAB_TEST_TEXT, tts_settings.params, profile_path
-        )
-        samples = self.__voice_lab_service.apply_effects(
-            samples, sample_rate, tts_settings.voice_lab
+            VOICE_TEST_TEXT, tts_settings.params, profile_path
         )
         await self.play_samples(
             samples,
             sample_rate,
             tts_settings.volume,
-            apply_voice_lab_effects=False,
+            with_ship_effect=tts_settings.ship_effect,
         )
 
     async def play_sample_voice(
@@ -859,15 +864,13 @@ class TTSService:
         await self.play_audio_file(str(sample_path))
 
     async def play_audio_file(self, path_to_audio_file: str) -> None:
-        """Plays any audio file at the saved TTS volume, without voice effects,
+        """Plays any audio file at the saved TTS volume, without the ship effect,
         and waits until it has played. Used to listen to a clip before cloning.
         Raises when the file cannot be read."""
         samples, sample_rate = await asyncio.to_thread(sf.read, path_to_audio_file)
         volume = self.__settings_service.get_settings().tts.volume
 
-        await self.play_samples(
-            samples, sample_rate, volume, apply_voice_lab_effects=False
-        )
+        await self.play_samples(samples, sample_rate, volume)
 
     def perform_sample_voice_analysis_and_validate(
         self, path_to_audio_file: str, params: TtsProviderParams

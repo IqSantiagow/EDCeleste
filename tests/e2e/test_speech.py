@@ -6,7 +6,6 @@ from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     PocketParamsModel,
     TTSModel,
-    VoiceLabModel,
 )
 from tests.e2e.test_comms import send_comms_message
 from tests.e2e.test_streaming_voice import what_the_speaker_should_play
@@ -117,7 +116,7 @@ async def test_should_speak_with_the_saved_pocket_voice(edceleste):
         yield "Copy that, Commander."
 
     with allure.step(
-        "Given Pocket TTS is saved with the cloned voice 'narrator', Voice Lab off"
+        "Given Pocket TTS is saved with the cloned voice 'narrator', ship effect off"
     ):
         (edceleste.pocket_voices_folder / "narrator").mkdir(parents=True)
         (edceleste.pocket_voices_folder / "narrator/profile.npy").write_bytes(b"voice")
@@ -126,7 +125,7 @@ async def test_should_speak_with_the_saved_pocket_voice(edceleste):
                 provider="pocket",
                 params=PocketParamsModel(type="pocket", profile="narrator"),
                 volume=0.5,
-                voice_lab=VoiceLabModel(enabled=False),
+                ship_effect=False,
             )
         )
         pocket_engine = edceleste.fake_tts_providers["pocket"]
