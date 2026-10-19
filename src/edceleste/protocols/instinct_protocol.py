@@ -47,13 +47,15 @@ class InstinctProtocol(BaseServiceProtocol, Protocol):
         LLM, and returns the short reply that COMMS shows and Celeste says:
         what the key did ("Landing gear deployed", a toggle is named after the
         direction it went). When the ship cannot do the action now, nothing is
-        pressed and the reply says so ("Landing gear unavailable"). When the
-        game is not running, the reply says so at once ("Game window not
-        found, nothing was pressed."). The PerformGameAction tool is the one
-        place that decides whether a key is pressed.
+        pressed and the reply says so ("Landing gear unavailable"). When game
+        actions are switched off in the settings and the model took the message
+        for a command, nothing is pressed and the reply is "Game actions
+        disabled". When the game is not running, the reply says so at once
+        ("Game window not found, nothing was pressed."). The PerformGameAction
+        tool is the one place that decides whether a key is pressed.
         None means "not handled": the pilot only talks or asks, Instinct is
-        off, not loaded, runs on the CPU (too slow), game actions are off,
-        there is no game state yet, the model failed or ran out of its time
+        off, not loaded, runs on the CPU (too slow), there is no game state
+        yet, the model failed or ran out of its time
         limit (about one second), or the tool raised. Then the caller sends the
         message to the LLM. Never raises. Goes to the model in a worker thread,
         so it can take up to the time limit. A call that ran out of time keeps
