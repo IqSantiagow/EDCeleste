@@ -397,25 +397,27 @@ class InstinctService:
         "Landing gear deployed" (a toggle is named after the direction it
         went, read from the ship before the press). When the ship cannot do
         the action now, nothing is pressed and the reply is the text of the
-        tool up to the colon, e.g. "Landing gear unavailable". When game actions
-        were switched off a moment ago, after the model was asked, it is
-        "Game actions disabled". Any other failure of the tool (the game window
-        was not found) gives the text of the tool as it is, which has no
-        prepared clip. None means "not handled", and then the caller sends the
-        message to the LLM as before.
+        tool up to the colon, e.g. "Landing gear unavailable". When the model took
+        the message for a command but game actions are switched off, nothing is
+        pressed and the reply is "Game actions disabled". Any other failure of
+        the tool (the game window was not found) gives the text of the tool as
+        it is, which has no prepared clip. None means "not handled", and then
+        the caller sends the message to the LLM as before.
 
-        1. Nothing is asked when can_decide_commands() is False, when no
-           action has a keyboard key or when there is no game state yet. The
-           message may be a question, which only the LLM can answer, so it
-           goes there.
+        1. Nothing is asked when is_module_enabled() is False, when no action
+           has a keyboard key or when there is no game state yet. The message
+           may be a question, which only the LLM can answer, so it goes there.
         2. Asks the model in a worker thread. It gets FAST_COMMAND_TIMEOUT_SECONDS,
            the model is never waited for longer.
         3. The model picks one option. "none" means the pilot is talking or
-           asking, so nothing is done. An action goes to the PerformGameAction
-           tool, which has all the rules (see get_unavailable_reason there) and
-           presses the key. The tool answers with a ToolReturn: "is_error" or
-           "unavailable" in its metadata means the key was not pressed and its
-           text is the reply, anything else means the key was pressed.
+           asking, so nothing is done. For an action, can_decide_commands() is
+           asked now: when game actions are off, the tool is not called and the
+           reply is "Game actions disabled". Otherwise the action goes to the
+           PerformGameAction tool, which has all the rules (see
+           get_unavailable_reason there) and presses the key. The tool answers
+           with a ToolReturn: "is_error" or "unavailable" in its metadata means
+           the key was not pressed and its text is the reply, anything else
+           means the key was pressed.
         4. Logs one line: the message, the best scores, the chosen action and
            the time from the message to the end of the tool.
 
@@ -429,7 +431,7 @@ class InstinctService:
         """
         start = time.perf_counter()
         try:
-            if not self.can_decide_commands():
+            if not self.is_module_enabled():
                 return None
             offered_actions = self.find_actions_with_a_key()
             game_state = self.game_state_protocol.get_game_state_projection()
@@ -453,6 +455,13 @@ class InstinctService:
                 )
                 return None
             action = EdAction(answer["choice"])
+            if not self.can_decide_commands():
+                logger.info(
+                    "Fast command %r: %s was not done, game actions are off",
+                    pilot_message,
+                    action.value,
+                )
+                return GAME_ACTIONS_DISABLED_TEXT
             # Read before the press: the key changes the ship, and a toggle is
             # named after what it did, not after what the ship is now
             ship_before_press = self.game_state_protocol.get_game_stats().ship
@@ -484,14 +493,6 @@ class InstinctService:
             )
             return reply
 
-        if tool_metadata.get("game_actions_disabled"):
-            logger.info(
-                "Fast command %r: %s was not done, game actions are off",
-                pilot_message,
-                action.value,
-            )
-            return GAME_ACTIONS_DISABLED_TEXT
-
         if tool_metadata.get("is_error"):
             reply = str(tool_result.return_value)
             logger.info(
@@ -511,16 +512,21 @@ class InstinctService:
         )
         return pick_reply_text_for_pressed_action(action, ship_before_press)
 
-    def can_decide_commands(self) -> bool:
+    def is_module_enabled(self) -> bool:
         """True when Instinct may take a pilot message from the LLM: Instinct
-        is on, the model is loaded and runs on the GPU ("cuda"), and the game
-        actions (game_actions.enabled) are switched on in the saved settings.
-        On the CPU one call takes about 2 s, so the LLM is faster there and
-        Instinct stays out of it. A model that is still loading or failed to
-        load has no device, so it gives False too. Only reads memory and the
-        saved settings."""
-        game_actions_are_on = self.settings_service.get_settings().game_actions.enabled
-        return self.enabled and self.running_device() == "cuda" and game_actions_are_on
+        is on, the model is loaded and runs on the GPU ("cuda"). On the CPU one
+        call takes about 2 s, so the LLM is faster there and Instinct stays out
+        of it. A model that is still loading or failed to load has no device,
+        so it gives False too. The first check of try_fast_command(). Only
+        reads memory."""
+        return self.enabled and self.running_device() == "cuda"
+
+    def can_decide_commands(self) -> bool:
+        """True when game actions (game_actions.enabled) are switched on in the
+        saved settings, so a command the model picked may be done. Asked only
+        after the model picked an action, never before. Only reads the saved
+        settings."""
+        return self.settings_service.get_settings().game_actions.enabled
 
     def find_actions_with_a_key(self) -> list[EdAction]:
         """The actions that have a keyboard key, in the order of EdAction. The
