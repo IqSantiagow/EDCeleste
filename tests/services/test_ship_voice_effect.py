@@ -1,12 +1,23 @@
 import unittest
+from unittest import mock
 
 import numpy as np
 
+from edceleste.services import ship_voice_effect
 from edceleste.services.ship_voice_effect import (
+    DISTORTION_LOUDNESS_FIX,
     GAME_ROOM_SECONDS,
+    GRAIN_DELAY_MS,
+    GRAIN_RATE_HZ,
+    GRAIN_SHARE_OF_GRAINS,
+    GRAIN_SPRAY_MS,
+    OUTPUT_GAIN,
     TAIL_SECONDS,
     GameRoom,
+    GrainDelay,
+    SeededRandom,
     ShipVoiceEffect,
+    distort,
 )
 
 SAMPLE_RATE = 24000
@@ -135,11 +146,50 @@ class TestShipVoiceEffect(unittest.TestCase):
         self.assertEqual(float(np.abs(result).max()), 1.0)
 
     def test_the_two_ears_are_not_identical(self):
+        # With four copies in the chorus and a right ear a quarter of a turn
+        # ahead, both ears hear the same copies: only the room tells them apart.
         result = ShipVoiceEffect(SAMPLE_RATE).process(make_speech_like_noise(1.0))
 
-        correlation = np.corrcoef(result[:, 0], result[:, 1])[0, 1]
+        difference = np.abs(result[:, 0] - result[:, 1]).max()
 
-        self.assertLess(correlation, 0.95)
+        self.assertGreater(float(difference), 1e-3)
+
+    def test_the_clean_voice_is_mixed_in_without_the_effect_or_the_room(self):
+        voice = make_speech_like_noise(0.5)
+
+        with mock.patch.object(ship_voice_effect, "EFFECT_SHARE_OF_VOICE", 0.0):
+            result = ShipVoiceEffect(SAMPLE_RATE).process(voice)
+
+        expected = OUTPUT_GAIN * voice
+        np.testing.assert_allclose(result[:, 0], expected, atol=1e-6)
+        np.testing.assert_allclose(result[:, 1], expected, atol=1e-6)
+
+    def test_the_voice_with_the_effect_goes_through_the_room_and_the_clean_one_does_not(
+        self,
+    ):
+        voice = make_speech_like_noise(0.5)
+
+        with mock.patch.object(ship_voice_effect, "EFFECT_SHARE_OF_VOICE", 1.0):
+            effect = ShipVoiceEffect(SAMPLE_RATE)
+            effect.process(voice)
+            tail_of_the_effect_only = effect.finish()
+        with mock.patch.object(ship_voice_effect, "EFFECT_SHARE_OF_VOICE", 0.0):
+            effect = ShipVoiceEffect(SAMPLE_RATE)
+            effect.process(voice)
+            tail_of_the_clean_voice_only = effect.finish()
+
+        self.assertGreater(float(np.abs(tail_of_the_effect_only).max()), 0.0)
+        self.assertEqual(float(np.abs(tail_of_the_clean_voice_only).max()), 0.0)
+
+    def test_speech_comes_out_about_as_loud_as_it_went_in(self):
+        voice = make_speech_like_noise(2.0, level=0.15)
+
+        result = ShipVoiceEffect(SAMPLE_RATE).process(voice)
+
+        voice_rms = np.sqrt(np.mean(voice[SAMPLE_RATE:] ** 2))
+        result_rms = np.sqrt(np.mean(result[SAMPLE_RATE:] ** 2))
+        self.assertGreater(result_rms, voice_rms * 0.7)
+        self.assertLess(result_rms, voice_rms * 1.3)
 
     def test_every_sample_rate_of_the_providers_works(self):
         for sample_rate in (16000, 22050, 24000, 44100, 48000):
@@ -156,6 +206,151 @@ class TestShipVoiceEffect(unittest.TestCase):
                 self.assertTrue(np.isfinite(result).all())
                 self.assertTrue(np.isfinite(tail).all())
                 self.assertEqual(len(tail), int(TAIL_SECONDS * sample_rate))
+
+
+class TestDistort(unittest.TestCase):
+    def test_silence_stays_silence(self):
+        result = distort(np.zeros(100))
+
+        self.assertEqual(float(np.abs(result).max()), 0.0)
+
+    def test_a_very_loud_voice_never_gets_above_the_loudness_fix(self):
+        loud = np.array([-50.0, -1.0, 1.0, 50.0])
+
+        result = distort(loud)
+
+        self.assertLessEqual(float(np.abs(result).max()), DISTORTION_LOUDNESS_FIX)
+        np.testing.assert_allclose(
+            result, DISTORTION_LOUDNESS_FIX * np.sign(loud), atol=1e-2
+        )
+
+    def test_a_very_quiet_voice_is_made_louder_in_a_straight_line(self):
+        quiet = np.array([-1e-4, 1e-4])
+
+        result = distort(quiet)
+
+        self.assertGreater(float(result[1] / quiet[1]), 1.0)
+        self.assertAlmostEqual(float(result[0]), -float(result[1]), places=12)
+
+    def test_it_does_not_change_the_input(self):
+        voice = make_speech_like_noise(0.1).astype(np.float64)
+        copy = voice.copy()
+
+        distort(voice)
+
+        np.testing.assert_array_equal(voice, copy)
+
+
+class TestSeededRandom(unittest.TestCase):
+    def test_gives_the_numbers_of_the_voice_laboratory(self):
+        # Taken from the uniformGenerator of the laboratory (dsp.js), seed 7.
+        random = SeededRandom(7)
+
+        numbers = [random.next_fraction() for _ in range(5)]
+
+        np.testing.assert_allclose(
+            numbers,
+            [0.011704753383131523, 0.061958257792992924, 0.9769076327847066,
+             0.6990287057824832, 0.5214452686436434],
+            atol=1e-15,
+        )  # fmt: skip
+
+    def test_the_same_seed_gives_the_same_numbers_and_another_seed_others(self):
+        first = [SeededRandom(51).next_fraction() for _ in range(3)]
+        again = [SeededRandom(51).next_fraction() for _ in range(3)]
+        other = [SeededRandom(52).next_fraction() for _ in range(3)]
+
+        self.assertEqual(first, again)
+        self.assertNotEqual(first, other)
+
+    def test_numbers_stay_above_zero_and_below_one(self):
+        random = SeededRandom(1)
+
+        numbers = [random.next_fraction() for _ in range(10000)]
+
+        self.assertGreater(min(numbers), 0.0)
+        self.assertLess(max(numbers), 1.0)
+
+
+class TestGrainDelay(unittest.TestCase):
+    def test_an_impulse_is_heard_at_once_and_again_after_the_delay_of_the_grains(self):
+        impulse = np.zeros(3000)
+        impulse[0] = 1.0
+
+        result = GrainDelay(SAMPLE_RATE).process(impulse)
+
+        # Taken from grainDelay of the laboratory (dsp.js), seed 7.
+        self.assertAlmostEqual(float(result[0]), 1 - GRAIN_SHARE_OF_GRAINS, places=9)
+        self.assertAlmostEqual(float(result[518]), 0.0668060, places=6)
+        self.assertAlmostEqual(float(result[900]), 0.0834447, places=6)
+        first_echo = int(GRAIN_DELAY_MS / 1000 * SAMPLE_RATE)
+        self.assertEqual(float(np.abs(result[1:first_echo]).max()), 0.0)
+        last_echo = int((GRAIN_DELAY_MS + GRAIN_SPRAY_MS) / 1000 * SAMPLE_RATE)
+        self.assertGreater(float(np.abs(result[first_echo:last_echo]).max()), 0.0)
+
+    def test_pieces_together_sound_the_same_as_the_whole_voice(self):
+        voice = make_speech_like_noise(1.0).astype(np.float64)
+        whole = GrainDelay(SAMPLE_RATE).process(voice)
+
+        for piece_length in (700, 3333, 4800):
+            with self.subTest(piece_length=piece_length):
+                grains = GrainDelay(SAMPLE_RATE)
+                in_pieces = np.concatenate(
+                    [
+                        grains.process(voice[start : start + piece_length])
+                        for start in range(0, len(voice), piece_length)
+                    ]
+                )
+
+                np.testing.assert_allclose(in_pieces, whole, atol=1e-12)
+
+    def test_it_gives_as_many_samples_as_it_gets(self):
+        voice = make_speech_like_noise(0.37).astype(np.float64)
+
+        result = GrainDelay(SAMPLE_RATE).process(voice)
+
+        self.assertEqual(result.shape, voice.shape)
+        self.assertTrue(np.isfinite(result).all())
+
+    def test_an_empty_piece_comes_back_empty(self):
+        result = GrainDelay(SAMPLE_RATE).process(np.zeros(0))
+
+        self.assertEqual(len(result), 0)
+
+    def test_silence_stays_silence(self):
+        result = GrainDelay(SAMPLE_RATE).process(np.zeros(5000))
+
+        self.assertEqual(float(np.abs(result).max()), 0.0)
+
+    def test_the_feedback_plays_the_grains_again(self):
+        impulse = np.zeros(6000)
+        impulse[0] = 1.0
+        after_the_longest_delay = int(
+            (GRAIN_DELAY_MS + GRAIN_SPRAY_MS) / 1000 * SAMPLE_RATE
+        ) + int(SAMPLE_RATE / GRAIN_RATE_HZ)
+
+        with_feedback = GrainDelay(SAMPLE_RATE).process(impulse)
+        with mock.patch.object(ship_voice_effect, "GRAIN_FEEDBACK", 0.0):
+            without_feedback = GrainDelay(SAMPLE_RATE).process(impulse)
+
+        # The second round of grains reads what the first round played. The first
+        # round is over after the longest delay and one grain, the second is not.
+        self.assertEqual(
+            float(np.abs(without_feedback[after_the_longest_delay:]).max()), 0.0
+        )
+        self.assertGreater(
+            float(np.abs(with_feedback[after_the_longest_delay:]).max()), 0.0
+        )
+
+    def test_every_sample_rate_of_the_providers_works(self):
+        for sample_rate in (16000, 22050, 24000, 44100, 48000):
+            with self.subTest(sample_rate=sample_rate):
+                voice = np.random.default_rng(3).standard_normal(sample_rate // 2)
+
+                result = GrainDelay(sample_rate).process(voice)
+
+                self.assertEqual(result.shape, voice.shape)
+                self.assertTrue(np.isfinite(result).all())
 
 
 class TestGameRoom(unittest.TestCase):
