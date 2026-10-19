@@ -36,8 +36,8 @@ from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
 )
 from edceleste.use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from edceleste.use_cases.settings.play_audio_file_use_case import PlayAudioFileUseCase
-from edceleste.use_cases.settings.play_voice_lab_test_use_case import (
-    PlayVoiceLabTestUseCase,
+from edceleste.use_cases.settings.play_voice_test_use_case import (
+    PlayVoiceTestUseCase,
 )
 from edceleste.use_cases.settings.play_sample_voice_use_case import (
     PlaySampleVoiceUseCase,
@@ -100,7 +100,7 @@ class SettingsRepository:
         rename_voice_profile_use_case: RenameVoiceProfileUseCase,
         play_sample_voice_use_case: PlaySampleVoiceUseCase,
         play_audio_file_use_case: PlayAudioFileUseCase,
-        play_voice_lab_test_use_case: PlayVoiceLabTestUseCase,
+        play_voice_test_use_case: PlayVoiceTestUseCase,
         analyze_voice_sample_use_case: AnalyzeVoiceSampleUseCase,
         preview_voice_sample_use_case: PreviewVoiceSampleUseCase,
         get_available_device_use_case: GetAvailableDeviceUseCase,
@@ -127,7 +127,7 @@ class SettingsRepository:
         self.rename_voice_profile_use_case = rename_voice_profile_use_case
         self.play_sample_voice_use_case = play_sample_voice_use_case
         self.play_audio_file_use_case = play_audio_file_use_case
-        self.play_voice_lab_test_use_case = play_voice_lab_test_use_case
+        self.play_voice_test_use_case = play_voice_test_use_case
         self.analyze_voice_sample_use_case = analyze_voice_sample_use_case
         self.preview_voice_sample_use_case = preview_voice_sample_use_case
         self.get_available_device_use_case = get_available_device_use_case
@@ -268,13 +268,14 @@ class SettingsRepository:
         before it is cloned. Returns when playback ends."""
         await self.play_audio_file_use_case(path_to_audio_file)
 
-    async def play_voice_lab_test(self, tts_settings: TTSModel) -> None:
+    async def play_voice_test(self, tts_settings: TTSModel) -> None:
         """Speaks one test sentence out loud with the TTS settings as they are
-        on the screen now (engine, volume, Voice Lab sliders), saved or not.
-        Returns when playback ends. Slow for Chatterbox, goes to the network
-        for Edge. Raises ValueError when the engine on the screen is not set up
-        (no voice or no profile) and passes on the errors of the engine."""
-        await self.play_voice_lab_test_use_case(tts_settings)
+        on the screen now (engine, volume, ship effect), saved or not. Returns
+        when playback ends. Slow for Chatterbox and Pocket TTS (load the voice
+        model), goes to the network for Edge. Raises ValueError when the engine
+        on the screen is not set up (no voice or no profile) and passes on the
+        errors of the engine."""
+        await self.play_voice_test_use_case(tts_settings)
 
     def analyze_voice_sample(
         self, path_to_audio_file: str, params: TtsProviderParams

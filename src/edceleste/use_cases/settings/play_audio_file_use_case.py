@@ -7,7 +7,7 @@ class PlayAudioFileUseCase:
 
     async def __call__(self, path_to_audio_file: str) -> None:
         """Plays the clip the pilot picked for cloning, as it is: with the
-        volume from the settings, without voice lab effects. Returns when the
+        volume from the settings, without the ship effect. Returns when the
         sound ends. Raises VoiceCloningException when the TTS provider is not
         chatterbox."""
         await self.voice_cloning_protocol.play_audio_file(path_to_audio_file)

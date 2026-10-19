@@ -5,8 +5,8 @@ import pytest
 from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     TTSModel,
-    VoiceLabModel,
 )
+from edceleste.services.ship_voice_effect import TAIL_SECONDS, ShipVoiceEffect
 from tests.e2e.conftest import FAKE_SAMPLE_RATE, comms_entries, send_comms_message
 from tests.e2e.test_voice_profiles import write_voice_profile_files
 
@@ -14,12 +14,12 @@ pytestmark = [pytest.mark.anyio, allure.feature("Streaming voice")]
 
 ANSWER = "Copy that, Commander."
 SAVED_VOLUME = 0.5
-# Voice Lab with reverb 0.5 lets the reverb ring out for 0.3 + 0.6 * 0.5 seconds
-REVERB_RINGING_OUT_SAMPLES = int(0.6 * FAKE_SAMPLE_RATE)
+# The ship effect lets the echo and the rooms ring out for this long after the voice
+TAIL_SAMPLES = int(TAIL_SECONDS * FAKE_SAMPLE_RATE)
 
 
 def chatterbox_settings(
-    device: str, volume: float = SAVED_VOLUME, voice_lab_enabled: bool = False
+    device: str, volume: float = SAVED_VOLUME, ship_effect: bool = False
 ) -> TTSModel:
     return TTSModel(
         provider="chatterbox",
@@ -27,7 +27,7 @@ def chatterbox_settings(
             type="chatterbox", profile="narrator", device=device
         ),
         volume=volume,
-        voice_lab=VoiceLabModel(enabled=voice_lab_enabled),
+        ship_effect=ship_effect,
     )
 
 
@@ -113,21 +113,21 @@ async def test_should_play_the_first_piece_while_the_rest_of_the_voice_is_still_
 
 
 @allure.title(
-    "The Voice Lab effects cover the whole streamed voice and the reverb "
-    "rings out after the last word"
+    "The ship effect covers the whole streamed voice and its echo and rooms "
+    "ring out after the last word"
 )
-async def test_should_apply_voice_lab_to_the_whole_streamed_voice(
+async def test_should_apply_the_ship_effect_to_the_whole_streamed_voice(
     edceleste,
 ):
     async def answer_copy_that(messages, agent_info):
         yield ANSWER
 
     with allure.step(
-        "Given Chatterbox on a GPU is saved with Voice Lab on at volume 0.5"
+        "Given Chatterbox on a GPU is saved with the ship effect on at volume 0.5"
     ):
         write_voice_profile_files(edceleste, "narrator")
         edceleste.save_tts_settings(
-            chatterbox_settings(device="cuda", voice_lab_enabled=True)
+            chatterbox_settings(device="cuda", ship_effect=True)
         )
         speaker = edceleste.fake_speaker
 
@@ -150,20 +150,97 @@ async def test_should_apply_voice_lab_to_the_whole_streamed_voice(
                 pilot, lambda: speaker.times_closed == 1, "the speakers done playing"
             )
             played = speaker.everything_played()
-            assert played.shape == (len(voice) + REVERB_RINGING_OUT_SAMPLES, 2)
+            assert played.shape == (len(voice) + TAIL_SAMPLES, 2)
 
         with allure.step(
-            "And it sounds as if Voice Lab was applied once to the whole voice"
+            "And it sounds as if the ship effect was applied once to the whole voice"
         ):
-            voice_lab = edceleste.container.voice_lab_service()
-            whole_voice_with_effects = voice_lab.apply_effects(voice, FAKE_SAMPLE_RATE)
+            ship_effect = ShipVoiceEffect(FAKE_SAMPLE_RATE)
+            whole_voice_with_effect = np.concatenate(
+                [ship_effect.process(voice), ship_effect.finish()]
+            )
             np.testing.assert_allclose(
-                played, whole_voice_with_effects * SAVED_VOLUME, atol=1e-5
+                played, whole_voice_with_effect * SAVED_VOLUME, atol=1e-5
             )
 
-        with allure.step("And the reverb still rings after the last word"):
-            reverb_after_the_voice = played[len(voice) :]
-            assert np.abs(reverb_after_the_voice).max() > 0.001
+        with allure.step("And the echo and the rooms still ring after the last word"):
+            ringing_after_the_voice = played[len(voice) :]
+            assert np.abs(ringing_after_the_voice).max() > 0.001
+
+
+@allure.title(
+    "With the ship effect on Celeste still starts speaking before her whole "
+    "answer is made"
+)
+async def test_should_play_the_first_piece_with_the_ship_effect_before_the_rest_is_made(
+    edceleste,
+):
+    async def answer_copy_that(messages, agent_info):
+        yield ANSWER
+
+    with allure.step(
+        "Given Chatterbox on a GPU is saved with the ship effect on at volume 0.5"
+    ):
+        write_voice_profile_files(edceleste, "narrator")
+        edceleste.save_tts_settings(
+            chatterbox_settings(device="cuda", ship_effect=True)
+        )
+        speaker = edceleste.fake_speaker
+
+    with allure.step("And the voice engine makes a tone of 0.6 s in three pieces"):
+        chatterbox = edceleste.fake_tts_providers["chatterbox"]
+        chatterbox.voice_pieces = tone_in_three_pieces()
+        voice = np.concatenate(chatterbox.voice_pieces)
+
+    with allure.step("And the LLM answers 'Copy that, Commander.'"):
+        edceleste.use_scripted_model(answer_copy_that)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the voice engine is slow after its first piece"):
+            chatterbox.make_the_voice_slow()
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step(
+            "Then the speakers play the first piece of the voice with the ship effect"
+        ):
+            await edceleste.wait_until(
+                pilot, lambda: speaker.blocks != [], "the first piece in the speakers"
+            )
+            first_piece_with_effect = ShipVoiceEffect(FAKE_SAMPLE_RATE).process(
+                chatterbox.voice_pieces[0]
+            )
+            np.testing.assert_allclose(
+                speaker.everything_played(),
+                first_piece_with_effect * SAVED_VOLUME,
+                atol=1e-5,
+            )
+
+        with allure.step("And the speaker stays open, the voice is not finished"):
+            assert speaker.times_closed == 0
+
+        with allure.step("And when the voice engine makes the rest of the voice"):
+            chatterbox.let_the_voice_finish()
+
+        with allure.step(
+            "Then the speakers play the whole voice with the ship effect and let "
+            "it ring out"
+        ):
+            await edceleste.wait_until(
+                pilot, lambda: speaker.times_closed == 1, "the speakers done playing"
+            )
+            ship_effect = ShipVoiceEffect(FAKE_SAMPLE_RATE)
+            whole_voice_with_effect = np.concatenate(
+                [ship_effect.process(voice), ship_effect.finish()]
+            )
+            np.testing.assert_allclose(
+                speaker.everything_played(),
+                whole_voice_with_effect * SAVED_VOLUME,
+                atol=1e-5,
+            )
 
 
 @allure.title("On a CPU the voice is made whole before it is played, as before")

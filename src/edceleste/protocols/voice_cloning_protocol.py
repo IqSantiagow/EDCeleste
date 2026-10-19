@@ -79,7 +79,7 @@ class VoiceCloningProtocol(Protocol):
 
     async def play_audio_file(self, path_to_audio_file: str) -> None:
         """Plays any audio file with the volume from the settings but without
-        voice lab effects, e.g. the clip the pilot picked before cloning. Waits
+        the ship effect, e.g. the clip the pilot picked before cloning. Waits
         until it ends."""
         ...
 

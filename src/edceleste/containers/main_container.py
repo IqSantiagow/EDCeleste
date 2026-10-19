@@ -15,7 +15,6 @@ from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
-from edceleste.services.voice_lab_service import VoiceLabService
 from edceleste.ui.screens.app.app_header_repository import AppHeaderRepository
 from edceleste.ui.screens.settings.settings_repository import SettingsRepository
 from edceleste.ui.screens.system_check.system_check_repository import (
@@ -81,8 +80,8 @@ from edceleste.use_cases.settings.get_stt_input_devices_use_case import (
 )
 from edceleste.use_cases.settings.get_tts_voices_use_case import GetTTSVoicesUseCase
 from edceleste.use_cases.settings.play_audio_file_use_case import PlayAudioFileUseCase
-from edceleste.use_cases.settings.play_voice_lab_test_use_case import (
-    PlayVoiceLabTestUseCase,
+from edceleste.use_cases.settings.play_voice_test_use_case import (
+    PlayVoiceTestUseCase,
 )
 from edceleste.use_cases.settings.play_sample_voice_use_case import (
     PlaySampleVoiceUseCase,
@@ -124,8 +123,8 @@ MODULES_USING_PROVIDE = [
     "edceleste.ui.screens.settings.widgets.system_prompts.widget_system_prompts_container",  # noqa: E501
     "edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen",
     "edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical",
-    "edceleste.ui.screens.settings.widgets.tts.widget_voice_lab_settings_vertical",  # noqa: E501
     "edceleste.ui.screens.settings.widgets.tts.widget_voice_profiles_vertical",
+    "edceleste.ui.screens.settings.widgets.tts.widget_voice_test_button",
 ]
 
 
@@ -199,16 +198,10 @@ class Container(containers.DeclarativeContainer):
         perform_game_action=perform_game_action,
     )
 
-    voice_lab_service = providers.Singleton(
-        VoiceLabService,
-        settings_service=settings_service,
-    )
-
     tts_service = providers.Singleton(
         TTSService,
         event_bus=event_bus,
         settings_service=settings_service,
-        voice_lab_service=voice_lab_service,
     )
 
     stt_service = providers.Singleton(
@@ -346,8 +339,8 @@ class Container(containers.DeclarativeContainer):
         PlayAudioFileUseCase, voice_cloning_protocol=tts_service
     )
 
-    play_voice_lab_test_use_case = providers.Factory(
-        PlayVoiceLabTestUseCase, voice_lab_test_protocol=tts_service
+    play_voice_test_use_case = providers.Factory(
+        PlayVoiceTestUseCase, voice_test_protocol=tts_service
     )
 
     analyze_voice_sample_use_case = providers.Factory(
@@ -420,7 +413,7 @@ class Container(containers.DeclarativeContainer):
         rename_voice_profile_use_case=rename_voice_profile_use_case,
         play_sample_voice_use_case=play_sample_voice_use_case,
         play_audio_file_use_case=play_audio_file_use_case,
-        play_voice_lab_test_use_case=play_voice_lab_test_use_case,
+        play_voice_test_use_case=play_voice_test_use_case,
         analyze_voice_sample_use_case=analyze_voice_sample_use_case,
         preview_voice_sample_use_case=preview_voice_sample_use_case,
         get_available_device_use_case=get_available_device_use_case,

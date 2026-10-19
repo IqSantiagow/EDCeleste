@@ -22,6 +22,9 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_slider_row import (
     WidgetLabeledSliderRow,
 )
+from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_switch_row import (
+    WidgetLabeledSwitchRow,
+)
 from edceleste.ui.screens.settings.widgets.tts.widget_chatterbox_tts_settings_vertical import (  # noqa: E501
     ChatterboxTTSInputWidgetIds,
     WidgetChatterboxTTSSettingsVertical,
@@ -30,13 +33,12 @@ from edceleste.ui.screens.settings.widgets.tts.widget_edge_tts_settings_vertical
     EdgeTTSInputWidgetIds,
     WidgetEdgeTTSSettingsVertical,
 )
-from edceleste.ui.screens.settings.widgets.tts.widget_voice_lab_settings_vertical import (  # noqa: E501
-    VoiceLabInputWidgetIds,
-    WidgetVoiceLabSettingsVertical,
-)
 from edceleste.ui.screens.settings.widgets.tts.widget_voice_profiles_vertical import (  # noqa: E501
     VoiceProfileInputWidgetIds,
     WidgetVoiceProfilesVertical,
+)
+from edceleste.ui.screens.settings.widgets.tts.widget_voice_test_button import (
+    WidgetVoiceTestButton,
 )
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
@@ -88,6 +90,7 @@ class TTSInputWidgetIds(enum.StrEnum):
     TTS_LOCATION_INPUT = "tts-location-input"
     TTS_PROVIDER_TYPE_INPUT = "tts-provider-type-input"
     VOLUME_INPUT = "volume-input"
+    SHIP_EFFECT_INPUT = "ship-effect-input"
 
 
 class WidgetTTSContainer(WidgetBaseSettingsContainer):
@@ -156,7 +159,13 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 step=0.05,
                 id=TTSInputWidgetIds.VOLUME_INPUT,
             )
-            yield WidgetVoiceLabSettingsVertical(self.tts_model)
+            yield WidgetLabeledSwitchRow(
+                "Ship effect:",
+                self.tts_model.ship_effect,
+                hint="sounds like inside the ship",
+                id=TTSInputWidgetIds.SHIP_EFFECT_INPUT,
+            )
+            yield WidgetVoiceTestButton(self.tts_model)
 
     def on_value_changed(self, message: ValueChanged) -> None:
         params = self.params
@@ -215,14 +224,8 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
             case ChatterboxTTSInputWidgetIds.TTS_NANO_INPUT:
                 if isinstance(params, ChatterboxParamsModel):
                     params.nano = message.new_value
-            case VoiceLabInputWidgetIds.VOICE_LAB_ENABLED_INPUT:
-                self.tts_model.voice_lab.enabled = message.new_value
-            case VoiceLabInputWidgetIds.VOICE_LAB_CLARITY_INPUT:
-                self.tts_model.voice_lab.clarity = message.new_value
-            case VoiceLabInputWidgetIds.VOICE_LAB_REVERB_INPUT:
-                self.tts_model.voice_lab.reverb = message.new_value
-            case VoiceLabInputWidgetIds.VOICE_LAB_STEREO_WIDTH_INPUT:
-                self.tts_model.voice_lab.stereo_width = message.new_value
+            case TTSInputWidgetIds.SHIP_EFFECT_INPUT:
+                self.tts_model.ship_effect = message.new_value
 
         self.post_message(
             SectionSettingsChanged(
@@ -255,12 +258,12 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
 
     def is_modified(self) -> bool:
         """True when the engine differs from the saved one, or any input row of
-        this section (also the rows of the Edge, Chatterbox, Pocket TTS and
-        Voice Lab blocks) differs from its saved value. The settings screen
-        uses it for the section and header markers. The engine is compared
-        here, because every engine switch builds the rows again with the new
-        engine as their saved value, so the rows alone never show the
-        switch."""
+        this section (also the rows of the Edge, Chatterbox and Pocket TTS
+        blocks and the ship effect switch) differs from its saved value. The
+        settings screen uses it for the section and header markers. The engine
+        is compared here, because every engine switch builds the rows again
+        with the new engine as their saved value, so the rows alone never show
+        the switch."""
         return self.tts_model.provider != self.saved_engine or super().is_modified()
 
     def hide_error_and_mark_values_as_saved(self) -> None:
