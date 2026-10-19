@@ -261,9 +261,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
         result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(result.return_value, "Game actions are disabled by the user.")
-        self.assertEqual(
-            result.metadata, {"is_error": True, "game_actions_disabled": True}
-        )
+        self.assertEqual(result.metadata, {"is_error": True})
 
     async def test_should_ask_the_game_state_on_every_call(self):
         self.game_state_protocol.get_game_stats.side_effect = [

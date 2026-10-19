@@ -189,8 +189,8 @@ async def test_should_say_nothing_was_pressed_when_the_game_window_is_not_found(
             assert prompts_sent_to_llm == []
 
 
-@allure.title("With game actions turned off Instinct presses no key")
-async def test_should_press_no_key_when_game_actions_are_off_and_instinct_is_on(
+@allure.title("With game actions turned off Celeste says so and presses no key")
+async def test_should_say_game_actions_are_disabled_and_press_no_key_when_they_are_off(
     edceleste,
 ):
     prompts_sent_to_llm: list[str] = []
@@ -213,23 +213,29 @@ async def test_should_press_no_key_when_game_actions_are_off_and_instinct_is_on(
         with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
             await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
 
-        with allure.step("Then Celeste answers in COMMS"):
+        with allure.step("Then COMMS shows the reply 'Game actions disabled'"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
-                "Celeste's answer in COMMS",
+                "Instinct's reply in COMMS",
             )
-            assert comms_entries(pilot.app, "llm-response") == [LLM_ANSWER]
+            assert comms_entries(pilot.app, "llm-response") == ["Game actions disabled"]
 
-        with allure.step("And Celeste (the LLM) received the message"):
-            assert len(prompts_sent_to_llm) == 1
-            assert DEPLOY_LANDING_GEAR in prompts_sent_to_llm[0]
+        with allure.step("And Celeste says the same text out loud"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: "Game actions disabled" in edceleste.spoken_texts,
+                "the reply spoken",
+            )
 
         with allure.step("And no key is pressed in the game"):
             assert edceleste.fake_keyboard.keyboard_log == []
 
-        with allure.step("And Instinct was not asked"):
-            assert instinct_model.messages_asked == []
+        with allure.step("And Celeste (the LLM) is not asked anything"):
+            assert prompts_sent_to_llm == []
+
+        with allure.step("And Instinct was asked about the message"):
+            assert instinct_model.messages_asked == [DEPLOY_LANDING_GEAR]
 
 
 @allure.title("A model that runs on the CPU is not used for commands")

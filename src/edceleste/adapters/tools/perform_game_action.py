@@ -45,7 +45,7 @@ class PerformGameAction(ToolProtocol):
         if not self.settings_service.get_settings().game_actions.enabled:
             return ToolReturn(
                 return_value="Game actions are disabled by the user.",
-                metadata={"is_error": True, "game_actions_disabled": True},
+                metadata={"is_error": True},
             )
 
         if not self.keybind_service.is_bound(action):

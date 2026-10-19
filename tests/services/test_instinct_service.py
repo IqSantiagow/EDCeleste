@@ -600,34 +600,51 @@ class SwitchQwenKernelsToDeviceTest(unittest.TestCase):
         self.assertEqual(self.qwen_module.torch_recurrent_gated_delta_rule(), "gpu")
 
 
-class CanDecideCommandsTest(unittest.TestCase):
-    # Every test starts from a service that can decide and breaks one condition
+class IsModuleEnabledTest(unittest.TestCase):
+    # Every test starts from a service that is ready and breaks one condition
 
-    def test_is_true_when_on_loaded_on_the_gpu_and_game_actions_are_on(self):
+    def test_is_true_when_on_and_loaded_on_the_gpu(self):
         service = make_fast_command_service()
 
-        self.assertTrue(service.can_decide_commands())
+        self.assertTrue(service.is_module_enabled())
 
     def test_is_false_when_instinct_is_disabled(self):
         service = make_fast_command_service(enabled=False)
 
-        self.assertFalse(service.can_decide_commands())
+        self.assertFalse(service.is_module_enabled())
 
     def test_is_false_when_the_model_runs_on_the_cpu(self):
         service = make_fast_command_service(device="cpu")
 
-        self.assertFalse(service.can_decide_commands())
+        self.assertFalse(service.is_module_enabled())
 
     def test_is_false_when_the_model_is_not_loaded(self):
         service = make_fast_command_service()
         service.decider = None
 
-        self.assertFalse(service.can_decide_commands())
+        self.assertFalse(service.is_module_enabled())
+
+    def test_does_not_care_about_the_game_actions_switch(self):
+        service = make_fast_command_service(game_actions_enabled=False)
+
+        self.assertTrue(service.is_module_enabled())
+
+
+class CanDecideCommandsTest(unittest.TestCase):
+    def test_is_true_when_game_actions_are_on(self):
+        service = make_fast_command_service(game_actions_enabled=True)
+
+        self.assertTrue(service.can_decide_commands())
 
     def test_is_false_when_game_actions_are_off(self):
         service = make_fast_command_service(game_actions_enabled=False)
 
         self.assertFalse(service.can_decide_commands())
+
+    def test_does_not_care_whether_the_model_is_ready(self):
+        service = make_fast_command_service(enabled=False, game_actions_enabled=True)
+
+        self.assertTrue(service.can_decide_commands())
 
 
 class FindActionsWithAKeyTest(unittest.TestCase):
@@ -950,21 +967,40 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply, "Landing gear unavailable")
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
-    async def test_replies_game_actions_disabled_when_they_were_just_switched_off(
+    async def test_replies_game_actions_disabled_for_a_command_when_they_are_off(
         self,
     ):
-        tool = FakePerformGameAction(
-            result=ToolReturn(
-                return_value="Game actions are disabled by the user.",
-                metadata={"is_error": True, "game_actions_disabled": True},
-            )
-        )
-        service = make_fast_command_service(perform_game_action=tool)
+        service = make_fast_command_service(game_actions_enabled=False)
 
-        reply = await service.try_fast_command("deploy landing gear")
+        with self.assertLogs(instinct_service.logger, level="INFO") as logs:
+            reply = await service.try_fast_command("deploy landing gear")
 
         self.assertEqual(reply, "Game actions disabled")
         self.assertIn(reply, REPLY_TEXTS)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.perform_game_action.executed, [])
+        fast_command_lines = [line for line in logs.output if "Fast command" in line]
+        self.assertEqual(len(fast_command_lines), 1)
+        self.assertIn("LandingGearToggle was not done", fast_command_lines[0])
+
+    async def test_sends_talk_to_the_llm_when_game_actions_are_off(self):
+        service = make_fast_command_service(choice="none", game_actions_enabled=False)
+
+        reply = await service.try_fast_command("how much fuel do I have")
+
+        self.assertIsNone(reply)
+        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(service.perform_game_action.executed, [])
+
+    async def test_does_not_ask_the_model_when_the_module_is_off_whatever_the_actions(
+        self,
+    ):
+        service = make_fast_command_service(enabled=False, game_actions_enabled=False)
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertIsNone(reply)
+        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
 
     async def test_names_a_toggle_after_the_direction_it_went(self):
         service = make_fast_command_service(
