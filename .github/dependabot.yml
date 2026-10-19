@@ -6,6 +6,9 @@ updates:
       interval: "weekly"
       day: "sunday"
     open-pull-requests-limit: 5
+    ignore:
+      # scipy 1.17+ needs numpy 2, chatterbox-tts needs numpy 1 on Python 3.12
+      - dependency-name: "scipy"
     groups:
       # One PR for all routine patch/minor bumps, so the queue stays readable.
       minor-and-patch:

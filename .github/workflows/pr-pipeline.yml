@@ -147,8 +147,10 @@ jobs:
     # Run after lint/test succeed (or were skipped for non-PR-open events), on PR events,
     # or on PR comments/review comments only when @claude is mentioned.
     # Issue-only triage lives in issue-triage.yml, not here.
+    # Dependabot runs get no repository secrets (CC_OAUTH_TOKEN), so the review cannot run for them.
     if: |
       always() &&
+      github.actor != 'dependabot[bot]' &&
       (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
       (
