@@ -93,6 +93,18 @@ class ShipProjectionTest(unittest.TestCase):
 
         self.assertEqual(expected_projection, ship_projection.create_projection())
 
+    def test_should_remember_night_vision_from_the_status_flags(self):
+        ship_projection = ShipProjection()
+        self.assertFalse(ship_projection.is_night_vision_on)
+
+        ship_projection.process_event(
+            _status_event(flags=StatusFlags.ShieldsUp | StatusFlags.NightVision)
+        )
+        self.assertTrue(ship_projection.is_night_vision_on)
+
+        ship_projection.process_event(_status_event(flags=StatusFlags.ShieldsUp))
+        self.assertFalse(ship_projection.is_night_vision_on)
+
     def test_should_report_fsd_mass_locked_charging_and_cooldown(self):
         ship_projection = ShipProjection()
 

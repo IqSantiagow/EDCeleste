@@ -245,6 +245,7 @@ class Container(containers.DeclarativeContainer):
         SendPilotMessageUseCase,
         instinct_protocol=instinct_service,
         llm_protocol=llm_service,
+        tts_protocol=tts_service,
     )
 
     stream_llm_responses_use_case = providers.Factory(

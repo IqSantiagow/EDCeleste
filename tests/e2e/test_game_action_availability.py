@@ -20,9 +20,7 @@ STATUS_SUPERCRUISE = 16
 DEPLOY_LANDING_GEAR = "deploy the landing gear"
 LANDING_GEAR_KEYS = ["keyDown shiftleft", "press l", "keyUp shiftleft"]
 
-GEAR_UNAVAILABLE_IN_SUPERCRUISE = (
-    "Landing gear unavailable: the ship is in supercruise."
-)
+GEAR_UNAVAILABLE_IN_SUPERCRUISE = "Landing gear unavailable"
 SCOOP_UNAVAILABLE_WHEN_DOCKED = "Cargo scoop unavailable: the ship is docked."
 
 
@@ -190,18 +188,65 @@ async def test_should_deploy_the_landing_gear_after_the_ship_leaves_supercruise(
         with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
             await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
 
-        with allure.step("Then COMMS shows the reply 'Done: Landing gear toggle'"):
+        with allure.step("Then COMMS shows the reply 'Landing gear deployed'"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Instinct's reply in COMMS",
             )
-            assert comms_entries(pilot.app, "llm-response") == [
-                "Done: Landing gear toggle"
-            ]
+            assert comms_entries(pilot.app, "llm-response") == ["Landing gear deployed"]
 
         with allure.step("And the landing gear key Shift+L is pressed in the game"):
             assert edceleste.fake_keyboard.keyboard_log == LANDING_GEAR_KEYS
 
         with allure.step("And Celeste (the LLM) is not asked anything"):
             assert prompts_sent_to_llm == []
+
+
+@allure.title("Celeste says out loud that the landing gear is unavailable")
+async def test_should_speak_that_the_landing_gear_is_unavailable_in_supercruise(
+    edceleste,
+):
+    with allure.step("Given game actions are allowed in the settings"):
+        edceleste.allow_game_actions()
+
+    with allure.step(
+        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
+    ):
+        instinct_model = edceleste.turn_instinct_on()
+        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the game reports the ship in supercruise"):
+            edceleste.write_status_file(flags=STATUS_SUPERCRUISE)
+            await edceleste.wait_until(
+                pilot,
+                lambda: label_text(pilot.app, "#navigation-status") == "SUPERCRUISE",
+                "SUPERCRUISE in navigation",
+            )
+
+        with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
+            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+
+        with allure.step("Then COMMS shows 'Landing gear unavailable'"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_entries(pilot.app, "llm-response") != [],
+                "Instinct's reply in COMMS",
+            )
+            assert comms_entries(pilot.app, "llm-response") == [
+                GEAR_UNAVAILABLE_IN_SUPERCRUISE
+            ]
+
+        with allure.step("And Celeste says 'Landing gear unavailable' out loud"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: edceleste.spoken_texts != [],
+                "the refusal handed to the voice engine",
+            )
+            assert edceleste.spoken_texts == [GEAR_UNAVAILABLE_IN_SUPERCRUISE]
+
+        with allure.step("And no key is pressed in the game"):
+            assert edceleste.fake_keyboard.keyboard_log == []

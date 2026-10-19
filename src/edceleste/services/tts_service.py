@@ -190,6 +190,49 @@ class TTSService:
         KeyError for a provider type not in TTS_PROVIDER_CLASSES."""
         return TTS_PROVIDER_CLASSES[provider_type]()
 
+    async def speak_reply(self, text: str) -> None:
+        """Says a short reply of a fast command out loud and waits until it has
+        played, with the saved volume and the ship effect (when it is on).
+
+        1. The voice of the saved settings has a prepared clip of this text
+           (find_prepared_reply_clip) -> the clip is read from disk and played.
+           No model runs, so it starts at once.
+        2. Otherwise (the profile was cloned before this text was added, the
+           replies were never made, or the file is gone) -> the text is spoken
+           live by synthesize_and_play(), which is slower but still comes.
+        Raises RuntimeError when reload_service() has not built the provider
+        yet and the clip is missing. A clip that cannot be read raises the error
+        of soundfile, and the reply is not spoken then. Provider and speaker
+        errors are raised."""
+        clip_path = self.find_prepared_reply_clip(text)
+        if clip_path is None:
+            await self.synthesize_and_play(text)
+            return
+
+        tts_settings = self.__settings_service.get_settings().tts
+        samples, sample_rate = await asyncio.to_thread(sf.read, str(clip_path))
+        await self.play_samples(
+            samples,
+            sample_rate,
+            tts_settings.volume,
+            with_ship_effect=tts_settings.ship_effect,
+        )
+
+    def find_prepared_reply_clip(self, text: str) -> Path | None:
+        """The wav file made by prepare_replies() for this text in the replies
+        folder of the voice in the saved settings, e.g.
+        voices/pocket/celeste/replies/landing_gear_deployed.wav. The voice is
+        the profile of a cloning provider, or the voice name of Edge. None when
+        the file is not there (a text that is not in REPLY_TEXTS, or replies
+        that were never made). Only checks the disk. Raises ValueError for a
+        profile name that is empty or ".." (see build_profile_folder)."""
+        params = self.__settings_service.get_settings().tts.params
+        profile_name = params.voice if params.type == "edge" else params.profile
+        clip_path = self.build_replies_folder(params.type, profile_name) / (
+            build_reply_wav_file_name(text)
+        )
+        return clip_path if clip_path.is_file() else None
+
     async def synthesize_and_play(self, text: str) -> None:
         """Turns the text into speech AND plays it on the speakers, with the
         ship effect (when it is switched on in the saved settings) and the saved

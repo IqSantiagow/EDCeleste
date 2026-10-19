@@ -83,14 +83,14 @@ sequenceDiagram
     STT->>Instinct: text + game state
     alt a command
         Instinct->>Game: press the bound key (~30 ms decision)
-        Instinct-->>Pilot: "Done: Landing gear toggle"
+        Instinct-->>Pilot: "Landing gear deployed" (spoken and in COMMS)
     else talk, a question, or Instinct not ready
         Instinct->>Celeste: the message, unchanged
         Celeste-->>Pilot: spoken answer
     end
 ```
 
-Instinct presses a key only when the model picks a ship action. When the model picks `none`, is not downloaded or loaded yet, runs on the CPU (too slow), is too slow (more than 1 s), or game actions are switched off in the settings, the message goes to Celeste as it always did, so nothing gets worse when it is off. The reply Celeste shows for a pressed key is short and neutral ("Done: Landing gear toggle"), because the toggle's direction is checked in [M1.3](https://github.com/IqSantiagow/EDCeleste/issues/113). It is not spoken yet. When the pilot asks for an action while the game is not running, the reply says so at once ("Game window not found, nothing was pressed.") instead of waiting for Celeste to find out.
+Instinct presses a key only when the model picks a ship action. When the model picks `none`, is not downloaded or loaded yet, runs on the CPU (too slow), is too slow (more than 1 s), or game actions are switched off in the settings, the message goes to Celeste as it always did, so nothing gets worse when it is off. The reply is short and the same in COMMS and in the speakers ("Landing gear deployed"). A toggle is named after the direction it went, read from the ship before the key was pressed. A refused action says so ("Landing gear unavailable"). Celeste plays the clip prepared for this text in the folder of the voice (`voices/<provider>/<profile>/replies/`), which starts at once. When the clip is missing, for example in a profile cloned before the text was added, Celeste speaks the text live, which is slower. A reply "already deployed" does not exist yet: the model picks a toggle, not its direction. When the pilot asks for an action while the game is not running, the reply says so at once ("Game window not found, nothing was pressed.") instead of waiting for Celeste to find out.
 
 ### Who handles what
 
