@@ -22,6 +22,14 @@ class TTSProtocol(BaseServiceProtocol, Protocol):
         on the first speech."""
         ...
 
+    async def speak_reply(self, text: str) -> None:
+        """Says a short reply of a fast command out loud and returns when it has
+        played. When the voice of the saved settings has a prepared clip of
+        this text (see REPLY_TEXTS) the clip is played, which starts at once.
+        Otherwise the text is spoken live, which is slower. Raises what the
+        provider raises."""
+        ...
+
     async def fetch_edge_tts_voice_names(self) -> list[str]:
         """Downloads the edge-tts voice list over the network and returns the
         voice short names, e.g. "en-US-AriaNeural". Works for any active
