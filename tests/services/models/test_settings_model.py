@@ -15,7 +15,6 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
     SttModel,
     TTSModel,
-    VoiceLabModel,
 )
 
 
@@ -193,7 +192,7 @@ class TestTTSModel(unittest.TestCase):
         self.assertEqual(edge_dump["provider"], "edge")
         self.assertEqual(chatterbox_dump["provider"], "chatterbox")
 
-    def test_voice_lab_is_on_with_the_fitted_sound_when_key_absent(self):
+    def test_ship_effect_is_on_when_the_key_is_absent(self):
         tts_model = TTSModel.model_validate(
             {
                 "provider": "edge",
@@ -202,20 +201,30 @@ class TestTTSModel(unittest.TestCase):
             }
         )
 
-        self.assertTrue(tts_model.voice_lab.enabled)
-        self.assertEqual(tts_model.voice_lab.clarity, 0.5)
-        self.assertEqual(tts_model.voice_lab.reverb, 0.5)
-        self.assertEqual(tts_model.voice_lab.stereo_width, 0.5)
+        self.assertIs(tts_model.ship_effect, True)
 
-    def test_voice_lab_rejects_a_slider_above_one(self):
-        with self.assertRaises(ValidationError):
-            VoiceLabModel(clarity=1.5)
-
-    def test_voice_lab_rejects_assigning_a_negative_slider(self):
+    def test_ship_effect_round_trips_through_model_dump(self):
         tts_model = _make_tts_model()
+        tts_model.ship_effect = False
 
-        with self.assertRaises(ValidationError):
-            tts_model.voice_lab.reverb = -0.1
+        dumped = tts_model.model_dump()
+        loaded = TTSModel.model_validate(dumped)
+
+        self.assertIs(dumped["ship_effect"], False)
+        self.assertIs(loaded.ship_effect, False)
+
+    def test_an_old_voice_lab_block_in_the_config_is_ignored(self):
+        tts_model = TTSModel.model_validate(
+            {
+                "provider": "edge",
+                "params": {"voice": "en-GB-SoniaNeural"},
+                "volume": 1.0,
+                "voice_lab": {"enabled": False, "clarity": 0.9},
+            }
+        )
+
+        self.assertIs(tts_model.ship_effect, True)
+        self.assertNotIn("voice_lab", tts_model.model_dump())
 
 
 class TestSttModel(unittest.TestCase):

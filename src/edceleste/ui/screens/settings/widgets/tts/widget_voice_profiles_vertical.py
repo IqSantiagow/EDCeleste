@@ -202,8 +202,8 @@ class ProfileRow(Horizontal):
     @work
     async def play_the_sample_saved_with_this_profile(self) -> None:
         """Worker. Plays the demo sample saved with the profile when it was
-        cloned, through the speakers, at the saved volume and without Voice Lab
-        effects, and returns when the sound ends. No sample file -> a
+        cloned, through the speakers, at the saved volume and without the ship
+        effect, and returns when the sound ends. No sample file -> a
         notification. An engine that cannot clone voices -> its error as a
         notification. Other errors (e.g. no audio device) are not caught."""
         try:

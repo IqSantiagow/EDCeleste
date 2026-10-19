@@ -30,7 +30,6 @@ from edceleste.services.models.settings_model import (
     SttModel,
     TTSModel,
     TtsProviderParams,
-    VoiceLabModel,
 )
 from edceleste.services.models.voice_cloning_models import VoiceCloningState
 from edceleste.services.settings_service import SettingsService
@@ -39,19 +38,19 @@ from edceleste.services.tts_providers.chatterbox_tts_provider import (
 )
 from edceleste.services.tts_providers.edge_tts_provider import EdgeTTSProvider
 from edceleste.services.tts_providers.pocket_tts_provider import PocketTTSProvider
+from edceleste.services.ship_voice_effect import TAIL_SECONDS
 from edceleste.services.tts_service import (
     DEFAULT_VOICE_SAMPLE_TEXT,
     SILENCE_FLOOR_DBFS,
     TTSEvent,
     TTSService,
+    VOICE_TEST_TEXT,
     WARM_UP_TEXT,
-    VOICE_LAB_TEST_TEXT,
     calculate_noise_floor_dbfs,
     find_voices_directory,
     calculate_peak_dbfs,
     calculate_waveform_envelope,
 )
-from edceleste.services.voice_lab_service import VoiceLabService
 
 VOICE = "en-US-AriaNeural"
 SAVED_VOLUME = 0.6
@@ -67,7 +66,7 @@ def _make_chatterbox_params(profile: str = "celeste") -> ChatterboxParamsModel:
 
 
 def _make_settings(
-    params: TtsProviderParams | None = None, voice_lab_enabled: bool = False
+    params: TtsProviderParams | None = None, ship_effect: bool = False
 ) -> SettingsModel:
     params = params or _make_edge_params()
     settings = SettingsModel(
@@ -78,7 +77,7 @@ def _make_settings(
         ),
         stt=SttModel(model="tiny.en"),
     )
-    settings.tts.voice_lab.enabled = voice_lab_enabled
+    settings.tts.ship_effect = ship_effect
     return settings
 
 
@@ -104,11 +103,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = _make_settings()
 
-        self.voice_lab_service = Mock(spec=VoiceLabService)
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
-            voice_lab_service=self.voice_lab_service,
         )
         self.service.reload_service()
 
@@ -186,7 +183,6 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         service = TTSService(
             event_bus=event_bus,
             settings_service=self.settings_service,
-            voice_lab_service=self.voice_lab_service,
         )
         service.synthesize_and_play = AsyncMock()
 
@@ -270,12 +266,14 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         await self.service.synthesize_and_play("Hello")
 
         self.service.play_samples.assert_awaited_once_with(
-            samples, SAMPLE_RATE, SAVED_VOLUME, apply_voice_lab_effects=False
+            samples, SAMPLE_RATE, SAVED_VOLUME, with_ship_effect=False
         )
 
-    async def test_synthesize_and_play_applies_voice_lab_effects_when_enabled(self):
+    async def test_synthesize_and_play_asks_for_the_ship_effect_when_it_is_switched_on(
+        self,
+    ):
         self.settings_service.get_settings.return_value = _make_settings(
-            voice_lab_enabled=True
+            ship_effect=True
         )
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
@@ -284,8 +282,25 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         await self.service.synthesize_and_play("Hello")
 
-        self.assertTrue(
-            self.service.play_samples.await_args.kwargs["apply_voice_lab_effects"]
+        self.assertIs(
+            self.service.play_samples.await_args.kwargs["with_ship_effect"], True
+        )
+
+    async def test_synthesize_and_play_leaves_the_ship_effect_out_when_switched_off(
+        self,
+    ):
+        self.settings_service.get_settings.return_value = _make_settings(
+            ship_effect=False
+        )
+        provider = Mock(spec=EdgeTTSProvider)
+        provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
+        self.service.provider = provider
+        self.service.play_samples = AsyncMock()
+
+        await self.service.synthesize_and_play("Hello")
+
+        self.assertIs(
+            self.service.play_samples.await_args.kwargs["with_ship_effect"], False
         )
 
     async def test_synthesize_and_play_propagates_error_raised_by_the_provider(self):
@@ -301,58 +316,98 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     # --- playback ---
 
-    async def test_play_samples_plays_at_volume_without_effects_when_not_asked(self):
+    async def test_play_samples_plays_the_plain_samples_by_default(self):
         samples = np.full(10, 0.5)
+        self.service.add_ship_effect_to_whole_audio = Mock()
 
-        await self.service.play_samples(
-            samples, SAMPLE_RATE, 0.5, apply_voice_lab_effects=False
-        )
+        await self.service.play_samples(samples, SAMPLE_RATE, 0.5)
 
-        self.voice_lab_service.apply_effects.assert_not_called()
+        self.service.add_ship_effect_to_whole_audio.assert_not_called()
         played_samples, played_rate = self.sounddevice.play.call_args.args
         np.testing.assert_allclose(played_samples, np.full(10, 0.25))
         self.assertEqual(played_rate, SAMPLE_RATE)
 
-    async def test_play_samples_applies_voice_lab_effects_when_asked(self):
+    async def test_play_samples_adds_the_ship_effect_to_the_whole_audio_when_asked(
+        self,
+    ):
         samples = np.full(10, 0.5)
-        with_effects = np.full(30, 1.0)
-        self.voice_lab_service.apply_effects.return_value = with_effects
+        with_effect = np.full((30, 2), 1.0)
+        self.service.add_ship_effect_to_whole_audio = Mock(return_value=with_effect)
 
         await self.service.play_samples(
-            samples, SAMPLE_RATE, 0.5, apply_voice_lab_effects=True
+            samples, SAMPLE_RATE, 0.5, with_ship_effect=True
         )
 
-        self.voice_lab_service.apply_effects.assert_called_once_with(
+        self.service.add_ship_effect_to_whole_audio.assert_called_once_with(
             samples, SAMPLE_RATE
         )
-        played_samples, _ = self.sounddevice.play.call_args.args
-        np.testing.assert_allclose(played_samples, np.full(30, 0.5))
+        played_samples, played_rate = self.sounddevice.play.call_args.args
+        np.testing.assert_allclose(played_samples, np.full((30, 2), 0.5))
+        self.assertEqual(played_rate, SAMPLE_RATE)
+
+    async def test_play_samples_waits_for_the_length_of_the_audio_with_the_tail(self):
+        self.service.add_ship_effect_to_whole_audio = Mock(
+            return_value=np.zeros((50, 2))
+        )
+
+        with patch("edceleste.services.tts_service.asyncio.sleep") as sleep:
+            sleep.return_value = None
+            await self.service.play_samples(
+                np.zeros(10), SAMPLE_RATE, 0.5, with_ship_effect=True
+            )
+
+        sleep.assert_called_once_with(50 / SAMPLE_RATE)
+
+    def test_add_ship_effect_to_whole_audio_returns_stereo_longer_by_the_tail(self):
+        samples = (np.random.default_rng(1).standard_normal(2400) * 0.1).astype(
+            np.float32
+        )
+
+        with_effect = self.service.add_ship_effect_to_whole_audio(samples, 24000)
+
+        self.assertEqual(
+            with_effect.shape, (len(samples) + int(TAIL_SECONDS * 24000), 2)
+        )
+        self.assertEqual(with_effect.dtype, np.float32)
+
+    def test_add_ship_effect_to_whole_audio_leaves_the_input_unchanged(self):
+        samples = (np.random.default_rng(2).standard_normal(2400) * 0.1).astype(
+            np.float32
+        )
+        copy_of_samples = samples.copy()
+
+        self.service.add_ship_effect_to_whole_audio(samples, 24000)
+
+        np.testing.assert_array_equal(samples, copy_of_samples)
 
     async def test_play_audio_file_plays_the_file_at_saved_volume_without_effects(
         self,
     ):
         audio_path = self.input_dir / "clip.wav"
         _write_wav(audio_path, 0.01, amplitude=0.5)
+        self.service.add_ship_effect_to_whole_audio = Mock()
 
         await self.service.play_audio_file(str(audio_path))
 
-        self.voice_lab_service.apply_effects.assert_not_called()
+        self.service.add_ship_effect_to_whole_audio.assert_not_called()
         played_samples, played_rate = self.sounddevice.play.call_args.args
         np.testing.assert_allclose(
             played_samples, np.full(10, 0.5 * SAVED_VOLUME), atol=1e-3
         )
         self.assertEqual(played_rate, SAMPLE_RATE)
 
-    async def test_play_audio_file_turns_voice_lab_effects_off_explicitly(self):
+    async def test_play_audio_file_never_asks_for_the_ship_effect(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            ship_effect=True
+        )
         audio_path = self.input_dir / "clip.wav"
         _write_wav(audio_path, 0.01)
         self.service.play_samples = AsyncMock()
 
         await self.service.play_audio_file(str(audio_path))
 
-        self.assertIs(
-            self.service.play_samples.await_args.kwargs["apply_voice_lab_effects"],
-            False,
+        self.assertFalse(
+            self.service.play_samples.await_args.kwargs.get("with_ship_effect", False)
         )
 
     async def test_play_audio_file_raises_when_file_is_missing(self):
@@ -1303,6 +1358,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_preview_voice_sample_plays_without_effects_at_saved_volume(self):
         provider = self._use_saved_chatterbox()
+        self.settings_service.get_settings.return_value = _make_settings(
+            _make_chatterbox_params(), ship_effect=True
+        )
         samples = np.zeros(5)
         provider.synthesize.return_value = (samples, SAMPLE_RATE)
         self.service.play_samples = AsyncMock()
@@ -1310,7 +1368,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         await self.service.preview_voice_sample("nova", "Hi", _make_chatterbox_params())
 
         self.service.play_samples.assert_awaited_once_with(
-            samples, SAMPLE_RATE, SAVED_VOLUME, apply_voice_lab_effects=False
+            samples, SAMPLE_RATE, SAVED_VOLUME
         )
 
     async def test_preview_voice_sample_writes_nothing_to_disk(self):
@@ -1353,20 +1411,20 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(provider, EdgeTTSProvider)
 
-    # --- play_voice_lab_test_sentence ---
+    # --- play_voice_test_sentence ---
 
     def _make_screen_tts(
         self,
         params: TtsProviderParams,
         volume: float = 0.3,
-        voice_lab: VoiceLabModel | None = None,
+        ship_effect: bool = True,
     ) -> TTSModel:
         """The TTS settings as they are on the screen, not the saved ones."""
         return TTSModel(
             provider=params.type,
             params=params,
             volume=volume,
-            voice_lab=voice_lab or VoiceLabModel(),
+            ship_effect=ship_effect,
         )
 
     def _use_working_edge_provider(self) -> Mock:
@@ -1378,81 +1436,83 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.provider = provider
         return provider
 
-    async def test_voice_lab_test_speaks_the_test_text_with_the_screen_params(
-        self,
-    ):
+    async def test_voice_test_speaks_the_test_text_with_the_screen_params(self):
         provider = self._use_working_edge_provider()
         self.service.play_samples = AsyncMock()
         screen_params = _make_edge_params("en-GB-SoniaNeural")
 
-        await self.service.play_voice_lab_test_sentence(
+        await self.service.play_voice_test_sentence(
             self._make_screen_tts(screen_params)
         )
 
         text, used_params, profile_path = provider.synthesize.await_args.args
-        self.assertEqual(text, VOICE_LAB_TEST_TEXT)
+        self.assertEqual(text, VOICE_TEST_TEXT)
         self.assertIs(used_params, screen_params)
         self.assertIsNone(profile_path)
 
-    async def test_voice_lab_test_uses_the_profile_file_of_the_screen_params(
-        self,
-    ):
+    async def test_voice_test_uses_the_profile_file_of_the_screen_params(self):
         provider = self._use_saved_chatterbox()
         self.service.play_samples = AsyncMock()
 
-        await self.service.play_voice_lab_test_sentence(
+        await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_chatterbox_params("nova"))
         )
 
         profile_path = provider.synthesize.await_args.args[2]
         self.assertEqual(profile_path, self.profiles_dir / "nova" / "profile.pt")
 
-    async def test_voice_lab_test_adds_the_effects_from_the_screen_not_saved_ones(
-        self,
-    ):
+    async def test_voice_test_plays_the_voice_at_the_screen_volume(self):
         provider = self._use_working_edge_provider()
-        samples = np.zeros(10)
+        samples = np.full(30, 0.5)
         provider.synthesize.return_value = (samples, SAMPLE_RATE)
         self.service.play_samples = AsyncMock()
-        screen_tts = self._make_screen_tts(
-            _make_edge_params(), voice_lab=VoiceLabModel(enabled=True, clarity=0.9)
-        )
 
-        await self.service.play_voice_lab_test_sentence(screen_tts)
-
-        self.voice_lab_service.apply_effects.assert_called_once()
-        effects_input, effects_rate, effects_voice_lab = (
-            self.voice_lab_service.apply_effects.call_args.args
-        )
-        self.assertIs(effects_input, samples)
-        self.assertEqual(effects_rate, SAMPLE_RATE)
-        self.assertIs(effects_voice_lab, screen_tts.voice_lab)
-
-    async def test_voice_lab_test_plays_the_result_at_the_screen_volume(
-        self,
-    ):
-        self._use_working_edge_provider()
-        with_effects = np.full(30, 0.5)
-        self.voice_lab_service.apply_effects.return_value = with_effects
-        self.service.play_samples = AsyncMock()
-
-        await self.service.play_voice_lab_test_sentence(
+        await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_edge_params(), volume=0.3)
         )
 
-        self.service.play_samples.assert_awaited_once_with(
-            with_effects, SAMPLE_RATE, 0.3, apply_voice_lab_effects=False
+        self.service.play_samples.assert_awaited_once()
+        self.assertIs(self.service.play_samples.await_args.args[0], samples)
+        self.assertEqual(
+            self.service.play_samples.await_args.args[1:], (SAMPLE_RATE, 0.3)
         )
 
-    async def test_voice_lab_test_uses_a_throwaway_provider_for_an_unsaved_engine(
+    async def test_voice_test_asks_for_the_ship_effect_from_the_screen_when_on(self):
+        self._use_working_edge_provider()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.play_voice_test_sentence(
+            self._make_screen_tts(_make_edge_params(), ship_effect=True)
+        )
+
+        self.assertIs(
+            self.service.play_samples.await_args.kwargs["with_ship_effect"], True
+        )
+
+    async def test_voice_test_leaves_the_ship_effect_out_when_the_screen_has_it_off(
         self,
     ):
+        self.settings_service.get_settings.return_value = _make_settings(
+            _make_edge_params(), ship_effect=True
+        )
+        self._use_working_edge_provider()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.play_voice_test_sentence(
+            self._make_screen_tts(_make_edge_params(), ship_effect=False)
+        )
+
+        self.assertIs(
+            self.service.play_samples.await_args.kwargs["with_ship_effect"], False
+        )
+
+    async def test_voice_test_uses_a_throwaway_provider_for_an_unsaved_engine(self):
         active_provider = self._use_working_edge_provider()
         throwaway_provider = _make_fake_cloning_provider()
         self.service.build_provider = Mock(return_value=throwaway_provider)
         self.service.play_samples = AsyncMock()
 
-        await self.service.play_voice_lab_test_sentence(
+        await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_chatterbox_params("nova"))
         )
 
@@ -1460,9 +1520,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         throwaway_provider.synthesize.assert_awaited_once()
         active_provider.synthesize.assert_not_awaited()
 
-    async def test_voice_lab_test_raises_value_error_when_engine_is_not_set_up(
-        self,
-    ):
+    async def test_voice_test_raises_value_error_when_engine_is_not_set_up(self):
         provider = self._use_saved_chatterbox()
         self.service.play_samples = AsyncMock()
         screen_params = _make_chatterbox_params("")
@@ -1470,7 +1528,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(problem)
 
         with self.assertRaises(ValueError) as raised:
-            await self.service.play_voice_lab_test_sentence(
+            await self.service.play_voice_test_sentence(
                 self._make_screen_tts(screen_params)
             )
 
@@ -1478,15 +1536,13 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider.synthesize.assert_not_awaited()
         self.service.play_samples.assert_not_awaited()
 
-    async def test_voice_lab_test_propagates_provider_error_and_plays_nothing(
-        self,
-    ):
+    async def test_voice_test_propagates_provider_error_and_plays_nothing(self):
         provider = self._use_working_edge_provider()
         provider.synthesize.side_effect = RuntimeError("network down")
         self.service.play_samples = AsyncMock()
 
         with self.assertRaises(RuntimeError):
-            await self.service.play_voice_lab_test_sentence(
+            await self.service.play_voice_test_sentence(
                 self._make_screen_tts(_make_edge_params())
             )
 
@@ -1709,12 +1765,9 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service.get_settings.return_value = _make_settings(
             _make_chatterbox_params()
         )
-        self.voice_lab_service = Mock(spec=VoiceLabService)
-        self.voice_lab_service.apply_effects.side_effect = lambda samples, rate: samples
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
-            voice_lab_service=self.voice_lab_service,
         )
         self.service.reload_service()
         self.provider = _make_fake_cloning_provider()
@@ -1776,9 +1829,41 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.service.open_speaker = Mock(return_value=speaker)
         return speaker
 
-    async def _speak(self, volume=SAVED_VOLUME):
+    def _use_a_fake_ship_effect(self):
+        """The ship effect is replaced by a fake, because the real one needs a real
+        sample rate. The fake doubles every piece and gives it as two columns,
+        keeps the pieces it was given and rings on for 3 samples. Every effect
+        made is added to self.made_effects."""
+        self.made_effects: list = []
+        made_effects = self.made_effects
+
+        class FakeShipVoiceEffect:
+            def __init__(self, sample_rate):
+                self.sample_rate = sample_rate
+                self.pieces_given: list[np.ndarray] = []
+                made_effects.append(self)
+
+            def process(self, piece):
+                self.pieces_given.append(piece)
+                return np.stack([piece * 2, piece * 2], axis=1)
+
+            def finish(self):
+                return np.full((3, 2), 0.7, dtype=np.float32)
+
+        effect_patch = patch(
+            "edceleste.services.tts_service.ShipVoiceEffect", FakeShipVoiceEffect
+        )
+        effect_patch.start()
+        self.addCleanup(effect_patch.stop)
+
+    async def _speak(self, volume=SAVED_VOLUME, with_ship_effect=False):
         await self.service.speak_while_synthesizing(
-            self.provider, "Hello", _make_chatterbox_params(), volume, None
+            self.provider,
+            "Hello",
+            _make_chatterbox_params(),
+            volume,
+            None,
+            with_ship_effect,
         )
 
     # --- synthesize_and_play chooses the way ---
@@ -1809,6 +1894,21 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         np.testing.assert_allclose(
             np.concatenate(self.played_pieces), np.full(30, 0.5 * SAVED_VOLUME)
         )
+
+    async def test_synthesize_and_play_streams_through_the_ship_effect_when_on(
+        self,
+    ):
+        self.settings_service.get_settings.return_value = _make_settings(
+            _make_chatterbox_params(), ship_effect=True
+        )
+        self._use_a_fake_ship_effect()
+        self._make_provider_speak([np.full(10, 0.5, dtype=np.float32)])
+        self._use_a_fake_player()
+
+        await self.service.synthesize_and_play("Hello")
+
+        self.assertEqual(len(self.made_effects), 1)
+        self.assertEqual(self.made_effects[0].sample_rate, SAMPLE_RATE)
 
     async def test_synthesize_and_play_makes_the_whole_audio_when_it_cannot_stream(
         self,
@@ -1841,44 +1941,55 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             np.concatenate(self.played_pieces), (np.arange(30) / 100) * 0.5, atol=1e-6
         )
 
-    async def test_speak_while_synthesizing_runs_the_effects_on_all_the_audio_so_far(
+    async def test_speak_while_synthesizing_runs_all_pieces_through_one_new_effect(
         self,
     ):
-        self._make_provider_speak(
-            [np.zeros(10, dtype=np.float32), np.zeros(20, dtype=np.float32)]
-        )
+        self._use_a_fake_ship_effect()
+        first_piece = np.arange(10, dtype=np.float32) / 100
+        second_piece = np.arange(10, 30, dtype=np.float32) / 100
+        self._make_provider_speak([first_piece, second_piece])
         self._use_a_fake_player()
 
-        await self._speak()
+        await self._speak(volume=0.5, with_ship_effect=True)
 
-        effect_calls = self.voice_lab_service.apply_effects.call_args_list
-        self.assertEqual([len(call.args[0]) for call in effect_calls], [10, 30])
-        self.assertEqual([call.args[1] for call in effect_calls], [SAMPLE_RATE] * 2)
-
-    async def test_speak_while_synthesizing_queues_the_tail_of_the_effects_at_the_end(
-        self,
-    ):
-        self._make_provider_speak(
-            [
-                (np.arange(10) / 100).astype(np.float32),
-                (np.arange(10, 30) / 100).astype(np.float32),
-            ]
-        )
-        self._use_a_fake_player()
-        # The reverb rings on: the effects make the audio 5 samples longer
-        self.voice_lab_service.apply_effects.side_effect = lambda samples, rate: (
-            np.concatenate([samples, np.full(5, 0.7, dtype=np.float32)])
-        )
-
-        await self._speak(volume=0.5)
-
-        expected = np.concatenate([np.arange(30) / 100, np.full(5, 0.7)]) * 0.5
+        self.assertEqual(len(self.made_effects), 1)
+        effect = self.made_effects[0]
+        self.assertEqual(effect.sample_rate, SAMPLE_RATE)
+        self.assertEqual([len(piece) for piece in effect.pieces_given], [10, 20])
+        np.testing.assert_array_equal(effect.pieces_given[0], first_piece)
+        np.testing.assert_array_equal(effect.pieces_given[1], second_piece)
+        queued = np.concatenate(self.played_pieces[:2])
         np.testing.assert_allclose(
-            np.concatenate(self.played_pieces), expected, atol=1e-6
+            queued[:, 0], (np.arange(30) / 100) * 2 * 0.5, atol=1e-6
         )
-        np.testing.assert_allclose(self.played_pieces[-1], np.full(5, 0.35), atol=1e-6)
 
-    async def test_speak_while_synthesizing_handles_stereo_output_of_the_effects(self):
+    async def test_speak_while_synthesizing_starts_no_player_when_the_effect_fails(
+        self,
+    ):
+        class BrokenShipVoiceEffect:
+            def __init__(self, sample_rate):
+                raise ValueError("sample rate not supported")
+
+        effect_patch = patch(
+            "edceleste.services.tts_service.ShipVoiceEffect", BrokenShipVoiceEffect
+        )
+        effect_patch.start()
+        self.addCleanup(effect_patch.stop)
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)])
+        self._use_a_fake_player()
+
+        with self.assertRaises(ValueError):
+            await self._speak(with_ship_effect=True)
+        # A player that was started would have run by now
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(self.player_sample_rates, [])
+        self.assertEqual(self.stream_calls, [])
+
+    async def test_speak_while_synthesizing_queues_the_tail_of_the_effect_at_the_end(
+        self,
+    ):
+        self._use_a_fake_ship_effect()
         self._make_provider_speak(
             [
                 (np.arange(10) / 100).astype(np.float32),
@@ -1887,21 +1998,51 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         )
         self._use_a_fake_player()
 
-        def make_stereo_with_a_tail(samples, rate):
-            stereo = np.stack([samples, samples], axis=1)
-            return np.concatenate([stereo, np.full((4, 2), 0.9, dtype=np.float32)])
-
-        self.voice_lab_service.apply_effects.side_effect = make_stereo_with_a_tail
-
-        await self._speak(volume=0.5)
+        await self._speak(volume=0.5, with_ship_effect=True)
 
         queued = np.concatenate(self.played_pieces)
-        self.assertEqual(queued.shape, (34, 2))
-        np.testing.assert_allclose(
-            queued[:30, 0], (np.arange(30) / 100) * 0.5, atol=1e-6
+        self.assertEqual(queued.shape, (33, 2))
+        np.testing.assert_allclose(self.played_pieces[-1], np.full((3, 2), 0.35))
+
+    async def test_speak_while_synthesizing_queues_stereo_pieces_of_the_effect(self):
+        self._use_a_fake_ship_effect()
+        self._make_provider_speak([(np.arange(10) / 100).astype(np.float32)])
+        self._use_a_fake_player()
+
+        await self._speak(with_ship_effect=True)
+
+        self.assertEqual(self.played_pieces[0].shape, (10, 2))
+        np.testing.assert_array_equal(
+            self.played_pieces[0][:, 0], self.played_pieces[0][:, 1]
         )
-        np.testing.assert_allclose(queued[:30, 1], queued[:30, 0])
-        np.testing.assert_allclose(queued[30:], np.full((4, 2), 0.45), atol=1e-6)
+
+    async def test_speak_while_synthesizing_leaves_the_pieces_alone_without_the_effect(
+        self,
+    ):
+        self._use_a_fake_ship_effect()
+        self._make_provider_speak(
+            [np.full(10, 0.5, dtype=np.float32), np.full(20, 0.5, dtype=np.float32)]
+        )
+        self._use_a_fake_player()
+
+        await self._speak(volume=0.5, with_ship_effect=False)
+
+        self.assertEqual(self.made_effects, [])
+        queued = np.concatenate(self.played_pieces)
+        self.assertEqual(queued.shape, (30,))
+        np.testing.assert_allclose(queued, np.full(30, 0.25))
+
+    async def test_every_reply_gets_a_new_effect(self):
+        self._use_a_fake_ship_effect()
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)])
+        self._use_a_fake_player()
+
+        await self._speak(with_ship_effect=True)
+        self._use_a_fake_player()
+        await self._speak(with_ship_effect=True)
+
+        self.assertEqual(len(self.made_effects), 2)
+        self.assertIsNot(self.made_effects[0], self.made_effects[1])
 
     async def test_speak_while_synthesizing_ends_the_player_after_the_last_piece(self):
         self._make_provider_speak([np.zeros(10, dtype=np.float32)])
@@ -1920,11 +2061,6 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
 
         await self._speak()
 
-        effect_calls = self.voice_lab_service.apply_effects.call_args_list
-        self.assertEqual(
-            [effect_call.args[0].dtype for effect_call in effect_calls],
-            [np.dtype(np.float32)] * 2,
-        )
         self.assertEqual(
             {piece.dtype for piece in self.played_pieces}, {np.dtype(np.float32)}
         )
@@ -2213,7 +2349,6 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
-            voice_lab_service=Mock(spec=VoiceLabService),
         )
         self.service.reload_service()
 

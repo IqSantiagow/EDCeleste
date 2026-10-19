@@ -51,7 +51,7 @@ MIN_SPEECH_SECONDS_TO_JUDGE_SPEED = 2.0
 SILENCE_AFTER_CLIP_SECONDS = 0.5
 # The decoder of the model starts every speech with the same tick, whatever the
 # text: 8 samples (0.3 ms, about -42 dBFS). In a silent room it is heard as a
-# click before the voice, and the Voice Lab does not remove it. The speech comes
+# click before the voice, and the ship effect does not remove it. The speech comes
 # in from silence over this time.
 FADE_IN_SECONDS = 0.010
 

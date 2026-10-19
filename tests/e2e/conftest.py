@@ -481,10 +481,15 @@ class EdCelesteTestEnvironment:
         self.container.llm_service().build_model = lambda provider: scripted_model
 
     async def remember_played_audio(
-        self, samples, sample_rate, volume, apply_voice_lab_effects
+        self, samples, sample_rate, volume, with_ship_effect=False
     ) -> None:
         self.played_audio.append(
-            {"volume": volume, "sample_rate": sample_rate, "samples": samples}
+            {
+                "volume": volume,
+                "sample_rate": sample_rate,
+                "samples": samples,
+                "with_ship_effect": with_ship_effect,
+            }
         )
 
     async def edge_voices_without_network(self) -> list[str]:

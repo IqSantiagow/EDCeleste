@@ -2,7 +2,8 @@ import unittest
 from unittest.mock import patch
 
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
+from textual.widgets import Switch
 
 from edceleste.services.models.settings_model import (
     DEFAULT_EDGE_VOICE,
@@ -11,11 +12,16 @@ from edceleste.services.models.settings_model import (
     PocketParamsModel,
     TTSModel,
 )
+from edceleste.ui.screens.settings.events.settings_events import SectionSettingsChanged
+from edceleste.ui.screens.settings.widgets.const_ids import SettingsSection
 from edceleste.ui.screens.settings.widgets.inputs.input_value_changed_event import (
     ValueChanged,
 )
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row import (
     WidgetLabeledSelectRow,
+)
+from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_switch_row import (
+    WidgetLabeledSwitchRow,
 )
 from edceleste.ui.screens.settings.widgets.tts.widget_tts_container import (
     ENGINE_NAMES,
@@ -23,6 +29,9 @@ from edceleste.ui.screens.settings.widgets.tts.widget_tts_container import (
     WidgetTTSContainer,
     build_default_params_for_engine,
     find_location_of_engine,
+)
+from edceleste.ui.screens.settings.widgets.tts.widget_voice_test_button import (
+    WidgetVoiceTestButton,
 )
 
 CONTAINER_MODULE = "edceleste.ui.screens.settings.widgets.tts.widget_tts_container"
@@ -32,6 +41,7 @@ CHATTERBOX_MODULE = (
 PROFILE_INPUT = "tts-profile-input"
 ENGINE_INPUT = "tts-provider-type-input"
 LOCATION_INPUT = "tts-location-input"
+SHIP_EFFECT_INPUT = "ship-effect-input"
 
 
 class StubProfiles(Vertical):
@@ -50,6 +60,18 @@ class SectionApp(App):
 
     def compose(self) -> ComposeResult:
         yield WidgetTTSContainer(self.tts_model, id="settings-tts")
+
+
+class RecordingSectionApp(SectionApp):
+    """The same section, and it keeps every SectionSettingsChanged message the
+    section posts."""
+
+    def __init__(self, tts_model: TTSModel) -> None:
+        super().__init__(tts_model)
+        self.section_messages: list[SectionSettingsChanged] = []
+
+    def on_section_settings_changed(self, message: SectionSettingsChanged) -> None:
+        self.section_messages.append(message)
 
 
 def make_pocket_model(profile: str = "voice_p") -> TTSModel:
@@ -406,6 +428,121 @@ class TestWidgetTTSContainer(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
 
         self.assertEqual(model.params.voice, "en-US-AriaNeural")
+
+    # --- the ship effect switch ---
+
+    async def test_the_ship_effect_switch_shows_the_saved_value_when_it_is_on(self):
+        model = make_pocket_model()
+        model.ship_effect = True
+        app = SectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            row = app.query_one(f"#{SHIP_EFFECT_INPUT}", WidgetLabeledSwitchRow)
+
+            self.assertIs(row.value, True)
+            self.assertIs(row.query_one(Switch).value, True)
+
+    async def test_the_ship_effect_switch_shows_the_saved_value_when_it_is_off(self):
+        model = make_pocket_model()
+        model.ship_effect = False
+        app = SectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            row = app.query_one(f"#{SHIP_EFFECT_INPUT}", WidgetLabeledSwitchRow)
+
+            self.assertIs(row.value, False)
+            self.assertIs(row.query_one(Switch).value, False)
+
+    async def test_the_ship_effect_switch_is_shown_for_every_engine(self):
+        for make_model in (make_pocket_model, make_chatterbox_model, make_edge_model):
+            with self.subTest(engine=make_model.__name__):
+                app = SectionApp(make_model())
+
+                async with app.run_test() as pilot:
+                    await pilot.pause()
+
+                    self.assertEqual(len(app.query(f"#{SHIP_EFFECT_INPUT}")), 1)
+
+    async def test_the_test_voice_button_is_shown_last_for_every_engine(self):
+        for make_model in (make_pocket_model, make_chatterbox_model, make_edge_model):
+            with self.subTest(engine=make_model.__name__):
+                model = make_model()
+                app = SectionApp(model)
+
+                async with app.run_test() as pilot:
+                    await pilot.pause()
+
+                    test_buttons = app.query(WidgetVoiceTestButton)
+                    self.assertEqual(len(test_buttons), 1)
+                    self.assertIs(test_buttons.first().tts_model, model)
+                    last_row = (
+                        app.query_one(WidgetTTSContainer)
+                        .query_one(VerticalScroll)
+                        .children[-1]
+                    )
+                    self.assertIs(last_row, test_buttons.first())
+
+    async def test_switching_the_ship_effect_writes_it_into_the_model(self):
+        model = make_pocket_model()
+        model.ship_effect = True
+        app = SectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            switch = app.query_one(f"#{SHIP_EFFECT_INPUT}").query_one(Switch)
+            switch.value = False
+            await pilot.pause()
+
+            self.assertIs(model.ship_effect, False)
+
+            switch.value = True
+            await pilot.pause()
+
+            self.assertIs(model.ship_effect, True)
+
+    async def test_switching_the_ship_effect_posts_the_section_changed_message(self):
+        model = make_pocket_model()
+        app = RecordingSectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            messages_before_the_switch = len(app.section_messages)
+            app.query_one(f"#{SHIP_EFFECT_INPUT}").query_one(Switch).toggle()
+            await pilot.pause()
+
+        self.assertEqual(len(app.section_messages), messages_before_the_switch + 1)
+        self.assertIs(app.section_messages[-1].section, SettingsSection.TTS)
+        self.assertIs(app.section_messages[-1].new_value, model)
+
+    async def test_switching_the_ship_effect_marks_the_section_as_modified(self):
+        app = SectionApp(make_pocket_model())
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            container = app.query_one(WidgetTTSContainer)
+            self.assertFalse(container.is_modified())
+
+            app.query_one(f"#{SHIP_EFFECT_INPUT}").query_one(Switch).toggle()
+            await pilot.pause()
+
+            self.assertTrue(container.is_modified())
+
+    async def test_a_ship_effect_message_leaves_the_engine_params_alone(self):
+        model = make_pocket_model("voice_p")
+        app = SectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one(WidgetTTSContainer).post_message(
+                ValueChanged(SHIP_EFFECT_INPUT, False)
+            )
+            await pilot.pause()
+
+        self.assertEqual(model.params.profile, "voice_p")
+        self.assertEqual(model.provider, "pocket")
+        self.assertIs(model.ship_effect, False)
 
 
 if __name__ == "__main__":

@@ -117,31 +117,6 @@ TtsProviderParams = Annotated[
 ]
 
 
-class VoiceLabModel(BaseModel, validate_assignment=True):
-    enabled: bool = Field(
-        default=True,
-        description="Whether the voice effects are applied to the speech",
-    )
-    clarity: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="How much the high tones are boosted, for a sharp and clear voice",
-    )
-    reverb: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="How much and how long the voice rings in the ship's cabin",
-    )
-    stereo_width: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="How wide the voice sounds (0 is mono)",
-    )
-
-
 TtsEngine = Literal["edge", "chatterbox", "pocket"]
 
 
@@ -158,9 +133,10 @@ class TTSModel(BaseModel, validate_assignment=True):
         le=1.0,
         description="The volume of speech for text-to-speech",
     )
-    voice_lab: VoiceLabModel = Field(
-        default_factory=VoiceLabModel,
-        description="The voice effects applied to the speech of every provider",
+    ship_effect: bool = Field(
+        default=True,
+        description="Whether the speech of every provider gets the ship effect, "
+        "which makes Celeste sound like the ship computer",
     )
 
     @model_validator(mode="before")

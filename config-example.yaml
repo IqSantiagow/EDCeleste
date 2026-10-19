@@ -51,13 +51,9 @@ tts:
   # params:
   #   profile: "celeste-v3"
   volume: 1.0
-  # Voice Lab makes Celeste sound like she speaks inside the ship, with either engine.
-  # Every slider goes from 0 to 1; 0.5 is the sound fitted to Celeste's voice clip.
-  voice_lab:
-    enabled: true
-    clarity: 0.5       # boost of the high tones: a sharp, clear voice
-    reverb: 0.5        # how much and how long the voice rings in the cabin
-    stereo_width: 0.5  # 0 is mono
+  # The ship effect makes Celeste sound like the ship computer of the game, with every engine.
+  # It is one fixed effect: nothing to set except on or off.
+  ship_effect: true
 
 llm:
   provider:
