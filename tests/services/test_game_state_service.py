@@ -83,6 +83,33 @@ class TestGameStateServiceGameStats(unittest.IsolatedAsyncioTestCase):
                     if other_flag != flag:
                         self.assertFalse(reads_other_field(stats))
 
+    async def test_get_game_stats_reports_the_toggle_states_a_reply_is_named_after(
+        self,
+    ):
+        readers = {
+            StatusFlags.LandingGearDown: lambda stats: stats.ship.is_landing_gear_down,
+            StatusFlags.HardpointsDeployed: lambda stats: (
+                stats.ship.are_hardpoints_deployed
+            ),
+            StatusFlags.LightsOn: lambda stats: stats.ship.are_lights_on,
+            StatusFlags.CargoScoopDeployed: lambda stats: (
+                stats.ship.is_cargo_scoop_deployed
+            ),
+            StatusFlags.FlightAssistOff: lambda stats: stats.ship.is_flight_assist_off,
+            StatusFlags.NightVision: lambda stats: stats.ship.is_night_vision_on,
+        }
+        for flag, reads_own_field in readers.items():
+            with self.subTest(flag=flag.name):
+                service = GameStateService(Mock(spec=EventBus))
+
+                await service.process_event(_status_event(flags=flag))
+                stats = service.get_game_stats()
+
+                self.assertTrue(reads_own_field(stats))
+                for other_flag, reads_other_field in readers.items():
+                    if other_flag != flag:
+                        self.assertFalse(reads_other_field(stats))
+
     async def test_get_game_stats_clears_the_flags_when_the_next_status_has_none(
         self,
     ):

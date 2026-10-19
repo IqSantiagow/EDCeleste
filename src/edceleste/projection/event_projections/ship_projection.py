@@ -36,6 +36,7 @@ class ShipProjection(Projection):
         self.is_cargo_scoop_deployed = False
         self.is_silent_running = False
         self.is_flight_assist_off = False
+        self.is_night_vision_on = False
         self.is_overheating = False
         self.is_in_danger = False
         self.is_being_interdicted = False
@@ -67,6 +68,7 @@ class ShipProjection(Projection):
             )
             self.is_silent_running = bool(event.Flags & StatusFlags.SilentRunning)
             self.is_flight_assist_off = bool(event.Flags & StatusFlags.FlightAssistOff)
+            self.is_night_vision_on = bool(event.Flags & StatusFlags.NightVision)
             self.is_overheating = bool(event.Flags & StatusFlags.Overheating)
             self.is_in_danger = bool(event.Flags & StatusFlags.IsInDanger)
             self.is_being_interdicted = bool(event.Flags & StatusFlags.BeingInterdicted)

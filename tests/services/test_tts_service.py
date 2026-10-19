@@ -314,6 +314,94 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.service.play_samples.assert_not_awaited()
 
+    # --- speak_reply ---
+
+    def _make_prepared_reply_clip(
+        self, provider_type: str, profile_name: str, text: str
+    ) -> Path:
+        replies_folder = self.voices_dir / provider_type / profile_name / "replies"
+        replies_folder.mkdir(parents=True, exist_ok=True)
+        clip_path = replies_folder / build_reply_wav_file_name(text)
+        _write_wav(clip_path, 0.1, amplitude=0.25)
+        return clip_path
+
+    async def test_speak_reply_plays_the_prepared_clip_without_making_speech(self):
+        self._make_prepared_reply_clip("edge", VOICE, "Landing gear deployed")
+        provider = Mock(spec=EdgeTTSProvider)
+        provider.synthesize = AsyncMock()
+        self.service.provider = provider
+        self.service.play_samples = AsyncMock()
+
+        await self.service.speak_reply("Landing gear deployed")
+
+        provider.synthesize.assert_not_awaited()
+        self.service.play_samples.assert_awaited_once()
+        samples, sample_rate, volume = self.service.play_samples.await_args.args
+        self.assertEqual((len(samples), sample_rate, volume), (100, 1000, SAVED_VOLUME))
+        self.assertAlmostEqual(float(samples[0]), 0.25, places=3)
+
+    async def test_speak_reply_finds_the_clip_in_the_folder_of_a_cloned_profile(self):
+        self._use_saved_chatterbox()
+        self._make_prepared_reply_clip("chatterbox", "celeste", "Lights on")
+        self.service.play_samples = AsyncMock()
+
+        await self.service.speak_reply("Lights on")
+
+        self.service.play_samples.assert_awaited_once()
+
+    async def test_speak_reply_adds_the_ship_effect_only_when_it_is_switched_on(self):
+        self._make_prepared_reply_clip("edge", VOICE, "Lights on")
+        self.service.play_samples = AsyncMock()
+
+        for ship_effect in (True, False):
+            self.settings_service.get_settings.return_value = _make_settings(
+                ship_effect=ship_effect
+            )
+            self.service.play_samples.reset_mock()
+
+            await self.service.speak_reply("Lights on")
+
+            self.assertIs(
+                self.service.play_samples.await_args.kwargs["with_ship_effect"],
+                ship_effect,
+            )
+
+    async def test_speak_reply_speaks_the_text_live_when_the_clip_is_missing(self):
+        # The folder of the profile has other clips, but not this one
+        self._make_prepared_reply_clip("edge", VOICE, "Lights on")
+        self.service.synthesize_and_play = AsyncMock()
+        self.service.play_samples = AsyncMock()
+
+        await self.service.speak_reply("Lights off")
+
+        self.service.synthesize_and_play.assert_awaited_once_with("Lights off")
+        self.service.play_samples.assert_not_awaited()
+
+    async def test_speak_reply_speaks_live_when_the_voice_has_no_replies_folder(self):
+        self.service.synthesize_and_play = AsyncMock()
+
+        await self.service.speak_reply("Lights on")
+
+        self.service.synthesize_and_play.assert_awaited_once_with("Lights on")
+
+    async def test_speak_reply_ignores_the_clips_of_another_voice(self):
+        self._make_prepared_reply_clip("edge", "en-GB-SoniaNeural", "Lights on")
+        self.service.synthesize_and_play = AsyncMock()
+
+        await self.service.speak_reply("Lights on")
+
+        self.service.synthesize_and_play.assert_awaited_once_with("Lights on")
+
+    async def test_speak_reply_raises_when_the_clip_cannot_be_read(self):
+        clip_path = self._make_prepared_reply_clip("edge", VOICE, "Lights on")
+        clip_path.write_bytes(b"not a wav")
+        self.service.play_samples = AsyncMock()
+
+        with self.assertRaises(sf.LibsndfileError):
+            await self.service.speak_reply("Lights on")
+
+        self.service.play_samples.assert_not_awaited()
+
     # --- playback ---
 
     async def test_play_samples_plays_the_plain_samples_by_default(self):

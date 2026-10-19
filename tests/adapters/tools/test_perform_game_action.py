@@ -11,6 +11,7 @@ from edceleste.services.exceptions.game_window_exception import (
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.models.game_stats import GameStatsSnapshot
 from edceleste.services.models.keybinds_model import EdAction
+from edceleste.services.models.reply_texts import REPLY_TEXTS
 from edceleste.services.models.settings_model import GameActionsModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 from tests.use_cases.dashboard.game_stats_fixtures import (
@@ -160,6 +161,22 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
                 )
                 self.keybind_service.press_keys_for_action.assert_not_awaited()
 
+    async def test_should_have_a_prepared_reply_for_every_refusal(self):
+        # Instinct says the part before the colon, so it must be a clip text
+        for action in (
+            EdAction.LANDING_GEAR_TOGGLE,
+            EdAction.TOGGLE_CARGO_SCOOP,
+            EdAction.DEPLOY_HARDPOINT_TOGGLE,
+        ):
+            with self.subTest(action=action):
+                self.game_state_protocol.get_game_stats.return_value = make_stats(
+                    is_docked=True
+                )
+
+                result = await self.tool.execute(action)
+
+                self.assertIn(str(result.return_value).split(":")[0], REPLY_TEXTS)
+
     async def test_should_refuse_the_landing_gear_in_every_blocking_state(self):
         await self.assert_refused_in_each_state(
             EdAction.LANDING_GEAR_TOGGLE,
@@ -244,7 +261,9 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
         result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(result.return_value, "Game actions are disabled by the user.")
-        self.assertEqual(result.metadata, {"is_error": True})
+        self.assertEqual(
+            result.metadata, {"is_error": True, "game_actions_disabled": True}
+        )
 
     async def test_should_ask_the_game_state_on_every_call(self):
         self.game_state_protocol.get_game_stats.side_effect = [

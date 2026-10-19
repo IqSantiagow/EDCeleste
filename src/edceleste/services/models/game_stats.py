@@ -41,6 +41,9 @@ class ShipStats:
     is_landing_gear_down: bool
     are_hardpoints_deployed: bool
     are_lights_on: bool
+    is_cargo_scoop_deployed: bool
+    is_flight_assist_off: bool
+    is_night_vision_on: bool
     are_shields_up: bool
     pips_system: int
     pips_engine: int

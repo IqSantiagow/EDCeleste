@@ -31,7 +31,11 @@ from edceleste.services.models.instinct_status import (
     InstinctStatus,
     describe_download_progress,
 )
-from edceleste.services.models.keybinds_model import EdAction, action_in_plain_words
+from edceleste.services.models.keybinds_model import EdAction
+from edceleste.services.models.reply_texts import (
+    GAME_ACTIONS_DISABLED_TEXT,
+    pick_reply_text_for_pressed_action,
+)
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
@@ -129,8 +133,10 @@ class InstinctService:
     ) -> None:
         """Only stores the dependencies and creates the lock that lets one
         thread at a time use the model. Nothing is downloaded or loaded here,
-        that starts in reload_service(). perform_game_action is the same tool
-        the LLM calls, so a key is pressed (or refused) by one set of rules."""
+        that starts in reload_service(). perform_game_action is a PerformGameAction,
+        the class of the tool the LLM calls (the container makes a separate
+        object for each), so a key is pressed (or refused) by one set of
+        rules."""
         self.settings_service = settings_service
         self.download_service = download_service
         self.keybinds_protocol = keybinds_protocol
@@ -386,12 +392,17 @@ class InstinctService:
 
     async def try_fast_command(self, pilot_message: str) -> str | None:
         """Does the action the pilot asked for, without the LLM. Returns the
-        short reply for COMMS: "Done: <action in plain words>", e.g. "Done:
-        Landing gear toggle", when a key was pressed. When the PerformGameAction
-        tool did not press it (the ship cannot do it now, or the game window was
-        not found) the reply is the text of the tool, e.g. "Landing gear
-        unavailable: the ship is in supercruise." None means "not handled",
-        and then the caller sends the message to the LLM as before.
+        short reply, the one COMMS shows and Celeste says. When a key was
+        pressed it is the text of REPLY_TEXTS for what the key did, e.g.
+        "Landing gear deployed" (a toggle is named after the direction it
+        went, read from the ship before the press). When the ship cannot do
+        the action now, nothing is pressed and the reply is the text of the
+        tool up to the colon, e.g. "Landing gear unavailable". When game actions
+        were switched off a moment ago, after the model was asked, it is
+        "Game actions disabled". Any other failure of the tool (the game window
+        was not found) gives the text of the tool as it is, which has no
+        prepared clip. None means "not handled", and then the caller sends the
+        message to the LLM as before.
 
         1. Nothing is asked when can_decide_commands() is False, when no
            action has a keyboard key or when there is no game state yet. The
@@ -442,6 +453,9 @@ class InstinctService:
                 )
                 return None
             action = EdAction(answer["choice"])
+            # Read before the press: the key changes the ship, and a toggle is
+            # named after what it did, not after what the ship is now
+            ship_before_press = self.game_state_protocol.get_game_stats().ship
             tool_result = await self.perform_game_action.execute(action)
         except TimeoutError:
             logger.warning(
@@ -458,7 +472,27 @@ class InstinctService:
             return None
 
         tool_metadata = tool_result.metadata or {}
-        if tool_metadata.get("is_error") or tool_metadata.get("unavailable"):
+        if tool_metadata.get("unavailable"):
+            # "Landing gear unavailable: the ship is in supercruise." -> the
+            # part before the colon is the text of the prepared reply
+            reply = str(tool_result.return_value).split(":")[0]
+            logger.info(
+                "Fast command %r: %s was not done (%s)",
+                pilot_message,
+                action.value,
+                tool_result.return_value,
+            )
+            return reply
+
+        if tool_metadata.get("game_actions_disabled"):
+            logger.info(
+                "Fast command %r: %s was not done, game actions are off",
+                pilot_message,
+                action.value,
+            )
+            return GAME_ACTIONS_DISABLED_TEXT
+
+        if tool_metadata.get("is_error"):
             reply = str(tool_result.return_value)
             logger.info(
                 "Fast command %r: %s was not done (%s)",
@@ -475,7 +509,7 @@ class InstinctService:
             (time.perf_counter() - start) * 1000,
             scores,
         )
-        return f"Done: {action_in_plain_words(action)}"
+        return pick_reply_text_for_pressed_action(action, ship_before_press)
 
     def can_decide_commands(self) -> bool:
         """True when Instinct may take a pilot message from the LLM: Instinct

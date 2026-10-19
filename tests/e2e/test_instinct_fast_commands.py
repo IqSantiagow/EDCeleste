@@ -33,16 +33,14 @@ async def test_should_press_the_key_and_reply_without_asking_the_llm(edceleste):
         with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
             await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
 
-        with allure.step("Then COMMS shows the reply 'Done: Landing gear toggle'"):
+        with allure.step("Then COMMS shows the reply 'Landing gear deployed'"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Instinct's reply in COMMS",
             )
             assert comms_entries(pilot.app, "user-command") == [DEPLOY_LANDING_GEAR]
-            assert comms_entries(pilot.app, "llm-response") == [
-                "Done: Landing gear toggle"
-            ]
+            assert comms_entries(pilot.app, "llm-response") == ["Landing gear deployed"]
 
         with allure.step("And the landing gear key Shift+L is pressed in the game"):
             assert edceleste.fake_keyboard.keyboard_log == LANDING_GEAR_KEYS
@@ -92,8 +90,8 @@ async def test_should_send_a_message_that_is_no_command_to_celeste_and_press_no_
             assert edceleste.fake_keyboard.keyboard_log == []
 
 
-@allure.title("After a fast command Celeste knows what was done and stays silent")
-async def test_should_tell_celeste_about_the_fast_command_and_not_speak_its_reply(
+@allure.title("After a fast command Celeste says it and knows what was done")
+async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
     edceleste,
 ):
     prompts_sent_to_llm: list[str] = []
@@ -118,8 +116,7 @@ async def test_should_tell_celeste_about_the_fast_command_and_not_speak_its_repl
             await edceleste.wait_until(
                 pilot,
                 lambda: (
-                    "Done: Landing gear toggle"
-                    in comms_entries(pilot.app, "llm-response")
+                    "Landing gear deployed" in comms_entries(pilot.app, "llm-response")
                 ),
                 "Instinct's reply in COMMS",
             )
@@ -135,17 +132,17 @@ async def test_should_tell_celeste_about_the_fast_command_and_not_speak_its_repl
             )
             assert (
                 f"Human: {DEPLOY_LANDING_GEAR}\n"
-                "Celeste: Done: Landing gear toggle\n"
+                "Celeste: Landing gear deployed\n"
                 "Human: what did you just do?"
             ) in prompts_sent_to_llm[0]
 
-        with allure.step("And only Celeste's answer is spoken, not Instinct's reply"):
+        with allure.step("And Instinct's reply was spoken before Celeste's answer"):
             await edceleste.wait_until(
                 pilot,
                 lambda: LLM_ANSWER in edceleste.spoken_texts,
                 "Celeste's answer spoken",
             )
-            assert edceleste.spoken_texts == [LLM_ANSWER]
+            assert edceleste.spoken_texts == ["Landing gear deployed", LLM_ANSWER]
 
 
 @allure.title("When the game is not running Celeste says nothing was pressed")
@@ -323,3 +320,49 @@ async def test_should_send_the_command_to_celeste_when_the_model_is_too_slow(
                 assert edceleste.fake_keyboard.keyboard_log == []
         finally:
             instinct_model.let_the_model_answer()
+
+
+@allure.title("When the game is not running Celeste also says nothing was pressed")
+async def test_should_speak_that_nothing_was_pressed_when_the_game_window_is_not_found(
+    edceleste,
+):
+    with allure.step("Given game actions are allowed in the settings"):
+        edceleste.allow_game_actions()
+
+    with allure.step(
+        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
+    ):
+        instinct_model = edceleste.turn_instinct_on()
+        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
+
+    with allure.step("And the game window is not found"):
+        edceleste.close_the_game_window()
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
+            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+
+        with allure.step("Then COMMS shows that nothing was pressed"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_entries(pilot.app, "llm-response") != [],
+                "the game window warning in COMMS",
+            )
+            assert comms_entries(pilot.app, "llm-response") == [
+                "Game window not found, nothing was pressed."
+            ]
+
+        with allure.step("And Celeste says the same words out loud"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: edceleste.spoken_texts != [],
+                "the warning handed to the voice engine",
+            )
+            assert edceleste.spoken_texts == [
+                "Game window not found, nothing was pressed."
+            ]
+
+        with allure.step("And no key is pressed in the game"):
+            assert edceleste.fake_keyboard.keyboard_log == []

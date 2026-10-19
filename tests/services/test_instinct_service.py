@@ -29,6 +29,7 @@ from edceleste.services.models.instinct_status import (
     InstinctModelState,
 )
 from edceleste.services.models.keybinds_model import EdAction
+from edceleste.services.models.reply_texts import REPLY_TEXTS
 from edceleste.services.models.settings_model import (
     GameActionsModel,
     InstinctModel,
@@ -37,6 +38,10 @@ from edceleste.services.models.settings_model import (
     SettingsModel,
     SttModel,
     TTSModel,
+)
+from tests.use_cases.dashboard.game_stats_fixtures import (
+    make_game_stats_snapshot,
+    make_ship_stats,
 )
 
 MODEL_BYTES = 1_500_000_000
@@ -125,11 +130,15 @@ class FakePerformGameAction:
 
 
 class FakeGameState:
-    def __init__(self, text: str = "Commander name is NOVA."):
+    def __init__(self, text: str = "Commander name is NOVA.", ship=None):
         self.text = text
+        self.ship = ship or make_ship_stats()
 
     def get_game_state_projection(self) -> str:
         return self.text
+
+    def get_game_stats(self):
+        return make_game_stats_snapshot(ship=self.ship)
 
 
 class FakeDecider:
@@ -186,6 +195,7 @@ def make_fast_command_service(
     game_state_text: str = "Commander name is NOVA.",
     decider_error: Exception | None = None,
     perform_game_action: FakePerformGameAction | None = None,
+    ship=None,
 ) -> InstinctService:
     """A service that is ready to decide: on, loaded on the GPU, game actions on,
     every action has a key, the tool presses it. Each test breaks exactly one of
@@ -198,7 +208,7 @@ def make_fast_command_service(
         settings_service,
         FakeDownloadService(downloaded=True),
         keybinds or FakeKeybinds(),
-        FakeGameState(game_state_text),
+        FakeGameState(game_state_text, ship),
         perform_game_action or FakePerformGameAction(),  # type: ignore[arg-type]
     )
     service.enabled = enabled
@@ -824,7 +834,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Done: Landing gear toggle")
+        self.assertEqual(reply, "Landing gear deployed")
         self.assertEqual(
             service.perform_game_action.executed, [EdAction.LANDING_GEAR_TOGGLE]
         )
@@ -936,8 +946,52 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Landing gear unavailable: the ship is in supercruise.")
+        # The reason stays for the log and the LLM, the pilot hears the clip
+        self.assertEqual(reply, "Landing gear unavailable")
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
+
+    async def test_replies_game_actions_disabled_when_they_were_just_switched_off(
+        self,
+    ):
+        tool = FakePerformGameAction(
+            result=ToolReturn(
+                return_value="Game actions are disabled by the user.",
+                metadata={"is_error": True, "game_actions_disabled": True},
+            )
+        )
+        service = make_fast_command_service(perform_game_action=tool)
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertEqual(reply, "Game actions disabled")
+        self.assertIn(reply, REPLY_TEXTS)
+
+    async def test_names_a_toggle_after_the_direction_it_went(self):
+        service = make_fast_command_service(
+            choice="LandingGearToggle",
+            ship=make_ship_stats(is_landing_gear_down=True),
+        )
+
+        reply = await service.try_fast_command("raise the landing gear")
+
+        self.assertEqual(reply, "Landing gear retracted")
+
+    async def test_reads_the_ship_before_the_key_is_pressed(self):
+        service = make_fast_command_service(choice="LandingGearToggle")
+        real_execute = service.perform_game_action.execute
+
+        async def press_and_lower_the_gear(action):
+            # The key changes the ship: the gear is down when the tool returns
+            service.game_state_protocol.ship = make_ship_stats(  # type: ignore[attr-defined]
+                is_landing_gear_down=True
+            )
+            return await real_execute(action)
+
+        service.perform_game_action.execute = press_and_lower_the_gear  # type: ignore[method-assign]
+
+        reply = await service.try_fast_command("deploy landing gear")
+
+        self.assertEqual(reply, "Landing gear deployed")
 
     async def test_logs_that_the_action_was_not_done_when_the_tool_refuses(self):
         tool = FakePerformGameAction(

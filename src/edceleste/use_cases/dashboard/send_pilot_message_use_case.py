@@ -1,17 +1,25 @@
 import asyncio
+import logging
 
 from edceleste.protocols.instinct_protocol import InstinctProtocol
 from edceleste.protocols.llm_protocol import LLMProtocol
+from edceleste.protocols.tts_protocol import TTSProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class SendPilotMessageUseCase:
     def __init__(
-        self, instinct_protocol: InstinctProtocol, llm_protocol: LLMProtocol
+        self,
+        instinct_protocol: InstinctProtocol,
+        llm_protocol: LLMProtocol,
+        tts_protocol: TTSProtocol,
     ) -> None:
         """Only stores the dependencies and an empty set that keeps the running
         tasks alive (the event loop holds only a weak reference to a task)."""
         self.instinct_protocol = instinct_protocol
         self.llm_protocol = llm_protocol
+        self.tts_protocol = tts_protocol
         self.running_tasks: set[asyncio.Task] = set()
 
     def __call__(self, message: str) -> None:
@@ -29,10 +37,21 @@ class SendPilotMessageUseCase:
     async def send(self, message: str) -> None:
         """Instinct goes first. When it returns a reply (a key was pressed, or
         the game window was not found), the reply goes to COMMS and the history,
-        and the LLM is not called. Otherwise (it returned None, it never raises)
-        the message goes to the LLM queue as before."""
+        the LLM is not called, and the same text is spoken: the prepared clip
+        when there is one, otherwise live. COMMS gets the reply before the
+        speech starts, so the text is on the screen before it is said. Returns when
+        the speech is over. An error of the speech (the voice model failed, no
+        speaker) is logged and not raised, the same as the speech of an LLM
+        reply: the reply stays in COMMS and the key was already pressed.
+        Otherwise (Instinct returned None, it never raises) the message
+        goes to the LLM queue as before."""
         reply = await self.instinct_protocol.try_fast_command(message)
         if reply is None:
             self.llm_protocol.add_llm_request_to_queue(message)
-        else:
-            self.llm_protocol.add_reply_without_llm_to_queue(message, reply)
+            return
+
+        self.llm_protocol.add_reply_without_llm_to_queue(message, reply)
+        try:
+            await self.tts_protocol.speak_reply(reply)
+        except Exception:
+            logger.exception("Celeste could not say the reply %r", reply)
