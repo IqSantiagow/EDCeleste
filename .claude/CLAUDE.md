@@ -49,16 +49,13 @@ Go through the steps in order. Do not call the work done before step 6 is done.
 2. **Unit tests** — write them with the `unit-test-writer` skill, until `python -m pytest` is green.
 3. **Mutation tests** — ask the `mutation-tester` subagent (`.claude/agents/mutation-tester.md`)
    to check the changed files. It only reports surviving mutants.
-4. **Close the mutation gaps** — add the unit tests for the gaps it reports, then ask it to check
-   again until the score is at least `MIN_MUTATION_SCORE` (75%). The CI pipeline does not run the
-   mutation tests (a job there held every merge for about an hour), so this step is where they run.
-5. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
+4. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
    1. It scans the changes and returns proposed scenarios. Review them and approve (or trim) them.
    2. After approval it writes the tests, runs them and reports passed and failed.
    3. A failed e2e test means the app breaks a business requirement. Fix the **app**, never the
       test, then run the e2e tests again until all are green. Change a test only when the
       scenario itself was wrong, and say so.
-6. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
+5. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
    The `blind-signature-reader` subagent guesses the changed methods from names alone (wrong
    guesses → rename), then from names plus docstrings (wrong guesses → better docstrings). Only
    backend logic is checked, everything under `src/edceleste/ui/` is skipped. It sees
@@ -70,7 +67,6 @@ Go through the steps in order. Do not call the work done before step 6 is done.
 - No `tkinter` — forbidden by ruff config
 - No direct `rich` imports — use Textual and CSS (`ui/css.tcss`) instead
 - Tests never touch the real `config.yaml` — `SettingsService` always gets a temp folder
-- The LLM runs through `pydantic-ai`; providers and tools are not hand wired (see `architecture-design`)
 - Every module using `@inject` + `Provide[Container.*]` must be listed in `MODULES_USING_PROVIDE` in `containers/main_container.py`
 
 - Every function and method has a docstring that describes its logic: the steps, side effects
@@ -123,6 +119,12 @@ def get_tool(name: str) -> Callable:
 ```
 
 > Now its simple, maybe its not too much but ape can understand it. Good ape.
+
+This repository has already clean architecture and its only because it was designed by human. Do not re-invent a wheel, and keep it simple.
+No one cares about super advanced programming techniques and hundreds of edge cases when user has multiple different network cards and two keyboards which he click simultaneously. NO ONE CARES. Do absolutely minimal work to keep it working and not crash to desktop in a basic use case. Keep it as simple as possible. if user want to break the app, then they will sooner or later, its not your or my business.
+
+
+If you find a potential bug in your simple solution which will occur with rare or unusual setups, never try to cover that. No one cares, test agents will find that and create an issue, maybe someday someone will fix it. as soon as it works, no one cares.
 
 
 ## Code review
