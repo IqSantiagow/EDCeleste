@@ -6,27 +6,16 @@ from edceleste.use_cases.dashboard.stt_stop_recording_use_case import (
 
 
 class FakeSttProtocol:
-    def __init__(self, transcription: str | None) -> None:
-        self._transcription = transcription
+    def __init__(self) -> None:
         self.stop_recording_and_transcribe_calls: int = 0
 
-    def stop_recording_and_transcribe(self) -> str | None:
+    def stop_recording_and_transcribe(self) -> None:
         self.stop_recording_and_transcribe_calls += 1
-        return self._transcription
 
 
 class TestSttStopRecordingUseCase(unittest.TestCase):
-    def test_should_return_transcription_from_stt_protocol(self):
-        stt = FakeSttProtocol(transcription="Turn on the engines")
-        use_case = SttStopRecordingUseCase(stt)  # type: ignore
-
-        result = use_case()
-
-        self.assertEqual(result, "Turn on the engines")
-        self.assertEqual(stt.stop_recording_and_transcribe_calls, 1)
-
-    def test_should_return_none_when_stt_protocol_returns_none(self):
-        stt = FakeSttProtocol(transcription=None)
+    def test_should_stop_recording_through_stt_protocol_and_return_nothing(self):
+        stt = FakeSttProtocol()
         use_case = SttStopRecordingUseCase(stt)  # type: ignore
 
         result = use_case()

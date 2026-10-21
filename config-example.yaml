@@ -1,6 +1,7 @@
 stt:
   enabled: true
   model: "tiny.en"
+  hotkey: null
 game_actions:
   enabled: false
 event_reactions:

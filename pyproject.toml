@@ -47,6 +47,7 @@ dependencies = [
     "uc-micro-py==2.0.0",
     "yarl==1.25.1",
     "pydirectinput-rgx==2.1.3.1",
+    "pynput==1.8.2",
     "edge-tts==7.3.1",
     "soundfile==0.14.0",
     "sounddevice==0.5.6",
@@ -120,7 +121,7 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type information
-module = ["chatterbox.*", "decider.*", "onnxruntime", "scipy.*", "sentencepiece", "sounddevice", "soundfile", "whisper", "yaml"]
+module = ["chatterbox.*", "decider.*", "onnxruntime", "pynput.*", "scipy.*", "sentencepiece", "sounddevice", "soundfile", "whisper", "yaml"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

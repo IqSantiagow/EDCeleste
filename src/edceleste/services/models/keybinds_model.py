@@ -87,8 +87,51 @@ class Keybind(BaseModel):
 
 
 def action_in_plain_words(action: EdAction) -> str:
-    """UseShieldCell -> "Use shield cell", UIFocus -> "UI focus"."""
+    """The action's name as words for the pilot, e.g. in a warning. The
+    CamelCase value is split into words, only the first word keeps its capital
+    letter, a run of capitals stays as it is ("UI", "FSS") and a number is its
+    own word. UseShieldCell -> "Use shield cell", UIFocus -> "UI focus",
+    SetSpeed50 -> "Set speed 50". Pure function."""
     words = re.findall(r"[A-Z]{2,}(?=[A-Z][a-z]|\d|$)|[A-Z][a-z]*|\d+", action.value)
     first_word, *other_words = words
     other_words = [word if word.isupper() else word.lower() for word in other_words]
     return " ".join([first_word, *other_words])
+
+
+# pynput names that differ from the game's key names (lowercase, "Key_" cut).
+# The generic "shift", "ctrl" and "alt" are the left key.
+PYNPUT_TO_GAME_KEY_NAMES = {
+    "shift": "leftshift",
+    "shift_l": "leftshift",
+    "shift_r": "rightshift",
+    "ctrl": "leftcontrol",
+    "ctrl_l": "leftcontrol",
+    "ctrl_r": "rightcontrol",
+    "alt": "leftalt",
+    "alt_l": "leftalt",
+    "alt_r": "rightalt",
+    "alt_gr": "rightalt",
+    "up": "uparrow",
+    "down": "downarrow",
+    "left": "leftarrow",
+    "right": "rightarrow",
+    "esc": "escape",
+}
+
+
+def find_keybind_using_key(
+    pynput_key_name: str, keybinds: list[Keybind]
+) -> Keybind | None:
+    """The first game keybind that uses the key, as its key or as one of its
+    modifiers, None when the key is free. pynput_key_name is as pynput prints
+    it: "Key.f9", "Key.page_up", "'k'", "Button.x1". The names are compared in
+    lowercase without underscores. A mouse button is never found, the game's
+    keyboard keybinds do not use one. Keys like "," that the game spells out
+    ("Comma") are not matched."""
+    name = pynput_key_name.removeprefix("Key.").strip("'").lower()
+    game_key_name = PYNPUT_TO_GAME_KEY_NAMES.get(name, name.replace("_", ""))
+    for keybind in keybinds:
+        used_keys = [keybind.key, *keybind.modifiers]
+        if game_key_name in [key.lower() for key in used_keys if key is not None]:
+            return keybind
+    return None

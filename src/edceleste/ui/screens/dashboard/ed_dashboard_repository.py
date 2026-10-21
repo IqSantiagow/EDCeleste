@@ -33,6 +33,9 @@ from edceleste.use_cases.dashboard.stream_station_market_use_case import (
 from edceleste.ui.screens.dashboard.view_models.station_market_view_model import (
     StationMarketViewModel,
 )
+from edceleste.use_cases.dashboard.stream_stt_transcriptions_use_case import (
+    StreamSttTranscriptionsUseCase,
+)
 from edceleste.use_cases.dashboard.stt_start_recording_use_case import (
     SttStartRecordingUseCase,
 )
@@ -51,6 +54,7 @@ class EdDashboardRepository:
         stt_start_recording_usecase: SttStartRecordingUseCase,
         stt_stop_recording_usecase: SttStopRecordingUseCase,
         get_stt_enabled_usecase: GetSttEnabledUseCase,
+        stream_stt_transcriptions_usecase: StreamSttTranscriptionsUseCase,
         stream_navigation_stats_usecase: StreamNavigationStatsUseCase,
         stream_flight_and_drive_stats_usecase: StreamFlightAndDriveStatsUseCase,
         stream_ship_stats_usecase: StreamShipStatsUseCase,
@@ -65,6 +69,7 @@ class EdDashboardRepository:
         self.stt_start_recording_usecase = stt_start_recording_usecase
         self.stt_stop_recording_usecase = stt_stop_recording_usecase
         self.get_stt_enabled_usecase = get_stt_enabled_usecase
+        self.stream_stt_transcriptions_usecase = stream_stt_transcriptions_usecase
         self.stream_navigation_stats_usecase = stream_navigation_stats_usecase
         self.stream_flight_and_drive_stats_usecase = (
             stream_flight_and_drive_stats_usecase
@@ -94,11 +99,18 @@ class EdDashboardRepository:
         STT is disabled or a recording already runs."""
         self.stt_start_recording_usecase()
 
-    def stop_recording_and_transcribe(self) -> str | None:
+    def stop_recording_and_transcribe(self) -> None:
         """Stops the microphone AND transcribes the audio, so it is slow and
-        blocking. Returns the spoken text, or None when nothing was heard.
-        Raises SttException when no recording runs."""
-        return self.stt_stop_recording_usecase()
+        blocking. Returns nothing, the spoken text comes out of
+        stream_stt_transcriptions(). Raises SttException when no recording
+        runs."""
+        self.stt_stop_recording_usecase()
+
+    def stream_stt_transcriptions(self) -> AsyncGenerator[str, None]:
+        """Never ends. Gives every spoken text, from the mic button or from the
+        hotkey. Must have only one reader, the comms input worker, because it
+        empties the STT queue."""
+        return self.stream_stt_transcriptions_usecase()
 
     def is_stt_enabled(self) -> bool:
         """The STT service's in-memory flag, the settings file is not read."""

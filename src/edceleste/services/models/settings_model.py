@@ -35,6 +35,10 @@ class SttModel(BaseModel, validate_assignment=True):
         default=None,
         description="The sounddevice index of the audio input device (None means system default)",  # noqa: E501
     )
+    hotkey: str | None = Field(
+        default=None,
+        description="The push-to-talk key as pynput names it, e.g. 'Key.f9' or 'Button.x1' (None means no hotkey)",  # noqa: E501
+    )
 
     @field_validator("input_device", mode="before")
     @classmethod

@@ -1373,3 +1373,75 @@ WidgetInstinctStatusRow {
         color: $font-muted-color;
     }
 }
+
+/* ============================================================
+   Settings: push-to-talk key (WidgetHotkeyRow, BindHotkeyModalScreen)
+   ============================================================ */
+WidgetHotkeyRow {
+    height: 1;
+}
+
+#hotkey-value-label {
+    width: 20;
+    padding: 0 0 0 1;
+}
+
+#hotkey-bind-button,
+#bind-hotkey-confirm-button,
+#bind-hotkey-cancel-button,
+#bind-hotkey-retry-button {
+    width: auto;
+    min-width: 0;
+    padding: 0 1;
+    border: none;
+    background: transparent;
+    &:hover{
+        color: $secondary;
+        background: transparent;
+    }
+}
+
+#hotkey-bind-button,
+#bind-hotkey-confirm-button {
+    color: $success;
+}
+
+#bind-hotkey-cancel-button {
+    color: $error;
+}
+
+#bind-hotkey-retry-button {
+    color: $secondary;
+}
+
+BindHotkeyModalScreen {
+    align: center middle;
+}
+
+#bind-hotkey-box {
+    width: 60;
+    height: auto;
+    padding: 1 2;
+    border: solid $secondary;
+    border-title-align: left;
+    background: $surface;
+}
+
+#bind-hotkey-prompt,
+#bind-hotkey-key {
+    height: 1;
+}
+
+#bind-hotkey-key {
+    text-style: bold;
+}
+
+#bind-hotkey-error {
+    height: auto;
+    color: $error;
+}
+
+#bind-hotkey-footer {
+    height: 1;
+    margin: 1 0 0 0;
+}
