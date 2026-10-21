@@ -733,6 +733,11 @@ class EdCelesteTestEnvironment:
         # Textual ignores a click on a button that still plays its press
         # animation (class "-active", 0.2 s). A second click on the same button
         # is lost when the screen reacts faster than that, which fast fakes do
+        await self.wait_until(
+            pilot,
+            lambda: len(pilot.app.screen.query(selector)) == 1,
+            f"{selector} to be on the screen",
+        )
         button = pilot.app.screen.query_one(selector)
         await self.wait_until(
             pilot,
@@ -803,7 +808,11 @@ async def click_bind_and_wait_for_the_dialog(edceleste, pilot: Pilot) -> None:
     await edceleste.click_when_ready(pilot, "#hotkey-bind-button")
     await edceleste.wait_until(
         pilot,
-        lambda: isinstance(pilot.app.screen, BindHotkeyModalScreen),
+        # The screen is pushed before its widgets are mounted
+        lambda: (
+            isinstance(pilot.app.screen, BindHotkeyModalScreen)
+            and len(pilot.app.screen.query("#bind-hotkey-confirm-button")) == 1
+        ),
         "the BIND HOTKEY dialog",
     )
 
@@ -812,6 +821,10 @@ def key_shown_in_the_dialog(app: App) -> str | None:
     # query, not query_one: while the dialog is drawn again it has no Label
     caught_key_labels = app.screen.query("#bind-hotkey-key")
     if len(caught_key_labels) != 1:
+        return None
+    # The Label is mounted a moment before the buttons below it, a slow runner
+    # can see the key and still find no button
+    if len(app.screen.query("#bind-hotkey-confirm-button")) != 1:
         return None
     return str(caught_key_labels.first().content)
 
