@@ -25,3 +25,7 @@ Lets propose that to user as a simple step-by-step plan in concise form, i am no
 
 3. Simplify and test - you did some work and can test it? Test it. Then ensure that user could also test it. Every work you do should be verifable by developer, BY HAND. There is nothing worse than code from agent that human not tested. Give it to test before you write unit tests. Maybe you did absolutely shit job so your imagined unit tests wont be even needed and had to be rewritten anyway.
 
+
+
+Refer to references/brilliant_examples.md for concrete examples of applying these principles.
+
