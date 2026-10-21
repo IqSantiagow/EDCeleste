@@ -55,6 +55,11 @@ tts:
   # The ship effect makes Celeste sound like the ship computer of the game, with every engine.
   # It is one fixed effect: nothing to set except on or off.
   ship_effect: true
+  # One switch for every prepared reply of Celeste: the short answers after a command ("Throttle
+  # zero") and the lines the game says itself, spoken when the game reports them ("Landing gear
+  # deployed", "Docking request granted"), whoever caused the change. Turn it off to hear only
+  # the voice of the ship in the game.
+  play_ship_replies: true
 
 llm:
   provider:

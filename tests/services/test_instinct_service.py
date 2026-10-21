@@ -29,7 +29,11 @@ from edceleste.services.models.instinct_status import (
     InstinctModelState,
 )
 from edceleste.services.models.keybinds_model import EdAction
-from edceleste.services.models.reply_texts import REPLY_TEXTS
+from edceleste.services.models.fast_command_reply import FastCommandReply
+from edceleste.services.models.reply_texts import (
+    ACTIONS_SAID_BY_GAME_STATE,
+    REPLY_TEXTS,
+)
 from edceleste.services.models.settings_model import (
     GameActionsModel,
     InstinctModel,
@@ -851,7 +855,8 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Landing gear deployed")
+        # The gear is said by the game state a moment later, so it is not spoken here
+        self.assertEqual(reply, FastCommandReply("Landing gear deployed", False))
         self.assertEqual(
             service.perform_game_action.executed, [EdAction.LANDING_GEAR_TOGGLE]
         )
@@ -948,7 +953,9 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Game window not found, nothing was pressed.")
+        self.assertEqual(
+            reply, FastCommandReply("Game window not found, nothing was pressed.")
+        )
         self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
@@ -963,8 +970,11 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        # The reason stays for the log and the LLM, the pilot hears the clip
-        self.assertEqual(reply, "Landing gear unavailable")
+        # The reason stays for the log and the LLM, the pilot hears the clip. The
+        # gear is an action of the game state, but nothing changes in the game, so
+        # the refusal is spoken here
+        self.assertEqual(reply, FastCommandReply("Landing gear unavailable"))
+        self.assertTrue(reply.is_spoken)  # type: ignore[union-attr]
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
     async def test_replies_game_actions_disabled_for_a_command_when_they_are_off(
@@ -975,8 +985,8 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(instinct_service.logger, level="INFO") as logs:
             reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Game actions disabled")
-        self.assertIn(reply, REPLY_TEXTS)
+        self.assertEqual(reply, FastCommandReply("Game actions disabled"))
+        self.assertIn(reply.text, REPLY_TEXTS)  # type: ignore[union-attr]
         self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
         self.assertEqual(service.perform_game_action.executed, [])
         fast_command_lines = [line for line in logs.output if "Fast command" in line]
@@ -1010,7 +1020,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("raise the landing gear")
 
-        self.assertEqual(reply, "Landing gear retracted")
+        self.assertEqual(reply, FastCommandReply("Landing gear retracted", False))
 
     async def test_reads_the_ship_before_the_key_is_pressed(self):
         service = make_fast_command_service(choice="LandingGearToggle")
@@ -1027,7 +1037,31 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         reply = await service.try_fast_command("deploy landing gear")
 
-        self.assertEqual(reply, "Landing gear deployed")
+        self.assertEqual(reply, FastCommandReply("Landing gear deployed", False))
+
+    async def test_does_not_speak_the_reply_of_an_action_the_game_state_says(self):
+        for action in ACTIONS_SAID_BY_GAME_STATE:
+            with self.subTest(action=action.value):
+                service = make_fast_command_service(choice=action.value)
+
+                reply = await service.try_fast_command("do it")
+
+                assert reply is not None
+                self.assertFalse(reply.is_spoken)
+                self.assertTrue(reply.text)  # still written to COMMS
+
+    async def test_speaks_the_reply_of_an_action_with_no_trace_in_the_game_state(self):
+        for action, text in [
+            (EdAction.SET_SPEED_ZERO, "Throttle zero"),
+            (EdAction.USE_BOOST_JUICE, "Boosting"),
+            (EdAction.CYCLE_NEXT_TARGET, "Next target"),
+        ]:
+            with self.subTest(action=action.value):
+                service = make_fast_command_service(choice=action.value)
+
+                reply = await service.try_fast_command("do it")
+
+                self.assertEqual(reply, FastCommandReply(text))
 
     async def test_logs_that_the_action_was_not_done_when_the_tool_refuses(self):
         tool = FakePerformGameAction(

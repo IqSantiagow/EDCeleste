@@ -142,6 +142,12 @@ class TTSModel(BaseModel, validate_assignment=True):
         description="Whether the speech of every provider gets the ship effect, "
         "which makes Celeste sound like the ship computer",
     )
+    play_ship_replies: bool = Field(
+        default=True,
+        description="Whether Celeste says the prepared reply (e.g. 'Landing gear "
+        "deployed') when the game reports that a ship switch changed. Off leaves "
+        "that to the voice of the ship in the game",
+    )
 
     @model_validator(mode="before")
     @classmethod
