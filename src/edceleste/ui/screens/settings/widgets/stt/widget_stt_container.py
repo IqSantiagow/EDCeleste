@@ -19,6 +19,9 @@ from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_select_row impo
 from edceleste.ui.screens.settings.widgets.inputs.widget_labeled_switch_row import (
     WidgetLabeledSwitchRow,
 )
+from edceleste.ui.screens.settings.widgets.stt.widget_hotkey_row import (
+    WidgetHotkeyRow,
+)
 from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeader
 
 
@@ -31,6 +34,7 @@ class SttInputWidgetIds(enum.StrEnum):
     STT_ENABLED_INPUT = "stt-enabled-input"
     STT_MODEL_INPUT = "stt-model-input"
     STT_INPUT_DEVICE_INPUT = "stt-input-device-input"
+    STT_HOTKEY_INPUT = "stt-hotkey-input"
 
 
 class WidgetSttContainer(WidgetBaseSettingsContainer):
@@ -91,6 +95,12 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
                     else "",
                     id=SttInputWidgetIds.STT_INPUT_DEVICE_INPUT,
                 )
+                yield WidgetHotkeyRow(
+                    "Push-to-talk key: ",
+                    value=self.stt_model.hotkey or "",
+                    game_keybinds=self.settings_repository.get_keybinds(),
+                    id=SttInputWidgetIds.STT_HOTKEY_INPUT,
+                )
 
     @work
     async def fetch_stt_models_and_input_devices(self) -> None:
@@ -129,6 +139,8 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
                 if selected_device_index_text and selected_device_index_text.isdigit()
                 else None
             )
+        elif message.sender_id == SttInputWidgetIds.STT_HOTKEY_INPUT:
+            self.stt_model.hotkey = message.new_value or None
 
         self.post_message(
             SectionSettingsChanged(

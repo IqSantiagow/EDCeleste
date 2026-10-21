@@ -57,6 +57,9 @@ class WidgetCommsInput(VerticalGroup):
         super().__init__(**kwargs)
         self.ed_dashboard_repository = ed_dashboard_repository
 
+    def on_mount(self) -> None:
+        self.send_spoken_commands()
+
     def compose(self) -> ComposeResult:
         with HorizontalGroup(classes="comms-input-container"):
             yield Input(placeholder="Input LLM command", id="comms-input")
@@ -80,9 +83,8 @@ class WidgetCommsInput(VerticalGroup):
     async def on_comms_stt_button_action(self, message: CommsSttButtonAction) -> None:
         if message.is_up:
             log.debug("STT button released, stopping STT capture")
-            result = None
             try:
-                result = await asyncio.to_thread(
+                await asyncio.to_thread(
                     self.ed_dashboard_repository.stop_recording_and_transcribe
                 )
             except Exception as e:
@@ -90,9 +92,6 @@ class WidgetCommsInput(VerticalGroup):
                 self.notify(f"STT error: {e}", severity="error")
             finally:
                 self.stt_state = False
-            if result:
-                self.query_one("#comms-input", Input).value = result
-                await self.query_one("#comms-input", Input).action_submit()
         else:
             log.debug("STT button pressed, starting STT capture")
             try:
@@ -101,6 +100,17 @@ class WidgetCommsInput(VerticalGroup):
             except Exception as e:
                 log.error("STT start_recording failed: %s", e)
                 self.notify(f"STT error: {e}", severity="error")
+
+    @work
+    async def send_spoken_commands(self) -> None:
+        """Worker that never ends and is the only reader of the STT queue.
+        Every text that comes out of it, from the mic button or from the
+        hotkey, is put in the input and submitted, so it takes the same way as
+        a typed message."""
+        stream = self.ed_dashboard_repository.stream_stt_transcriptions()
+        async for spoken_text in stream:
+            self.query_one("#comms-input", Input).value = spoken_text
+            await self.query_one("#comms-input", Input).action_submit()
 
     @on(Input.Submitted)
     def send_pilot_message_from_input(self, event: Input.Submitted) -> None:

@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from typing import Protocol
 
 from edceleste.protocols.base_service_protocol import BaseServiceProtocol
@@ -15,7 +16,12 @@ class SttProtocol(BaseServiceProtocol, Protocol):
     def reload_service(self) -> None:
         """Reads the stt part of the saved settings. Does not load the Whisper
         model. When the model name or the enabled flag changed, it forgets the
-        loaded model, so the next transcription loads it again."""
+        loaded model, so the next transcription loads it again. It also moves
+        the push-to-talk key (stt.hotkey): the key of the last reload is
+        unregistered, the new one is registered, and from then on its press
+        calls start_recording() and its release stops the recording and
+        transcribes it in the background, the text comes out of
+        consume_stt_queue()."""
         ...
 
     def is_stt_enabled(self) -> bool:
@@ -30,7 +36,9 @@ class SttProtocol(BaseServiceProtocol, Protocol):
 
     def get_stt_input_devices(self) -> list[tuple[str, int]]:
         """Asks the sound system for devices that can record: (name, device
-        index). Every name comes once, the first index wins."""
+        index). Every name comes once, the first index wins. An empty list
+        means no microphone. An error of the sound system (PortAudio) is not
+        caught."""
         ...
 
     def start_recording(self) -> None:
@@ -40,10 +48,17 @@ class SttProtocol(BaseServiceProtocol, Protocol):
         running."""
         ...
 
-    def stop_recording_and_transcribe(self) -> str | None:
+    def stop_recording_and_transcribe(self) -> None:
         """Stops the microphone and turns the recording into text. Blocking
         and slow: the first call loads the Whisper model, then it
-        transcribes, so the UI runs it in a thread. None when nothing was
-        recorded or nothing was heard. Raises SttException when no recording
-        is running."""
+        transcribes, so the UI and the hotkey run it in a thread. Returns
+        nothing, the text comes out of consume_stt_queue(), and nothing comes
+        out when nothing was recorded or heard. Raises SttException when no
+        recording is running."""
+        ...
+
+    def consume_stt_queue(self) -> AsyncGenerator[str, None]:
+        """Never ends. Yields every text that stop_recording_and_transcribe()
+        puts in the queue, one by one. The stream has exactly one consumer, a
+        queue does not duplicate items."""
         ...
