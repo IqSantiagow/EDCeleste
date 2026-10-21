@@ -91,6 +91,7 @@ class TTSInputWidgetIds(enum.StrEnum):
     TTS_PROVIDER_TYPE_INPUT = "tts-provider-type-input"
     VOLUME_INPUT = "volume-input"
     SHIP_EFFECT_INPUT = "ship-effect-input"
+    PLAY_SHIP_REPLIES_INPUT = "play-ship-replies-input"
 
 
 class WidgetTTSContainer(WidgetBaseSettingsContainer):
@@ -165,6 +166,12 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                 hint="sounds like inside the ship",
                 id=TTSInputWidgetIds.SHIP_EFFECT_INPUT,
             )
+            yield WidgetLabeledSwitchRow(
+                "Ship replies:",
+                self.tts_model.play_ship_replies,
+                hint="say 'Landing gear deployed' and the like when a switch changes",
+                id=TTSInputWidgetIds.PLAY_SHIP_REPLIES_INPUT,
+            )
             yield WidgetVoiceTestButton(self.tts_model)
 
     def on_value_changed(self, message: ValueChanged) -> None:
@@ -226,6 +233,8 @@ class WidgetTTSContainer(WidgetBaseSettingsContainer):
                     params.nano = message.new_value
             case TTSInputWidgetIds.SHIP_EFFECT_INPUT:
                 self.tts_model.ship_effect = message.new_value
+            case TTSInputWidgetIds.PLAY_SHIP_REPLIES_INPUT:
+                self.tts_model.play_ship_replies = message.new_value
 
         self.post_message(
             SectionSettingsChanged(

@@ -42,6 +42,7 @@ PROFILE_INPUT = "tts-profile-input"
 ENGINE_INPUT = "tts-provider-type-input"
 LOCATION_INPUT = "tts-location-input"
 SHIP_EFFECT_INPUT = "ship-effect-input"
+PLAY_SHIP_REPLIES_INPUT = "play-ship-replies-input"
 
 
 class StubProfiles(Vertical):
@@ -464,6 +465,51 @@ class TestWidgetTTSContainer(unittest.IsolatedAsyncioTestCase):
                     await pilot.pause()
 
                     self.assertEqual(len(app.query(f"#{SHIP_EFFECT_INPUT}")), 1)
+
+    # --- the ship replies switch ---
+
+    async def test_the_ship_replies_switch_shows_the_saved_value(self):
+        for saved_value in (True, False):
+            with self.subTest(saved_value=saved_value):
+                model = make_pocket_model()
+                model.play_ship_replies = saved_value
+                app = SectionApp(model)
+
+                async with app.run_test() as pilot:
+                    await pilot.pause()
+                    row = app.query_one(
+                        f"#{PLAY_SHIP_REPLIES_INPUT}", WidgetLabeledSwitchRow
+                    )
+
+                    self.assertIs(row.value, saved_value)
+
+    async def test_switching_the_ship_replies_writes_it_into_the_model(self):
+        model = make_pocket_model()
+        model.play_ship_replies = True
+        model.ship_effect = True
+        app = SectionApp(model)
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            switch = app.query_one(f"#{PLAY_SHIP_REPLIES_INPUT}").query_one(Switch)
+            switch.value = False
+            await pilot.pause()
+
+            self.assertIs(model.play_ship_replies, False)
+            self.assertIs(model.ship_effect, True)
+
+    async def test_switching_the_ship_replies_marks_the_section_as_modified(self):
+        app = SectionApp(make_pocket_model())
+
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            container = app.query_one(WidgetTTSContainer)
+            self.assertFalse(container.is_modified())
+
+            app.query_one(f"#{PLAY_SHIP_REPLIES_INPUT}").query_one(Switch).toggle()
+            await pilot.pause()
+
+            self.assertTrue(container.is_modified())
 
     async def test_the_test_voice_button_is_shown_last_for_every_engine(self):
         for make_model in (make_pocket_model, make_chatterbox_model, make_edge_model):

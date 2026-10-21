@@ -22,6 +22,7 @@ User/runtime settings, loaded via `services/settings_service.py` (`SettingsServi
 - `llm.user_prompt` (reserved, not wired into `LLMService` yet)
 - `tts.provider` — `edge` (`voice`), `chatterbox` (`profile`, `exaggeration`, `cfg_weight`, `device`, `nano`) or `pocket` (`profile`; CPU only, `PocketTTSProvider`); `tts.volume` is `0.0`–`1.0`. Voice profiles live in `%LOCALAPPDATA%\EDCeleste\voices\<provider>\` (`chatterbox`, `pocket`)
 - `tts.ship_effect` — `true` | `false` (default `true`): the ship effect for every engine, one fixed chain with nothing to set (`ShipVoiceEffect` in `services/ship_voice_effect.py`, made new for every reply; `TTSService` puts every piece of a streamed voice through it as the piece is made, and a voice that is made whole through it right before `sd.play`). An old `tts.voice_lab` block in a config.yaml is ignored
+- `tts.play_ship_replies` — `true` | `false` (default `true`): the one switch for every prepared reply of Celeste (checked at the top of `TTSService.speak_reply`): the replies after a command ("Throttle zero") and the lines of the game she says when the game state shows them ("Landing gear deployed" when Status.json reports the change, "Docking request granted" when the journal writes it). Off leaves all of it to the ship voice of the game; the text still goes to COMMS
 - `stt.enabled` / `stt.model` / `stt.input_device`
 - `event_reactions.reactions` — per-journal-event booleans for automatic replies
 - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)

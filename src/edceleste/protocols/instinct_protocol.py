@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from edceleste.protocols.base_service_protocol import BaseServiceProtocol
+from edceleste.services.models.fast_command_reply import FastCommandReply
 from edceleste.services.models.instinct_status import InstinctStatus
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 
@@ -42,15 +43,17 @@ class InstinctProtocol(BaseServiceProtocol, Protocol):
         get_status().failure. Must run on the app event loop."""
         ...
 
-    async def try_fast_command(self, pilot_message: str) -> str | None:
+    async def try_fast_command(self, pilot_message: str) -> FastCommandReply | None:
         """Presses the key of the ship action the pilot asked for, without the
         LLM, and returns the short reply that COMMS shows and Celeste says:
         what the key did ("Landing gear deployed", a toggle is named after the
-        direction it went). When the ship cannot do the action now, nothing is
-        pressed and the reply says so ("Landing gear unavailable"). When game
-        actions are switched off in the settings and the model took the message
-        for a command, nothing is pressed and the reply is "Game actions
-        disabled". When the game is not running, the reply says so at once
+        direction it went). The reply says in is_spoken whether Celeste says it:
+        not for an action whose change the game state says by itself. When the
+        ship cannot do the action now, nothing is pressed and the reply says so
+        ("Landing gear unavailable"). When game actions are switched off in
+        the settings and the model took the message for a command, nothing is
+        pressed and the reply is "Game actions disabled". When the game is not
+        running, the reply says so at once
         ("Game window not found, nothing was pressed."). The PerformGameAction
         tool is the one place that decides whether a key is pressed.
         None means "not handled": the pilot only talks or asks, Instinct is

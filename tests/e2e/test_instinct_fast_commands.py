@@ -8,6 +8,7 @@ pytestmark = [pytest.mark.anyio, allure.feature("Instinct fast commands")]
 
 DEPLOY_LANDING_GEAR = "deploy the landing gear"
 LANDING_GEAR_KEYS = ["keyDown shiftleft", "press l", "keyUp shiftleft"]
+SET_THROTTLE_TO_ZERO = "set throttle to zero"
 LLM_ANSWER = "Copy that, Commander."
 
 
@@ -100,10 +101,10 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
         edceleste.allow_game_actions()
 
     with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
+        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
     ):
         instinct_model = edceleste.turn_instinct_on()
-        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
+        instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
     with allure.step("And the LLM remembers every prompt it receives"):
         edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
@@ -111,13 +112,11 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
     async with edceleste.run_app() as pilot:
         await edceleste.boot_to_dashboard(pilot, step_keyword="And")
 
-        with allure.step("And Instinct has already deployed the landing gear"):
-            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+        with allure.step("And Instinct has already set the throttle to zero"):
+            await send_comms_message(pilot, SET_THROTTLE_TO_ZERO)
             await edceleste.wait_until(
                 pilot,
-                lambda: (
-                    "Landing gear deployed" in comms_entries(pilot.app, "llm-response")
-                ),
+                lambda: "Throttle zero" in comms_entries(pilot.app, "llm-response"),
                 "Instinct's reply in COMMS",
             )
 
@@ -131,8 +130,8 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
                 "the question reaching the LLM",
             )
             assert (
-                f"Human: {DEPLOY_LANDING_GEAR}\n"
-                "Celeste: Landing gear deployed\n"
+                f"Human: {SET_THROTTLE_TO_ZERO}\n"
+                "Celeste: Throttle zero\n"
                 "Human: what did you just do?"
             ) in prompts_sent_to_llm[0]
 
@@ -142,7 +141,7 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
                 lambda: LLM_ANSWER in edceleste.spoken_texts,
                 "Celeste's answer spoken",
             )
-            assert edceleste.spoken_texts == ["Landing gear deployed", LLM_ANSWER]
+            assert edceleste.spoken_texts == ["Throttle zero", LLM_ANSWER]
 
 
 @allure.title("When the game is not running Celeste says nothing was pressed")

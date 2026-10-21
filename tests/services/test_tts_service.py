@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
@@ -19,6 +20,11 @@ from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
 )
 from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.game_events import (
+    StatusEvent,
+    StatusFlags,
+    UnknownCheckedEvent,
+)
 from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
 from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
@@ -314,7 +320,208 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.service.play_samples.assert_not_awaited()
 
+    # --- the replies of the game state ---
+
+    def _make_status_event(self, flags: int, is_startup_loading: bool = False):
+        event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=flags, Flags2=0
+        )
+        event.is_startup_loading = is_startup_loading
+        return event
+
+    def _make_journal_event(self, name: str, is_startup_loading: bool = False):
+        event = UnknownCheckedEvent(event=name, timestamp=datetime.now())
+        event.is_startup_loading = is_startup_loading
+        return event
+
+    async def _send_status_flags(self, *flags_one_after_another: int) -> None:
+        """Gives a live Status.json event of every Flags value to the service,
+        then lets the background speech run."""
+        for flags in flags_one_after_another:
+            await self.service.speak_reply_for_changed_ship_switches(
+                self._make_status_event(flags)
+            )
+        await asyncio.sleep(0)
+
+    async def test_ship_switch_says_nothing_for_the_first_status(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self._send_status_flags(StatusFlags.LandingGearDown)
+
+        self.service.speak_reply.assert_not_awaited()
+
+    async def test_ship_switch_says_the_reply_in_the_background(self):
+        self.service.speak_reply = AsyncMock()
+        await self.service.speak_reply_for_changed_ship_switches(
+            self._make_status_event(0)
+        )
+
+        await self.service.speak_reply_for_changed_ship_switches(
+            self._make_status_event(StatusFlags.LandingGearDown)
+        )
+
+        # The handler returned before the voice was asked, the event bus is free
+        self.service.speak_reply.assert_not_awaited()
+        await asyncio.sleep(0)
+        self.service.speak_reply.assert_awaited_once_with("Landing gear deployed")
+
+    async def test_ship_switch_says_the_reply_when_the_gear_goes_up(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self._send_status_flags(StatusFlags.LandingGearDown, 0)
+
+        self.service.speak_reply.assert_awaited_once_with("Landing gear retracted")
+
+    async def test_ship_switch_says_nothing_when_the_flags_stay_the_same(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self._send_status_flags(
+            StatusFlags.LightsOn, StatusFlags.LightsOn, StatusFlags.LightsOn
+        )
+
+        self.service.speak_reply.assert_not_awaited()
+
+    async def test_ship_switch_says_every_changed_switch_one_after_another(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self._send_status_flags(
+            0, StatusFlags.LandingGearDown | StatusFlags.LightsOn
+        )
+
+        self.assertEqual(
+            self.service.speak_reply.await_args_list,
+            [call("Landing gear deployed"), call("Lights on")],
+        )
+
+    async def test_ship_switch_does_not_say_what_the_startup_loading_brings(self):
+        self.service.speak_reply = AsyncMock()
+
+        for event in (
+            self._make_status_event(0, is_startup_loading=True),
+            self._make_status_event(StatusFlags.LandingGearDown, True),
+            # the first live Status.json equals the loaded state
+            self._make_status_event(StatusFlags.LandingGearDown),
+        ):
+            await self.service.speak_reply_for_changed_ship_switches(event)
+        await asyncio.sleep(0)
+
+        self.service.speak_reply.assert_not_awaited()
+
+    async def test_ship_switch_says_the_change_that_comes_after_the_startup_loading(
+        self,
+    ):
+        self.service.speak_reply = AsyncMock()
+
+        await self.service.speak_reply_for_changed_ship_switches(
+            self._make_status_event(0, is_startup_loading=True)
+        )
+        await self._send_status_flags(StatusFlags.NightVision)
+
+        self.service.speak_reply.assert_awaited_once_with("Night vision on")
+
+    async def test_journal_event_says_the_reply_of_a_known_event(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self.service.speak_reply_for_journal_event(
+            self._make_journal_event("DockingGranted")
+        )
+        await asyncio.sleep(0)
+
+        self.service.speak_reply.assert_awaited_once_with("Docking request granted")
+
+    async def test_journal_event_says_nothing_for_an_unknown_name(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self.service.speak_reply_for_journal_event(
+            self._make_journal_event("Music")
+        )
+        await asyncio.sleep(0)
+
+        self.service.speak_reply.assert_not_awaited()
+
+    async def test_journal_event_says_nothing_for_the_startup_loading(self):
+        self.service.speak_reply = AsyncMock()
+
+        await self.service.speak_reply_for_journal_event(
+            self._make_journal_event("Docked", is_startup_loading=True)
+        )
+        await asyncio.sleep(0)
+
+        self.service.speak_reply.assert_not_awaited()
+
+    async def test_the_replies_of_the_game_state_come_from_the_event_bus(self):
+        event_bus = EventBus()
+        service = TTSService(
+            event_bus=event_bus, settings_service=self.settings_service
+        )
+        service.speak_reply = AsyncMock()
+
+        await event_bus.publish(self._make_status_event(0))
+        await event_bus.publish(self._make_status_event(StatusFlags.LightsOn))
+        await event_bus.publish(self._make_journal_event("MissionFailed"))
+        await event_bus.publish(self._make_journal_event("Scan"))
+        await asyncio.sleep(0)
+
+        self.assertEqual(
+            service.speak_reply.await_args_list,
+            [call("Lights on"), call("Mission failed")],
+        )
+
+    async def test_replies_of_the_game_state_never_play_over_each_other(self):
+        events: list[str] = []
+
+        async def speak_slowly(text: str) -> None:
+            events.append(f"start {text}")
+            await asyncio.sleep(0.01)
+            events.append(f"end {text}")
+
+        self.service.speak_reply = speak_slowly  # type: ignore[method-assign]
+
+        await asyncio.gather(
+            self.service.speak_replies_one_by_one(["first"]),
+            self.service.speak_replies_one_by_one(["second"]),
+        )
+
+        self.assertEqual(
+            events, ["start first", "end first", "start second", "end second"]
+        )
+
+    async def test_a_reply_that_fails_does_not_stop_the_next_one(self):
+        self.service.speak_reply = AsyncMock(
+            side_effect=[RuntimeError("no speaker"), None]
+        )
+
+        with self.assertLogs("edceleste.services.tts_service", "ERROR"):
+            await self.service.speak_replies_one_by_one(["first", "second"])
+
+        self.assertEqual(
+            self.service.speak_reply.await_args_list, [call("first"), call("second")]
+        )
+
     # --- speak_reply ---
+
+    async def test_speak_reply_says_nothing_when_ship_replies_are_off(self):
+        self._make_prepared_reply_clip("edge", VOICE, "Lights on")
+        self.settings_service.get_settings.return_value.tts.play_ship_replies = False
+        self.service.play_samples = AsyncMock()
+        self.service.synthesize_and_play = AsyncMock()
+        self.service.find_prepared_reply_clip = Mock(
+            wraps=self.service.find_prepared_reply_clip
+        )
+
+        await self.service.speak_reply("Lights on")
+
+        self.service.find_prepared_reply_clip.assert_not_called()
+        self.service.play_samples.assert_not_awaited()
+        self.service.synthesize_and_play.assert_not_awaited()
+
+    async def test_speak_reply_says_it_when_ship_replies_are_on(self):
+        self._make_prepared_reply_clip("edge", VOICE, "Lights on")
+        self.service.play_samples = AsyncMock()
+
+        await self.service.speak_reply("Lights on")
+
+        self.service.play_samples.assert_awaited_once()
 
     def _make_prepared_reply_clip(
         self, provider_type: str, profile_name: str, text: str

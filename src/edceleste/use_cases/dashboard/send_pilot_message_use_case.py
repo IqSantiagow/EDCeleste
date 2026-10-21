@@ -35,23 +35,35 @@ class SendPilotMessageUseCase:
         task.add_done_callback(self.running_tasks.discard)
 
     async def send(self, message: str) -> None:
-        """Instinct goes first. When it returns a reply (a key was pressed, or
-        the game window was not found), the reply goes to COMMS and the history,
-        the LLM is not called, and the same text is spoken: the prepared clip
-        when there is one, otherwise live. COMMS gets the reply before the
-        speech starts, so the text is on the screen before it is said. Returns when
-        the speech is over. An error of the speech (the voice model failed, no
-        speaker) is logged and not raised, the same as the speech of an LLM
-        reply: the reply stays in COMMS and the key was already pressed.
-        Otherwise (Instinct returned None, it never raises) the message
-        goes to the LLM queue as before."""
+        """Instinct goes first (try_fast_command, it never raises).
+
+        1. Instinct returned None: the message goes to the LLM queue
+           (add_llm_request_to_queue) as before, nothing is spoken here. An
+           error of that queue is not handled here.
+        2. Instinct returned a reply. It can be "a key was pressed", but also a
+           refusal ("Landing gear unavailable"), "Game actions disabled" or "Game
+           window not found, nothing was pressed.". The LLM is not called. The
+           text goes to COMMS and the conversation history with
+           add_reply_without_llm_to_queue, before any speech, so it is on the
+           screen before it is said.
+        3. A reply with is_spoken False (the game state says the same by itself
+           a moment later, when Status.json shows the change, e.g. "Landing gear
+           deployed") stops here, or the pilot would hear it twice.
+        4. Otherwise TTSProtocol.speak_reply says the text (the prepared clip
+           when there is one, otherwise live) and send returns when the speech
+           is over. It says nothing when the switch tts.play_ship_replies is
+           off. An error of the speech (the voice model failed, no speaker) is
+           logged and not raised, the same as the speech of an LLM reply: the
+           reply stays in COMMS and the key was already pressed."""
         reply = await self.instinct_protocol.try_fast_command(message)
         if reply is None:
             self.llm_protocol.add_llm_request_to_queue(message)
             return
 
-        self.llm_protocol.add_reply_without_llm_to_queue(message, reply)
+        self.llm_protocol.add_reply_without_llm_to_queue(message, reply.text)
+        if not reply.is_spoken:
+            return
         try:
-            await self.tts_protocol.speak_reply(reply)
+            await self.tts_protocol.speak_reply(reply.text)
         except Exception:
-            logger.exception("Celeste could not say the reply %r", reply)
+            logger.exception("Celeste could not say the reply %r", reply.text)

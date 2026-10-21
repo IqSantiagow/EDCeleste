@@ -1,5 +1,6 @@
 import re
 
+from edceleste.services.models.game_events import StatusFlags
 from edceleste.services.models.game_stats import ShipStats
 from edceleste.services.models.keybinds_model import EdAction
 
@@ -79,6 +80,25 @@ REPLY_TEXTS = [
     "Full spectrum scanner ready",
     "Radar range increased",
     "Radar range decreased",
+    # Said when the game state changes, see SHIP_FLAG_REPLY_TEXTS and
+    # JOURNAL_EVENT_REPLY_TEXTS (the lines the game says itself)
+    "Shields online",
+    "Shields offline",
+    "Drive assist on",
+    "Drive assist off",
+    "Fuel scooping",
+    "Fuel scoop disengaged",
+    "Main fuel tank low",
+    "Frame shift drive charging",
+    "Handbrake is on",
+    "Fuel replenished",
+    "Docking successful",
+    "Self-destruct sequence initiated",
+    "Fighter destroyed",
+    "Mission failed",
+    "Fighter deployed",
+    "Docking request denied",
+    "Docking request granted",
     # Refusals
     GAME_ACTIONS_DISABLED_TEXT,
 ]
@@ -173,6 +193,81 @@ def pick_reply_text_for_pressed_action(
             return "Night vision off" if ship.is_night_vision_on else "Night vision on"
         case _:
             return REPLY_TEXT_OF_ONE_SHOT_ACTION[action]
+
+
+# What Celeste says when the game state shows it, whoever caused the change.
+#
+# The ship switches that Status.json reports as flags: the flag, the text when
+# the game sets it, the text when the game clears it. None = nothing is said for
+# that direction.
+SHIP_FLAG_REPLY_TEXTS: list[tuple[StatusFlags, str | None, str | None]] = [
+    (StatusFlags.LandingGearDown, "Landing gear deployed", "Landing gear retracted"),
+    (StatusFlags.HardpointsDeployed, "Hardpoints deployed", "Hardpoints retracted"),
+    (StatusFlags.CargoScoopDeployed, "Cargo scoop deployed", "Cargo scoop retracted"),
+    (StatusFlags.LightsOn, "Lights on", "Lights off"),
+    (StatusFlags.FlightAssistOff, "Flight assist off", "Flight assist on"),
+    (StatusFlags.NightVision, "Night vision on", "Night vision off"),
+    (StatusFlags.ShieldsUp, "Shields online", "Shields offline"),
+    (StatusFlags.SrvDriveAssist, "Drive assist on", "Drive assist off"),
+    (StatusFlags.ScoopingFuel, "Fuel scooping", "Fuel scoop disengaged"),
+    (StatusFlags.LowFuel, "Main fuel tank low", None),
+    (StatusFlags.FsdCharging, "Frame shift drive charging", None),
+    (StatusFlags.SrvHandbrake, "Handbrake is on", None),
+]
+
+# The journal events with a voice line of the game, by the name in the "event"
+# field. Only the ones that come once per happening. The ones that repeat in a
+# series (UnderAttack, HeatDamage, Scanned, ReceiveText) need a cooldown and
+# are not here yet.
+JOURNAL_EVENT_REPLY_TEXTS = {
+    "RefuelAll": "Fuel replenished",
+    "RefuelPartial": "Fuel replenished",
+    "Docked": "Docking successful",
+    "SelfDestruct": "Self-destruct sequence initiated",
+    "FighterDestroyed": "Fighter destroyed",
+    "MissionFailed": "Mission failed",
+    "LaunchFighter": "Fighter deployed",
+    "DockingDenied": "Docking request denied",
+    "DockingGranted": "Docking request granted",
+}
+
+# The actions whose key press changes something that the game state says by
+# itself a moment later (the flags of SHIP_FLAG_REPLY_TEXTS). Instinct still
+# puts its reply in COMMS, but does not speak it, or the pilot would hear it
+# twice. The three FSD actions are here because the FSD key is a toggle: it
+# starts the charge ("Frame shift drive charging" of the FsdCharging flag) and a
+# second press cancels it, which Instinct cannot tell apart.
+ACTIONS_SAID_BY_GAME_STATE = frozenset(
+    {
+        EdAction.TOGGLE_FLIGHT_ASSIST,
+        EdAction.DEPLOY_HARDPOINT_TOGGLE,
+        EdAction.LANDING_GEAR_TOGGLE,
+        EdAction.TOGGLE_CARGO_SCOOP,
+        EdAction.SHIP_SPOT_LIGHT_TOGGLE,
+        EdAction.NIGHT_VISION_TOGGLE,
+        EdAction.SUPERCRUISE,
+        EdAction.HYPERSPACE,
+        EdAction.HYPER_SUPER_COMBINATION,
+    }
+)
+
+
+def pick_reply_texts_for_changed_flags(old_flags: int, new_flags: int) -> list[str]:
+    """The texts of REPLY_TEXTS that say which ship switches changed between two
+    Status.json Flags values, e.g. the landing gear bit going from 0 to 1 ->
+    ["Landing gear deployed"]. One text for every switch of SHIP_FLAG_REPLY_TEXTS
+    whose bit differs and has a text for that direction (a direction with None
+    says nothing, e.g. the low fuel bit going out), in the order of that list.
+    Empty when none of them changed (other bits, like docked or supercruise,
+    are ignored). Touches no disk and raises nothing."""
+    changed_flags = old_flags ^ new_flags
+    texts = []
+    for flag, text_when_set, text_when_cleared in SHIP_FLAG_REPLY_TEXTS:
+        if changed_flags & flag:
+            text = text_when_set if new_flags & flag else text_when_cleared
+            if text is not None:
+                texts.append(text)
+    return texts
 
 
 def build_reply_wav_file_name(text: str) -> str:
