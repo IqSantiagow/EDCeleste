@@ -1,4 +1,6 @@
+import asyncio
 import sys
+import threading
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
@@ -20,7 +22,10 @@ MODEL = "tiny.en"
 
 
 def _make_settings(
-    model: str, enabled: bool = True, input_device: int | None = None
+    model: str,
+    enabled: bool = True,
+    input_device: int | None = None,
+    hotkey: str | None = None,
 ) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
@@ -28,7 +33,9 @@ def _make_settings(
         llm=LLMModel(
             api_key="sk-ant-test", system_prompt=SYSTEM_PROMPT, user_prompt=""
         ),
-        stt=SttModel(model=model, enabled=enabled, input_device=input_device),
+        stt=SttModel(
+            model=model, enabled=enabled, input_device=input_device, hotkey=hotkey
+        ),
     )
 
 
@@ -61,7 +68,11 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = _make_settings(model=MODEL)
 
-        self.service = SttService(settings_service=self.settings_service)
+        self.hotkey_protocol = Mock()
+        self.service = SttService(
+            settings_service=self.settings_service,
+            hotkey_protocol=self.hotkey_protocol,
+        )
         # SttService no longer loads its settings in __init__ - that now
         # happens in reload_service(), driven by the cold-start flow. Call it
         # here so self.model/self.enabled reflect the settings above before
@@ -119,13 +130,17 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(self.service._recording_stream)
 
-    def test_stop_recording_and_transcribe_returns_none_when_no_frames_captured(self):
+    async def test_stop_recording_and_transcribe_queues_nothing_when_no_frames_captured(
+        self,
+    ):
+        self.service._app_loop = asyncio.get_running_loop()
         self.service.start_recording()
         # _recorded_frames already empty after start_recording
 
-        result = self.service.stop_recording_and_transcribe()
+        self.service.stop_recording_and_transcribe()
+        await asyncio.sleep(0)
 
-        self.assertIsNone(result)
+        self.assertTrue(self.service._stt_queue.empty())
         self.mock_whisper_model.transcribe.assert_not_called()
 
     def test_stop_recording_and_transcribe_raises_when_model_not_set(self):
@@ -138,13 +153,16 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_whisper_model.transcribe.assert_not_called()
 
-    def test_stop_recording_and_transcribe_returns_transcribed_text(self):
+    async def test_stop_recording_and_transcribe_puts_transcribed_text_in_queue(self):
+        next_text = asyncio.create_task(anext(self.service.consume_stt_queue()))
+        await asyncio.sleep(0)  # the consumer waits, the loop is known now
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
         result = self.service.stop_recording_and_transcribe()
 
-        self.assertEqual(result, "Turn on the engines")
+        self.assertIsNone(result)
+        self.assertEqual(await next_text, "Turn on the engines")
         self.mock_whisper_model.transcribe.assert_called_once()
 
     def test_stop_recording_and_transcribe_prompts_whisper_with_game_vocabulary(self):
@@ -156,14 +174,18 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         transcribe_arguments = self.mock_whisper_model.transcribe.call_args.kwargs
         self.assertEqual(transcribe_arguments["initial_prompt"], GAME_VOCABULARY_PROMPT)
 
-    def test_stop_recording_and_transcribe_returns_none_when_transcription_empty(self):
+    async def test_stop_recording_and_transcribe_queues_nothing_when_text_empty(
+        self,
+    ):
+        self.service._app_loop = asyncio.get_running_loop()
         self.mock_whisper_model.transcribe.return_value = {"text": ""}
         self.service.start_recording()
         self.service._recorded_frames = [np.array([0.1, 0.2])]
 
-        result = self.service.stop_recording_and_transcribe()
+        self.service.stop_recording_and_transcribe()
+        await asyncio.sleep(0)
 
-        self.assertIsNone(result)
+        self.assertTrue(self.service._stt_queue.empty())
 
     def test_stop_recording_and_transcribe_loads_whisper_model_lazily_on_first_call(
         self,
@@ -364,6 +386,161 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
             result = self.service.get_stt_models()
 
         self.assertEqual(result, ["tiny.en", "base.en"])
+
+    # --- push-to-talk hotkey ---
+
+    def test_reload_service_registers_hotkey_from_settings(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            model=MODEL, hotkey="Key.f9"
+        )
+
+        self.service.reload_service()
+
+        registered = self.hotkey_protocol.register_hotkey.call_args.args[0]
+        self.assertEqual(registered.key_name, "Key.f9")
+        self.assertEqual(registered.on_press, self.service.start_recording)
+        self.assertEqual(registered.on_release, self.service.transcribe_in_background)
+
+    def test_reload_service_registers_nothing_when_hotkey_is_none(self):
+        self.service.reload_service()
+
+        self.hotkey_protocol.register_hotkey.assert_not_called()
+        self.hotkey_protocol.unregister_hotkey.assert_not_called()
+
+    def test_reload_service_unregisters_old_key_before_registering_new_one(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            model=MODEL, hotkey="Key.f9"
+        )
+        self.service.reload_service()
+        self.settings_service.get_settings.return_value = _make_settings(
+            model=MODEL, hotkey="Key.f10"
+        )
+
+        self.service.reload_service()
+
+        self.assertEqual(
+            [call_made[0] for call_made in self.hotkey_protocol.mock_calls],
+            ["register_hotkey", "unregister_hotkey", "register_hotkey"],
+        )
+        self.hotkey_protocol.unregister_hotkey.assert_called_once_with("Key.f9")
+        last_registered = self.hotkey_protocol.register_hotkey.call_args.args[0]
+        self.assertEqual(last_registered.key_name, "Key.f10")
+
+    def test_reload_service_unregisters_key_when_hotkey_is_removed(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            model=MODEL, hotkey="Key.f9"
+        )
+        self.service.reload_service()
+        self.settings_service.get_settings.return_value = _make_settings(model=MODEL)
+
+        self.service.reload_service()
+
+        self.hotkey_protocol.unregister_hotkey.assert_called_once_with("Key.f9")
+        self.hotkey_protocol.register_hotkey.assert_called_once()
+
+    # --- transcription in the background ---
+
+    async def test_transcribe_in_background_runs_on_a_worker_thread(self):
+        threads_used = []
+        self.service.stop_recording_and_transcribe = lambda: threads_used.append(
+            threading.current_thread()
+        )
+        consumer = self.service.consume_stt_queue()
+        asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)  # the consumer waits, the loop is known now
+
+        self.service.transcribe_in_background()
+        await asyncio.sleep(0.2)
+
+        self.assertEqual(len(threads_used), 1)
+        self.assertIsNot(threads_used[0], threading.current_thread())
+
+    async def test_transcribe_in_background_puts_text_in_the_queue(self):
+        consumer = self.service.consume_stt_queue()
+        next_text = asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        self.service.transcribe_in_background()
+
+        self.assertEqual(
+            await asyncio.wait_for(next_text, timeout=5), "Turn on the engines"
+        )
+
+    def test_transcribe_in_background_stops_recording_when_loop_is_unknown(self):
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        self.service.transcribe_in_background()
+
+        self.assertIsNone(self.service._recording_stream)
+        self.mock_stream.stop.assert_called_once()
+
+    async def test_transcribe_in_background_logs_the_error_of_the_transcription(self):
+        self.service.stop_recording_and_transcribe = Mock(
+            side_effect=SttException("No recording is in progress.")
+        )
+        consumer = self.service.consume_stt_queue()
+        asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)
+
+        with self.assertLogs("edceleste.services.stt_service", level="ERROR"):
+            self.service.transcribe_in_background()
+            await asyncio.sleep(0.2)
+
+    # --- STT queue ---
+
+    def _record_and_stop(self) -> None:
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+        self.service.stop_recording_and_transcribe()
+
+    async def test_consume_stt_queue_yields_texts_in_order(self):
+        self.mock_whisper_model.transcribe.side_effect = [
+            {"text": "one"},
+            {"text": "two"},
+        ]
+        consumer = self.service.consume_stt_queue()
+        first_text = asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)  # the consumer waits, the loop is known now
+
+        self._record_and_stop()
+        self._record_and_stop()
+
+        self.assertEqual(await first_text, "one")
+        self.assertEqual(await anext(consumer), "two")
+        await consumer.aclose()
+
+    def test_text_is_handed_to_the_event_loop_thread_safely(self):
+        # The text is made on a worker or pynput thread, an asyncio queue may
+        # only be touched from the loop thread
+        loop = Mock()
+        self.service._app_loop = loop
+
+        self._record_and_stop()
+
+        loop.call_soon_threadsafe.assert_called_once_with(
+            self.service._stt_queue.put_nowait, "Turn on the engines"
+        )
+
+    def test_text_is_dropped_and_logged_when_nobody_consumes_the_queue(self):
+        with self.assertLogs("edceleste.services.stt_service", level="WARNING") as logs:
+            self._record_and_stop()
+
+        self.assertTrue(any("Nobody consumes" in line for line in logs.output))
+        self.assertTrue(self.service._stt_queue.empty())
+
+    async def test_transcribed_text_is_stripped_before_it_is_queued(self):
+        self.mock_whisper_model.transcribe.return_value = {"text": "  deploy  "}
+        consumer = self.service.consume_stt_queue()
+        next_text = asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)
+
+        self._record_and_stop()
+
+        self.assertEqual(await next_text, "deploy")
+        await consumer.aclose()
 
 
 if __name__ == "__main__":

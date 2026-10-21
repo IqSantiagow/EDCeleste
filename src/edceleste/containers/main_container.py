@@ -9,6 +9,7 @@ from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
 )
 from edceleste.services.game_window import GameWindow
+from edceleste.services.hotkey_service import HotkeyService
 from edceleste.services.instinct_service import InstinctService
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
@@ -101,6 +102,9 @@ from edceleste.use_cases.settings.settings_get_keybinds_use_case import (
 from edceleste.use_cases.settings.settings_load_keybinds_use_case import (
     SettingsLoadKeybindsUseCase,
 )
+from edceleste.use_cases.dashboard.stream_stt_transcriptions_use_case import (
+    StreamSttTranscriptionsUseCase,
+)
 from edceleste.use_cases.dashboard.stt_start_recording_use_case import (
     SttStartRecordingUseCase,
 )
@@ -171,6 +175,8 @@ class Container(containers.DeclarativeContainer):
         game_window=game_window,
     )
 
+    hotkey_service = providers.Singleton(HotkeyService)
+
     perform_game_action = providers.Factory(
         PerformGameAction,
         keybind_service=keybinds_service,
@@ -207,6 +213,7 @@ class Container(containers.DeclarativeContainer):
     stt_service = providers.Singleton(
         SttService,
         settings_service=settings_service,
+        hotkey_protocol=hotkey_service,
     )
 
     event_reactions_service = providers.Singleton(
@@ -262,6 +269,10 @@ class Container(containers.DeclarativeContainer):
 
     get_stt_enabled_use_case = providers.Factory(
         GetSttEnabledUseCase, stt_protocol=stt_service
+    )
+
+    stream_stt_transcriptions_use_case = providers.Factory(
+        StreamSttTranscriptionsUseCase, stt_protocol=stt_service
     )
 
     settings_load_keybinds_use_case = providers.Factory(
@@ -387,6 +398,7 @@ class Container(containers.DeclarativeContainer):
         stt_start_recording_usecase=stt_start_recording_use_case,
         stt_stop_recording_usecase=stt_stop_recording_use_case,
         get_stt_enabled_usecase=get_stt_enabled_use_case,
+        stream_stt_transcriptions_usecase=stream_stt_transcriptions_use_case,
         stream_navigation_stats_usecase=stream_navigation_stats_use_case,
         stream_flight_and_drive_stats_usecase=stream_flight_and_drive_stats_use_case,
         stream_ship_stats_usecase=stream_ship_stats_use_case,

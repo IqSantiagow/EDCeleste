@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, AsyncGenerator
 
 import numpy as np
 import whisper
 
+from edceleste.protocols.hotkey_protocol import HotkeyProtocol
 from edceleste.services.exceptions.stt_exception import SttException
 from edceleste.services.models.cold_start_status import ColdStartStatus
+from edceleste.services.models.hotkey_model import Hotkey
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
@@ -36,19 +39,27 @@ class SttService:
     _recording_stream: sd.InputStream | None = None
     _recorded_frames: list[np.ndarray]
 
-    def __init__(self, settings_service: SettingsService) -> None:
-        """Only stores the settings service. The settings are applied in
+    def __init__(
+        self, settings_service: SettingsService, hotkey_protocol: HotkeyProtocol
+    ) -> None:
+        """Only stores the dependencies. The settings are applied in
         reload_service() and Whisper is loaded in cold_start() or on the first
-        transcription."""
+        transcription. hotkey_protocol is where the push-to-talk key is
+        registered."""
         self.__settings_service = settings_service
+        self.__hotkey_protocol = hotkey_protocol
+        self._hotkey_key_name: str | None = None
+        self._stt_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._app_loop: asyncio.AbstractEventLoop | None = None
         self._recorded_frames = []
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
         """Only checks that a Whisper model name is set, even when STT is
-        disabled. Does not check that the name exists or that the input device
-        works."""
+        disabled. Does not check that the name exists, that the input device
+        works or the hotkey. Returns None when the name is set, otherwise a
+        SettingsIssueModel for the model field. Changes nothing."""
         if not new_settings.stt.model:
             return SettingsIssueModel(
                 section="stt",
@@ -94,18 +105,19 @@ class SttService:
             logger.warning("Audio recording status: %s", status)
         self._recorded_frames.append(indata[:, 0].copy())
 
-    def stop_recording_and_transcribe(self) -> str | None:
+    def stop_recording_and_transcribe(self) -> None:
         """Stops the microphone AND turns the recording into text. Blocking
         and slow: it may load Whisper first and then transcribes on this
-        thread.
+        thread. Returns nothing, the text comes out of consume_stt_queue().
 
         1. Raises SttException when no recording runs.
         2. Stops and closes the microphone stream.
-        3. No audio captured -> returns None, Whisper is not called.
+        3. No audio captured -> Whisper is not called, nothing is queued.
         4. Loads Whisper if needed (raises SttException when no model is set).
         5. Transcribes with GAME_VOCABULARY_PROMPT, so Whisper spells game
            words like "FSD" and "hardpoints" right.
-        Returns None also when Whisper heard no words.
+        6. Puts the text in the STT queue. Nothing is queued when Whisper heard
+           no words, or when nobody consumes the queue yet (logged).
         """
         if self._recording_stream is None:
             logger.warning(
@@ -119,7 +131,7 @@ class SttService:
 
         if not self._recorded_frames:
             logger.warning("No audio data was captured during the recording.")
-            return None
+            return
 
         whisper_model = self.load_stt_model()
 
@@ -128,15 +140,71 @@ class SttService:
         result = whisper_model.transcribe(
             audio, fp16=False, initial_prompt=GAME_VOCABULARY_PROMPT
         )
-        text: str = result.get("text", "")
-        return text.strip() or None
+        text: str = result.get("text", "").strip()
+        if not text:
+            return
+        if self._app_loop is None:
+            logger.warning("Nobody consumes the STT queue, dropped: %r", text)
+            return
+        # This runs on a worker or pynput thread, an asyncio queue is not
+        # thread safe, so the put is handed to the event loop
+        self._app_loop.call_soon_threadsafe(self._stt_queue.put_nowait, text)
 
-    def reload_service(self):
+    def transcribe_in_background(self) -> None:
+        """Called on the pynput thread when the hotkey goes up. Stops the
+        recording and transcribes it on a worker thread of the app event loop,
+        so the pynput thread comes back at once and the other hotkeys keep
+        working. The text comes out of consume_stt_queue(), like for the mic
+        button.
+
+        Before the app loop is known (nobody consumes the STT queue yet) it
+        does the same on this thread, so the microphone is closed anyway and
+        the text is dropped and logged. An error of the transcription is
+        logged when the worker thread ends, it is not raised here.
+        """
+        if self._app_loop is None:
+            self.stop_recording_and_transcribe()
+            return
+        transcription = asyncio.run_coroutine_threadsafe(
+            asyncio.to_thread(self.stop_recording_and_transcribe), self._app_loop
+        )
+        transcription.add_done_callback(self._log_error_of_transcription)
+
+    def _log_error_of_transcription(self, transcription) -> None:
+        """Called when the background transcription ends. Logs its error, an
+        error of a worker thread would otherwise be lost. A cancelled or
+        successful transcription logs nothing."""
+        if not transcription.cancelled() and transcription.exception() is not None:
+            logger.error(
+                "The transcription from the hotkey failed.",
+                exc_info=transcription.exception(),
+            )
+
+    async def consume_stt_queue(self) -> AsyncGenerator[str, None]:
+        """Never ends. Yields every text that stop_recording_and_transcribe()
+        puts in the queue, one by one, in the order they were spoken. The
+        first call remembers the running event loop, the texts are queued on
+        it.
+
+        Exactly one consumer, a queue does not copy items."""
+        self._app_loop = asyncio.get_running_loop()
+        while True:
+            yield await self._stt_queue.get()
+
+    def reload_service(self) -> None:
         """Applies the saved STT settings. Called by cold_start() and after
         the settings change. A new model name or a changed enabled flag drops
         the loaded Whisper model, it is loaded again on the next use. A new
         input device is used from the next recording on. Does not load
-        anything itself."""
+        anything itself.
+
+        The push-to-talk key is moved too: the key of the last reload is
+        unregistered, then stt.hotkey is registered (None means no hotkey).
+        The press of that key calls start_recording() on the pynput thread,
+        its release calls transcribe_in_background(). The key is registered
+        also when STT is disabled, a press then only logs the error of
+        start_recording().
+        """
         new_settings = self.__settings_service.get_settings()
         new_model = new_settings.stt.model
         new_enabled = new_settings.stt.enabled
@@ -146,6 +214,18 @@ class SttService:
         self.enabled = new_enabled
         self.model = new_model
         self.input_device = new_input_device
+
+        if self._hotkey_key_name is not None:
+            self.__hotkey_protocol.unregister_hotkey(self._hotkey_key_name)
+        self._hotkey_key_name = new_settings.stt.hotkey
+        if self._hotkey_key_name is not None:
+            self.__hotkey_protocol.register_hotkey(
+                Hotkey(
+                    key_name=self._hotkey_key_name,
+                    on_press=self.start_recording,
+                    on_release=self.transcribe_in_background,
+                )
+            )
 
     def is_stt_enabled(self) -> bool:
         """Reads the value applied by the last reload_service(), not the
@@ -160,7 +240,8 @@ class SttService:
         """Microphones as (name, sounddevice index), for the settings
         dropdown. Output only devices are left out. The same microphone can
         show up many times (once per Windows audio API), only the first index
-        of each name is kept."""
+        of each name is kept. An empty list means no microphone. An error of
+        the sound system (PortAudio) is not caught."""
         import sounddevice as sd
 
         all_devices = sd.query_devices()

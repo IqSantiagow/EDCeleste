@@ -5,15 +5,19 @@ and edge-tts voices.
 """
 
 import asyncio
+import enum
 import shutil
+import sys
 import threading
 import time
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import allure
 import numpy as np
 import pytest
+import whisper
 import yaml
 from dependency_injector import providers
 from pydantic_ai import models
@@ -37,6 +41,7 @@ from edceleste.services.models.settings_model import (
     TTSModel,
     TtsProviderParams,
 )
+from edceleste.services import hotkey_service as hotkey_service_module
 from edceleste.services import tts_service as tts_service_module
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
@@ -52,6 +57,9 @@ from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_row import 
     WidgetShipLogRow,
 )
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
+from edceleste.ui.screens.settings.widgets.stt.bind_hotkey_modal_screen import (
+    BindHotkeyModalScreen,
+)
 from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from edceleste.ui.ui_app import UIApp
 from tests import TEST_BINDS_FILE_LOCATION, TEST_KNOWN_EVENTS_FILE_LOCATION
@@ -344,6 +352,144 @@ class FakePocketTtsProvider(PocketTTSProvider):
         profile_path.write_bytes(b"fake voice profile")
 
 
+class FakeMouseButton(enum.Enum):
+    """The mouse buttons of pynput, named the same way: str() gives 'Button.x1'"""
+
+    left = 1
+    right = 2
+    middle = 3
+    x1 = 4
+    x2 = 5
+
+    def __str__(self) -> str:
+        return f"Button.{self.name}"
+
+
+class FakePynputListener:
+    """A pynput listener without a hook in the system: it only remembers the
+    functions it should call and whether it still listens"""
+
+    def __init__(self, on_press=None, on_release=None, on_click=None) -> None:
+        self.on_press = on_press
+        self.on_release = on_release
+        self.on_click = on_click
+        self.is_listening = False
+
+    def start(self) -> None:
+        self.is_listening = True
+
+    def stop(self) -> None:
+        self.is_listening = False
+
+
+class FakeGlobalKeysAndMouse:
+    """The keys and mouse buttons the Commander presses anywhere on the computer,
+    also while the game has focus. pynput is replaced by a fake with no hook in
+    the system. A key reaches every listener that still listens, like a real
+    global hook, and on a thread of its own like pynput does"""
+
+    def __init__(self) -> None:
+        self.keyboard_listeners: list[FakePynputListener] = []
+        self.mouse_listeners: list[FakePynputListener] = []
+
+    def build_keyboard_listener(self, on_press=None, on_release=None):
+        listener = FakePynputListener(on_press=on_press, on_release=on_release)
+        self.keyboard_listeners.append(listener)
+        return listener
+
+    def build_mouse_listener(self, on_click=None):
+        listener = FakePynputListener(on_click=on_click)
+        self.mouse_listeners.append(listener)
+        return listener
+
+    def build_pynput_modules(self) -> dict[str, ModuleType]:
+        keyboard = ModuleType("pynput.keyboard")
+        keyboard.Listener = self.build_keyboard_listener
+        mouse = ModuleType("pynput.mouse")
+        mouse.Listener = self.build_mouse_listener
+        mouse.Button = FakeMouseButton
+        pynput = ModuleType("pynput")
+        pynput.keyboard = keyboard
+        pynput.mouse = mouse
+        return {
+            "pynput": pynput,
+            "pynput.keyboard": keyboard,
+            "pynput.mouse": mouse,
+        }
+
+    async def hold_key(self, key_name: str) -> None:
+        """key_name is as pynput prints it: 'Key.f9', "'l'" """
+
+        def tell_the_listeners() -> None:
+            for listener in self.keyboard_listeners:
+                if listener.is_listening and listener.on_press is not None:
+                    listener.on_press(key_name)
+
+        await asyncio.to_thread(tell_the_listeners)
+
+    async def release_key(self, key_name: str) -> None:
+        def tell_the_listeners() -> None:
+            for listener in self.keyboard_listeners:
+                if listener.is_listening and listener.on_release is not None:
+                    listener.on_release(key_name)
+
+        await asyncio.to_thread(tell_the_listeners)
+
+    async def click_mouse_button(self, button_name: str) -> None:
+        """button_name is 'left', 'right', 'middle', 'x1' or 'x2'"""
+        button = FakeMouseButton[button_name]
+
+        def tell_the_listeners() -> None:
+            for is_pressed in (True, False):
+                for listener in self.mouse_listeners:
+                    if listener.is_listening and listener.on_click is not None:
+                        listener.on_click(0, 0, button, is_pressed)
+
+        await asyncio.to_thread(tell_the_listeners)
+
+
+class FakeMicrophoneStream:
+    def __init__(self, microphone: "FakeMicrophone", callback) -> None:
+        self.microphone = microphone
+        self.callback = callback
+
+    def start(self) -> None:
+        self.microphone.times_opened += 1
+        one_tenth_of_a_second = np.zeros((1600, 1), dtype=np.float32)
+        self.callback(one_tenth_of_a_second, 1600, None, None)
+
+    def stop(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self.microphone.times_closed += 1
+
+
+class FakeMicrophone:
+    """A microphone and a Whisper model without hardware and weights: whatever
+    the Commander records, Whisper hears the text the test scripted"""
+
+    def __init__(self) -> None:
+        self.heard_text = ""
+        self.times_opened = 0
+        self.times_closed = 0
+
+    def hears(self, text: str) -> None:
+        self.heard_text = text
+
+    def build_sounddevice_module(self) -> ModuleType:
+        sounddevice = ModuleType("sounddevice")
+        sounddevice.InputStream = lambda callback, **settings: FakeMicrophoneStream(
+            self, callback
+        )
+        return sounddevice
+
+    def build_whisper_model(self) -> SimpleNamespace:
+        return SimpleNamespace(
+            transcribe=lambda audio, **settings: {"text": f" {self.heard_text} "}
+        )
+
+
 def recorded_journal_line(event_name: str) -> str:
     recorded_journal = TEST_KNOWN_EVENTS_FILE_LOCATION.read_text(encoding="utf-8")
     for line in recorded_journal.splitlines():
@@ -505,6 +651,11 @@ class EdCelesteTestEnvironment:
         self.settings.tts = tts_settings
         self.save_config()
 
+    def turn_speech_to_text_on(self, push_to_talk_key: str | None = None) -> None:
+        self.settings.stt.enabled = True
+        self.settings.stt.hotkey = push_to_talk_key
+        self.save_config()
+
     def allow_game_actions(self) -> None:
         self.settings.game_actions.enabled = True
         self.save_config()
@@ -639,6 +790,32 @@ async def open_settings_section(edceleste, pilot: Pilot, section_id: str) -> Non
     await pilot.pause()
 
 
+async def open_stt_settings(edceleste, pilot: Pilot) -> None:
+    await open_settings_section(edceleste, pilot, "settings-stt")
+    await edceleste.wait_until(
+        pilot,
+        lambda: len(pilot.app.screen.query("#hotkey-bind-button")) == 1,
+        "the Push-to-talk key row",
+    )
+
+
+async def click_bind_and_wait_for_the_dialog(edceleste, pilot: Pilot) -> None:
+    await edceleste.click_when_ready(pilot, "#hotkey-bind-button")
+    await edceleste.wait_until(
+        pilot,
+        lambda: isinstance(pilot.app.screen, BindHotkeyModalScreen),
+        "the BIND HOTKEY dialog",
+    )
+
+
+def key_shown_in_the_dialog(app: App) -> str | None:
+    # query, not query_one: while the dialog is drawn again it has no Label
+    caught_key_labels = app.screen.query("#bind-hotkey-key")
+    if len(caught_key_labels) != 1:
+        return None
+    return str(caught_key_labels.first().content)
+
+
 SECONDS_TO_WAIT_FOR_LAYOUT = 5
 
 
@@ -685,7 +862,29 @@ async def edceleste(tmp_path, monkeypatch):
             Pilot, "click", build_click_that_waits_for_layout(Pilot.click)
         )
 
+    with allure.step(
+        "A fake keyboard and mouse that the Commander uses anywhere on the computer"
+    ):
+        global_keys_and_mouse = FakeGlobalKeysAndMouse()
+        for name, module in global_keys_and_mouse.build_pynput_modules().items():
+            monkeypatch.setitem(sys.modules, name, module)
+        # The real service listens only on Windows, the tests run everywhere
+        monkeypatch.setattr(
+            hotkey_service_module, "sys", SimpleNamespace(platform="win32")
+        )
+
+    with allure.step("A fake microphone and a Whisper that hears what the test says"):
+        microphone = FakeMicrophone()
+        monkeypatch.setitem(
+            sys.modules, "sounddevice", microphone.build_sounddevice_module()
+        )
+        monkeypatch.setattr(
+            whisper, "load_model", lambda model_name: microphone.build_whisper_model()
+        )
+
     environment = EdCelesteTestEnvironment(tmp_path)
+    environment.global_keys_and_mouse = global_keys_and_mouse
+    environment.microphone = microphone
     environment.voices_folder = tmp_path / "voices"
     # The profiles of Chatterbox, the engine the e2e voices are made for
     environment.chatterbox_voices_folder = environment.voices_folder / "chatterbox"

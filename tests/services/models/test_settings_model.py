@@ -239,7 +239,13 @@ class TestSttModel(unittest.TestCase):
         dumped = stt_model.model_dump()
 
         self.assertEqual(
-            dumped, {"enabled": False, "model": "tiny.en", "input_device": None}
+            dumped,
+            {
+                "enabled": False,
+                "model": "tiny.en",
+                "input_device": None,
+                "hotkey": None,
+            },
         )
         self.assertEqual(SttModel.model_validate(dumped), stt_model)
 
@@ -358,6 +364,21 @@ class TestSettingsModelEventReaction(unittest.TestCase):
             SettingsModel(
                 **_base_settings_kwargs(), event_reactions=["not", "a", "dict"]
             )
+
+
+class TestSttModelHotkey(unittest.TestCase):
+    def test_hotkey_defaults_to_none_for_old_config(self):
+        stt_model = SttModel.model_validate({"model": "tiny.en", "enabled": True})
+
+        self.assertIsNone(stt_model.hotkey)
+
+    def test_hotkey_keeps_the_saved_pynput_name(self):
+        stt_model = SttModel(model="tiny.en", hotkey="Key.f9")
+
+        dumped = stt_model.model_dump()
+
+        self.assertEqual(dumped["hotkey"], "Key.f9")
+        self.assertEqual(SttModel.model_validate(dumped).hotkey, "Key.f9")
 
 
 if __name__ == "__main__":

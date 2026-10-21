@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from edceleste.ui.screens.dashboard.ed_dashboard_repository import EdDashboardRepository
 
@@ -20,6 +21,7 @@ class TestEdDashboardRepositoryIsSttEnabled(unittest.TestCase):
             stt_start_recording_usecase=None,  # type: ignore
             stt_stop_recording_usecase=None,  # type: ignore
             get_stt_enabled_usecase=FakeGetSttEnabledUseCase(enabled),  # type: ignore
+            stream_stt_transcriptions_usecase=None,  # type: ignore
             stream_navigation_stats_usecase=None,  # type: ignore
             stream_flight_and_drive_stats_usecase=None,  # type: ignore
             stream_ship_stats_usecase=None,  # type: ignore
@@ -55,6 +57,7 @@ class TestEdDashboardRepositorySendPilotMessage(unittest.TestCase):
             stt_start_recording_usecase=None,  # type: ignore
             stt_stop_recording_usecase=None,  # type: ignore
             get_stt_enabled_usecase=None,  # type: ignore
+            stream_stt_transcriptions_usecase=None,  # type: ignore
             stream_navigation_stats_usecase=None,  # type: ignore
             stream_flight_and_drive_stats_usecase=None,  # type: ignore
             stream_ship_stats_usecase=None,  # type: ignore
@@ -83,6 +86,7 @@ class TestEdDashboardRepositoryStatsStreams(unittest.TestCase):
             stt_start_recording_usecase=None,
             stt_stop_recording_usecase=None,
             get_stt_enabled_usecase=None,
+            stream_stt_transcriptions_usecase=None,
             stream_navigation_stats_usecase=None,
             stream_flight_and_drive_stats_usecase=None,
             stream_ship_stats_usecase=None,
@@ -122,6 +126,44 @@ class TestEdDashboardRepositoryStatsStreams(unittest.TestCase):
         )
 
         self.assertIs(repository.stream_station_market(), stream)
+
+
+class TestEdDashboardRepositorySttFlow(unittest.TestCase):
+    def _make_repository(self, **stt_use_cases) -> EdDashboardRepository:
+        use_cases = dict(
+            stream_journal_events_usecase=None,
+            send_pilot_message_usecase=None,
+            stream_llm_responses_usecase=None,
+            stt_start_recording_usecase=None,
+            stt_stop_recording_usecase=None,
+            get_stt_enabled_usecase=None,
+            stream_stt_transcriptions_usecase=None,
+            stream_navigation_stats_usecase=None,
+            stream_flight_and_drive_stats_usecase=None,
+            stream_ship_stats_usecase=None,
+            stream_station_market_usecase=None,
+        )
+        use_cases.update(stt_use_cases)
+        return EdDashboardRepository(**use_cases)  # type: ignore
+
+    def test_stream_stt_transcriptions_returns_stream_from_its_use_case(self):
+        stream = object()
+        repository = self._make_repository(
+            stream_stt_transcriptions_usecase=FakeStreamUseCase(stream)
+        )
+
+        self.assertIs(repository.stream_stt_transcriptions(), stream)
+
+    def test_stop_recording_and_transcribe_calls_its_use_case_and_returns_nothing(
+        self,
+    ):
+        use_case = Mock(return_value="text that must not leak out")
+        repository = self._make_repository(stt_stop_recording_usecase=use_case)
+
+        result = repository.stop_recording_and_transcribe()
+
+        use_case.assert_called_once_with()
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
