@@ -19,6 +19,7 @@ from edceleste.services.decision_model_download_service import (
     DownloadCancelled,
 )
 from edceleste.services.models.cold_start_status import ColdStartStatus
+from edceleste.services.models.fast_command_reply import FastCommandReply
 from edceleste.services.models.instinct_actions import (
     COMMAND_QUESTION_NAME,
     NO_ACTION,
@@ -33,6 +34,7 @@ from edceleste.services.models.instinct_status import (
 )
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.reply_texts import (
+    ACTIONS_SAID_BY_GAME_STATE,
     GAME_ACTIONS_DISABLED_TEXT,
     pick_reply_text_for_pressed_action,
 )
@@ -390,9 +392,11 @@ class InstinctService:
 
     # ----- Fast commands -----
 
-    async def try_fast_command(self, pilot_message: str) -> str | None:
+    async def try_fast_command(self, pilot_message: str) -> FastCommandReply | None:
         """Does the action the pilot asked for, without the LLM. Returns the
-        short reply, the one COMMS shows and Celeste says. When a key was
+        short reply, the one COMMS shows and Celeste says (is_spoken is False
+        for a pressed action of ACTIONS_SAID_BY_GAME_STATE: the game state says
+        it by itself, so the reply is only written). When a key was
         pressed it is the text of REPLY_TEXTS for what the key did, e.g.
         "Landing gear deployed" (a toggle is named after the direction it
         went, read from the ship before the press). When the ship cannot do
@@ -401,7 +405,9 @@ class InstinctService:
         the message for a command but game actions are switched off, nothing is
         pressed and the reply is "Game actions disabled". Any other failure of
         the tool (the game window was not found) gives the text of the tool as
-        it is, which has no prepared clip. None means "not handled", and then
+        it is, which has no prepared clip. These refusals and failures are always
+        spoken (is_spoken True), only a key that was pressed for an action of
+        ACTIONS_SAID_BY_GAME_STATE is not. None means "not handled", and then
         the caller sends the message to the LLM as before.
 
         1. Nothing is asked when is_module_enabled() is False, when no action
@@ -461,7 +467,7 @@ class InstinctService:
                     pilot_message,
                     action.value,
                 )
-                return GAME_ACTIONS_DISABLED_TEXT
+                return FastCommandReply(GAME_ACTIONS_DISABLED_TEXT)
             # Read before the press: the key changes the ship, and a toggle is
             # named after what it did, not after what the ship is now
             ship_before_press = self.game_state_protocol.get_game_stats().ship
@@ -491,7 +497,7 @@ class InstinctService:
                 action.value,
                 tool_result.return_value,
             )
-            return reply
+            return FastCommandReply(reply)
 
         if tool_metadata.get("is_error"):
             reply = str(tool_result.return_value)
@@ -501,7 +507,7 @@ class InstinctService:
                 action.value,
                 reply,
             )
-            return reply
+            return FastCommandReply(reply)
 
         logger.info(
             "Fast command %r: Instinct pressed %s in %.0f ms (%s)",
@@ -510,7 +516,10 @@ class InstinctService:
             (time.perf_counter() - start) * 1000,
             scores,
         )
-        return pick_reply_text_for_pressed_action(action, ship_before_press)
+        return FastCommandReply(
+            text=pick_reply_text_for_pressed_action(action, ship_before_press),
+            is_spoken=action not in ACTIONS_SAID_BY_GAME_STATE,
+        )
 
     def is_module_enabled(self) -> bool:
         """True when Instinct may take a pilot message from the LLM: Instinct

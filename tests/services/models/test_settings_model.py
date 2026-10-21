@@ -213,6 +213,27 @@ class TestTTSModel(unittest.TestCase):
         self.assertIs(dumped["ship_effect"], False)
         self.assertIs(loaded.ship_effect, False)
 
+    def test_play_ship_replies_is_on_when_the_key_is_absent(self):
+        tts_model = TTSModel.model_validate(
+            {
+                "provider": "edge",
+                "params": {"voice": "en-GB-SoniaNeural"},
+                "volume": 1.0,
+            }
+        )
+
+        self.assertIs(tts_model.play_ship_replies, True)
+
+    def test_play_ship_replies_round_trips_through_model_dump(self):
+        tts_model = _make_tts_model()
+        tts_model.play_ship_replies = False
+
+        dumped = tts_model.model_dump()
+        loaded = TTSModel.model_validate(dumped)
+
+        self.assertIs(dumped["play_ship_replies"], False)
+        self.assertIs(loaded.play_ship_replies, False)
+
     def test_an_old_voice_lab_block_in_the_config_is_ignored(self):
         tts_model = TTSModel.model_validate(
             {

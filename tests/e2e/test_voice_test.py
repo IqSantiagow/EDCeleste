@@ -27,6 +27,7 @@ pytestmark = [pytest.mark.anyio, allure.feature("Voice test")]
 TEST_BUTTON = "#voice-test-button"
 CLONE_BUTTON = "#clone-voice-button"
 VOLUME_ROW = "#volume-input"
+SHIP_REPLIES_ROW = "#play-ship-replies-input"
 SONIA = "en-GB-SoniaNeural"
 ARIA = "en-US-AriaNeural"
 SMALL_TERMINAL_HEIGHT = 16
@@ -276,10 +277,10 @@ async def test_should_show_an_error_when_the_engine_on_the_screen_is_not_set_up(
 
 
 @allure.title(
-    "In the Pocket TTS settings the volume, the ship effect and Test voice follow "
-    "the voice profiles closely"
+    "In the Pocket TTS settings the volume, the ship effect, the ship replies and "
+    "Test voice follow the voice profiles closely"
 )
-async def test_should_put_volume_ship_effect_and_test_voice_right_below_the_profiles(
+async def test_should_put_the_voice_switches_and_test_voice_below_the_profiles(
     edceleste,
 ):
     with allure.step("Given Pocket TTS is saved with one cloned voice, 'echo'"):
@@ -295,6 +296,7 @@ async def test_should_put_volume_ship_effect_and_test_voice_right_below_the_prof
         clone_button_row = screen.query_one(CLONE_BUTTON).region.y
         volume_row = screen.query_one(VOLUME_ROW).region.y
         ship_effect_row = screen.query_one(SHIP_EFFECT_ROW).region.y
+        ship_replies_row = screen.query_one(SHIP_REPLIES_ROW).region.y
         test_button = voice_test_button(pilot.app)
 
         with allure.step("Then the Volume row is right below the clone button"):
@@ -303,8 +305,11 @@ async def test_should_put_volume_ship_effect_and_test_voice_right_below_the_prof
         with allure.step("And the Ship effect row follows the Volume row"):
             assert 0 < ship_effect_row - volume_row <= 3
 
-        with allure.step("And the Test voice button follows the Ship effect row"):
-            assert 0 < test_button.region.y - ship_effect_row <= 3
+        with allure.step("And the Ship replies row follows the Ship effect row"):
+            assert 0 < ship_replies_row - ship_effect_row <= 3
+
+        with allure.step("And the Test voice button follows the Ship replies row"):
+            assert 0 < test_button.region.y - ship_replies_row <= 3
 
         with allure.step("And the Test voice button is the last row of the section"):
             section_rows = screen.query_one("#settings-tts VerticalScroll").children

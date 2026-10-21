@@ -12,6 +12,7 @@ from tests.e2e.conftest import (
 )
 from tests.e2e.test_game_state_prompt import prompt_remembering_llm
 from tests.e2e.test_journal_to_dashboard_stats import label_text
+from tests.e2e.test_startup_loading import fuel_in_the_hud
 from tests.e2e.test_streaming_voice import (
     chatterbox_settings,
     what_the_speaker_should_play,
@@ -25,6 +26,9 @@ STATUS_LANDING_GEAR_DOWN = 4
 
 DEPLOY_LANDING_GEAR = "deploy the landing gear"
 LANDING_GEAR_KEYS = ["keyDown shiftleft", "press l", "keyUp shiftleft"]
+SET_THROTTLE_TO_ZERO = "set throttle to zero"
+THROTTLE_ZERO_KEYS = ["press x"]
+FUEL_IN_THE_BASELINE = 12.5
 SAVED_VOLUME = 0.5
 CLIP_SAMPLE_RATE = 24000
 
@@ -40,8 +44,10 @@ def write_prepared_reply_clip(edceleste, voice: str, text: str) -> np.ndarray:
     return clip_samples
 
 
-@allure.title("A prepared clip of the reply is played instead of a live voice")
-async def test_should_play_the_prepared_clip_of_the_reply_instead_of_speaking_it_live(
+@allure.title(
+    "After a landing gear command the clip is played once, when the game reports it"
+)
+async def test_should_play_the_clip_once_when_the_game_reports_the_gear_after_a_command(
     edceleste,
 ):
     prompts_sent_to_llm: list[str] = []
@@ -70,6 +76,14 @@ async def test_should_play_the_prepared_clip_of_the_reply_instead_of_speaking_it
     async with edceleste.run_app() as pilot:
         await edceleste.boot_to_dashboard(pilot, step_keyword="And")
 
+        with allure.step("And the game reports the landing gear up"):
+            edceleste.write_status_file(fuel_main=FUEL_IN_THE_BASELINE, flags=0)
+            await edceleste.wait_until(
+                pilot,
+                lambda: fuel_in_the_hud(pilot.app) == str(FUEL_IN_THE_BASELINE),
+                "the fuel of the first Status.json in the HUD",
+            )
+
         with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
             await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
 
@@ -81,10 +95,24 @@ async def test_should_play_the_prepared_clip_of_the_reply_instead_of_speaking_it
             )
             assert comms_entries(pilot.app, "llm-response") == ["Landing gear deployed"]
 
+        with allure.step("And the landing gear key Shift+L is pressed once"):
+            assert edceleste.fake_keyboard.keyboard_log == LANDING_GEAR_KEYS
+
+        with allure.step("And Celeste has not said anything yet"):
+            await pilot.pause(0.5)
+            assert edceleste.played_audio == []
+            assert edceleste.spoken_texts == []
+
+        with allure.step("And the game reports the landing gear down"):
+            edceleste.write_status_file(
+                fuel_main=FUEL_IN_THE_BASELINE, flags=STATUS_LANDING_GEAR_DOWN
+            )
+
         with allure.step("And the speakers play the prepared clip once"):
             await edceleste.wait_until(
                 pilot, lambda: edceleste.played_audio != [], "the clip played"
             )
+            await pilot.pause(0.5)
             assert len(edceleste.played_audio) == 1
             played = edceleste.played_audio[0]
             assert played["sample_rate"] == CLIP_SAMPLE_RATE
@@ -98,8 +126,10 @@ async def test_should_play_the_prepared_clip_of_the_reply_instead_of_speaking_it
             assert edceleste.spoken_texts == []
 
 
-@allure.title("With the landing gear down Instinct retracts it and says so")
-async def test_should_retract_the_landing_gear_and_say_it_when_the_gear_is_down(
+@allure.title(
+    "With the landing gear down Instinct retracts it, the voice comes with the game"
+)
+async def test_should_retract_the_landing_gear_and_leave_the_voice_to_the_game_state(
     edceleste,
 ):
     prompts_sent_to_llm: list[str] = []
@@ -140,13 +170,10 @@ async def test_should_retract_the_landing_gear_and_say_it_when_the_gear_is_down(
                 "Landing gear retracted"
             ]
 
-        with allure.step("And Celeste says 'Landing gear retracted'"):
-            await edceleste.wait_until(
-                pilot,
-                lambda: edceleste.spoken_texts != [],
-                "the reply handed to the voice engine",
-            )
-            assert edceleste.spoken_texts == ["Landing gear retracted"]
+        with allure.step("And Celeste does not say it herself, the game state will"):
+            await pilot.pause(0.5)
+            assert edceleste.spoken_texts == []
+            assert edceleste.played_audio == []
 
         with allure.step("And the landing gear key Shift+L is pressed once"):
             assert edceleste.fake_keyboard.keyboard_log == LANDING_GEAR_KEYS
@@ -165,10 +192,10 @@ async def test_should_show_the_reply_in_comms_while_the_voice_is_still_speaking(
         edceleste.allow_game_actions()
 
     with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
+        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
     ):
         instinct_model = edceleste.turn_instinct_on()
-        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
+        instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
     with allure.step("And the LLM remembers every prompt it receives"):
         edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
@@ -188,16 +215,16 @@ async def test_should_show_the_reply_in_comms_while_the_voice_is_still_speaking(
         with allure.step("And the voice engine is slow after its first piece"):
             chatterbox.make_the_voice_slow()
 
-        with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
-            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+        with allure.step("When the Commander sends 'set throttle to zero' in COMMS"):
+            await send_comms_message(pilot, SET_THROTTLE_TO_ZERO)
 
-        with allure.step("Then COMMS shows the reply 'Landing gear deployed'"):
+        with allure.step("Then COMMS shows the reply 'Throttle zero'"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Instinct's reply in COMMS",
             )
-            assert comms_entries(pilot.app, "llm-response") == ["Landing gear deployed"]
+            assert comms_entries(pilot.app, "llm-response") == ["Throttle zero"]
 
         with allure.step("And Celeste has said only the start of it so far"):
             await edceleste.wait_until(
@@ -218,7 +245,7 @@ async def test_should_show_the_reply_in_comms_while_the_voice_is_still_speaking(
                 speaker.everything_played(),
                 what_the_speaker_should_play(chatterbox.voice_pieces, SAVED_VOLUME),
             )
-            assert edceleste.spoken_texts[spoken_at_boot:] == ["Landing gear deployed"]
+            assert edceleste.spoken_texts[spoken_at_boot:] == ["Throttle zero"]
 
 
 @allure.title("A voice that breaks does not lose the reply or press the key twice")
@@ -231,10 +258,10 @@ async def test_should_keep_the_reply_and_press_the_key_once_when_the_voice_break
         edceleste.allow_game_actions()
 
     with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
+        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
     ):
         instinct_model = edceleste.turn_instinct_on()
-        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
+        instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
     with allure.step("And the LLM remembers every prompt it receives"):
         edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
@@ -254,16 +281,16 @@ async def test_should_keep_the_reply_and_press_the_key_once_when_the_voice_break
         with allure.step("And the voice engine breaks once while speaking"):
             chatterbox.break_the_voice_once()
 
-        with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
-            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+        with allure.step("When the Commander sends 'set throttle to zero' in COMMS"):
+            await send_comms_message(pilot, SET_THROTTLE_TO_ZERO)
 
-        with allure.step("Then COMMS still shows the reply 'Landing gear deployed'"):
+        with allure.step("Then COMMS still shows the reply 'Throttle zero'"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Instinct's reply in COMMS",
             )
-            assert comms_entries(pilot.app, "llm-response") == ["Landing gear deployed"]
+            assert comms_entries(pilot.app, "llm-response") == ["Throttle zero"]
 
         with allure.step("And the voice really broke after its first piece"):
             await edceleste.wait_until(
@@ -272,25 +299,25 @@ async def test_should_keep_the_reply_and_press_the_key_once_when_the_voice_break
                 "the voice engine broken",
             )
 
-        with allure.step("And the landing gear key Shift+L was pressed only once"):
-            assert edceleste.fake_keyboard.keyboard_log == LANDING_GEAR_KEYS
+        with allure.step("And the throttle key X was pressed only once"):
+            assert edceleste.fake_keyboard.keyboard_log == THROTTLE_ZERO_KEYS
 
         with allure.step("And Celeste (the LLM) is not asked anything"):
             assert prompts_sent_to_llm == []
 
         with allure.step("And the next command is answered and spoken in full"):
             blocks_before_next_command = len(speaker.blocks)
-            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
+            await send_comms_message(pilot, SET_THROTTLE_TO_ZERO)
             await edceleste.wait_until(
                 pilot,
                 lambda: len(speaker.blocks) >= blocks_before_next_command + 3,
                 "the whole voice of the next reply in the speakers",
             )
             assert comms_entries(pilot.app, "llm-response") == [
-                "Landing gear deployed",
-                "Landing gear deployed",
+                "Throttle zero",
+                "Throttle zero",
             ]
             assert edceleste.spoken_texts[spoken_at_boot:] == [
-                "Landing gear deployed",
-                "Landing gear deployed",
+                "Throttle zero",
+                "Throttle zero",
             ]

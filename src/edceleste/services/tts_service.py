@@ -15,7 +15,13 @@ import soundfile as sf
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.cold_start_status import ColdStartStatus
-from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
+from edceleste.services.models.game_events import GameEvent, StatusEvent
+from edceleste.services.models.reply_texts import (
+    JOURNAL_EVENT_REPLY_TEXTS,
+    REPLY_TEXTS,
+    build_reply_wav_file_name,
+    pick_reply_texts_for_changed_flags,
+)
 from edceleste.services.models.settings_model import (
     SettingsIssueModel,
     SettingsModel,
@@ -178,10 +184,80 @@ class TTSService:
 
         Subscriptions:
         - TTSEvent -> speak_text_from_tts_event
+        - StatusEvent -> speak_reply_for_changed_ship_switches
+        - GameEvent -> speak_reply_for_journal_event
         """
         self.__event_bus = event_bus
         self.__settings_service = settings_service
+        # Flags of the last Status.json, None until the first one comes
+        self.__last_status_flags: int | None = None
+        # The event loop keeps only a weak reference to a task, so we keep it alive
+        self.__running_tasks: set[asyncio.Task] = set()
+        # One reply of the game state at a time: a second one waits for the first
+        # instead of cutting it off
+        self.__state_speech_lock = asyncio.Lock()
         self.__event_bus.subscribe(TTSEvent, self.speak_text_from_tts_event)
+        self.__event_bus.subscribe(
+            StatusEvent, self.speak_reply_for_changed_ship_switches
+        )
+        self.__event_bus.subscribe(GameEvent, self.speak_reply_for_journal_event)
+
+    async def speak_reply_for_changed_ship_switches(self, event: StatusEvent) -> None:
+        """Runs for every Status.json event. Compares its Flags with the Flags of
+        the previous one and says the prepared reply of every switch of
+        SHIP_FLAG_REPLY_TEXTS that changed (landing gear, cargo scoop, flight
+        assist, shields, fuel and so on), whoever flipped it: the pilot by hand,
+        a fast command or the LLM. Returns at once, the speech runs in a
+        background task, so the event bus is not held up while the voice plays.
+
+        Always remembers the new Flags, also from an event of the startup
+        loading. Says nothing for such an event (event.is_startup_loading, set by
+        the game watcher for what the game wrote before the app started, old
+        state) and for the first Status.json (nothing to compare with). When
+        several switches changed, their replies are said in the order of
+        SHIP_FLAG_REPLY_TEXTS. This method does not read the settings:
+        speak_reply() says nothing when the switch settings.tts.play_ship_replies
+        is off."""
+        old_flags = self.__last_status_flags
+        self.__last_status_flags = event.Flags
+        if old_flags is None or event.is_startup_loading:
+            return
+        texts = pick_reply_texts_for_changed_flags(old_flags, event.Flags)
+        if texts:
+            self.speak_replies_in_background(texts)
+
+    async def speak_reply_for_journal_event(self, event: GameEvent) -> None:
+        """Runs for every game event, also the unknown journal lines (they come as
+        UnknownCheckedEvent, the name is in event.event). When the name is in
+        JOURNAL_EVENT_REPLY_TEXTS, e.g. "DockingGranted", says its reply in a
+        background task and returns at once. Says nothing for any other event
+        and for an event of the startup loading (old state). Whether Celeste
+        really speaks is decided by speak_reply()."""
+        text = JOURNAL_EVENT_REPLY_TEXTS.get(event.event)
+        if text is None or event.is_startup_loading:
+            return
+        self.speak_replies_in_background([text])
+
+    def speak_replies_in_background(self, texts: list[str]) -> None:
+        """Starts speak_replies_one_by_one() as an asyncio task and returns at
+        once. Needs a running event loop. The task is kept in a set until it is
+        done, because the loop holds only a weak reference to a task."""
+        task = asyncio.create_task(self.speak_replies_one_by_one(texts))
+        self.__running_tasks.add(task)
+        task.add_done_callback(self.__running_tasks.discard)
+
+    async def speak_replies_one_by_one(self, texts: list[str]) -> None:
+        """Says every text with speak_reply(), the next one after the previous
+        has played. Another call waits until this one is done, so the replies of
+        the game state never play over each other. An error of one text (no
+        speaker, a clip that cannot be read) is logged and the next text is still
+        said, nothing is raised."""
+        async with self.__state_speech_lock:
+            for text in texts:
+                try:
+                    await self.speak_reply(text)
+                except Exception:
+                    logger.exception("Celeste could not say the reply %r", text)
 
     def build_provider(self, provider_type: str) -> TTSProviderProtocol:
         """Creates a new provider object for settings.tts.provider. Cheap, no
@@ -191,9 +267,12 @@ class TTSService:
         return TTS_PROVIDER_CLASSES[provider_type]()
 
     async def speak_reply(self, text: str) -> None:
-        """Says a short reply of a fast command out loud and waits until it has
-        played, with the saved volume and the ship effect (when it is on).
+        """Says a short reply (a fast command, or a change of the game state) out
+        loud and waits until it has played, with the saved volume and the ship
+        effect (when it is on).
 
+        0. The switch settings.tts.play_ship_replies is off -> nothing is said
+           and nothing is read or played.
         1. The voice of the saved settings has a prepared clip of this text
            (find_prepared_reply_clip) -> the clip is read from disk and played.
            No model runs, so it starts at once.
@@ -202,14 +281,18 @@ class TTSService:
            live by synthesize_and_play(), which is slower but still comes.
         Raises RuntimeError when reload_service() has not built the provider
         yet and the clip is missing. A clip that cannot be read raises the error
-        of soundfile, and the reply is not spoken then. Provider and speaker
-        errors are raised."""
+        of soundfile, and the reply is not spoken then. Raises ValueError for a
+        profile name that is empty or ".." (find_prepared_reply_clip). Provider
+        and speaker errors are raised."""
+        tts_settings = self.__settings_service.get_settings().tts
+        if not tts_settings.play_ship_replies:
+            return
+
         clip_path = self.find_prepared_reply_clip(text)
         if clip_path is None:
             await self.synthesize_and_play(text)
             return
 
-        tts_settings = self.__settings_service.get_settings().tts
         samples, sample_rate = await asyncio.to_thread(sf.read, str(clip_path))
         await self.play_samples(
             samples,
@@ -422,8 +505,13 @@ class TTSService:
             pass
 
     async def speak_text_from_tts_event(self, event: TTSEvent) -> None:
-        """Runs when a TTSEvent is published on the event bus. Says the text
-        out loud and returns when the audio has finished."""
+        """Runs when a TTSEvent is published on the event bus (LLMService
+        publishes one for every finished text block of its reply). Says the text
+        out loud with synthesize_and_play(), always live, never from a prepared
+        clip, and returns when the audio has finished. The switch
+        tts.play_ship_replies does not apply: it silences only the short prepared
+        replies of speak_reply(), not the answers of the LLM. An error of the
+        voice is raised to the event bus, which logs it."""
         logger.info("Received TTS request: %s", event.text)
         await self.synthesize_and_play(event.text)
 
