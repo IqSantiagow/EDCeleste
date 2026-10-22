@@ -33,9 +33,8 @@ Make sure that:
 
 ## Step 3 — Commit
 
-Create a commit with a specific description (what changed and why). Stage only files related to the current change — never `git add .` or `git add -A`.
+Create a commit with a one liner description. All i need. Stage only files related to the current change — never `git add .` or `git add -A`.
 
-**ABSOLUTE PROHIBITION:** No `Co-Authored-By:` or any other trailer. The commit message ends after the description, with no additional lines.
 
 ```bash
 git add <specific files>
@@ -58,20 +57,26 @@ Check whether a PR already exists:
 gh pr view 2>/dev/null && echo "PR EXISTS" || echo "NO PR"
 ```
 
-If no PR exists, create one. Title ≤70 characters. NO Co-Authored-By in the body:
+If no PR exists, create one. Title ≤70 characters. Simple and concise:
 
 ```bash
 gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 - <what was changed>
-- <why / what problem it solves>
-
-## Test plan
-- [ ] Lint and tests pass
-- [ ] <specific steps to verify the change>
 EOF
 )"
 ```
+
+f.e if you implemented new stt feature then keep it concise
+
+```markdown
+Closes: #... (replace with the issue number this PR addresses)
+## Summary
+- new stt feature
+```
+
+
+Thats it, nobody cares about the details, if me or they care they will check inside or by git blame.
 
 Note the PR number — it will be needed to fetch comments.
 
