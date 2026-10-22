@@ -47,15 +47,13 @@ Go through the steps in order. Do not call the work done before step 6 is done.
 
 1. **Implement** the feature or the fix.
 2. **Unit tests** — write them with the `unit-test-writer` skill, until `python -m pytest` is green.
-3. **Mutation tests** — ask the `mutation-tester` subagent (`.claude/agents/mutation-tester.md`)
-   to check the changed files. It only reports surviving mutants.
-4. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
+3. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
    1. It scans the changes and returns proposed scenarios. Review them and approve (or trim) them.
    2. After approval it writes the tests, runs them and reports passed and failed.
    3. A failed e2e test means the app breaks a business requirement. Fix the **app**, never the
       test, then run the e2e tests again until all are green. Change a test only when the
       scenario itself was wrong, and say so.
-5. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
+4. **Blind check** — before the PR run the `blind-check` skill (`.claude/skills/blind-check/SKILL.md`).
    The `blind-signature-reader` subagent guesses the changed methods from names alone (wrong
    guesses → rename), then from names plus docstrings (wrong guesses → better docstrings). Only
    backend logic is checked, everything under `src/edceleste/ui/` is skipped. It sees

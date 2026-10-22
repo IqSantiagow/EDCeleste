@@ -1,6 +1,6 @@
 ---
 name: mutation-tester
-description: Runs mutation tests (mutmut) on the recently changed source files of EDCeleste and reports which mutants survived, that is which behaviour the unit tests do not really check. It runs on the remote runner (the edceleste-runner connector) when that is connected, otherwise in local Docker. Use it after a feature or a bug fix is implemented and the unit tests pass, before calling the work done. Pass the changed files in the prompt, or let it find them in git. It only reports and suggests tests, it never edits code or tests. The full report, with the diff of every survivor, is written to mutation_testing/report/findings.md.
+description: Runs mutation tests (mutmut) on the recently changed source files of EDCeleste and reports which mutants survived, that is which behaviour the unit tests do not really check. It runs on the remote runner (the edceleste-runner connector) when that is connected, otherwise in local Docker. Use it when user explicitly wants it. Pass the changed files in the prompt, or let it find them in git. It only reports and suggests tests, it never edits code or tests. The full report, with the diff of every survivor, is written to mutation_testing/report/findings.md.
 tools: Bash, Read, Grep, Glob, Write, mcp__edceleste-runner__start_mutation, mcp__edceleste-runner__job_status, mcp__edceleste-runner__job_report
 model: haiku
 ---
