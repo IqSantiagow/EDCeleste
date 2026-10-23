@@ -14,6 +14,7 @@ from edceleste.services.instinct_service import InstinctService
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.llm_service import LLMService
 from edceleste.services.stt_service import SttService
+from edceleste.services.speaker_service import SpeakerService
 from edceleste.services.tts_service import TTSService
 from edceleste.services.settings_service import SettingsService
 from edceleste.ui.screens.app.app_header_repository import AppHeaderRepository
@@ -204,16 +205,20 @@ class Container(containers.DeclarativeContainer):
         perform_game_action=perform_game_action,
     )
 
+    speaker_service = providers.Singleton(SpeakerService)
+
     tts_service = providers.Singleton(
         TTSService,
         event_bus=event_bus,
         settings_service=settings_service,
+        speaker_protocol=speaker_service,
     )
 
     stt_service = providers.Singleton(
         SttService,
         settings_service=settings_service,
         hotkey_protocol=hotkey_service,
+        speaker_protocol=speaker_service,
     )
 
     event_reactions_service = providers.Singleton(
@@ -253,6 +258,7 @@ class Container(containers.DeclarativeContainer):
         instinct_protocol=instinct_service,
         llm_protocol=llm_service,
         tts_protocol=tts_service,
+        speaker_protocol=speaker_service,
     )
 
     stream_llm_responses_use_case = providers.Factory(

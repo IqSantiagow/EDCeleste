@@ -7,6 +7,7 @@ import numpy as np
 import whisper
 
 from edceleste.protocols.hotkey_protocol import HotkeyProtocol
+from edceleste.protocols.speaker_protocol import SpeakerProtocol
 from edceleste.services.exceptions.stt_exception import SttException
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.hotkey_model import Hotkey
@@ -40,14 +41,19 @@ class SttService:
     _recorded_frames: list[np.ndarray]
 
     def __init__(
-        self, settings_service: SettingsService, hotkey_protocol: HotkeyProtocol
+        self,
+        settings_service: SettingsService,
+        hotkey_protocol: HotkeyProtocol,
+        speaker_protocol: SpeakerProtocol,
     ) -> None:
         """Only stores the dependencies. The settings are applied in
         reload_service() and Whisper is loaded in cold_start() or on the first
         transcription. hotkey_protocol is where the push-to-talk key is
-        registered."""
+        registered. speaker_protocol is asked to go silent when a recording
+        starts."""
         self.__settings_service = settings_service
         self.__hotkey_protocol = hotkey_protocol
+        self.__speaker_protocol = speaker_protocol
         self._hotkey_key_name: str | None = None
         self._stt_queue: asyncio.Queue[str] = asyncio.Queue()
         self._app_loop: asyncio.AbstractEventLoop | None = None
@@ -74,6 +80,9 @@ class SttService:
         Mono, 16 kHz, the format Whisper wants.
 
         Raises SttException when STT is disabled or a recording already runs.
+        Otherwise Celeste goes silent first (SpeakerProtocol.stop_speaking), so the
+        pilot is not talking over her and the microphone does not record her
+        voice. The press of the mic button and of the hotkey both end up here.
         Frames left from an earlier recording are dropped.
         """
         import sounddevice as sd
@@ -84,6 +93,7 @@ class SttService:
         if self._recording_stream is not None:
             logger.warning("Recording is already in progress.")
             raise SttException("Recording is already in progress.")
+        self.__speaker_protocol.stop_speaking()
         self._recorded_frames = []
         self._recording_stream = sd.InputStream(
             samplerate=_WHISPER_SAMPLE_RATE,
