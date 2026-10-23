@@ -1,20 +1,16 @@
 import asyncio
-import gc
 import os
-import queue
 import shutil
-import sys
 import tempfile
-import threading
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import numpy as np
 import soundfile as sf
 
-from edceleste.services import tts_service
+from edceleste.protocols.speaker_protocol import PRIORITY_ANSWER, PRIORITY_REACTION
 from edceleste.services.event_bus import EventBus
 from edceleste.services.exceptions.voice_cloning_exception import (
     VoiceCloningException,
@@ -47,6 +43,7 @@ from edceleste.services.tts_providers.pocket_tts_provider import PocketTTSProvid
 from edceleste.services.ship_voice_effect import TAIL_SECONDS
 from edceleste.services.tts_service import (
     DEFAULT_VOICE_SAMPLE_TEXT,
+    REACTION_MAX_WAIT_SECONDS,
     SILENCE_FLOOR_DBFS,
     TTSEvent,
     TTSService,
@@ -104,14 +101,53 @@ def _write_wav(path: Path, seconds: float, amplitude: float = 0.5) -> None:
     sf.write(str(path), np.full(sample_count, amplitude), SAMPLE_RATE)
 
 
+class FakeSpeaker:
+    """Stands for the SpeakerService. A speech put in its queue is started at once
+    as an asyncio task (the order and the priorities are tested with the real
+    SpeakerService), and what was queued is remembered. The audio it is given is
+    kept: whole clips in clips, the pieces of a voice in pieces."""
+
+    def __init__(self):
+        self.queued: list[tuple[int, float | None]] = []
+        self.clips: list[tuple[np.ndarray, int]] = []
+        self.pieces: list[np.ndarray] = []
+        self.piece_sample_rates: list[int] = []
+        self.stop_count = 0
+        self._speeches: list[asyncio.Future] = []
+
+    def queue_speech(self, speak, priority, max_wait_seconds=None):
+        self.queued.append((priority, max_wait_seconds))
+        speech = asyncio.ensure_future(speak())
+        self._speeches.append(speech)
+        return speech
+
+    async def finish_speeches(self) -> None:
+        """Waits until every queued speech has run. Raises the error of the first
+        one that failed."""
+        await asyncio.gather(*self._speeches)
+
+    async def play_clip(self, samples, sample_rate):
+        self.clips.append((np.array(samples), sample_rate))
+
+    async def play_pieces_from(self, pieces, sample_rate):
+        self.piece_sample_rates.append(sample_rate)
+        async for piece in pieces:
+            self.pieces.append(piece)
+
+    def stop_speaking(self):
+        self.stop_count += 1
+
+
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = _make_settings()
 
+        self.speaker = FakeSpeaker()
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
+            speaker_protocol=self.speaker,  # type: ignore[arg-type]
         )
         self.service.reload_service()
 
@@ -124,11 +160,6 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         voices_dir_patch.start()
         self.addCleanup(voices_dir_patch.stop)
-
-        self.sounddevice = Mock()
-        sounddevice_patch = patch.dict(sys.modules, {"sounddevice": self.sounddevice})
-        sounddevice_patch.start()
-        self.addCleanup(sounddevice_patch.stop)
 
         self.input_dir = Path(temp_directory.name) / "input"
         self.input_dir.mkdir()
@@ -184,26 +215,50 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     # --- event bus ---
 
-    async def test_event_bus_publish_of_tts_event_triggers_synthesize_and_play(self):
+    async def test_event_bus_publish_of_tts_event_puts_the_text_in_the_speech_queue(
+        self,
+    ):
         event_bus = EventBus()
+        speaker = FakeSpeaker()
         service = TTSService(
             event_bus=event_bus,
             settings_service=self.settings_service,
+            speaker_protocol=speaker,  # type: ignore[arg-type]
         )
-        service.synthesize_and_play = AsyncMock()
+        service._TTSService__synthesize_and_play = AsyncMock()
 
         await event_bus.publish(TTSEvent("Hello Commander"))
+        await speaker.finish_speeches()
 
-        service.synthesize_and_play.assert_called_once_with("Hello Commander")
+        service._TTSService__synthesize_and_play.assert_awaited_once_with(
+            "Hello Commander"
+        )
 
-    async def test_speak_text_from_tts_event_calls_synthesize_and_play_with_event_text(
+    async def test_queue_answer_from_tts_event_queues_an_answer_that_never_expires(
         self,
     ):
-        self.service.synthesize_and_play = AsyncMock()
+        self.service._TTSService__synthesize_and_play = AsyncMock()
 
-        await self.service.speak_text_from_tts_event(TTSEvent("Fuel level low"))
+        await self.service._TTSService__queue_answer_from_tts_event(
+            TTSEvent("Fuel level low")
+        )
+        await self.speaker.finish_speeches()
 
-        self.service.synthesize_and_play.assert_called_once_with("Fuel level low")
+        self.assertEqual(self.speaker.queued, [(PRIORITY_ANSWER, None)])
+        self.service._TTSService__synthesize_and_play.assert_awaited_once_with(
+            "Fuel level low"
+        )
+
+    async def test_queue_answer_from_tts_event_returns_before_the_voice_is_made(self):
+        self.service._TTSService__synthesize_and_play = AsyncMock()
+
+        await self.service._TTSService__queue_answer_from_tts_event(
+            TTSEvent("Fuel level low")
+        )
+
+        # The LLM that published the event is not held up by the voice
+        self.service._TTSService__synthesize_and_play.assert_not_awaited()
+        await self.speaker.finish_speeches()
 
     # --- build_provider ---
 
@@ -232,7 +287,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.provider = None
 
         with self.assertRaises(RuntimeError) as raised:
-            await self.service.synthesize_and_play("Hello")
+            await self.service._TTSService__synthesize_and_play("Hello")
 
         self.assertEqual(str(raised.exception), "The TTS provider is not built yet.")
 
@@ -240,9 +295,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello Commander")
+        await self.service._TTSService__synthesize_and_play("Hello Commander")
 
         provider.synthesize.assert_awaited_once_with(
             "Hello Commander", _make_edge_params(), None
@@ -252,9 +307,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         provider = self._use_saved_chatterbox()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         provider.synthesize.assert_awaited_once_with(
             "Hello",
@@ -267,11 +322,11 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(return_value=(samples, SAMPLE_RATE))
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
-        self.service.play_samples.assert_awaited_once_with(
+        self.service._TTSService__play_samples.assert_awaited_once_with(
             samples, SAMPLE_RATE, SAVED_VOLUME, with_ship_effect=False
         )
 
@@ -284,12 +339,15 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         self.assertIs(
-            self.service.play_samples.await_args.kwargs["with_ship_effect"], True
+            self.service._TTSService__play_samples.await_args.kwargs[
+                "with_ship_effect"
+            ],
+            True,
         )
 
     async def test_synthesize_and_play_leaves_the_ship_effect_out_when_switched_off(
@@ -301,24 +359,27 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(return_value=(np.zeros(10), SAMPLE_RATE))
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         self.assertIs(
-            self.service.play_samples.await_args.kwargs["with_ship_effect"], False
+            self.service._TTSService__play_samples.await_args.kwargs[
+                "with_ship_effect"
+            ],
+            False,
         )
 
     async def test_synthesize_and_play_propagates_error_raised_by_the_provider(self):
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock(side_effect=RuntimeError("network down"))
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         with self.assertRaises(RuntimeError):
-            await self.service.synthesize_and_play("Hello")
+            await self.service._TTSService__synthesize_and_play("Hello")
 
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__play_samples.assert_not_awaited()
 
     # --- the replies of the game state ---
 
@@ -338,63 +399,67 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         """Gives a live Status.json event of every Flags value to the service,
         then lets the background speech run."""
         for flags in flags_one_after_another:
-            await self.service.speak_reply_for_changed_ship_switches(
+            await self.service._TTSService__queue_reactions_for_changed_ship_switches(
                 self._make_status_event(flags)
             )
-        await asyncio.sleep(0)
+        await self.speaker.finish_speeches()
 
     async def test_ship_switch_says_nothing_for_the_first_status(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
         await self._send_status_flags(StatusFlags.LandingGearDown)
 
-        self.service.speak_reply.assert_not_awaited()
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_ship_switch_says_the_reply_in_the_background(self):
-        self.service.speak_reply = AsyncMock()
-        await self.service.speak_reply_for_changed_ship_switches(
+        self.service._TTSService__play_reply = AsyncMock()
+        await self.service._TTSService__queue_reactions_for_changed_ship_switches(
             self._make_status_event(0)
         )
 
-        await self.service.speak_reply_for_changed_ship_switches(
+        await self.service._TTSService__queue_reactions_for_changed_ship_switches(
             self._make_status_event(StatusFlags.LandingGearDown)
         )
 
         # The handler returned before the voice was asked, the event bus is free
-        self.service.speak_reply.assert_not_awaited()
-        await asyncio.sleep(0)
-        self.service.speak_reply.assert_awaited_once_with("Landing gear deployed")
+        self.service._TTSService__play_reply.assert_not_awaited()
+        await self.speaker.finish_speeches()
+        self.service._TTSService__play_reply.assert_awaited_once_with(
+            "Landing gear deployed"
+        )
 
     async def test_ship_switch_says_the_reply_when_the_gear_goes_up(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
         await self._send_status_flags(StatusFlags.LandingGearDown, 0)
 
-        self.service.speak_reply.assert_awaited_once_with("Landing gear retracted")
+        self.service._TTSService__play_reply.assert_awaited_once_with(
+            "Landing gear retracted"
+        )
 
     async def test_ship_switch_says_nothing_when_the_flags_stay_the_same(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
         await self._send_status_flags(
             StatusFlags.LightsOn, StatusFlags.LightsOn, StatusFlags.LightsOn
         )
 
-        self.service.speak_reply.assert_not_awaited()
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_ship_switch_says_every_changed_switch_one_after_another(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
         await self._send_status_flags(
             0, StatusFlags.LandingGearDown | StatusFlags.LightsOn
         )
 
         self.assertEqual(
-            self.service.speak_reply.await_args_list,
+            self.service._TTSService__play_reply.await_args_list,
             [call("Landing gear deployed"), call("Lights on")],
         )
 
     async def test_ship_switch_does_not_say_what_the_startup_loading_brings(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
         for event in (
             self._make_status_event(0, is_startup_loading=True),
@@ -402,126 +467,142 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             # the first live Status.json equals the loaded state
             self._make_status_event(StatusFlags.LandingGearDown),
         ):
-            await self.service.speak_reply_for_changed_ship_switches(event)
-        await asyncio.sleep(0)
+            await self.service._TTSService__queue_reactions_for_changed_ship_switches(
+                event
+            )
+        await self.speaker.finish_speeches()
 
-        self.service.speak_reply.assert_not_awaited()
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_ship_switch_says_the_change_that_comes_after_the_startup_loading(
         self,
     ):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
-        await self.service.speak_reply_for_changed_ship_switches(
+        await self.service._TTSService__queue_reactions_for_changed_ship_switches(
             self._make_status_event(0, is_startup_loading=True)
         )
         await self._send_status_flags(StatusFlags.NightVision)
 
-        self.service.speak_reply.assert_awaited_once_with("Night vision on")
+        self.service._TTSService__play_reply.assert_awaited_once_with("Night vision on")
 
     async def test_journal_event_says_the_reply_of_a_known_event(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
-        await self.service.speak_reply_for_journal_event(
+        await self.service._TTSService__queue_reaction_for_journal_event(
             self._make_journal_event("DockingGranted")
         )
-        await asyncio.sleep(0)
+        await self.speaker.finish_speeches()
 
-        self.service.speak_reply.assert_awaited_once_with("Docking request granted")
+        self.service._TTSService__play_reply.assert_awaited_once_with(
+            "Docking request granted"
+        )
 
     async def test_journal_event_says_nothing_for_an_unknown_name(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
-        await self.service.speak_reply_for_journal_event(
+        await self.service._TTSService__queue_reaction_for_journal_event(
             self._make_journal_event("Music")
         )
-        await asyncio.sleep(0)
+        await self.speaker.finish_speeches()
 
-        self.service.speak_reply.assert_not_awaited()
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_journal_event_says_nothing_for_the_startup_loading(self):
-        self.service.speak_reply = AsyncMock()
+        self.service._TTSService__play_reply = AsyncMock()
 
-        await self.service.speak_reply_for_journal_event(
+        await self.service._TTSService__queue_reaction_for_journal_event(
             self._make_journal_event("Docked", is_startup_loading=True)
         )
-        await asyncio.sleep(0)
+        await self.speaker.finish_speeches()
 
-        self.service.speak_reply.assert_not_awaited()
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_the_replies_of_the_game_state_come_from_the_event_bus(self):
         event_bus = EventBus()
+        speaker = FakeSpeaker()
         service = TTSService(
-            event_bus=event_bus, settings_service=self.settings_service
+            event_bus=event_bus,
+            settings_service=self.settings_service,
+            speaker_protocol=speaker,  # type: ignore[arg-type]
         )
-        service.speak_reply = AsyncMock()
+        service._TTSService__play_reply = AsyncMock()
 
         await event_bus.publish(self._make_status_event(0))
         await event_bus.publish(self._make_status_event(StatusFlags.LightsOn))
         await event_bus.publish(self._make_journal_event("MissionFailed"))
         await event_bus.publish(self._make_journal_event("Scan"))
-        await asyncio.sleep(0)
+        await speaker.finish_speeches()
 
         self.assertEqual(
-            service.speak_reply.await_args_list,
+            service._TTSService__play_reply.await_args_list,
             [call("Lights on"), call("Mission failed")],
         )
 
-    async def test_replies_of_the_game_state_never_play_over_each_other(self):
-        events: list[str] = []
+    async def test_ship_switch_replies_are_reactions_that_expire(self):
+        self.service._TTSService__play_reply = AsyncMock()
 
-        async def speak_slowly(text: str) -> None:
-            events.append(f"start {text}")
-            await asyncio.sleep(0.01)
-            events.append(f"end {text}")
-
-        self.service.speak_reply = speak_slowly  # type: ignore[method-assign]
-
-        await asyncio.gather(
-            self.service.speak_replies_one_by_one(["first"]),
-            self.service.speak_replies_one_by_one(["second"]),
+        await self._send_status_flags(
+            0, StatusFlags.LandingGearDown | StatusFlags.LightsOn
         )
 
         self.assertEqual(
-            events, ["start first", "end first", "start second", "end second"]
+            self.speaker.queued, [(PRIORITY_REACTION, REACTION_MAX_WAIT_SECONDS)] * 2
         )
 
-    async def test_a_reply_that_fails_does_not_stop_the_next_one(self):
-        self.service.speak_reply = AsyncMock(
-            side_effect=[RuntimeError("no speaker"), None]
-        )
+    async def test_journal_event_replies_are_reactions_that_expire(self):
+        self.service._TTSService__play_reply = AsyncMock()
 
-        with self.assertLogs("edceleste.services.tts_service", "ERROR"):
-            await self.service.speak_replies_one_by_one(["first", "second"])
+        await self.service._TTSService__queue_reaction_for_journal_event(
+            self._make_journal_event("DockingGranted")
+        )
 
         self.assertEqual(
-            self.service.speak_reply.await_args_list, [call("first"), call("second")]
+            self.speaker.queued, [(PRIORITY_REACTION, REACTION_MAX_WAIT_SECONDS)]
         )
+        await self.speaker.finish_speeches()
 
-    # --- speak_reply ---
+    async def test_queue_reply_to_pilot_queues_an_answer_that_never_expires(self):
+        self.service._TTSService__play_reply = AsyncMock()
 
-    async def test_speak_reply_says_nothing_when_ship_replies_are_off(self):
+        self.service.queue_reply_to_pilot("Throttle zero")
+
+        self.assertEqual(self.speaker.queued, [(PRIORITY_ANSWER, None)])
+        await self.speaker.finish_speeches()
+        self.service._TTSService__play_reply.assert_awaited_once_with("Throttle zero")
+
+    async def test_queue_reply_to_pilot_returns_before_the_voice_is_made(self):
+        self.service._TTSService__play_reply = AsyncMock()
+
+        self.service.queue_reply_to_pilot("Throttle zero")
+
+        self.service._TTSService__play_reply.assert_not_awaited()
+        await self.speaker.finish_speeches()
+
+    # --- play_reply ---
+
+    async def test_play_reply_says_nothing_when_ship_replies_are_off(self):
         self._make_prepared_reply_clip("edge", VOICE, "Lights on")
         self.settings_service.get_settings.return_value.tts.play_ship_replies = False
-        self.service.play_samples = AsyncMock()
-        self.service.synthesize_and_play = AsyncMock()
-        self.service.find_prepared_reply_clip = Mock(
-            wraps=self.service.find_prepared_reply_clip
+        self.service._TTSService__play_samples = AsyncMock()
+        self.service._TTSService__synthesize_and_play = AsyncMock()
+        self.service._TTSService__find_prepared_reply_clip = Mock(
+            wraps=self.service._TTSService__find_prepared_reply_clip
         )
 
-        await self.service.speak_reply("Lights on")
+        await self.service._TTSService__play_reply("Lights on")
 
-        self.service.find_prepared_reply_clip.assert_not_called()
-        self.service.play_samples.assert_not_awaited()
-        self.service.synthesize_and_play.assert_not_awaited()
+        self.service._TTSService__find_prepared_reply_clip.assert_not_called()
+        self.service._TTSService__play_samples.assert_not_awaited()
+        self.service._TTSService__synthesize_and_play.assert_not_awaited()
 
-    async def test_speak_reply_says_it_when_ship_replies_are_on(self):
+    async def test_play_reply_says_it_when_ship_replies_are_on(self):
         self._make_prepared_reply_clip("edge", VOICE, "Lights on")
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.speak_reply("Lights on")
+        await self.service._TTSService__play_reply("Lights on")
 
-        self.service.play_samples.assert_awaited_once()
+        self.service._TTSService__play_samples.assert_awaited_once()
 
     def _make_prepared_reply_clip(
         self, provider_type: str, profile_name: str, text: str
@@ -532,93 +613,105 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         _write_wav(clip_path, 0.1, amplitude=0.25)
         return clip_path
 
-    async def test_speak_reply_plays_the_prepared_clip_without_making_speech(self):
+    async def test_play_reply_plays_the_prepared_clip_without_making_speech(self):
         self._make_prepared_reply_clip("edge", VOICE, "Landing gear deployed")
         provider = Mock(spec=EdgeTTSProvider)
         provider.synthesize = AsyncMock()
         self.service.provider = provider
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.speak_reply("Landing gear deployed")
+        await self.service._TTSService__play_reply("Landing gear deployed")
 
         provider.synthesize.assert_not_awaited()
-        self.service.play_samples.assert_awaited_once()
-        samples, sample_rate, volume = self.service.play_samples.await_args.args
+        self.service._TTSService__play_samples.assert_awaited_once()
+        samples, sample_rate, volume = (
+            self.service._TTSService__play_samples.await_args.args
+        )
         self.assertEqual((len(samples), sample_rate, volume), (100, 1000, SAVED_VOLUME))
         self.assertAlmostEqual(float(samples[0]), 0.25, places=3)
 
-    async def test_speak_reply_finds_the_clip_in_the_folder_of_a_cloned_profile(self):
+    async def test_play_reply_finds_the_clip_in_the_folder_of_a_cloned_profile(self):
         self._use_saved_chatterbox()
         self._make_prepared_reply_clip("chatterbox", "celeste", "Lights on")
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.speak_reply("Lights on")
+        await self.service._TTSService__play_reply("Lights on")
 
-        self.service.play_samples.assert_awaited_once()
+        self.service._TTSService__play_samples.assert_awaited_once()
 
-    async def test_speak_reply_adds_the_ship_effect_only_when_it_is_switched_on(self):
+    async def test_play_reply_adds_the_ship_effect_only_when_it_is_switched_on(self):
         self._make_prepared_reply_clip("edge", VOICE, "Lights on")
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         for ship_effect in (True, False):
             self.settings_service.get_settings.return_value = _make_settings(
                 ship_effect=ship_effect
             )
-            self.service.play_samples.reset_mock()
+            self.service._TTSService__play_samples.reset_mock()
 
-            await self.service.speak_reply("Lights on")
+            await self.service._TTSService__play_reply("Lights on")
 
             self.assertIs(
-                self.service.play_samples.await_args.kwargs["with_ship_effect"],
+                self.service._TTSService__play_samples.await_args.kwargs[
+                    "with_ship_effect"
+                ],
                 ship_effect,
             )
 
-    async def test_speak_reply_speaks_the_text_live_when_the_clip_is_missing(self):
+    async def test_play_reply_speaks_the_text_live_when_the_clip_is_missing(self):
         # The folder of the profile has other clips, but not this one
         self._make_prepared_reply_clip("edge", VOICE, "Lights on")
-        self.service.synthesize_and_play = AsyncMock()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__synthesize_and_play = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.speak_reply("Lights off")
+        await self.service._TTSService__play_reply("Lights off")
 
-        self.service.synthesize_and_play.assert_awaited_once_with("Lights off")
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__synthesize_and_play.assert_awaited_once_with(
+            "Lights off"
+        )
+        self.service._TTSService__play_samples.assert_not_awaited()
 
-    async def test_speak_reply_speaks_live_when_the_voice_has_no_replies_folder(self):
-        self.service.synthesize_and_play = AsyncMock()
+    async def test_play_reply_speaks_live_when_the_voice_has_no_replies_folder(self):
+        self.service._TTSService__synthesize_and_play = AsyncMock()
 
-        await self.service.speak_reply("Lights on")
+        await self.service._TTSService__play_reply("Lights on")
 
-        self.service.synthesize_and_play.assert_awaited_once_with("Lights on")
+        self.service._TTSService__synthesize_and_play.assert_awaited_once_with(
+            "Lights on"
+        )
 
-    async def test_speak_reply_ignores_the_clips_of_another_voice(self):
+    async def test_play_reply_ignores_the_clips_of_another_voice(self):
         self._make_prepared_reply_clip("edge", "en-GB-SoniaNeural", "Lights on")
-        self.service.synthesize_and_play = AsyncMock()
+        self.service._TTSService__synthesize_and_play = AsyncMock()
 
-        await self.service.speak_reply("Lights on")
+        await self.service._TTSService__play_reply("Lights on")
 
-        self.service.synthesize_and_play.assert_awaited_once_with("Lights on")
+        self.service._TTSService__synthesize_and_play.assert_awaited_once_with(
+            "Lights on"
+        )
 
-    async def test_speak_reply_raises_when_the_clip_cannot_be_read(self):
+    async def test_play_reply_raises_when_the_clip_cannot_be_read(self):
         clip_path = self._make_prepared_reply_clip("edge", VOICE, "Lights on")
         clip_path.write_bytes(b"not a wav")
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         with self.assertRaises(sf.LibsndfileError):
-            await self.service.speak_reply("Lights on")
+            await self.service._TTSService__play_reply("Lights on")
 
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__play_samples.assert_not_awaited()
 
     # --- playback ---
 
-    async def test_play_samples_plays_the_plain_samples_by_default(self):
+    async def test_play_samples_plays_the_plain_samples_at_the_volume_by_default(
+        self,
+    ):
         samples = np.full(10, 0.5)
-        self.service.add_ship_effect_to_whole_audio = Mock()
+        self.service._TTSService__add_ship_effect_to_whole_audio = Mock()
 
-        await self.service.play_samples(samples, SAMPLE_RATE, 0.5)
+        await self.service._TTSService__play_samples(samples, SAMPLE_RATE, 0.5)
 
-        self.service.add_ship_effect_to_whole_audio.assert_not_called()
-        played_samples, played_rate = self.sounddevice.play.call_args.args
+        self.service._TTSService__add_ship_effect_to_whole_audio.assert_not_called()
+        played_samples, played_rate = self.speaker.clips[0]
         np.testing.assert_allclose(played_samples, np.full(10, 0.25))
         self.assertEqual(played_rate, SAMPLE_RATE)
 
@@ -627,38 +720,29 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         samples = np.full(10, 0.5)
         with_effect = np.full((30, 2), 1.0)
-        self.service.add_ship_effect_to_whole_audio = Mock(return_value=with_effect)
+        self.service._TTSService__add_ship_effect_to_whole_audio = Mock(
+            return_value=with_effect
+        )
 
-        await self.service.play_samples(
+        await self.service._TTSService__play_samples(
             samples, SAMPLE_RATE, 0.5, with_ship_effect=True
         )
 
-        self.service.add_ship_effect_to_whole_audio.assert_called_once_with(
+        self.service._TTSService__add_ship_effect_to_whole_audio.assert_called_once_with(
             samples, SAMPLE_RATE
         )
-        played_samples, played_rate = self.sounddevice.play.call_args.args
+        played_samples, played_rate = self.speaker.clips[0]
         np.testing.assert_allclose(played_samples, np.full((30, 2), 0.5))
         self.assertEqual(played_rate, SAMPLE_RATE)
-
-    async def test_play_samples_waits_for_the_length_of_the_audio_with_the_tail(self):
-        self.service.add_ship_effect_to_whole_audio = Mock(
-            return_value=np.zeros((50, 2))
-        )
-
-        with patch("edceleste.services.tts_service.asyncio.sleep") as sleep:
-            sleep.return_value = None
-            await self.service.play_samples(
-                np.zeros(10), SAMPLE_RATE, 0.5, with_ship_effect=True
-            )
-
-        sleep.assert_called_once_with(50 / SAMPLE_RATE)
 
     def test_add_ship_effect_to_whole_audio_returns_stereo_longer_by_the_tail(self):
         samples = (np.random.default_rng(1).standard_normal(2400) * 0.1).astype(
             np.float32
         )
 
-        with_effect = self.service.add_ship_effect_to_whole_audio(samples, 24000)
+        with_effect = self.service._TTSService__add_ship_effect_to_whole_audio(
+            samples, 24000
+        )
 
         self.assertEqual(
             with_effect.shape, (len(samples) + int(TAIL_SECONDS * 24000), 2)
@@ -671,7 +755,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         copy_of_samples = samples.copy()
 
-        self.service.add_ship_effect_to_whole_audio(samples, 24000)
+        self.service._TTSService__add_ship_effect_to_whole_audio(samples, 24000)
 
         np.testing.assert_array_equal(samples, copy_of_samples)
 
@@ -680,12 +764,12 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         audio_path = self.input_dir / "clip.wav"
         _write_wav(audio_path, 0.01, amplitude=0.5)
-        self.service.add_ship_effect_to_whole_audio = Mock()
+        self.service._TTSService__add_ship_effect_to_whole_audio = Mock()
 
         await self.service.play_audio_file(str(audio_path))
 
-        self.service.add_ship_effect_to_whole_audio.assert_not_called()
-        played_samples, played_rate = self.sounddevice.play.call_args.args
+        self.service._TTSService__add_ship_effect_to_whole_audio.assert_not_called()
+        played_samples, played_rate = self.speaker.clips[0]
         np.testing.assert_allclose(
             played_samples, np.full(10, 0.5 * SAVED_VOLUME), atol=1e-3
         )
@@ -697,19 +781,21 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         audio_path = self.input_dir / "clip.wav"
         _write_wav(audio_path, 0.01)
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_audio_file(str(audio_path))
 
         self.assertFalse(
-            self.service.play_samples.await_args.kwargs.get("with_ship_effect", False)
+            self.service._TTSService__play_samples.await_args.kwargs.get(
+                "with_ship_effect", False
+            )
         )
 
     async def test_play_audio_file_raises_when_file_is_missing(self):
         with self.assertRaises(Exception):
             await self.service.play_audio_file(str(self.input_dir / "nope.wav"))
 
-        self.sounddevice.play.assert_not_called()
+        self.assertEqual(self.speaker.clips, [])
 
     async def test_play_sample_voice_plays_the_saved_sample_file(self):
         (self.profiles_dir / "celeste").mkdir(parents=True)
@@ -893,12 +979,12 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         ]:
             with self.subTest(provider_type=provider_type):
                 self.assertEqual(
-                    self.service.build_profile_folder(provider_type, name),
+                    self.service._TTSService__build_profile_folder(provider_type, name),
                     self.voices_dir / provider_type / name,
                 )
 
     def test_build_profile_folder_drops_folder_parts_of_the_name(self):
-        folder = self.service.build_profile_folder("pocket", "../x")
+        folder = self.service._TTSService__build_profile_folder("pocket", "../x")
 
         self.assertEqual(folder, self.voices_dir / "pocket" / "x")
 
@@ -907,35 +993,37 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         for name in ["", "..", "a/.."]:
             with self.subTest(name=name), self.assertRaises(ValueError):
-                self.service.build_profile_folder("pocket", name)
+                self.service._TTSService__build_profile_folder("pocket", name)
 
     def test_build_profile_path_puts_the_file_in_the_folder_of_the_profile(self):
         self.assertEqual(
-            self.service.build_profile_path("chatterbox", "celeste", ".pt"),
+            self.service._TTSService__build_profile_path(
+                "chatterbox", "celeste", ".pt"
+            ),
             self.profiles_dir / "celeste" / "profile.pt",
         )
 
     def test_build_profile_path_drops_folder_parts_of_the_name(self):
         self.assertEqual(
-            self.service.build_profile_path("chatterbox", "../x", ".pt"),
+            self.service._TTSService__build_profile_path("chatterbox", "../x", ".pt"),
             self.profiles_dir / "x" / "profile.pt",
         )
 
     def test_build_sample_path_puts_sample_wav_in_the_folder_of_the_profile(self):
         self.assertEqual(
-            self.service.build_sample_path("chatterbox", "celeste"),
+            self.service._TTSService__build_sample_path("chatterbox", "celeste"),
             self.profiles_dir / "celeste" / "sample.wav",
         )
 
     def test_find_profile_path_is_none_for_the_edge_provider(self):
         self.assertIsNone(
-            self.service.build_profile_path_named_in_params(
+            self.service._TTSService__build_profile_path_named_in_params(
                 EdgeTTSProvider(), _make_edge_params()
             )
         )
 
     def test_find_profile_path_returns_the_profile_file_for_cloning_provider(self):
-        path = self.service.build_profile_path_named_in_params(
+        path = self.service._TTSService__build_profile_path_named_in_params(
             _make_fake_cloning_provider(), _make_chatterbox_params("nova")
         )
 
@@ -948,14 +1036,18 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     ):
         fake_provider = self._use_saved_chatterbox()
 
-        result = self.service.get_cloning_provider_for(_make_chatterbox_params())
+        result = self.service._TTSService__get_cloning_provider_for(
+            _make_chatterbox_params()
+        )
 
         self.assertIs(result, fake_provider)
 
     def test_get_cloning_provider_for_builds_a_throwaway_for_another_type(self):
         active_provider = self.service.provider
 
-        result = self.service.get_cloning_provider_for(_make_chatterbox_params())
+        result = self.service._TTSService__get_cloning_provider_for(
+            _make_chatterbox_params()
+        )
 
         self.assertIsInstance(result, ChatterboxTTSProvider)
         self.assertIs(self.service.provider, active_provider)
@@ -963,7 +1055,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     def test_get_cloning_provider_for_raises_when_the_provider_cannot_clone(self):
         with self.assertRaises(VoiceCloningException):
-            self.service.get_cloning_provider_for(_make_edge_params())
+            self.service._TTSService__get_cloning_provider_for(_make_edge_params())
 
     # --- replies: folder and files ---
 
@@ -971,7 +1063,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         for provider_type, name in [("edge", VOICE), ("pocket", "celeste")]:
             with self.subTest(provider_type=provider_type):
                 self.assertEqual(
-                    self.service.build_replies_folder(provider_type, name),
+                    self.service._TTSService__build_replies_folder(provider_type, name),
                     self.voices_dir / provider_type / name / "replies",
                 )
 
@@ -979,7 +1071,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = _make_fake_cloning_provider()
         replies_folder = self.input_dir / "replies"
 
-        await self.service.prepare_replies(
+        await self.service._TTSService__prepare_replies(
             provider, _make_chatterbox_params(), None, replies_folder
         )
 
@@ -999,7 +1091,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         params = _make_chatterbox_params("nova")
         profile_path = self.profiles_dir / "nova" / "profile.pt"
 
-        await self.service.prepare_replies(
+        await self.service._TTSService__prepare_replies(
             provider, params, profile_path, self.input_dir / "replies"
         )
 
@@ -1011,7 +1103,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_prepare_replies_creates_the_missing_folder(self):
         replies_folder = self.input_dir / "deeper" / "replies"
 
-        await self.service.prepare_replies(
+        await self.service._TTSService__prepare_replies(
             _make_fake_cloning_provider(),
             _make_chatterbox_params(),
             None,
@@ -1026,7 +1118,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         first_reply = replies_folder / build_reply_wav_file_name(REPLY_TEXTS[0])
         first_reply.write_bytes(b"old")
 
-        await self.service.prepare_replies(
+        await self.service._TTSService__prepare_replies(
             _make_fake_cloning_provider(),
             _make_chatterbox_params(),
             None,
@@ -1043,9 +1135,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         edge_provider.synthesize = AsyncMock(
             return_value=(np.full(20, 0.25), SAMPLE_RATE)
         )
-        replies_folder = self.service.build_replies_folder("edge", VOICE)
+        replies_folder = self.service._TTSService__build_replies_folder("edge", VOICE)
 
-        await self.service.prepare_replies(
+        await self.service._TTSService__prepare_replies(
             edge_provider, _make_edge_params(), None, replies_folder
         )
 
@@ -1070,7 +1162,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         replies_folder = self.input_dir / "replies"
 
         with self.assertRaises(OSError):
-            await self.service.prepare_replies(
+            await self.service._TTSService__prepare_replies(
                 provider, _make_chatterbox_params(), None, replies_folder
             )
 
@@ -1639,7 +1731,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_preview_voice_sample_synthesizes_for_the_given_profile(self):
         provider = self._use_saved_chatterbox()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
         screen_params = _make_chatterbox_params("other")
         screen_params.exaggeration = 1.2
 
@@ -1658,17 +1750,17 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         samples = np.zeros(5)
         provider.synthesize.return_value = (samples, SAMPLE_RATE)
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.preview_voice_sample("nova", "Hi", _make_chatterbox_params())
 
-        self.service.play_samples.assert_awaited_once_with(
-            samples, SAMPLE_RATE, SAVED_VOLUME
+        self.service._TTSService__play_samples.assert_awaited_once_with(
+            samples, SAMPLE_RATE, SAVED_VOLUME, with_ship_effect=False
         )
 
     async def test_preview_voice_sample_writes_nothing_to_disk(self):
         self._use_saved_chatterbox()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.preview_voice_sample("nova", "Hi", _make_chatterbox_params())
 
@@ -1684,7 +1776,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         active_provider = Mock(spec=EdgeTTSProvider)
         self.service.provider = active_provider
 
-        provider = self.service.get_active_or_new_provider_for(_make_edge_params())
+        provider = self.service._TTSService__get_active_or_new_provider_for(
+            _make_edge_params()
+        )
 
         self.assertIs(provider, active_provider)
 
@@ -1692,7 +1786,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         active_provider = Mock(spec=EdgeTTSProvider)
         self.service.provider = active_provider
 
-        provider = self.service.get_active_or_new_provider_for(
+        provider = self.service._TTSService__get_active_or_new_provider_for(
             _make_chatterbox_params()
         )
 
@@ -1702,7 +1796,9 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
     def test_active_or_new_provider_builds_one_when_none_is_active(self):
         self.service.provider = None
 
-        provider = self.service.get_active_or_new_provider_for(_make_edge_params())
+        provider = self.service._TTSService__get_active_or_new_provider_for(
+            _make_edge_params()
+        )
 
         self.assertIsInstance(provider, EdgeTTSProvider)
 
@@ -1733,7 +1829,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_voice_test_speaks_the_test_text_with_the_screen_params(self):
         provider = self._use_working_edge_provider()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
         screen_params = _make_edge_params("en-GB-SoniaNeural")
 
         await self.service.play_voice_test_sentence(
@@ -1747,7 +1843,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_voice_test_uses_the_profile_file_of_the_screen_params(self):
         provider = self._use_saved_chatterbox()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_chatterbox_params("nova"))
@@ -1760,28 +1856,34 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         provider = self._use_working_edge_provider()
         samples = np.full(30, 0.5)
         provider.synthesize.return_value = (samples, SAMPLE_RATE)
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_edge_params(), volume=0.3)
         )
 
-        self.service.play_samples.assert_awaited_once()
-        self.assertIs(self.service.play_samples.await_args.args[0], samples)
+        self.service._TTSService__play_samples.assert_awaited_once()
+        self.assertIs(
+            self.service._TTSService__play_samples.await_args.args[0], samples
+        )
         self.assertEqual(
-            self.service.play_samples.await_args.args[1:], (SAMPLE_RATE, 0.3)
+            self.service._TTSService__play_samples.await_args.args[1:],
+            (SAMPLE_RATE, 0.3),
         )
 
     async def test_voice_test_asks_for_the_ship_effect_from_the_screen_when_on(self):
         self._use_working_edge_provider()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_edge_params(), ship_effect=True)
         )
 
         self.assertIs(
-            self.service.play_samples.await_args.kwargs["with_ship_effect"], True
+            self.service._TTSService__play_samples.await_args.kwargs[
+                "with_ship_effect"
+            ],
+            True,
         )
 
     async def test_voice_test_leaves_the_ship_effect_out_when_the_screen_has_it_off(
@@ -1791,21 +1893,24 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
             _make_edge_params(), ship_effect=True
         )
         self._use_working_edge_provider()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_edge_params(), ship_effect=False)
         )
 
         self.assertIs(
-            self.service.play_samples.await_args.kwargs["with_ship_effect"], False
+            self.service._TTSService__play_samples.await_args.kwargs[
+                "with_ship_effect"
+            ],
+            False,
         )
 
     async def test_voice_test_uses_a_throwaway_provider_for_an_unsaved_engine(self):
         active_provider = self._use_working_edge_provider()
         throwaway_provider = _make_fake_cloning_provider()
         self.service.build_provider = Mock(return_value=throwaway_provider)
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.play_voice_test_sentence(
             self._make_screen_tts(_make_chatterbox_params("nova"))
@@ -1817,7 +1922,7 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_voice_test_raises_value_error_when_engine_is_not_set_up(self):
         provider = self._use_saved_chatterbox()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
         screen_params = _make_chatterbox_params("")
         problem = provider.validate_params(screen_params)
         self.assertIsNotNone(problem)
@@ -1829,19 +1934,61 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(str(raised.exception), problem.message)
         provider.synthesize.assert_not_awaited()
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__play_samples.assert_not_awaited()
 
     async def test_voice_test_propagates_provider_error_and_plays_nothing(self):
         provider = self._use_working_edge_provider()
         provider.synthesize.side_effect = RuntimeError("network down")
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         with self.assertRaises(RuntimeError):
             await self.service.play_voice_test_sentence(
                 self._make_screen_tts(_make_edge_params())
             )
 
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__play_samples.assert_not_awaited()
+
+    async def test_voice_test_waits_for_its_turn_in_the_speech_queue_as_an_answer(
+        self,
+    ):
+        self._use_working_edge_provider()
+        self.service._TTSService__play_samples = AsyncMock()
+
+        await self.service.play_voice_test_sentence(
+            self._make_screen_tts(_make_edge_params())
+        )
+
+        self.assertEqual(self.speaker.queued, [(PRIORITY_ANSWER, None)])
+        self.service._TTSService__play_samples.assert_awaited_once()
+
+    async def test_voice_test_raises_the_error_of_the_playing(self):
+        self._use_working_edge_provider()
+        self.service._TTSService__play_samples = AsyncMock(
+            side_effect=RuntimeError("no speaker")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "no speaker"):
+            await self.service.play_voice_test_sentence(
+                self._make_screen_tts(_make_edge_params())
+            )
+
+    async def test_preview_voice_sample_waits_for_its_turn_in_the_speech_queue(self):
+        self._use_saved_chatterbox()
+        self.service._TTSService__play_samples = AsyncMock()
+
+        await self.service.preview_voice_sample("nova", "Hi", _make_chatterbox_params())
+
+        self.assertEqual(self.speaker.queued, [(PRIORITY_ANSWER, None)])
+        self.service._TTSService__play_samples.assert_awaited_once()
+
+    async def test_play_audio_file_waits_for_its_turn_in_the_speech_queue(self):
+        audio_path = self.input_dir / "clip.wav"
+        _write_wav(audio_path, 0.01)
+
+        await self.service.play_audio_file(str(audio_path))
+
+        self.assertEqual(self.speaker.queued, [(PRIORITY_ANSWER, None)])
+        self.assertEqual(len(self.speaker.clips), 1)
 
     # --- get_available_device ---
 
@@ -2046,11 +2193,6 @@ class FindVoicesDirectoryTest(unittest.TestCase):
         )
 
 
-class FakePortAudioError(Exception):
-    """Stands for sounddevice.PortAudioError, the error of a speaker that cannot be
-    opened."""
-
-
 class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
     """Speaking in pieces: a Chatterbox provider that can stream, with the work of
     the model and the speaker replaced by fakes."""
@@ -2060,9 +2202,11 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service.get_settings.return_value = _make_settings(
             _make_chatterbox_params()
         )
+        self.speaker = FakeSpeaker()
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
+            speaker_protocol=self.speaker,  # type: ignore[arg-type]
         )
         self.service.reload_service()
         self.provider = _make_fake_cloning_provider()
@@ -2077,11 +2221,6 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         )
         voices_dir_patch.start()
         self.addCleanup(voices_dir_patch.stop)
-
-        self.sounddevice = Mock()
-        sounddevice_patch = patch.dict(sys.modules, {"sounddevice": self.sounddevice})
-        sounddevice_patch.start()
-        self.addCleanup(sounddevice_patch.stop)
 
         self.stream_calls: list[tuple] = []
         self.stream_was_read_to_the_end = False
@@ -2102,27 +2241,15 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
 
         self.provider.synthesize_stream = synthesize_stream
 
-    def _use_a_fake_player(self):
-        """The real player needs a speaker. This one keeps every piece it gets and
-        notes when the end (None) came. It gives up after 2 s without a piece, so
-        a missing end fails the test and does not leave a thread waiting."""
-        self.played_pieces: list[np.ndarray] = []
-        self.player_sample_rates: list[int] = []
-        self.player_got_the_end = threading.Event()
+    @property
+    def played_pieces(self) -> list[np.ndarray]:
+        """Every piece the fake speaker was given, in the order it came."""
+        return self.speaker.pieces
 
-        def play_pieces(pieces, sample_rate):
-            self.player_sample_rates.append(sample_rate)
-            while (piece := pieces.get(timeout=2)) is not None:
-                self.played_pieces.append(piece)
-            self.player_got_the_end.set()
-
-        self.service.play_pieces = play_pieces
-
-    def _use_a_fake_speaker(self) -> MagicMock:
-        speaker = MagicMock()
-        speaker.__enter__.return_value = speaker
-        self.service.open_speaker = Mock(return_value=speaker)
-        return speaker
+    @property
+    def player_sample_rates(self) -> list[int]:
+        """The sample rate of every voice the fake speaker was given."""
+        return self.speaker.piece_sample_rates
 
     def _use_a_fake_ship_effect(self):
         """The ship effect is replaced by a fake, because the real one needs a real
@@ -2152,7 +2279,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(effect_patch.stop)
 
     async def _speak(self, volume=SAVED_VOLUME, with_ship_effect=False):
-        await self.service.speak_while_synthesizing(
+        await self.service._TTSService__stream_voice_to_speaker(
             self.provider,
             "Hello",
             _make_chatterbox_params(),
@@ -2167,13 +2294,12 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self._make_provider_speak(
             [np.full(10, 0.5, dtype=np.float32), np.full(20, 0.5, dtype=np.float32)]
         )
-        self._use_a_fake_player()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         self.provider.synthesize.assert_not_awaited()
-        self.service.play_samples.assert_not_awaited()
+        self.service._TTSService__play_samples.assert_not_awaited()
         self.provider.can_stream.assert_called_once_with(_make_chatterbox_params())
         self.assertEqual(
             self.stream_calls,
@@ -2198,9 +2324,8 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         )
         self._use_a_fake_ship_effect()
         self._make_provider_speak([np.full(10, 0.5, dtype=np.float32)])
-        self._use_a_fake_player()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         self.assertEqual(len(self.made_effects), 1)
         self.assertEqual(self.made_effects[0].sample_rate, SAMPLE_RATE)
@@ -2209,17 +2334,17 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         self._make_provider_speak([np.zeros(10, dtype=np.float32)], can_stream=False)
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
-        await self.service.synthesize_and_play("Hello")
+        await self.service._TTSService__synthesize_and_play("Hello")
 
         self.provider.synthesize.assert_awaited_once()
-        self.service.play_samples.assert_awaited_once()
+        self.service._TTSService__play_samples.assert_awaited_once()
         self.assertEqual(self.stream_calls, [])
 
-    # --- speak_while_synthesizing ---
+    # --- stream_voice_to_speaker ---
 
-    async def test_speak_while_synthesizing_queues_every_sample_once_at_the_volume(
+    async def test_stream_voice_to_speaker_queues_every_sample_once_at_the_volume(
         self,
     ):
         self._make_provider_speak(
@@ -2228,7 +2353,6 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
                 (np.arange(10, 30) / 100).astype(np.float32),
             ]
         )
-        self._use_a_fake_player()
 
         await self._speak(volume=0.5)
 
@@ -2236,14 +2360,13 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             np.concatenate(self.played_pieces), (np.arange(30) / 100) * 0.5, atol=1e-6
         )
 
-    async def test_speak_while_synthesizing_runs_all_pieces_through_one_new_effect(
+    async def test_stream_voice_to_speaker_runs_all_pieces_through_one_new_effect(
         self,
     ):
         self._use_a_fake_ship_effect()
         first_piece = np.arange(10, dtype=np.float32) / 100
         second_piece = np.arange(10, 30, dtype=np.float32) / 100
         self._make_provider_speak([first_piece, second_piece])
-        self._use_a_fake_player()
 
         await self._speak(volume=0.5, with_ship_effect=True)
 
@@ -2258,7 +2381,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             queued[:, 0], (np.arange(30) / 100) * 2 * 0.5, atol=1e-6
         )
 
-    async def test_speak_while_synthesizing_starts_no_player_when_the_effect_fails(
+    async def test_stream_voice_to_speaker_starts_no_player_when_the_effect_fails(
         self,
     ):
         class BrokenShipVoiceEffect:
@@ -2271,7 +2394,6 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         effect_patch.start()
         self.addCleanup(effect_patch.stop)
         self._make_provider_speak([np.zeros(10, dtype=np.float32)])
-        self._use_a_fake_player()
 
         with self.assertRaises(ValueError):
             await self._speak(with_ship_effect=True)
@@ -2281,7 +2403,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.player_sample_rates, [])
         self.assertEqual(self.stream_calls, [])
 
-    async def test_speak_while_synthesizing_queues_the_tail_of_the_effect_at_the_end(
+    async def test_stream_voice_to_speaker_queues_the_tail_of_the_effect_at_the_end(
         self,
     ):
         self._use_a_fake_ship_effect()
@@ -2291,7 +2413,6 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
                 (np.arange(10, 30) / 100).astype(np.float32),
             ]
         )
-        self._use_a_fake_player()
 
         await self._speak(volume=0.5, with_ship_effect=True)
 
@@ -2299,10 +2420,9 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(queued.shape, (33, 2))
         np.testing.assert_allclose(self.played_pieces[-1], np.full((3, 2), 0.35))
 
-    async def test_speak_while_synthesizing_queues_stereo_pieces_of_the_effect(self):
+    async def test_stream_voice_to_speaker_queues_stereo_pieces_of_the_effect(self):
         self._use_a_fake_ship_effect()
         self._make_provider_speak([(np.arange(10) / 100).astype(np.float32)])
-        self._use_a_fake_player()
 
         await self._speak(with_ship_effect=True)
 
@@ -2311,14 +2431,13 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             self.played_pieces[0][:, 0], self.played_pieces[0][:, 1]
         )
 
-    async def test_speak_while_synthesizing_leaves_the_pieces_alone_without_the_effect(
+    async def test_stream_voice_to_speaker_leaves_the_pieces_alone_without_the_effect(
         self,
     ):
         self._use_a_fake_ship_effect()
         self._make_provider_speak(
             [np.full(10, 0.5, dtype=np.float32), np.full(20, 0.5, dtype=np.float32)]
         )
-        self._use_a_fake_player()
 
         await self._speak(volume=0.5, with_ship_effect=False)
 
@@ -2330,29 +2449,25 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
     async def test_every_reply_gets_a_new_effect(self):
         self._use_a_fake_ship_effect()
         self._make_provider_speak([np.zeros(10, dtype=np.float32)])
-        self._use_a_fake_player()
 
         await self._speak(with_ship_effect=True)
-        self._use_a_fake_player()
         await self._speak(with_ship_effect=True)
 
         self.assertEqual(len(self.made_effects), 2)
         self.assertIsNot(self.made_effects[0], self.made_effects[1])
 
-    async def test_speak_while_synthesizing_ends_the_player_after_the_last_piece(self):
+    async def test_stream_voice_to_speaker_reads_the_voice_to_the_end(self):
         self._make_provider_speak([np.zeros(10, dtype=np.float32)])
-        self._use_a_fake_player()
 
         await self._speak()
 
         self.assertTrue(self.stream_was_read_to_the_end)
-        self.assertTrue(self.player_got_the_end.is_set())
+        self.assertEqual(self.player_sample_rates, [SAMPLE_RATE])
 
-    async def test_speak_while_synthesizing_works_on_float32_audio_all_the_way(self):
+    async def test_stream_voice_to_speaker_works_on_float32_audio_all_the_way(self):
         self._make_provider_speak(
             [np.zeros(10, dtype=np.float32), np.zeros(20, dtype=np.float32)]
         )
-        self._use_a_fake_player()
 
         await self._speak()
 
@@ -2360,185 +2475,46 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             {piece.dtype for piece in self.played_pieces}, {np.dtype(np.float32)}
         )
 
-    async def test_speak_while_synthesizing_ends_cleanly_when_there_are_no_pieces(
+    async def test_stream_voice_to_speaker_ends_cleanly_when_there_are_no_pieces(
         self,
     ):
         self._make_provider_speak([])
-        self._use_a_fake_player()
 
         await self._speak()
 
-        self.assertTrue(self.player_got_the_end.is_set())
-        self.assertEqual(sum(len(piece) for piece in self.played_pieces), 0)
+        self.assertEqual(self.player_sample_rates, [SAMPLE_RATE])
+        self.assertEqual(self.played_pieces, [])
 
-    async def test_speak_while_synthesizing_stops_the_player_when_the_provider_fails(
-        self,
-    ):
+    async def test_stream_voice_to_speaker_raises_the_error_of_the_provider(self):
         self._make_provider_speak(
             [np.zeros(10, dtype=np.float32), np.zeros(10, dtype=np.float32)],
             fail_at_piece=1,
         )
-        self._use_a_fake_player()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError, "GPU out of memory"):
             await self._speak()
 
-        player_got_the_end = await asyncio.to_thread(self.player_got_the_end.wait, 1)
-        self.assertTrue(player_got_the_end)
+        # The piece before the failure was handed to the speaker
         self.assertEqual(len(self.played_pieces), 1)
 
-    async def test_speak_while_synthesizing_leaves_no_unread_error_of_the_player(
+    async def test_stream_voice_to_speaker_makes_a_piece_only_when_the_speaker_asks(
         self,
     ):
-        self._make_provider_speak(
-            [np.zeros(10, dtype=np.float32), np.zeros(10, dtype=np.float32)],
-            fail_at_piece=1,
-        )
-        provider_errors = []
+        # A speaker that stops asking (after stop_speaking) stops the voice too
+        self._make_provider_speak([np.zeros(10, dtype=np.float32)] * 3)
+        pieces_the_speaker_took = []
 
-        def play_pieces_without_a_speaker(pieces, sample_rate):
-            raise FakePortAudioError("no speaker")
+        async def speaker_that_takes_one_piece(pieces, sample_rate):
+            async for piece in pieces:
+                pieces_the_speaker_took.append(piece)
+                break
 
-        self.service.play_pieces = play_pieces_without_a_speaker
-        loop_complaints = []
-        asyncio.get_running_loop().set_exception_handler(
-            lambda loop, context: loop_complaints.append(context["message"])
-        )
+        self.speaker.play_pieces_from = speaker_that_takes_one_piece  # type: ignore
 
-        try:
-            await self._speak()
-        except RuntimeError as provider_error:
-            provider_errors.append(str(provider_error))
-        await asyncio.sleep(0.2)  # the player thread fails and its task ends
-        gc.collect()  # asyncio complains when a failed task is collected unread
+        await self._speak()
 
-        self.assertEqual(provider_errors, ["GPU out of memory"])
-        self.assertEqual(loop_complaints, [])
-
-    # --- the player and the speaker ---
-
-    def test_play_pieces_plays_a_mono_piece_from_both_speakers(self):
-        speaker = self._use_a_fake_speaker()
-        pieces: queue.Queue = queue.Queue()
-        pieces.put(np.array([0.1, 0.2, 0.3], dtype=np.float32))
-        pieces.put(None)
-
-        self.service.play_pieces(pieces, 24000)
-
-        self.service.open_speaker.assert_called_once_with(24000)
-        speaker.write.assert_called_once()
-        np.testing.assert_allclose(
-            speaker.write.call_args.args[0],
-            np.array([[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]], dtype=np.float32),
-        )
-
-    def test_play_pieces_writes_float32_pieces_until_the_end_and_closes_the_speaker(
-        self,
-    ):
-        speaker = self._use_a_fake_speaker()
-        stereo_float64_not_contiguous = np.asfortranarray(
-            np.array([[0.1, 0.4], [0.2, 0.5]], dtype=np.float64)
-        )
-        pieces: queue.Queue = queue.Queue()
-        pieces.put(stereo_float64_not_contiguous)
-        pieces.put(np.array([0.6], dtype=np.float32))
-        pieces.put(None)
-
-        self.service.play_pieces(pieces, 24000)
-
-        self.assertEqual(speaker.write.call_count, 2)  # the end (None) is not written
-        first_written = speaker.write.call_args_list[0].args[0]
-        self.assertEqual(first_written.dtype, np.float32)
-        self.assertTrue(first_written.flags["C_CONTIGUOUS"])
-        np.testing.assert_allclose(first_written, [[0.1, 0.4], [0.2, 0.5]])
-        speaker.__exit__.assert_called_once()
-
-    def test_play_pieces_skips_an_empty_piece(self):
-        speaker = self._use_a_fake_speaker()
-        pieces: queue.Queue = queue.Queue()
-        pieces.put(np.array([0.1, 0.2], dtype=np.float32))
-        pieces.put(np.zeros(0, dtype=np.float32))  # nothing left after the last piece
-        pieces.put(np.array([0.3], dtype=np.float32))
-        pieces.put(None)
-
-        self.service.play_pieces(pieces, 24000)
-
-        written_lengths = [len(call.args[0]) for call in speaker.write.call_args_list]
-        self.assertEqual(written_lengths, [2, 1])
-
-    def _set_up_windows_with_wasapi(self, wasapi_listed=True):
-        host_apis = [{"name": "MME", "default_output_device": 1}]
-        if wasapi_listed:
-            host_apis.append({"name": "Windows WASAPI", "default_output_device": 7})
-        self.sounddevice.query_hostapis.return_value = host_apis
-        self.sounddevice.PortAudioError = FakePortAudioError
-
-    def test_open_speaker_uses_wasapi_with_low_latency_on_windows(self):
-        self._set_up_windows_with_wasapi()
-
-        with (
-            patch.object(tts_service.sys, "platform", "win32"),
-            patch.object(tts_service, "ctypes") as ctypes,
-        ):
-            speaker = self.service.open_speaker(24000)
-
-        self.assertIs(speaker, self.sounddevice.OutputStream.return_value)
-        self.sounddevice.WasapiSettings.assert_called_once_with(auto_convert=True)
-        self.sounddevice.OutputStream.assert_called_once_with(
-            samplerate=24000,
-            channels=2,
-            dtype="float32",
-            latency="low",
-            device=7,
-            extra_settings=self.sounddevice.WasapiSettings.return_value,
-        )
-        ctypes.windll.ole32.CoInitializeEx.assert_called_once_with(None, 0)
-
-    def test_open_speaker_falls_back_to_the_default_speaker_when_wasapi_fails(self):
-        self._set_up_windows_with_wasapi()
-        self.sounddevice.OutputStream.side_effect = [
-            FakePortAudioError("device busy"),
-            "the default speaker",
-        ]
-
-        with (
-            patch.object(tts_service.sys, "platform", "win32"),
-            patch.object(tts_service, "ctypes"),
-            self.assertLogs(tts_service.logger, level="WARNING"),
-        ):
-            speaker = self.service.open_speaker(24000)
-
-        self.assertEqual(speaker, "the default speaker")
-        self.assertEqual(
-            self.sounddevice.OutputStream.call_args_list[1],
-            call(samplerate=24000, channels=2, dtype="float32", latency="low"),
-        )
-
-    def test_open_speaker_uses_the_default_speaker_when_windows_has_no_wasapi(self):
-        self._set_up_windows_with_wasapi(wasapi_listed=False)
-
-        with (
-            patch.object(tts_service.sys, "platform", "win32"),
-            patch.object(tts_service, "ctypes") as ctypes,
-        ):
-            self.service.open_speaker(24000)
-
-        self.sounddevice.OutputStream.assert_called_once_with(
-            samplerate=24000, channels=2, dtype="float32", latency="low"
-        )
-        ctypes.windll.ole32.CoInitializeEx.assert_not_called()
-
-    def test_open_speaker_uses_the_default_speaker_on_other_systems(self):
-        # WASAPI is on the list, so only the system tells the code not to use it
-        self._set_up_windows_with_wasapi()
-
-        with patch.object(tts_service.sys, "platform", "linux"):
-            self.service.open_speaker(24000)
-
-        self.sounddevice.OutputStream.assert_called_once_with(
-            samplerate=24000, channels=2, dtype="float32", latency="low"
-        )
-        self.sounddevice.WasapiSettings.assert_not_called()
+        self.assertEqual(len(pieces_the_speaker_took), 1)
+        self.assertFalse(self.stream_was_read_to_the_end)
 
     # --- warming up the voice ---
 
@@ -2547,7 +2523,7 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
     ):
         self._make_provider_speak([np.zeros(10, dtype=np.float32)] * 3)
 
-        await self.service.warm_up_voice(self.provider)
+        await self.service._TTSService__warm_up_voice(self.provider)
 
         self.assertEqual(
             self.stream_calls,
@@ -2560,8 +2536,8 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertTrue(self.stream_was_read_to_the_end)
-        self.sounddevice.play.assert_not_called()
-        self.sounddevice.OutputStream.assert_not_called()
+        self.assertEqual(self.speaker.clips, [])
+        self.assertEqual(self.player_sample_rates, [])
 
     async def _run_cold_start(self) -> list[tuple]:
         """What every status looked like when the service handed it out (it is the
@@ -2573,25 +2549,25 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
                     status.completed,
                     status.progress_text,
                     status.message,
-                    self.service.warm_up_voice.await_count,
+                    self.service._TTSService__warm_up_voice.await_count,
                 )
             )
         return statuses
 
     async def test_cold_start_warms_up_the_voice_when_the_provider_can_stream(self):
         self._make_provider_speak([])
-        self.service.warm_up_voice = AsyncMock()
+        self.service._TTSService__warm_up_voice = AsyncMock()
 
         statuses = await self._run_cold_start()
 
-        self.service.warm_up_voice.assert_awaited_once_with(self.provider)
+        self.service._TTSService__warm_up_voice.assert_awaited_once_with(self.provider)
         self.assertEqual(statuses[-1], (True, None, None, 1))
 
     async def test_cold_start_shows_the_loading_message_before_the_warm_up_starts(
         self,
     ):
         self._make_provider_speak([])
-        self.service.warm_up_voice = AsyncMock()
+        self.service._TTSService__warm_up_voice = AsyncMock()
 
         statuses = await self._run_cold_start()
 
@@ -2599,17 +2575,17 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_cold_start_does_not_load_the_voice_when_it_cannot_stream(self):
         self._make_provider_speak([], can_stream=False)
-        self.service.warm_up_voice = AsyncMock()
+        self.service._TTSService__warm_up_voice = AsyncMock()
 
         statuses = await self._run_cold_start()
 
-        self.service.warm_up_voice.assert_not_awaited()
+        self.service._TTSService__warm_up_voice.assert_not_awaited()
         self.assertEqual(self.stream_calls, [])
         self.assertEqual(statuses[-1], (True, None, None, 0))
 
     async def test_cold_start_reports_a_failed_warm_up_in_the_status_message(self):
         self._make_provider_speak([])
-        self.service.warm_up_voice = AsyncMock(
+        self.service._TTSService__warm_up_voice = AsyncMock(
             side_effect=FileNotFoundError("Voice profile not found: celeste.pt")
         )
 
@@ -2641,9 +2617,11 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.settings_service = Mock(spec=SettingsService)
         self.settings_service.get_settings.return_value = _make_settings()
+        self.speaker = FakeSpeaker()
         self.service = TTSService(
             event_bus=EventBus(),
             settings_service=self.settings_service,
+            speaker_protocol=self.speaker,  # type: ignore[arg-type]
         )
         self.service.reload_service()
 
@@ -2682,7 +2660,7 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
     def test_find_profile_path_puts_a_pocket_profile_in_the_pocket_folder_as_npy(
         self,
     ):
-        path = self.service.build_profile_path_named_in_params(
+        path = self.service._TTSService__build_profile_path_named_in_params(
             PocketTTSProvider(), _make_pocket_params("nova")
         )
 
@@ -2806,7 +2784,7 @@ class TTSServiceProfileFoldersTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_preview_voice_sample_uses_the_profile_in_the_pocket_folder(self):
         provider = self._use_saved_pocket()
-        self.service.play_samples = AsyncMock()
+        self.service._TTSService__play_samples = AsyncMock()
 
         await self.service.preview_voice_sample(
             "nova", "Hi there", _make_pocket_params("other")

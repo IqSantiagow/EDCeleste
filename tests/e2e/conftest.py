@@ -42,6 +42,7 @@ from edceleste.services.models.settings_model import (
     TtsProviderParams,
 )
 from edceleste.services import hotkey_service as hotkey_service_module
+from edceleste.services import speaker_service as speaker_service_module
 from edceleste.services import tts_service as tts_service_module
 from edceleste.services.settings_service import SettingsService
 from edceleste.services.tts_providers.chatterbox_tts_provider import (
@@ -161,15 +162,34 @@ FAKE_VOICE_PIECE_LEVELS = (0.1, 0.2, 0.3)
 FAKE_VOICE_PIECE_SAMPLES = FAKE_SAMPLE_RATE // 10
 
 
+# A speaker that never gets released must not keep the test run from ending
+HELD_SPEAKER_GIVES_UP_AFTER_SECONDS = 3
+
+
 class FakeSpeaker:
     """The speaker of a voice that is played while it is still being made,
-    without hardware: it remembers every block of audio it was given, in order"""
+    without hardware: it remembers every block of audio it was given, in order.
+    A test can hold it: after the given number of blocks the speaker takes no
+    more until the test lets it go on, like a real speaker that needs time to
+    play. Only the first hold counts"""
 
     def __init__(self) -> None:
         self.sample_rate: int | None = None
         self.times_opened = 0
         self.times_closed = 0
+        self.times_aborted = 0
         self.blocks: list[np.ndarray] = []
+        self.is_holding = False
+        self.blocks_before_the_hold: int | None = None
+        self.playing_may_go_on = threading.Event()
+
+    def hold_playback_after(self, blocks: int) -> None:
+        self.blocks_before_the_hold = blocks
+        self.playing_may_go_on.clear()
+
+    def let_playing_go_on(self) -> None:
+        self.blocks_before_the_hold = None
+        self.playing_may_go_on.set()
 
     def open(self, sample_rate: int) -> "FakeSpeaker":
         self.sample_rate = sample_rate
@@ -183,12 +203,40 @@ class FakeSpeaker:
         self.times_closed += 1
 
     def write(self, samples: np.ndarray) -> None:
+        if self.blocks_before_the_hold == len(self.blocks):
+            self.is_holding = True
+            self.playing_may_go_on.wait(timeout=HELD_SPEAKER_GIVES_UP_AFTER_SECONDS)
+            self.is_holding = False
+            self.blocks_before_the_hold = None
         self.blocks.append(samples.copy())
+
+    def abort(self) -> None:
+        """The speaker throws away what it still holds: the Commander hears
+        silence at once"""
+        self.times_aborted += 1
 
     def everything_played(self) -> np.ndarray:
         if not self.blocks:
             return np.zeros((0, 2), dtype=np.float32)
         return np.concatenate(self.blocks)
+
+
+class FakeClock:
+    """The clock of the speech queue. It runs like the real one, and a test can
+    move it on, so waiting five seconds takes no time"""
+
+    def __init__(self) -> None:
+        self.seconds_moved_on = 0.0
+
+    def monotonic(self) -> float:
+        return time.monotonic() + self.seconds_moved_on
+
+    def move_on(self, seconds: float) -> None:
+        self.seconds_moved_on += seconds
+
+    def go_back_to_real_time(self) -> None:
+        """What is queued from now on is not older than it really is"""
+        self.seconds_moved_on = 0.0
 
 
 class FakeEdgeTtsProvider(EdgeTTSProvider):
@@ -601,9 +649,11 @@ class EdCelesteTestEnvironment:
             tts_service.build_provider = lambda provider_type: self.fake_tts_providers[
                 provider_type
             ]
-            tts_service.play_samples = self.remember_played_audio
+            # The methods are private, so they are reached by their mangled names
+            tts_service._TTSService__play_samples = self.remember_played_audio
             self.fake_speaker = FakeSpeaker()
-            tts_service.open_speaker = self.fake_speaker.open
+            speaker_service = self.container.speaker_service()
+            speaker_service._SpeakerService__open_speaker = self.fake_speaker.open
             tts_service.fetch_edge_tts_voice_names = self.edge_voices_without_network
 
         with allure.step("LLM models and microphones listed without network"):
@@ -886,6 +936,15 @@ async def edceleste(tmp_path, monkeypatch):
             hotkey_service_module, "sys", SimpleNamespace(platform="win32")
         )
 
+    with allure.step("A clock for the speech queue that the test can move on"):
+        clock = FakeClock()
+        # Only the reading of the time is replaced: QueuedSpeech notes the time
+        # it was queued with the real clock, so moving on makes every speech
+        # that waits look older
+        monkeypatch.setattr(
+            speaker_service_module, "time", SimpleNamespace(monotonic=clock.monotonic)
+        )
+
     with allure.step("A fake microphone and a Whisper that hears what the test says"):
         microphone = FakeMicrophone()
         monkeypatch.setitem(
@@ -898,6 +957,7 @@ async def edceleste(tmp_path, monkeypatch):
     environment = EdCelesteTestEnvironment(tmp_path)
     environment.global_keys_and_mouse = global_keys_and_mouse
     environment.microphone = microphone
+    environment.clock = clock
     environment.voices_folder = tmp_path / "voices"
     # The profiles of Chatterbox, the engine the e2e voices are made for
     environment.chatterbox_voices_folder = environment.voices_folder / "chatterbox"

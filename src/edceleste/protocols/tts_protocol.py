@@ -22,17 +22,18 @@ class TTSProtocol(BaseServiceProtocol, Protocol):
         on the first speech."""
         ...
 
-    async def speak_reply(self, text: str) -> None:
-        """Says a short reply (a fast command or a change of the game state) out
-        loud and returns when it has played. Does nothing when the switch
-        tts.play_ship_replies is off. When the voice of the saved settings has a
-        prepared clip of this text (see REPLY_TEXTS) the clip is played, which
-        starts at once. Otherwise the text is spoken live, which is slower. The
-        clip and the live voice use the saved volume and the ship effect (when
-        it is on). Raises RuntimeError when the provider is not built yet and
-        the clip is missing, ValueError for an empty profile name, the error of
-        soundfile for a clip that cannot be read, and what the provider and the
-        speaker raise."""
+    def queue_reply_to_pilot(self, text: str) -> None:
+        """Puts a short answer to the pilot (a fast command reply) in the speech
+        queue and returns at once, it does not wait for the voice. Celeste says
+        it when its turn comes: after the speech that is playing now, before any
+        waiting reaction to the game. It never expires. Nothing is said when the
+        switch settings.tts.play_ship_replies is off. When the voice of the saved
+        settings has a prepared clip of this text (see REPLY_TEXTS) the clip is
+        played, otherwise the text is spoken live, which is slower. The clip and
+        the live voice use the saved volume and the ship effect (when it is on).
+        An error of the speech (no speaker, a clip that cannot be read, the voice
+        model failed) is logged by the queue, not raised here. Needs a running
+        event loop."""
         ...
 
     async def fetch_edge_tts_voice_names(self) -> list[str]:

@@ -1,11 +1,9 @@
 import asyncio
-import logging
 
 from edceleste.protocols.instinct_protocol import InstinctProtocol
 from edceleste.protocols.llm_protocol import LLMProtocol
+from edceleste.protocols.speaker_protocol import SpeakerProtocol
 from edceleste.protocols.tts_protocol import TTSProtocol
-
-logger = logging.getLogger(__name__)
 
 
 class SendPilotMessageUseCase:
@@ -14,12 +12,14 @@ class SendPilotMessageUseCase:
         instinct_protocol: InstinctProtocol,
         llm_protocol: LLMProtocol,
         tts_protocol: TTSProtocol,
+        speaker_protocol: SpeakerProtocol,
     ) -> None:
         """Only stores the dependencies and an empty set that keeps the running
         tasks alive (the event loop holds only a weak reference to a task)."""
         self.instinct_protocol = instinct_protocol
         self.llm_protocol = llm_protocol
         self.tts_protocol = tts_protocol
+        self.speaker_protocol = speaker_protocol
         self.running_tasks: set[asyncio.Task] = set()
 
     def __call__(self, message: str) -> None:
@@ -35,7 +35,9 @@ class SendPilotMessageUseCase:
         task.add_done_callback(self.running_tasks.discard)
 
     async def send(self, message: str) -> None:
-        """Instinct goes first (try_fast_command, it never raises).
+        """Celeste goes silent first (SpeakerProtocol.stop_speaking): a new message
+        from the pilot cuts off what she is saying and drops what waits to be
+        said. Then Instinct goes (try_fast_command, it never raises).
 
         1. Instinct returned None: the message goes to the LLM queue
            (add_llm_request_to_queue) as before, nothing is spoken here. An
@@ -49,12 +51,12 @@ class SendPilotMessageUseCase:
         3. A reply with is_spoken False (the game state says the same by itself
            a moment later, when Status.json shows the change, e.g. "Landing gear
            deployed") stops here, or the pilot would hear it twice.
-        4. Otherwise TTSProtocol.speak_reply says the text (the prepared clip
-           when there is one, otherwise live) and send returns when the speech
-           is over. It says nothing when the switch tts.play_ship_replies is
-           off. An error of the speech (the voice model failed, no speaker) is
-           logged and not raised, the same as the speech of an LLM reply: the
-           reply stays in COMMS and the key was already pressed."""
+        4. Otherwise TTSProtocol.queue_reply_to_pilot puts the text in the speech
+           queue and send returns at once, it does not wait for the voice. An
+           error of the speech is logged by the queue, the same as the speech of
+           an LLM reply: the reply stays in COMMS and the key was already
+           pressed."""
+        self.speaker_protocol.stop_speaking()
         reply = await self.instinct_protocol.try_fast_command(message)
         if reply is None:
             self.llm_protocol.add_llm_request_to_queue(message)
@@ -63,7 +65,4 @@ class SendPilotMessageUseCase:
         self.llm_protocol.add_reply_without_llm_to_queue(message, reply.text)
         if not reply.is_spoken:
             return
-        try:
-            await self.tts_protocol.speak_reply(reply.text)
-        except Exception:
-            logger.exception("Celeste could not say the reply %r", reply.text)
+        self.tts_protocol.queue_reply_to_pilot(reply.text)
