@@ -1,18 +1,21 @@
 import asyncio
-import ctypes
 import logging
 import os
-import queue
 import shutil
-import sys
 import tempfile
+from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncGenerator, Callable, Literal
+from typing import AsyncGenerator, Callable, Literal
 
 import edge_tts
 import numpy as np
 import soundfile as sf
 
+from edceleste.protocols.speaker_protocol import (
+    PRIORITY_ANSWER,
+    PRIORITY_REACTION,
+    SpeakerProtocol,
+)
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.game_events import GameEvent, StatusEvent
@@ -50,9 +53,6 @@ from edceleste.services.tts_providers.tts_provider_protocol import (
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    import sounddevice as sd
-
 TTS_PROVIDER_CLASSES: dict[str, Callable[[], TTSProviderProtocol]] = {
     "edge": EdgeTTSProvider,
     "chatterbox": ChatterboxTTSProvider,
@@ -69,6 +69,11 @@ VOICE_TEST_TEXT = (
     "Shields are up, and the ship is ready when you are."
 )
 RECOMMENDED_REFERENCE_AUDIO_SECONDS_RANGE = (10.0, 30.0)
+
+# A reaction that waited in the queue longer than this is not said any more, it
+# would describe something that happened a long time ago. It is never written
+# to COMMS (only the answers to the pilot are), so it is simply not heard.
+REACTION_MAX_WAIT_SECONDS = 5.0
 
 # How much audio goes into one waveform bar. Small enough to look smooth,
 # big enough that a 30s file does not send thousands of numbers to the UI.
@@ -178,37 +183,39 @@ class TTSService:
         self,
         event_bus: EventBus,
         settings_service: SettingsService,
+        speaker_protocol: SpeakerProtocol,
     ) -> None:
         """Only stores the dependencies and subscribes to the event bus. The
-        provider stays None until reload_service() builds it.
+        provider stays None until reload_service() builds it. Everything
+        Celeste says goes through speaker_protocol, which plays it one speech
+        at a time.
 
         Subscriptions:
-        - TTSEvent -> speak_text_from_tts_event
-        - StatusEvent -> speak_reply_for_changed_ship_switches
-        - GameEvent -> speak_reply_for_journal_event
+        - TTSEvent -> __queue_answer_from_tts_event
+        - StatusEvent -> __queue_reactions_for_changed_ship_switches
+        - GameEvent -> __queue_reaction_for_journal_event
         """
         self.__event_bus = event_bus
         self.__settings_service = settings_service
+        self.__speaker_protocol = speaker_protocol
         # Flags of the last Status.json, None until the first one comes
         self.__last_status_flags: int | None = None
-        # The event loop keeps only a weak reference to a task, so we keep it alive
-        self.__running_tasks: set[asyncio.Task] = set()
-        # One reply of the game state at a time: a second one waits for the first
-        # instead of cutting it off
-        self.__state_speech_lock = asyncio.Lock()
-        self.__event_bus.subscribe(TTSEvent, self.speak_text_from_tts_event)
+        self.__event_bus.subscribe(TTSEvent, self.__queue_answer_from_tts_event)
         self.__event_bus.subscribe(
-            StatusEvent, self.speak_reply_for_changed_ship_switches
+            StatusEvent, self.__queue_reactions_for_changed_ship_switches
         )
-        self.__event_bus.subscribe(GameEvent, self.speak_reply_for_journal_event)
+        self.__event_bus.subscribe(GameEvent, self.__queue_reaction_for_journal_event)
 
-    async def speak_reply_for_changed_ship_switches(self, event: StatusEvent) -> None:
+    async def __queue_reactions_for_changed_ship_switches(
+        self, event: StatusEvent
+    ) -> None:
         """Runs for every Status.json event. Compares its Flags with the Flags of
         the previous one and says the prepared reply of every switch of
-        SHIP_FLAG_REPLY_TEXTS that changed (landing gear, cargo scoop, flight
-        assist, shields, fuel and so on), whoever flipped it: the pilot by hand,
-        a fast command or the LLM. Returns at once, the speech runs in a
-        background task, so the event bus is not held up while the voice plays.
+        SHIP_FLAG_REPLY_TEXTS (models/reply_texts.py) that changed (landing
+        gear, cargo scoop, flight assist, shields, fuel and so on), whoever
+        flipped it: the pilot by hand, a fast command or the LLM. Returns at
+        once: the replies only go to the speech queue (__queue_reaction_replies),
+        so the event bus is not held up while the voice plays.
 
         Always remembers the new Flags, also from an event of the startup
         loading. Says nothing for such an event (event.is_startup_loading, set by
@@ -216,7 +223,7 @@ class TTSService:
         state) and for the first Status.json (nothing to compare with). When
         several switches changed, their replies are said in the order of
         SHIP_FLAG_REPLY_TEXTS. This method does not read the settings:
-        speak_reply() says nothing when the switch settings.tts.play_ship_replies
+        __play_reply() says nothing when the switch settings.tts.play_ship_replies
         is off."""
         old_flags = self.__last_status_flags
         self.__last_status_flags = event.Flags
@@ -224,40 +231,40 @@ class TTSService:
             return
         texts = pick_reply_texts_for_changed_flags(old_flags, event.Flags)
         if texts:
-            self.speak_replies_in_background(texts)
+            self.__queue_reaction_replies(texts)
 
-    async def speak_reply_for_journal_event(self, event: GameEvent) -> None:
+    async def __queue_reaction_for_journal_event(self, event: GameEvent) -> None:
         """Runs for every game event, also the unknown journal lines (they come as
         UnknownCheckedEvent, the name is in event.event). When the name is in
-        JOURNAL_EVENT_REPLY_TEXTS, e.g. "DockingGranted", says its reply in a
-        background task and returns at once. Says nothing for any other event
-        and for an event of the startup loading (old state). Whether Celeste
-        really speaks is decided by speak_reply()."""
+        JOURNAL_EVENT_REPLY_TEXTS, e.g. "DockingGranted", puts its reply in the
+        speech queue and returns at once. Says nothing for any other event and
+        for an event of the startup loading (old state). Whether Celeste really
+        speaks is decided by __play_reply()."""
         text = JOURNAL_EVENT_REPLY_TEXTS.get(event.event)
         if text is None or event.is_startup_loading:
             return
-        self.speak_replies_in_background([text])
+        self.__queue_reaction_replies([text])
 
-    def speak_replies_in_background(self, texts: list[str]) -> None:
-        """Starts speak_replies_one_by_one() as an asyncio task and returns at
-        once. Needs a running event loop. The task is kept in a set until it is
-        done, because the loop holds only a weak reference to a task."""
-        task = asyncio.create_task(self.speak_replies_one_by_one(texts))
-        self.__running_tasks.add(task)
-        task.add_done_callback(self.__running_tasks.discard)
+    def __queue_reaction_replies(self, texts: list[str]) -> None:
+        """Puts every text in the speech queue as a reaction: it waits for the
+        answers to the pilot, and it is dropped without a word when it waited
+        longer than REACTION_MAX_WAIT_SECONDS. Returns at once. Needs a running
+        event loop."""
+        for text in texts:
+            self.__speaker_protocol.queue_speech(
+                partial(self.__play_reply, text),
+                PRIORITY_REACTION,
+                REACTION_MAX_WAIT_SECONDS,
+            )
 
-    async def speak_replies_one_by_one(self, texts: list[str]) -> None:
-        """Says every text with speak_reply(), the next one after the previous
-        has played. Another call waits until this one is done, so the replies of
-        the game state never play over each other. An error of one text (no
-        speaker, a clip that cannot be read) is logged and the next text is still
-        said, nothing is raised."""
-        async with self.__state_speech_lock:
-            for text in texts:
-                try:
-                    await self.speak_reply(text)
-                except Exception:
-                    logger.exception("Celeste could not say the reply %r", text)
+    def queue_reply_to_pilot(self, text: str) -> None:
+        """Puts a short answer to the pilot (a fast command reply) in the speech
+        queue and returns at once. It goes before every waiting reaction and
+        never expires. An error of the speech is logged by the queue. Needs a
+        running event loop."""
+        self.__speaker_protocol.queue_speech(
+            partial(self.__play_reply, text), PRIORITY_ANSWER
+        )
 
     def build_provider(self, provider_type: str) -> TTSProviderProtocol:
         """Creates a new provider object for settings.tts.provider. Cheap, no
@@ -266,64 +273,65 @@ class TTSService:
         KeyError for a provider type not in TTS_PROVIDER_CLASSES."""
         return TTS_PROVIDER_CLASSES[provider_type]()
 
-    async def speak_reply(self, text: str) -> None:
+    async def __play_reply(self, text: str) -> None:
         """Says a short reply (a fast command, or a change of the game state) out
         loud and waits until it has played, with the saved volume and the ship
-        effect (when it is on).
+        effect (when it is on). Called only by the speech queue, whoever wants
+        a reply said uses queue_reply_to_pilot() or __queue_reaction_replies().
 
         0. The switch settings.tts.play_ship_replies is off -> nothing is said
            and nothing is read or played.
         1. The voice of the saved settings has a prepared clip of this text
-           (find_prepared_reply_clip) -> the clip is read from disk and played.
+           (__find_prepared_reply_clip) -> the clip is read from disk and played.
            No model runs, so it starts at once.
         2. Otherwise (the profile was cloned before this text was added, the
            replies were never made, or the file is gone) -> the text is spoken
-           live by synthesize_and_play(), which is slower but still comes.
+           live by __synthesize_and_play(), which is slower but still comes.
         Raises RuntimeError when reload_service() has not built the provider
         yet and the clip is missing. A clip that cannot be read raises the error
         of soundfile, and the reply is not spoken then. Raises ValueError for a
-        profile name that is empty or ".." (find_prepared_reply_clip). Provider
+        profile name that is empty or ".." (__find_prepared_reply_clip). Provider
         and speaker errors are raised."""
         tts_settings = self.__settings_service.get_settings().tts
         if not tts_settings.play_ship_replies:
             return
 
-        clip_path = self.find_prepared_reply_clip(text)
+        clip_path = self.__find_prepared_reply_clip(text)
         if clip_path is None:
-            await self.synthesize_and_play(text)
+            await self.__synthesize_and_play(text)
             return
 
         samples, sample_rate = await asyncio.to_thread(sf.read, str(clip_path))
-        await self.play_samples(
+        await self.__play_samples(
             samples,
             sample_rate,
             tts_settings.volume,
             with_ship_effect=tts_settings.ship_effect,
         )
 
-    def find_prepared_reply_clip(self, text: str) -> Path | None:
-        """The wav file made by prepare_replies() for this text in the replies
+    def __find_prepared_reply_clip(self, text: str) -> Path | None:
+        """The wav file made by __prepare_replies() for this text in the replies
         folder of the voice in the saved settings, e.g.
         voices/pocket/celeste/replies/landing_gear_deployed.wav. The voice is
         the profile of a cloning provider, or the voice name of Edge. None when
         the file is not there (a text that is not in REPLY_TEXTS, or replies
         that were never made). Only checks the disk. Raises ValueError for a
-        profile name that is empty or ".." (see build_profile_folder)."""
+        profile name that is empty or ".." (see __build_profile_folder)."""
         params = self.__settings_service.get_settings().tts.params
         profile_name = params.voice if params.type == "edge" else params.profile
-        clip_path = self.build_replies_folder(params.type, profile_name) / (
+        clip_path = self.__build_replies_folder(params.type, profile_name) / (
             build_reply_wav_file_name(text)
         )
         return clip_path if clip_path.is_file() else None
 
-    async def synthesize_and_play(self, text: str) -> None:
+    async def __synthesize_and_play(self, text: str) -> None:
         """Turns the text into speech AND plays it on the speakers, with the
         ship effect (when it is switched on in the saved settings) and the saved
         volume. Waits until the audio has finished, so the next text is not
         spoken over this one.
 
         A provider that can speak in pieces for the saved params (Chatterbox on
-        a GPU, Pocket TTS) speaks through speak_while_synthesizing(), so the
+        a GPU, Pocket TTS) speaks through __stream_voice_to_speaker(), so the
         first sound
         comes long before the text is done. Every other provider makes the
         whole audio first and plays it then.
@@ -334,14 +342,14 @@ class TTSService:
             raise RuntimeError("The TTS provider is not built yet.")
 
         tts_settings = self.__settings_service.get_settings().tts
-        profile_path = self.build_profile_path_named_in_params(
+        profile_path = self.__build_profile_path_named_in_params(
             self.provider, tts_settings.params
         )
 
         if isinstance(
             self.provider, StreamingTTSProviderProtocol
         ) and self.provider.can_stream(tts_settings.params):
-            await self.speak_while_synthesizing(
+            await self.__stream_voice_to_speaker(
                 self.provider,
                 text,
                 tts_settings.params,
@@ -354,14 +362,14 @@ class TTSService:
         samples, sample_rate = await self.provider.synthesize(
             text, tts_settings.params, profile_path
         )
-        await self.play_samples(
+        await self.__play_samples(
             samples,
             sample_rate,
             tts_settings.volume,
             with_ship_effect=tts_settings.ship_effect,
         )
 
-    async def speak_while_synthesizing(
+    async def __stream_voice_to_speaker(
         self,
         provider: StreamingTTSProviderProtocol,
         text: str,
@@ -371,124 +379,54 @@ class TTSService:
         with_ship_effect: bool,
     ) -> None:
         """Speaks the text while the provider is still making it. Returns when
-        the voice has been played to the end.
+        the voice has been played to the end, or when stop_speaking() cut it.
+        The speaker plays the pieces that __make_voice_pieces() makes, as they
+        come (SpeakerProtocol.play_pieces_from).
 
-        A worker thread (play_pieces) plays what is put in a queue. With
-        with_ship_effect one ShipVoiceEffect is made for this reply (it keeps
-        its state from piece to piece, so the pieces together sound like the
-        whole reply) and every piece the provider makes goes through it in a
-        worker thread, then into the queue at the volume. After the last piece
-        the rest of the effect (the echo and the rooms ringing out) is queued.
-        Without it the pieces go to the queue as they come. params and
-        profile_path are given to provider.synthesize_stream() as they are.
-        volume is the saved volume, a factor from 0 to 1.
+        With with_ship_effect one ShipVoiceEffect is made for this reply (it
+        keeps its state from piece to piece, so the pieces together sound like
+        the whole reply). params and profile_path are given to
+        provider.synthesize_stream() as they are. volume is the saved volume, a
+        factor from 0 to 1.
 
-        If the ShipVoiceEffect cannot be made, its error is raised at once, before
-        the player or the provider is started. The player is stopped also when
-        the provider fails, and that error is raised (an error of the player is
-        dropped then). An error of the player
-        (sounddevice.PortAudioError, e.g. no speaker can be opened) is raised
-        only at the end, after the whole voice was made, because the player is
-        awaited last.
-        """
-        # Made before the player starts: when making it fails, nothing is
+        If the ShipVoiceEffect cannot be made, its error is raised at once,
+        before the speaker or the provider is started. Provider errors and
+        speaker errors are raised by play_pieces_from()."""
+        # Made before the speaker starts: when making it fails, nothing is
         # running yet that would wait for a piece forever.
         ship_effect = (
             ShipVoiceEffect(provider.stream_sample_rate) if with_ship_effect else None
         )
-        pieces_to_play: queue.Queue[np.ndarray | None] = queue.Queue()
-        player = asyncio.create_task(
-            asyncio.to_thread(
-                self.play_pieces, pieces_to_play, provider.stream_sample_rate
-            )
+        await self.__speaker_protocol.play_pieces_from(
+            self.__make_voice_pieces(
+                provider, text, params, volume, profile_path, ship_effect
+            ),
+            provider.stream_sample_rate,
         )
-        # When the provider fails first, its error is raised and the player is
-        # never awaited. Reading the exception of the player here keeps asyncio
-        # from warning that it was never retrieved. When the provider is fine,
-        # the error of the player is still raised by the await at the end.
-        player.add_done_callback(lambda task: task.cancelled() or task.exception())
 
-        try:
-            async for piece in provider.synthesize_stream(text, params, profile_path):
-                if ship_effect is not None:
-                    piece = await asyncio.to_thread(ship_effect.process, piece)
-                pieces_to_play.put(piece * volume)
-
+    async def __make_voice_pieces(
+        self,
+        provider: StreamingTTSProviderProtocol,
+        text: str,
+        params: TtsProviderParams,
+        volume: float,
+        profile_path: Path | None,
+        ship_effect: ShipVoiceEffect | None,
+    ) -> AsyncGenerator[np.ndarray, None]:
+        """Yields the voice piece by piece, as the provider makes it. Every
+        piece goes through ship_effect (in a worker thread) when there is one,
+        then it is multiplied by volume. After the last piece the rest of the
+        effect (the echo and the rooms ringing out) is yielded as one more
+        piece. Nobody asks for more once the speaker has been stopped."""
+        async for piece in provider.synthesize_stream(text, params, profile_path):
             if ship_effect is not None:
-                pieces_to_play.put(ship_effect.finish() * volume)
-        finally:
-            pieces_to_play.put(None)
-        await player
+                piece = await asyncio.to_thread(ship_effect.process, piece)
+            yield piece * volume
 
-    def play_pieces(
-        self, pieces: "queue.Queue[np.ndarray | None]", sample_rate: int
-    ) -> None:
-        """Plays the audio that arrives in the queue, as it arrives, and returns
-        after the last piece was played, when None arrives. Blocking: runs in a
-        worker thread. The one place where a streamed voice meets the
-        hardware, the same as play_samples() is for a whole voice.
+        if ship_effect is not None:
+            yield ship_effect.finish() * volume
 
-        Every piece is mono (samples) or stereo (samples x 2) float32. A mono
-        piece is played from both speakers. An empty piece (a provider may make
-        one) is skipped, because a write of zero samples to a speaker is not
-        worth the risk of an error of the driver. The tail of the ship effect
-        is never empty, it comes as one stereo piece after the last piece of the
-        voice. When the next piece is late, the speaker plays silence. The
-        speaker is closed when the function ends, also after an error. The
-        queue has no size limit, and without the None at the end the function
-        waits for it for ever.
-
-        Raises sounddevice.PortAudioError when no speaker can be opened. The
-        error stays in the worker thread and reaches speak_while_synthesizing()
-        only at its end, so the voice is made to the end for nothing."""
-        with self.open_speaker(sample_rate) as speaker:
-            while (piece := pieces.get()) is not None:
-                if len(piece) == 0:
-                    continue
-                if piece.ndim == 1:
-                    piece = np.stack([piece, piece], axis=1)
-                speaker.write(np.ascontiguousarray(piece, dtype=np.float32))
-
-    def open_speaker(self, sample_rate: int) -> "sd.OutputStream":
-        """Opens a stereo float32 speaker with low latency, not started yet. The
-        caller uses it as a context manager, which starts it and closes it. On
-        Windows it is WASAPI, with about 40 ms of delay, where the default way
-        (MME, what sd.play uses) has about 200 ms. WASAPI needs COM started in
-        the thread that opens it, and a worker thread has none, so COM is
-        started here (and stays started for the life of the thread). When
-        WASAPI cannot be opened, or is not on the list, the default speaker is
-        used, and a failed WASAPI is logged as a warning. On other systems it
-        is always the default speaker. Raises sounddevice.PortAudioError when
-        the default speaker cannot be opened either."""
-        import sounddevice as sd
-
-        settings = {
-            "samplerate": sample_rate,
-            "channels": 2,
-            "dtype": "float32",
-            "latency": "low",
-        }
-        if sys.platform == "win32":
-            wasapi = next(
-                (api for api in sd.query_hostapis() if api["name"] == "Windows WASAPI"),
-                None,
-            )
-            if wasapi is not None:
-                try:
-                    ctypes.windll.ole32.CoInitializeEx(None, 0)
-                    return sd.OutputStream(
-                        **settings,
-                        device=wasapi["default_output_device"],
-                        extra_settings=sd.WasapiSettings(auto_convert=True),
-                    )
-                except sd.PortAudioError:
-                    logger.warning(
-                        "WASAPI speaker could not be opened, using the default one.",
-                        exc_info=True,
-                    )
-        return sd.OutputStream(**settings)
-
-    async def warm_up_voice(self, provider: StreamingTTSProviderProtocol) -> None:
+    async def __warm_up_voice(self, provider: StreamingTTSProviderProtocol) -> None:
         """Loads the model and the voice profile of the saved settings and runs
         the model once on WARM_UP_TEXT, without playing anything: it reads
         provider.synthesize_stream() to the end and throws the pieces away.
@@ -496,7 +434,7 @@ class TTSService:
         profile too). Only a streaming provider is asked, because only for it
         cold_start() warms up."""
         tts_settings = self.__settings_service.get_settings().tts
-        profile_path = self.build_profile_path_named_in_params(
+        profile_path = self.__build_profile_path_named_in_params(
             provider, tts_settings.params
         )
         async for _ in provider.synthesize_stream(
@@ -504,43 +442,68 @@ class TTSService:
         ):
             pass
 
-    async def speak_text_from_tts_event(self, event: TTSEvent) -> None:
+    async def __queue_answer_from_tts_event(self, event: TTSEvent) -> None:
         """Runs when a TTSEvent is published on the event bus (LLMService
-        publishes one for every finished text block of its reply). Says the text
-        out loud with synthesize_and_play(), always live, never from a prepared
-        clip, and returns when the audio has finished. The switch
-        tts.play_ship_replies does not apply: it silences only the short prepared
-        replies of speak_reply(), not the answers of the LLM. An error of the
-        voice is raised to the event bus, which logs it."""
+        publishes one for every finished text block of its reply). Puts the text
+        in the speech queue as an answer to the pilot and returns at once, so the
+        LLM does not wait for the voice. The text is spoken live with
+        __synthesize_and_play(), never from a prepared clip. The switch
+        settings.tts.play_ship_replies does not apply: it silences only the
+        short prepared replies of __play_reply(), not the answers of the LLM. An
+        error of the voice is logged by the speech queue."""
         logger.info("Received TTS request: %s", event.text)
-        await self.synthesize_and_play(event.text)
+        self.__speaker_protocol.queue_speech(
+            partial(self.__synthesize_and_play, event.text), PRIORITY_ANSWER
+        )
 
-    async def play_samples(
+    async def __wait_for_turn_then_play_samples(
         self,
         samples: np.ndarray,
         sample_rate: int,
         volume: float,
         with_ship_effect: bool = False,
     ) -> None:
-        """Plays the samples at the volume and waits until they have played.
-        samples are mono or stereo floats between -1 and 1, volume is a factor
-        from 0 to 1 that is applied after the effect. The samples passed in are
-        not changed. With with_ship_effect the whole audio goes through a new
-        ShipVoiceEffect first (in a worker thread), and that makes it stereo and
-        longer (the echo and the rooms ring out). Plays with sd.play, the
-        default way of sounddevice, and then sleeps for the length of the
-        audio. Errors of sounddevice are raised."""
-        import sounddevice as sd
+        """Plays the samples with __play_samples(), but only when it is their turn
+        in the speech queue (as an answer to the pilot), so they never play over
+        Celeste. They wait as an answer to the pilot (PRIORITY_ANSWER, no time
+        limit). Returns when they have played, or when the pilot made Celeste go
+        silent (they are dropped then, nothing is played and nothing is raised).
+        Errors of __play_samples() are raised. For the settings screen (voice
+        test, sample, preview), which waits for the sound."""
+        await self.__speaker_protocol.queue_speech(
+            partial(
+                self.__play_samples,
+                samples,
+                sample_rate,
+                volume,
+                with_ship_effect=with_ship_effect,
+            ),
+            PRIORITY_ANSWER,
+        )
 
+    async def __play_samples(
+        self,
+        samples: np.ndarray,
+        sample_rate: int,
+        volume: float,
+        with_ship_effect: bool = False,
+    ) -> None:
+        """Plays the samples at the volume and waits until they have played, or
+        until stop_speaking() cut them. samples are mono or stereo floats between
+        -1 and 1, volume is a factor from 0 to 1 that is applied after the
+        effect. The samples passed in are not changed. With with_ship_effect the
+        whole audio goes through a new ShipVoiceEffect first (in a worker
+        thread), and that makes it stereo and longer (the echo and the rooms
+        ring out). Only for code run by the speech queue
+        (SpeakerProtocol.play_clip). Errors of the sound system are raised."""
         if with_ship_effect:
             samples = await asyncio.to_thread(
-                self.add_ship_effect_to_whole_audio, samples, sample_rate
+                self.__add_ship_effect_to_whole_audio, samples, sample_rate
             )
 
-        sd.play(samples * volume, sample_rate)  # type: ignore
-        await asyncio.sleep(len(samples) / sample_rate)
+        await self.__speaker_protocol.play_clip(samples * volume, sample_rate)
 
-    def add_ship_effect_to_whole_audio(
+    def __add_ship_effect_to_whole_audio(
         self, samples: np.ndarray, sample_rate: int
     ) -> np.ndarray:
         """The whole audio through a new ShipVoiceEffect, followed by the tail
@@ -571,7 +534,7 @@ class TTSService:
         if issue is not None:
             return issue
 
-        profile_path = self.build_profile_path_named_in_params(
+        profile_path = self.__build_profile_path_named_in_params(
             provider, tts_settings.params
         )
         if profile_path is not None and not profile_path.exists():
@@ -603,7 +566,7 @@ class TTSService:
         active. Network errors are raised."""
         return [voice["ShortName"] for voice in await edge_tts.list_voices()]
 
-    def build_profile_folder(self, provider_type: str, profile_name: str) -> Path:
+    def __build_profile_folder(self, provider_type: str, profile_name: str) -> Path:
         """The folder of one profile: "<voices>/<provider_type>/<profile_name>".
         Everything of the profile lies in it: the profile file, the sample and
         the folder of replies. The same for every provider. A profile is a
@@ -621,36 +584,39 @@ class TTSService:
 
         return VOICES_DIR / provider_type / folder_name
 
-    def build_profile_path(
+    def __build_profile_path(
         self, provider_type: str, profile_name: str, file_extension: str
     ) -> Path:
         """The voice profile file of a cloned profile: "profile" plus the
         extension of the provider, in the folder of the profile, e.g.
         voices/pocket/celeste/profile.npy. Does not check that the file exists.
         Raises ValueError for a name without a folder (see
-        build_profile_folder)."""
-        return self.build_profile_folder(provider_type, profile_name) / (
+        __build_profile_folder)."""
+        return self.__build_profile_folder(provider_type, profile_name) / (
             PROFILE_FILE_STEM + file_extension
         )
 
-    def build_sample_path(self, provider_type: str, profile_name: str) -> Path:
+    def __build_sample_path(self, provider_type: str, profile_name: str) -> Path:
         """The demo sample of a cloned profile in the folder of the profile,
         e.g. voices/pocket/celeste/sample.wav. Does not check that the file
         exists. Raises ValueError for a name without a folder (see
-        build_profile_folder)."""
-        return self.build_profile_folder(provider_type, profile_name) / SAMPLE_FILE_NAME
+        __build_profile_folder)."""
+        return (
+            self.__build_profile_folder(provider_type, profile_name) / SAMPLE_FILE_NAME
+        )
 
-    def build_replies_folder(self, provider_type: str, profile_name: str) -> Path:
+    def __build_replies_folder(self, provider_type: str, profile_name: str) -> Path:
         """The folder with the prepared replies of one profile, inside the folder
         of the profile, e.g. voices/pocket/celeste/replies or
         voices/edge/en-US-AriaNeural/replies. Does not check that the folder
         exists. Raises ValueError for a name without a folder (see
-        build_profile_folder)."""
+        __build_profile_folder)."""
         return (
-            self.build_profile_folder(provider_type, profile_name) / REPLIES_FOLDER_NAME
+            self.__build_profile_folder(provider_type, profile_name)
+            / REPLIES_FOLDER_NAME
         )
 
-    async def prepare_replies(
+    async def __prepare_replies(
         self,
         provider: TTSProviderProtocol,
         params: TtsProviderParams,
@@ -681,23 +647,23 @@ class TTSService:
                 sample_rate,
             )
 
-    def build_profile_path_named_in_params(
+    def __build_profile_path_named_in_params(
         self, provider: TTSProviderProtocol, params: TtsProviderParams
     ) -> Path | None:
         """The voice profile file named in params, for a provider that clones
         voices, e.g. voices/pocket/celeste/profile.npy. None for the other
         providers (Edge has no profile file). Does not check that the file
         exists. Raises ValueError for a profile name that is empty or ".."
-        (see build_profile_folder)."""
+        (see __build_profile_folder)."""
         if not isinstance(provider, CloningTTSProviderProtocol):
             return None
 
         profile_name = getattr(params, "profile")
-        return self.build_profile_path(
+        return self.__build_profile_path(
             params.type, profile_name, provider.profile_file_extension
         )
 
-    def get_active_or_new_provider_for(
+    def __get_active_or_new_provider_for(
         self, params: TtsProviderParams
     ) -> TTSProviderProtocol:
         """Picks the provider for the engine in params, the settings as they are
@@ -717,15 +683,15 @@ class TTSService:
             return self.provider
         return self.build_provider(params.type)
 
-    def get_cloning_provider_for(
+    def __get_cloning_provider_for(
         self, params: TtsProviderParams
     ) -> CloningTTSProviderProtocol:
-        """Picks the provider for params like get_active_or_new_provider_for(),
+        """Picks the provider for params like __get_active_or_new_provider_for(),
         but only one that can clone voices. Returns it, never None. Raises
         VoiceCloningException (with NO_VOICE_PROFILES_MESSAGE) when that
         provider cannot clone voices (Edge), and KeyError for an unknown
         type."""
-        provider = self.get_active_or_new_provider_for(params)
+        provider = self.__get_active_or_new_provider_for(params)
 
         if not isinstance(provider, CloningTTSProviderProtocol):
             raise VoiceCloningException(NO_VOICE_PROFILES_MESSAGE)
@@ -751,7 +717,7 @@ class TTSService:
            profile behind.
            Folder parts of profile_name are dropped ("../x" -> "x"). Raises
            ValueError for a name that is empty or ".." after that (see
-           build_profile_folder), before anything is created. Yields
+           __build_profile_folder), before anything is created. Yields
            DIRECTORY_CREATED.
         2. Raises ValueError when the clip is shorter than the provider needs.
            Reads only that many seconds of it. Yields AUDIO_PROCESSED.
@@ -760,7 +726,7 @@ class TTSService:
            the profile file in the folder of the profile. Yields COMPLETED.
         4. Generates sample.wav in the folder of the profile with
            DEFAULT_VOICE_SAMPLE_TEXT. Yields SAMPLE_CREATED.
-        5. Prepares the replies of the new voice (prepare_replies) in the
+        5. Prepares the replies of the new voice (__prepare_replies) in the
            replies folder of the profile. Slow, one synthesis per text of
            REPLY_TEXTS. Yields REPLIES_CREATED and ends.
 
@@ -774,8 +740,8 @@ class TTSService:
         When that fails (on Windows a file still open in the model thread), the
         folder is left in the system temp folder and no error is raised.
         """
-        provider = self.get_cloning_provider_for(params)
-        profile_path = self.build_profile_path(
+        provider = self.__get_cloning_provider_for(params)
+        profile_path = self.__build_profile_path(
             params.type, profile_name, provider.profile_file_extension
         )
 
@@ -823,16 +789,16 @@ class TTSService:
             samples, sample_rate = await provider.synthesize(
                 DEFAULT_VOICE_SAMPLE_TEXT, new_profile_params, profile_path
             )
-            sample_path = self.build_sample_path(params.type, profile_name)
+            sample_path = self.__build_sample_path(params.type, profile_name)
             sf.write(sample_path, samples, sample_rate)
 
             yield VoiceCloningState.SAMPLE_CREATED
 
-            await self.prepare_replies(
+            await self.__prepare_replies(
                 provider,
                 new_profile_params,
                 profile_path,
-                self.build_replies_folder(params.type, profile_name),
+                self.__build_replies_folder(params.type, profile_name),
             )
 
             yield VoiceCloningState.REPLIES_CREATED
@@ -856,7 +822,7 @@ class TTSService:
         profiles of another provider are not listed. The order is the one of
         the disk."""
         try:
-            provider = self.get_cloning_provider_for(params)
+            provider = self.__get_cloning_provider_for(params)
         except VoiceCloningException:
             return []
 
@@ -867,7 +833,7 @@ class TTSService:
         return [
             profile_folder.name
             for profile_folder in provider_folder.iterdir()
-            if self.build_profile_path(
+            if self.__build_profile_path(
                 params.type, profile_folder.name, provider.profile_file_extension
             ).is_file()
         ]
@@ -878,11 +844,11 @@ class TTSService:
         settings are not changed, they may still point at it. params are the
         settings as they are on the screen now. Raises VoiceCloningException
         when their provider cannot clone voices and ValueError for a name that
-        is empty or ".." (see build_profile_folder), before anything is
+        is empty or ".." (see __build_profile_folder), before anything is
         deleted. A file that cannot be deleted (on Windows a file in use) raises
         OSError, and what was already deleted stays deleted."""
-        self.get_cloning_provider_for(params)
-        profile_folder = self.build_profile_folder(params.type, profile_name)
+        self.__get_cloning_provider_for(params)
+        profile_folder = self.__build_profile_folder(params.type, profile_name)
 
         try:
             shutil.rmtree(profile_folder)
@@ -901,13 +867,13 @@ class TTSService:
         exist. A folder already lying under the new name without a profile file
         belongs to no profile (a clone that did not get that far), so it is
         deleted first. Raises ValueError for a name that is empty or ".." (see
-        build_profile_folder), before anything is renamed. The settings are not
+        __build_profile_folder), before anything is renamed. The settings are not
         changed."""
-        provider = self.get_cloning_provider_for(params)
+        provider = self.__get_cloning_provider_for(params)
 
-        old_profile_folder = self.build_profile_folder(params.type, old_profile_name)
-        new_profile_folder = self.build_profile_folder(params.type, new_profile_name)
-        new_profile_path = self.build_profile_path(
+        old_profile_folder = self.__build_profile_folder(params.type, old_profile_name)
+        new_profile_folder = self.__build_profile_folder(params.type, new_profile_name)
+        new_profile_path = self.__build_profile_path(
             params.type, new_profile_name, provider.profile_file_extension
         )
 
@@ -921,12 +887,14 @@ class TTSService:
         self, profile_name: str, text: str, params: TtsProviderParams
     ) -> None:
         """Speaks the text with the profile's voice at the saved volume, without
-        the ship effect, and waits until it has played. Nothing is written to
+        the ship effect, and waits until it has played. The sound waits for its
+        turn in the speech queue (__wait_for_turn_then_play_samples) and is
+        dropped when the pilot makes Celeste go silent. Nothing is written to
         disk, so the saved sample stays as it is. params are the settings as
         they are on the screen now. Raises VoiceCloningException when their
         provider cannot clone voices, FileNotFoundError for a missing profile."""
-        provider = self.get_cloning_provider_for(params)
-        profile_path = self.build_profile_path(
+        provider = self.__get_cloning_provider_for(params)
+        profile_path = self.__build_profile_path(
             params.type, profile_name, provider.profile_file_extension
         )
 
@@ -934,7 +902,7 @@ class TTSService:
             text, params.model_copy(update={"profile": profile_name}), profile_path
         )
         volume = self.__settings_service.get_settings().tts.volume
-        await self.play_samples(samples, sample_rate, volume)
+        await self.__wait_for_turn_then_play_samples(samples, sample_rate, volume)
 
     async def play_voice_test_sentence(self, tts_settings: TTSModel) -> None:
         """Lets the pilot hear the voice: speaks VOICE_TEST_TEXT and waits until
@@ -944,7 +912,7 @@ class TTSService:
         saved or written to disk.
 
         1. Takes the provider of the engine on the screen
-           (get_active_or_new_provider_for) and lets it check its params. A
+           (__get_active_or_new_provider_for) and lets it check its params. A
            problem, e.g. no voice or no profile picked, is raised as ValueError
            with its message.
         2. Speaks the whole sentence first. Edge goes to the network. Chatterbox
@@ -953,22 +921,25 @@ class TTSService:
            provider).
         3. Plays the result at the volume of tts_settings, through the ship
            effect when tts_settings.ship_effect is on, as Celeste would sound.
+           The sound waits for its turn in the speech queue
+           (__wait_for_turn_then_play_samples), and is dropped when the pilot
+           makes Celeste go silent.
         Provider errors are raised, e.g. no network or a profile file that is
         gone (FileNotFoundError).
         """
-        provider = self.get_active_or_new_provider_for(tts_settings.params)
+        provider = self.__get_active_or_new_provider_for(tts_settings.params)
 
         issue = provider.validate_params(tts_settings.params)
         if issue is not None:
             raise ValueError(issue.message)
 
-        profile_path = self.build_profile_path_named_in_params(
+        profile_path = self.__build_profile_path_named_in_params(
             provider, tts_settings.params
         )
         samples, sample_rate = await provider.synthesize(
             VOICE_TEST_TEXT, tts_settings.params, profile_path
         )
-        await self.play_samples(
+        await self.__wait_for_turn_then_play_samples(
             samples,
             sample_rate,
             tts_settings.volume,
@@ -984,8 +955,8 @@ class TTSService:
         and no model is loaded. Raises VoiceCloningException when that provider
         cannot clone voices and FileNotFoundError when the sample file is
         missing."""
-        self.get_cloning_provider_for(params)
-        sample_path = self.build_sample_path(params.type, profile_name)
+        self.__get_cloning_provider_for(params)
+        sample_path = self.__build_sample_path(params.type, profile_name)
 
         if not sample_path.exists():
             raise FileNotFoundError(
@@ -997,11 +968,16 @@ class TTSService:
     async def play_audio_file(self, path_to_audio_file: str) -> None:
         """Plays any audio file at the saved TTS volume, without the ship effect,
         and waits until it has played. Used to listen to a clip before cloning.
-        Raises when the file cannot be read."""
+
+        The file is read first, then the sound waits for its turn in the speech
+        queue (__wait_for_turn_then_play_samples), so it never plays over
+        Celeste. Returns without a sound when the pilot made Celeste go silent
+        in between. Raises the error of soundfile (soundfile.LibsndfileError, a
+        RuntimeError) when the file is missing or cannot be read."""
         samples, sample_rate = await asyncio.to_thread(sf.read, path_to_audio_file)
         volume = self.__settings_service.get_settings().tts.volume
 
-        await self.play_samples(samples, sample_rate, volume)
+        await self.__wait_for_turn_then_play_samples(samples, sample_rate, volume)
 
     def perform_sample_voice_analysis_and_validate(
         self, path_to_audio_file: str, params: TtsProviderParams
@@ -1016,7 +992,7 @@ class TTSService:
         file raises. Raises VoiceCloningException when the provider of params
         cannot clone voices.
         """
-        minimum_seconds = self.get_cloning_provider_for(params).reference_seconds
+        minimum_seconds = self.__get_cloning_provider_for(params).reference_seconds
 
         audio_info = sf.info(path_to_audio_file)
         audio_duration_seconds = audio_info.frames / audio_info.samplerate
@@ -1055,7 +1031,7 @@ class TTSService:
         they are on the screen now). Always "cpu" when that provider cannot
         clone voices, even on a machine with a GPU."""
         try:
-            provider = self.get_cloning_provider_for(params)
+            provider = self.__get_cloning_provider_for(params)
         except VoiceCloningException:
             return "cpu"
 
@@ -1093,7 +1069,7 @@ class TTSService:
             ):
                 status.progress_text = "Loading the voice"
                 yield status
-                await self.warm_up_voice(self.provider)
+                await self.__warm_up_voice(self.provider)
                 status.progress_text = None
             status.completed = True
             yield status

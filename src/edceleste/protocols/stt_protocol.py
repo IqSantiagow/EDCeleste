@@ -45,7 +45,8 @@ class SttProtocol(BaseServiceProtocol, Protocol):
         """Opens the microphone and returns at once, the sound is collected in
         the background until stop_recording_and_transcribe(). Raises
         SttException when STT is disabled or a recording is already
-        running."""
+        running. Otherwise Celeste goes silent first (the speech that is
+        playing is cut off, the waiting speech is dropped)."""
         ...
 
     def stop_recording_and_transcribe(self) -> None:

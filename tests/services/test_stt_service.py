@@ -69,9 +69,11 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.settings_service.get_settings.return_value = _make_settings(model=MODEL)
 
         self.hotkey_protocol = Mock()
+        self.speaker_protocol = Mock()
         self.service = SttService(
             settings_service=self.settings_service,
             hotkey_protocol=self.hotkey_protocol,
+            speaker_protocol=self.speaker_protocol,
         )
         # SttService no longer loads its settings in __init__ - that now
         # happens in reload_service(), driven by the cold-start flow. Call it
@@ -107,6 +109,41 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service.start_recording()
 
         self.assertEqual(self.service._recorded_frames, [])
+
+    def test_start_recording_makes_celeste_go_silent(self):
+        self.service.start_recording()
+
+        self.speaker_protocol.stop_speaking.assert_called_once_with()
+
+    def test_start_recording_makes_celeste_go_silent_before_the_microphone_opens(
+        self,
+    ):
+        microphone_was_opened = []
+        self.speaker_protocol.stop_speaking.side_effect = lambda: (
+            microphone_was_opened.append(self.mock_input_stream_cls.called)
+        )
+
+        self.service.start_recording()
+
+        self.assertEqual(microphone_was_opened, [False])
+
+    def test_start_recording_leaves_celeste_alone_when_disabled(self):
+        self.service.enabled = False
+
+        with self.assertRaises(SttException):
+            self.service.start_recording()
+
+        self.speaker_protocol.stop_speaking.assert_not_called()
+
+    def test_start_recording_does_not_silence_celeste_again_when_already_recording(
+        self,
+    ):
+        self.service.start_recording()
+
+        with self.assertRaises(SttException):
+            self.service.start_recording()
+
+        self.speaker_protocol.stop_speaking.assert_called_once_with()
 
     # --- stop_recording_and_transcribe ---
 
