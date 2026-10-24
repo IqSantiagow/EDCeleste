@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -733,10 +734,26 @@ class EdCelesteTestEnvironment:
         self.settings.event_reactions.reactions[event_name] = True
         self.save_config()
 
-    def run_app(self, show_notifications: bool = False):
+    @asynccontextmanager
+    async def run_app(self, show_notifications: bool = False):
+        """Runs EDCeleste in a Textual pilot for the test.
+
+        Side effects: when the test body ends, passed or failed, the screen the
+        Commander would see is attached to the Allure report as an SVG picture.
+        """
         # Notifications are off by default: a toast on top of the screen could
         # cover what a test clicks. Tests that check a notification turn them on
-        return UIApp().run_test(size=SCREEN_SIZE, notifications=show_notifications)
+        async with UIApp().run_test(
+            size=SCREEN_SIZE, notifications=show_notifications
+        ) as pilot:
+            try:
+                yield pilot
+            finally:
+                allure.attach(
+                    pilot.app.export_screenshot(),
+                    name="The screen at the end of the test",
+                    attachment_type=allure.attachment_type.SVG,
+                )
 
     def append_journal_event(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
