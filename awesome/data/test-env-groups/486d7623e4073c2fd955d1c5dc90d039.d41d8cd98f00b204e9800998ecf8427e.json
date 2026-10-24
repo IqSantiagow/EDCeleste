@@ -1,0 +1,1 @@
+{"id":"486d7623e4073c2fd955d1c5dc90d039.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_instinct_fast_commands#test_should_say_game_actions_are_disabled_and_press_no_key_when_they_are_off","name":"With game actions turned off Celeste says so and presses no key","status":"passed","testResultsByEnv":{"default":"63a0f24fb9cd3145b8cd269316036cf2"}}

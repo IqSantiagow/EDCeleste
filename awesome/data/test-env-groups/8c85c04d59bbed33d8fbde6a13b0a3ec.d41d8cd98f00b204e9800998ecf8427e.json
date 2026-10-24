@@ -1,0 +1,1 @@
+{"id":"8c85c04d59bbed33d8fbde6a13b0a3ec.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalWatcherTest#test_loading_stops_when_exit_signal_is_set","name":"test_loading_stops_when_exit_signal_is_set","status":"passed","testResultsByEnv":{"default":"10352e1713d0cd25b4254b3d6f41207c"}}

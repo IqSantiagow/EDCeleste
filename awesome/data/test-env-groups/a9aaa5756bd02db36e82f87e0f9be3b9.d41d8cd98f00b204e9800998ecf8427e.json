@@ -1,0 +1,1 @@
+{"id":"a9aaa5756bd02db36e82f87e0f9be3b9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.StopSpeakingTest#test_a_speech_queued_after_stop_speaking_is_played","name":"test_a_speech_queued_after_stop_speaking_is_played","status":"passed","testResultsByEnv":{"default":"e470be075e7a1f415bef987ae8a3b4d5"}}

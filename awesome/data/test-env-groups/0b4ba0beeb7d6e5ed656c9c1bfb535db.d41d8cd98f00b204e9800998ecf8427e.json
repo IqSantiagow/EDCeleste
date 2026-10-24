@@ -1,0 +1,1 @@
+{"id":"0b4ba0beeb7d6e5ed656c9c1bfb535db.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_stream_voice_to_speaker_works_on_float32_audio_all_the_way","name":"test_stream_voice_to_speaker_works_on_float32_audio_all_the_way","status":"passed","testResultsByEnv":{"default":"7427925c5efefb52ead9000474235c0b"}}

@@ -1,0 +1,1 @@
+{"id":"c8e99eec2d7b70dc7e4358098bf4750c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceProfileFoldersTest#test_clone_voice_accepts_a_name_taken_in_another_provider_folder","name":"test_clone_voice_accepts_a_name_taken_in_another_provider_folder","status":"passed","testResultsByEnv":{"default":"68c0faa99e2c30aa42c5e78f1482ffde"}}

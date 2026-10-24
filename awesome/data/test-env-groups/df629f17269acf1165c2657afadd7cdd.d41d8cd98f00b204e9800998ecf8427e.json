@@ -1,0 +1,1 @@
+{"id":"df629f17269acf1165c2657afadd7cdd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.StopSpeakingTest#test_stop_speaking_from_another_thread_drops_the_waiting_speeches","name":"test_stop_speaking_from_another_thread_drops_the_waiting_speeches","status":"passed","testResultsByEnv":{"default":"ef4b50251a4d392c31e505614d66a0bc"}}

@@ -1,0 +1,1 @@
+{"id":"41a23b03fb07b6f1e068e0bfdaa5f93b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.SpeechQueueTest#test_an_error_of_a_speech_nobody_waits_for_is_logged_once","name":"test_an_error_of_a_speech_nobody_waits_for_is_logged_once","status":"passed","testResultsByEnv":{"default":"b1e95e4ebe09ae8f4dc8c281d90e7ba2"}}

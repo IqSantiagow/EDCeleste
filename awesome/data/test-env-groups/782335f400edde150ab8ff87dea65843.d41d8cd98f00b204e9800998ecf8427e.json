@@ -1,0 +1,1 @@
+{"id":"782335f400edde150ab8ff87dea65843.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.PlayPiecesFromTest#test_an_unread_error_of_the_speaker_does_not_upset_asyncio","name":"test_an_unread_error_of_the_speaker_does_not_upset_asyncio","status":"passed","testResultsByEnv":{"default":"5201a0ac48ac22d9f6fd7464ca2368d8"}}

@@ -1,0 +1,1 @@
+{"id":"46ea3224b0586ba90d5824a36a7005aa.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeStreamTest#test_gives_no_pieces_when_the_model_makes_no_frame","name":"test_gives_no_pieces_when_the_model_makes_no_frame","status":"passed","testResultsByEnv":{"default":"f497b53a776cb9a0483b613e729030b3"}}

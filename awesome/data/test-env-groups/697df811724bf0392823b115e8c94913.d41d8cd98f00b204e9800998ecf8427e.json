@@ -1,0 +1,1 @@
+{"id":"697df811724bf0392823b115e8c94913.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_streaming_voice#test_should_make_the_whole_voice_before_playing_it_on_a_cpu","name":"On a CPU the voice is made whole before it is played, as before","status":"passed","testResultsByEnv":{"default":"24a868e73894cf0056abef42f1a60293"}}

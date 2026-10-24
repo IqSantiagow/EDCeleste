@@ -1,0 +1,1 @@
+{"id":"6a1a193685a452e2f33d4e70c6eef4a6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_streaming_voice#test_should_apply_the_ship_effect_to_the_whole_streamed_voice","name":"The ship effect covers the whole streamed voice and its echo and rooms ring out after the last word","status":"passed","testResultsByEnv":{"default":"dad288b02aef91dc4bbe41fc3d39798e"}}

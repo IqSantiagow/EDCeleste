@@ -1,0 +1,1 @@
+{"id":"27f151814fc040bc416d955f0fa28d87.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_text_is_handed_to_the_event_loop_thread_safely","name":"test_text_is_handed_to_the_event_loop_thread_safely","status":"passed","testResultsByEnv":{"default":"2fd67f1eaa5ee7dd35862d32b94b0e28"}}

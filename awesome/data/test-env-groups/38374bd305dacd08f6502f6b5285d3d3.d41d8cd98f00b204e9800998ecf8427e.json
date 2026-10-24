@@ -1,0 +1,1 @@
+{"id":"38374bd305dacd08f6502f6b5285d3d3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_voice_test_waits_for_its_turn_in_the_speech_queue_as_an_answer","name":"test_voice_test_waits_for_its_turn_in_the_speech_queue_as_an_answer","status":"passed","testResultsByEnv":{"default":"ae5469757c4dff4ec862ad9f985f2921"}}

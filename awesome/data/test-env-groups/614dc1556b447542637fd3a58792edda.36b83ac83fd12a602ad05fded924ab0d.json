@@ -1,0 +1,1 @@
+{"id":"614dc1556b447542637fd3a58792edda.36b83ac83fd12a602ad05fded924ab0d","fullName":"tests.e2e.test_ship_replies#test_should_say_the_reply_of_the_ship_switch_the_game_reports","name":"When the game reports a ship switch Celeste says 'Landing gear retracted'","status":"passed","testResultsByEnv":{"default":"ec60cc791f06e30e96ca50a5db84fe36"}}

@@ -1,0 +1,1 @@
+{"id":"b9a4e3ee9f9756f2915e52c3f509451e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_transcribe_in_background_logs_the_error_of_the_transcription","name":"test_transcribe_in_background_logs_the_error_of_the_transcription","status":"passed","testResultsByEnv":{"default":"f2717df172a462f516c18180772179ec"}}

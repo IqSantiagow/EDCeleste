@@ -1,0 +1,1 @@
+{"id":"3c2879e0c3e9a08c0969f8478e1c95a1.848a83a34d5dc073ce200eabfeffc423","fullName":"tests.e2e.test_ship_replies#test_should_say_the_reply_of_the_journal_event_the_game_writes","name":"When the game writes Docked to the journal Celeste says 'Docking successful'","status":"passed","testResultsByEnv":{"default":"a115d1a35246de460f052b3ae3e656df"}}

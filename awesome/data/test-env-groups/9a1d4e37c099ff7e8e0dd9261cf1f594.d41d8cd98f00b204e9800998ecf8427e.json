@@ -1,0 +1,1 @@
+{"id":"9a1d4e37c099ff7e8e0dd9261cf1f594.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeTest#test_gives_no_samples_when_the_model_makes_no_frame","name":"test_gives_no_samples_when_the_model_makes_no_frame","status":"passed","testResultsByEnv":{"default":"a40048db15aa6c7dd21dc1e57a392b36"}}

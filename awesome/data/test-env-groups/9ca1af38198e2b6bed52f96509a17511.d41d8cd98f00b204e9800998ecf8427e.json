@@ -1,0 +1,1 @@
+{"id":"9ca1af38198e2b6bed52f96509a17511.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_stream_voice_to_speaker_runs_all_pieces_through_one_new_effect","name":"test_stream_voice_to_speaker_runs_all_pieces_through_one_new_effect","status":"passed","testResultsByEnv":{"default":"72c6591786dfb061911c4ca1d15a5146"}}

@@ -1,0 +1,1 @@
+{"id":"d4a7e9e2a3437612de4363d0eca4ae09.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies#test_should_write_but_not_speak_the_command_reply_when_ship_replies_are_off","name":"With Ship replies off a command is answered in COMMS but not spoken","status":"passed","testResultsByEnv":{"default":"c43d8e2f2b0f2c1c4a2b03fc16f92950"}}

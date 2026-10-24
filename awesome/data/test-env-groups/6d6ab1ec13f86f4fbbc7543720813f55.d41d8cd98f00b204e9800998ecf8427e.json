@@ -1,0 +1,1 @@
+{"id":"6d6ab1ec13f86f4fbbc7543720813f55.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_stream_voice_to_speaker_queues_every_sample_once_at_the_volume","name":"test_stream_voice_to_speaker_queues_every_sample_once_at_the_volume","status":"passed","testResultsByEnv":{"default":"4aadfad08b68fe146bf3976bd055ff84"}}

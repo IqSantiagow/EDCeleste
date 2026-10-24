@@ -1,0 +1,1 @@
+{"id":"2ae7a71b257d4bb2ea167ef5c4ac1050.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_pocket_tts#test_should_clone_a_recording_into_the_pocket_voices_folder","name":"A voice cloned for Pocket TTS is kept in its own voices folder","status":"passed","testResultsByEnv":{"default":"05f847f4916d087c547acecf5af42b1b"}}

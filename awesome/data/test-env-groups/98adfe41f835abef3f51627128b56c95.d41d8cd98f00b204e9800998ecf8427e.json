@@ -1,0 +1,1 @@
+{"id":"98adfe41f835abef3f51627128b56c95.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_stream_voice_to_speaker_makes_a_piece_only_when_the_speaker_asks","name":"test_stream_voice_to_speaker_makes_a_piece_only_when_the_speaker_asks","status":"passed","testResultsByEnv":{"default":"b4c9b8744a79e731124c30c9b16ffcd9"}}

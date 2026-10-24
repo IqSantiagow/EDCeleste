@@ -1,0 +1,1 @@
+{"id":"7cb0ae74c5f61a5c4cb0f9b15cfa7134.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_effect#test_should_save_the_ship_effect_switched_off_to_config_yaml","name":"Turning the ship effect off and saving stores it in config.yaml and drops the old Voice Lab block","status":"passed","testResultsByEnv":{"default":"9a02a559662651ae36bcf631a0eeebee"}}

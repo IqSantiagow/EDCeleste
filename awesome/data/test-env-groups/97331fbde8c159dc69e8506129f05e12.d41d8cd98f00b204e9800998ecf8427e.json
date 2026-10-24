@@ -1,0 +1,1 @@
+{"id":"97331fbde8c159dc69e8506129f05e12.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies#test_should_stay_silent_about_the_game_state_when_ship_replies_are_off","name":"With Ship replies off Celeste says nothing when the game state changes","status":"passed","testResultsByEnv":{"default":"2f2a5a37e4ec6735cb03518b83705fc2"}}

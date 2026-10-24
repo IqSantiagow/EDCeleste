@@ -1,0 +1,1 @@
+{"id":"5b3130d4a54c39006af255971f26bdad.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_cold_start_warms_up_the_voice_when_the_provider_can_stream","name":"test_cold_start_warms_up_the_voice_when_the_provider_can_stream","status":"passed","testResultsByEnv":{"default":"4be088336f837791a526863048a83b7e"}}

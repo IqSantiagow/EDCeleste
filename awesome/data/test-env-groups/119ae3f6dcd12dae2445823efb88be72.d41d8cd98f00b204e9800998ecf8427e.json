@@ -1,0 +1,1 @@
+{"id":"119ae3f6dcd12dae2445823efb88be72.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_text_is_dropped_and_logged_when_nobody_consumes_the_queue","name":"test_text_is_dropped_and_logged_when_nobody_consumes_the_queue","status":"passed","testResultsByEnv":{"default":"d3a4cbc144d837061e70480a5a5c94db"}}

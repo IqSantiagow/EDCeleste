@@ -1,0 +1,1 @@
+{"id":"614dc1556b447542637fd3a58792edda.da2a947ad8f2b19953a2d3b0e961088d","fullName":"tests.e2e.test_ship_replies#test_should_say_the_reply_of_the_ship_switch_the_game_reports","name":"When the game reports a ship switch Celeste says 'Flight assist off'","status":"passed","testResultsByEnv":{"default":"db9bcdca7a40e82801cd2a2dcee712f1"}}

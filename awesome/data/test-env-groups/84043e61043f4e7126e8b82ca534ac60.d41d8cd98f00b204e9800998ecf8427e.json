@@ -1,0 +1,1 @@
+{"id":"84043e61043f4e7126e8b82ca534ac60.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_cloning#test_should_notify_when_the_sample_of_a_cloned_voice_is_missing","name":"A cloned voice without a sample shows a notification and the app stays up","status":"passed","testResultsByEnv":{"default":"029fda517c9bd1ecc4fac58132b15864"}}

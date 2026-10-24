@@ -1,0 +1,1 @@
+{"id":"5ffd1dc2b8c52107a544b60aa90b5ecf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_comms#test_should_show_a_failed_turn_and_stop_thinking_when_the_connection_drops","name":"A dropped LLM connection shows a failed turn and stops thinking","status":"passed","testResultsByEnv":{"default":"6f9e5b31c53276a4e5c7fc817d451582"}}

@@ -1,0 +1,1 @@
+{"id":"b8e5c8950db966e18392015cbcb507d9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_streaming_voice#test_should_play_the_first_piece_while_the_rest_of_the_voice_is_still_made","name":"Celeste starts speaking before her whole answer is made","status":"passed","testResultsByEnv":{"default":"d711514f6f81aac27b3ba33c5f29f7e5"}}

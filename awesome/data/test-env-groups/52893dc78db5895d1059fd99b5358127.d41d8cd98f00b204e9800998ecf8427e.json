@@ -1,0 +1,1 @@
+{"id":"52893dc78db5895d1059fd99b5358127.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_show_events_from_the_saved_journal_folder_in_the_ship_log","name":"After saving a new journal folder, the events the game writes there reach the ship log","status":"passed","testResultsByEnv":{"default":"b34786be5d73357a990388dd3c365c4e"}}

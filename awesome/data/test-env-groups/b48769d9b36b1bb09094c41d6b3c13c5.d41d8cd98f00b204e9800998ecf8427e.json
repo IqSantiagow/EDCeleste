@@ -1,0 +1,1 @@
+{"id":"b48769d9b36b1bb09094c41d6b3c13c5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceProfileFoldersTest#test_get_available_profiles_ignores_files_in_the_voices_folder_itself","name":"test_get_available_profiles_ignores_files_in_the_voices_folder_itself","status":"passed","testResultsByEnv":{"default":"4cc988821182e7feb4202a4bdc935fae"}}

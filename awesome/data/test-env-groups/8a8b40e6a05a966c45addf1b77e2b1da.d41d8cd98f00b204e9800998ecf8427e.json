@@ -1,0 +1,1 @@
+{"id":"8a8b40e6a05a966c45addf1b77e2b1da.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_instinct_spoken_reply#test_should_keep_the_reply_and_press_the_key_once_when_the_voice_breaks","name":"A voice that breaks does not lose the reply or press the key twice","status":"passed","testResultsByEnv":{"default":"3c29e78f898787e9bc537a3641f3a70c"}}

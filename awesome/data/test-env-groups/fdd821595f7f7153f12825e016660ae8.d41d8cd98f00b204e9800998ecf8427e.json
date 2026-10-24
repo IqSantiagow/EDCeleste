@@ -1,0 +1,1 @@
+{"id":"fdd821595f7f7153f12825e016660ae8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_refuse_a_folder_with_only_game_logs_and_keep_settings_open","name":"A folder with game logs but no journal file is refused and Settings stays open","status":"passed","testResultsByEnv":{"default":"e7baeeb9374413eac8b3e68ae4d691f0"}}

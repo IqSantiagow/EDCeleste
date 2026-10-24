@@ -1,0 +1,1 @@
+{"id":"1b322857dcad8af8a43a77696cc16cd5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_push_to_talk_hotkey#test_should_save_the_key_chosen_in_settings_to_config_yaml","name":"A push-to-talk key chosen in Settings is saved to config.yaml","status":"passed","testResultsByEnv":{"default":"202e6b418094af503e5aed5e0a202ab3"}}

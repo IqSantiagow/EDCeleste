@@ -1,0 +1,1 @@
+{"id":"85e996201b47564372f482f644f9eef9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies#test_should_speak_the_reply_of_a_command_the_game_state_does_not_confirm","name":"After a throttle command Celeste says the reply right away","status":"passed","testResultsByEnv":{"default":"1a5d2c67f93eacd19a2c66a893a0eb78"}}

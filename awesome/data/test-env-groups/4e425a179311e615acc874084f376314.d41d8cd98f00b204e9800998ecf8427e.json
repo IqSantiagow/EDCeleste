@@ -1,0 +1,1 @@
+{"id":"4e425a179311e615acc874084f376314.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.PlayClipTest#test_play_clip_writes_the_audio_in_slices_and_closes_the_speaker","name":"test_play_clip_writes_the_audio_in_slices_and_closes_the_speaker","status":"passed","testResultsByEnv":{"default":"6eb13d1f04953ef363601727c943c7ce"}}

@@ -1,0 +1,1 @@
+{"id":"d2a95aa0970779f82f7d846bc7177997.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_game_action_availability#test_should_tell_the_llm_why_the_cargo_scoop_is_unavailable_when_docked","name":"Celeste is told the cargo scoop is unavailable while docked","status":"passed","testResultsByEnv":{"default":"407a18ec3f30e1bbfa523f68043cdbd9"}}

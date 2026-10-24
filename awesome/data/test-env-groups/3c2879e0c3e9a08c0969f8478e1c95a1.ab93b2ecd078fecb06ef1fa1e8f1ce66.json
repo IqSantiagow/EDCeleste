@@ -1,0 +1,1 @@
+{"id":"3c2879e0c3e9a08c0969f8478e1c95a1.ab93b2ecd078fecb06ef1fa1e8f1ce66","fullName":"tests.e2e.test_ship_replies#test_should_say_the_reply_of_the_journal_event_the_game_writes","name":"When the game writes RefuelAll to the journal Celeste says 'Fuel replenished'","status":"passed","testResultsByEnv":{"default":"28c5e2eeeb8fd53fd6c878af269fd9e2"}}

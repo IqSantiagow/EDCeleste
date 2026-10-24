@@ -1,0 +1,1 @@
+{"id":"dea3478dba1ba9277dba4e05eb890f84.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies_setting#test_should_save_ship_replies_switched_off_to_config_yaml","name":"Turning Ship replies off and saving stores it in config.yaml","status":"passed","testResultsByEnv":{"default":"1733760a6053fb4921eb081802fdde3d"}}

@@ -1,0 +1,1 @@
+{"id":"70ebc1ccde656b2e86d44ed57862b70f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_get_stt_models_returns_available_whisper_models","name":"test_get_stt_models_returns_available_whisper_models","status":"passed","testResultsByEnv":{"default":"2a493d0072057b6369b1e8086cb8406e"}}

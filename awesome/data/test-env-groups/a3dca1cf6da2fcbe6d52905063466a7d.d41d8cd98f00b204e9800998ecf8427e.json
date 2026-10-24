@@ -1,0 +1,1 @@
+{"id":"a3dca1cf6da2fcbe6d52905063466a7d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_analysis_raises_voice_cloning_exception_for_edge_params","name":"test_analysis_raises_voice_cloning_exception_for_edge_params","status":"passed","testResultsByEnv":{"default":"80d5c3065a3caa5a741c745f2e33c3e8"}}

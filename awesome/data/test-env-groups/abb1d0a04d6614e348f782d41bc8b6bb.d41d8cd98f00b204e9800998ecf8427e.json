@@ -1,0 +1,1 @@
+{"id":"abb1d0a04d6614e348f782d41bc8b6bb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_cloning#test_should_delete_the_unsaved_clone_when_the_commander_cancels","name":"Cancel after cloning deletes the unsaved voice and keeps the others","status":"passed","testResultsByEnv":{"default":"dc064877fe4409fe8977ce136a722305"}}

@@ -1,0 +1,1 @@
+{"id":"93d752b4f58ae58b191e05e684dc67bf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_event_bus_publish_of_tts_event_puts_the_text_in_the_speech_queue","name":"test_event_bus_publish_of_tts_event_puts_the_text_in_the_speech_queue","status":"passed","testResultsByEnv":{"default":"81efc38a012afb130ab6b06965646e70"}}

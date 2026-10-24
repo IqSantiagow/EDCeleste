@@ -1,0 +1,1 @@
+{"id":"72e739c540177c17c10f66bb4bff7ab3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeTest#test_gives_the_text_the_voice_and_four_decode_steps_to_the_model","name":"test_gives_the_text_the_voice_and_four_decode_steps_to_the_model","status":"passed","testResultsByEnv":{"default":"9903f3e7e1c2ea04b9e3a403803f8167"}}

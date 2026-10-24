@@ -1,0 +1,1 @@
+{"id":"78db85582339fb393b6053aa62b46cb4.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalFilesOnDiskTest#test_validate_settings_keeps_the_message_for_a_missing_folder","name":"test_validate_settings_keeps_the_message_for_a_missing_folder","status":"passed","testResultsByEnv":{"default":"802b1c650dd2b53f056fc50d004233cb"}}

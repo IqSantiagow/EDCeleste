@@ -1,0 +1,1 @@
+{"id":"2a1c07697899b35b8e310558cf0e3118.ef2bda552b6d5bac06a088d729af2d5d","fullName":"tests.e2e.test_voice_queue#test_should_cut_celeste_off_when_the_commander_starts_to_talk","name":"Holding the push-to-talk key cuts Celeste off in the middle of a sentence","status":"passed","testResultsByEnv":{"default":"227a470180e1950b2e2beaa65132dcee"}}

@@ -1,0 +1,1 @@
+{"id":"cb39316401b984b3d619cc7e260a1958.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderValidateParamsTest#test_validate_params_returns_none_when_voice_is_set","name":"test_validate_params_returns_none_when_voice_is_set","status":"passed","testResultsByEnv":{"default":"42b968e643610a4c1461fe9a16c4fc27"}}

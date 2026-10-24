@@ -1,0 +1,1 @@
+{"id":"f12d8cbc7e718d7bcb05f520a69f7655.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.PlayClipTest#test_the_stop_flag_aborts_the_speaker_and_drops_the_rest_of_the_clip","name":"test_the_stop_flag_aborts_the_speaker_and_drops_the_rest_of_the_clip","status":"passed","testResultsByEnv":{"default":"68cff8fc7322fca6663e9fd989103768"}}

@@ -1,0 +1,1 @@
+{"id":"d3d1cc4eaebe2d837a93210559182e4b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.CreateVoiceProfileTest#test_raises_type_error_for_params_of_another_provider","name":"test_raises_type_error_for_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"b24b9b90a247c6b4700af151ab19c46e"}}

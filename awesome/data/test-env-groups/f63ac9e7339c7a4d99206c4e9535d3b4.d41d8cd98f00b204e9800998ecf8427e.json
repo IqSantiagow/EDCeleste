@@ -1,0 +1,1 @@
+{"id":"f63ac9e7339c7a4d99206c4e9535d3b4.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_active_or_new_provider_returns_the_active_one_for_its_own_type","name":"test_active_or_new_provider_returns_the_active_one_for_its_own_type","status":"passed","testResultsByEnv":{"default":"3a54bd2b9130769eb41a9e730ff8d3fb"}}

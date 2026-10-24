@@ -1,0 +1,1 @@
+{"id":"67e914512cc6a9b0db76ce0ae257746a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalFilesOnDiskTest#test_validate_settings_rejects_a_folder_with_only_a_net_log","name":"test_validate_settings_rejects_a_folder_with_only_a_net_log","status":"passed","testResultsByEnv":{"default":"ac18e4e906ef48cff4b8a8dab9ab207f"}}

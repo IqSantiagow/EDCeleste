@@ -1,0 +1,1 @@
+{"id":"c55f9d9d6c7322fb6414110563960929.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_fetch_edge_tts_voice_names_returns_short_names_from_list_voices","name":"test_fetch_edge_tts_voice_names_returns_short_names_from_list_voices","status":"passed","testResultsByEnv":{"default":"b3a494948603c1add6e114c3f38b77d7"}}

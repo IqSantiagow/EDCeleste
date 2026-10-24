@@ -1,0 +1,1 @@
+{"id":"c11e3970272b549a538f2b3d7b250dbd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_show_edge_with_its_default_voice_after_switching_to_remote","name":"Switching the location to Remote shows Edge TTS with its default voice","status":"passed","testResultsByEnv":{"default":"1ae46b1a3c01b34da5452411e97315b2"}}

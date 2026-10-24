@@ -1,0 +1,1 @@
+{"id":"af0f7bf89debd164cae9cb48acf32c4b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_bind_hotkey_dialog#test_should_ignore_the_main_mouse_buttons_and_catch_a_side_button","name":"Only the side buttons of the mouse can be the push-to-talk key","status":"passed","testResultsByEnv":{"default":"5f8328b74c534ab0dc61a98c66eae3b1"}}

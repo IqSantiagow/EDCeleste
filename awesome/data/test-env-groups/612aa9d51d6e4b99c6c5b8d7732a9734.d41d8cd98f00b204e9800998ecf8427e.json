@@ -1,0 +1,1 @@
+{"id":"612aa9d51d6e4b99c6c5b8d7732a9734.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.settings.test_preview_voice_sample_use_case.TestPreviewVoiceSampleUseCase#test_should_delegate_preview_to_voice_cloning_protocol","name":"test_should_delegate_preview_to_voice_cloning_protocol","status":"passed","testResultsByEnv":{"default":"032c20216cae04a4ef66bf0df50ef800"}}

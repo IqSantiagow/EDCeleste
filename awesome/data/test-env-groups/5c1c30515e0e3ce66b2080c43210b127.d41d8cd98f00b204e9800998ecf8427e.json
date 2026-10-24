@@ -1,0 +1,1 @@
+{"id":"5c1c30515e0e3ce66b2080c43210b127.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_synthesize_and_play_passes_saved_params_to_the_edge_provider","name":"test_synthesize_and_play_passes_saved_params_to_the_edge_provider","status":"passed","testResultsByEnv":{"default":"06a32c598ccd246dfa60f6bc593c8304"}}

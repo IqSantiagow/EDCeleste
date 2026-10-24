@@ -1,0 +1,1 @@
+{"id":"eee1a3d074e4a29f305b53b4e6f65844.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_push_to_talk_hotkey#test_should_send_the_spoken_command_when_the_mic_button_is_held","name":"The mic button in COMMS still sends the spoken command","status":"passed","testResultsByEnv":{"default":"12c57345fc4c95c00f6bda9b118e9fc1"}}

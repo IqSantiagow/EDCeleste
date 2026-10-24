@@ -1,0 +1,1 @@
+{"id":"5323fee6681e7546beff20a84ec599b1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_game_state_prompt#test_should_leave_out_the_ship_and_market_parts_when_there_is_nothing_to_say","name":"Flying in space leaves no empty line where the ship and market go","status":"passed","testResultsByEnv":{"default":"4e0b7bdf608f07fac078313f3d7786ac"}}

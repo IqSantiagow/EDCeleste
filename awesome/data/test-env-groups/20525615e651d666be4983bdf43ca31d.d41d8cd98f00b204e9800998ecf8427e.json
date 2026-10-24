@@ -1,0 +1,1 @@
+{"id":"20525615e651d666be4983bdf43ca31d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_pocket_tts#test_should_delete_a_pocket_voice_and_keep_the_chatterbox_voice_with_its_name","name":"Deleting a Pocket TTS voice keeps the Chatterbox voice of the same name","status":"passed","testResultsByEnv":{"default":"ababa10dd55b87c80f92c59eea1fb232"}}

@@ -1,0 +1,1 @@
+{"id":"d50118c4b9e91440702d6429c72949e2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.OpenSpeakerTest#test_uses_the_default_speaker_when_windows_has_no_wasapi","name":"test_uses_the_default_speaker_when_windows_has_no_wasapi","status":"passed","testResultsByEnv":{"default":"ddf119b06fc2ad94302cd4ae3bfe6f6f"}}

@@ -1,0 +1,1 @@
+{"id":"94015169e7a7c9c055aa086c2a565583.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.PlayClipTest#test_a_stereo_float64_clip_is_written_as_contiguous_float32","name":"test_a_stereo_float64_clip_is_written_as_contiguous_float32","status":"passed","testResultsByEnv":{"default":"db59282f2952d228e5ca5bcd22237ee6"}}
