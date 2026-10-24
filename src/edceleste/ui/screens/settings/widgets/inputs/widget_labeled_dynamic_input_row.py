@@ -109,9 +109,14 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
         2. calls the on_submit callback,
         3. stores the text as the row value,
         4. leaves edit mode, which recomposes the row back to a Label.
-        It always submits, also when the text did not change.
+        When the text is the same as the row value (a stray click or Enter
+        without typing), only step 4 runs: nothing is posted or called, so a
+        stray click does not reload the model list or wipe a test result.
         """
         new_value = input_widget.value
+        if new_value == self.value:
+            self.is_being_edited = False
+            return
         self._send_value_changed_event(new_value)
         self.on_submit(new_value)
         self.value = new_value

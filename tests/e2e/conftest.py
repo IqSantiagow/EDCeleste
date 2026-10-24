@@ -657,6 +657,7 @@ class EdCelesteTestEnvironment:
             tts_service.fetch_edge_tts_voice_names = self.edge_voices_without_network
 
         with allure.step("LLM models and microphones listed without network"):
+            self.model_list_requests = 0
             self.container.llm_service().fetch_available_model_names = (
                 self.llm_models_without_network
             )
@@ -692,6 +693,7 @@ class EdCelesteTestEnvironment:
         return EDGE_VOICES_WITHOUT_NETWORK
 
     async def llm_models_without_network(self, provider=None) -> list[str]:
+        self.model_list_requests += 1
         return [self.settings.llm.provider.model]
 
     def save_config(self) -> None:
