@@ -705,6 +705,7 @@ class StartupLoadingOnDiskTest(unittest.IsolatedAsyncioTestCase):
         self.journal_file.touch()
 
         self.published: list[tuple[str, bool]] = []
+        self.published_events: list = []
         self.when_loading_is_finished = lambda: None
         event_bus = Mock()
         event_bus.publish = AsyncMock(side_effect=self._record_published_event)
@@ -728,6 +729,22 @@ class StartupLoadingOnDiskTest(unittest.IsolatedAsyncioTestCase):
             self.when_loading_is_finished()
             return
         self.published.append((event.event, event.is_startup_loading))
+        self.published_events.append(event)
+
+    def _append_utf8_bytes_to_journal(self, line_bytes: bytes) -> None:
+        """Adds raw bytes to the journal, so a test can write a byte that is
+        not valid UTF-8."""
+        with self.journal_file.open("ab") as journal:
+            journal.write(line_bytes + b"\n")
+
+    def _append_journal_line_with_text(self, event_name: str, text: str) -> None:
+        """Adds a journal line like the game writes it: UTF-8 bytes, the
+        letters as they are and not as \\u escapes."""
+        line = (
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"{event_name}",'
+            f'"Message":"{text}"}}'
+        )
+        self._append_utf8_bytes_to_journal(line.encode("utf-8"))
 
     def _append_journal_line(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
@@ -854,6 +871,110 @@ class StartupLoadingOnDiskTest(unittest.IsolatedAsyncioTestCase):
             self.published,
             [("StartupLoadingFinished", False), ("FirstLiveEvent", False)],
         )
+
+    # --- non-English letters in the game files ---
+
+    async def test_journal_line_with_non_english_letters_does_not_stop_the_loading(
+        self,
+    ):
+        self._append_journal_line_with_text("ReceiveText", "Привет, Łódź")
+        self._append_journal_line("NextEvent")
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+
+        self.assertEqual(
+            self.published,
+            [
+                ("ReceiveText", True),
+                ("NextEvent", True),
+                ("StartupLoadingFinished", False),
+            ],
+        )
+
+    async def test_commander_name_with_a_diaeresis_reaches_the_event_as_written(self):
+        load_game_line = (
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"LoadGame","Commander":"Zoë",'
+            '"FID":"F1","Horizons":true,"Odyssey":true,"Ship":"python","ShipID":1,'
+            '"GameMode":"Solo","Credits":1,"Loan":0,"ShipName":"","ShipIdent":"",'
+            '"FuelLevel":8.0,"FuelCapacity":8.0}'
+        )
+        self._append_utf8_bytes_to_journal(load_game_line.encode("utf-8"))
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+
+        self.assertEqual(self.published_events[0].Commander, "Zoë")
+
+    async def test_status_file_with_non_english_letters_does_not_stop_the_watcher(
+        self,
+    ):
+        status_path = self.folder / "Status.json"
+        status_path.write_text(
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"Status","Flags":0,'
+            '"Destination":{"Name":"Łódź"}}',
+            encoding="utf-8",
+        )
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        newer_time = status_path.stat().st_mtime + 10
+        self._write_status_file()
+        os.utime(status_path, (newer_time, newer_time))
+        await self._wait_until(lambda: ("Status", False) in self.published)
+
+        self.assertEqual(
+            self.published,
+            [
+                ("Status", True),
+                ("StartupLoadingFinished", False),
+                ("Status", False),
+            ],
+        )
+
+    async def test_byte_that_is_not_valid_utf8_costs_one_character_not_the_session(
+        self,
+    ):
+        self._append_utf8_bytes_to_journal(
+            f'{{"timestamp":"{self.LINE_TIMESTAMP}","event":"Bro'.encode("utf-8")
+            + b"\xff"
+            + b'ken"}'
+        )
+        self._append_journal_line("NextEvent")
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+
+        self.assertEqual(
+            self.published,
+            [
+                ("Bro�ken", True),
+                ("NextEvent", True),
+                ("StartupLoadingFinished", False),
+            ],
+        )
+
+    async def test_game_files_are_opened_as_utf8_with_replacement(self):
+        """Linux CI reads UTF-8 by default, so the content tests alone pass
+        without the fix. This one checks the way the files are opened."""
+        self._write_status_file()
+        real_open = open
+
+        with patch("builtins.open", wraps=real_open) as spy_open:
+            self.watcher.start_watcher_service()
+            await self._wait_until(
+                lambda: self._was_published("StartupLoadingFinished")
+            )
+
+        opened_game_files = [
+            call
+            for call in spy_open.call_args_list
+            if str(self.folder) in str(call.args[0])
+        ]
+        self.assertGreaterEqual(len(opened_game_files), 2)
+        for call in opened_game_files:
+            self.assertEqual(call.kwargs.get("encoding"), "utf-8")
+            self.assertEqual(call.kwargs.get("errors"), "replace")
 
 
 class JournalFilesOnDiskTest(unittest.TestCase):
