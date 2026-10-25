@@ -17,7 +17,7 @@ Execute the steps in order.
 
 - If the user named files, use them.
 - Otherwise the script finds them itself: Python files under `src/edceleste` changed
-  against `main`, uncommitted or new. Tests are never checked.
+  against `origin/main`, uncommitted or new. Tests are never checked.
 - Only backend logic is checked. The script skips everything under `src/edceleste/ui/`
   (screens, widgets, view models), also when the file is named, and prints each skipped
   file on stderr. The Textual methods there (`compose`, `on_mount`, `on_*`, `watch_*`,
@@ -35,7 +35,9 @@ Execute the steps in order.
    report folder and the printed paths. Never describe the project or the code: the test is
    blind, every hint spoils it.
 3. The agent writes its tables to files in the report folder, one per source file, and
-   its final message only lists them with the counts. Read those files. Compare every guess
+   its final message only lists them with the counts. Read those files by their absolute path
+   and never `cd` into `signature_check/` (on Windows the script cannot delete a folder the
+   shell stands in). Compare every guess
    with the real code. A method needs work when:
    - the guess is wrong, or misses a side effect that matters (network, event bus, files,
      audio, stored state, tokens), or

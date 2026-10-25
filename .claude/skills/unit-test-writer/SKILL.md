@@ -10,9 +10,11 @@ Execute the steps in order. Do not skip ahead or merge steps.
 ## Step 1 — Baseline: do the existing tests pass?
 
 ```bash
-coverage run -m unittest discover
+coverage run -m pytest
 coverage report -m
 ```
+
+The pipeline and the CI run pytest, so run pytest here, not `unittest discover`: a test can pass under one and fail under the other. In a worktree set `PYTHONPATH=src` for every run (the shared virtualenv imports `edceleste` from the main checkout), and print `edceleste.__file__` once to see which copy the tests load.
 
 - If everything passes: continue to Step 2.
 - If anything fails: stop. Report the failing tests to the user and ask whether you should fix them before continuing, or proceed anyway despite the pre-existing failures. Wait for a response before continuing.
@@ -50,7 +52,7 @@ Present the full plan to the user and ask explicitly whether to proceed with imp
 
 - **Approved:** implement exactly the planned test methods, following existing conventions under `tests/` (unittest-style, matching naming and fixture patterns already used in neighboring test files). Then re-run:
   ```bash
-  coverage run -m unittest discover
+  coverage run -m pytest
   coverage report -m
   ```
   Confirm the new tests pass and nothing else regressed. Report the result and the updated coverage.

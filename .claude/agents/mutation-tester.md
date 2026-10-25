@@ -25,8 +25,9 @@ Execute the steps in order.
   git diff --name-only HEAD -- src/edceleste
   git ls-files --others --exclude-standard -- src/edceleste
   ```
-  If both are empty, the work is already committed. Compare the branch with main instead:
-  `git diff --name-only main...HEAD -- src/edceleste`.
+  If both are empty, the work is already committed. Compare the branch with origin/main instead
+  (the local main of a worktree is not kept up to date):
+  `git diff --name-only origin/main...HEAD -- src/edceleste`.
 - Keep only `.py` files that still exist.
 - Drop `src/edceleste/ui/*` and `src/edceleste/__main__.py`. mutmut never mutates them
   (`[tool.mutmut]` in `pyproject.toml`).
@@ -90,6 +91,9 @@ Check the platform with `uname -s`.
      ```
      Never call `docker run` yourself and never edit or overwrite the scripts. The script
      handles git worktrees and Windows line endings, and it writes the report files.
+     Stop a run only by the PID of the process you started in the background. Never kill by
+     image or process name (`taskkill /IM`, `pkill`, `Stop-Process -Name`): that ends the
+     processes of the owner and of other sessions too. With no PID, let the run finish.
   4. Wait for the end of the run. The script writes `mutation_testing/report/done.txt`
      (`exit code N`) when it ends, however it ends. One Bash call can last at most 10 minutes,
      so repeat this call until it returns with the file present:
