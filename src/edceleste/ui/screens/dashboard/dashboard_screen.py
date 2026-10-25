@@ -98,12 +98,14 @@ class DashboardScreen(Screen):
         ).response_state = CommsMessageViewModel.from_user_message(event.command)
 
     def __load_keybinds(self):
-        """A missing keybinds file is not fatal: it logs a warning and the
-        dashboard opens anyway. Other errors are not caught."""
+        """Any keybinds problem is not fatal: a missing file, a broken file or
+        a file without an action we use. It logs a warning and the dashboard
+        opens anyway, Celeste then works without game actions. The pilot
+        already saw the reason in the keybinds row of the system check."""
         # Will be as separate method, maybe in future will be used to retry
         try:
             self.settings_repository.load_keybinds()
-        except FileNotFoundError as e:
+        except Exception as e:
             logger.warning("Could not load keybinds: %s", e)
 
     @on(TabbedContent.TabActivated)
