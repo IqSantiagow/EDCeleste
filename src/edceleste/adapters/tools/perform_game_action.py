@@ -32,10 +32,11 @@ class PerformGameAction(ToolProtocol):
 
     # pydantic_ai sends the docstring below to the LLM as the tool description,
     # so it is written for the LLM, not for us. How it works: presses the key
-    # bound to the action in the game. Three failures come back as a ToolReturn
+    # bound to the action in the game. Four failures come back as a ToolReturn
     # with is_error=True in the metadata, so the LLM can tell the pilot: game
-    # actions switched off in the settings, action without a keyboard key, or
-    # game window not found (then nothing is pressed). An action the ship
+    # actions switched off in the settings, keybindings not loaded (broken or
+    # incomplete file), action without a keyboard key, or game window not
+    # found (then nothing is pressed). An action the ship
     # cannot do right now (see get_unavailable_reason) comes back with
     # unavailable=True and the reason as the text, nothing is pressed. The
     # LLM tells the pilot the reason in its own words, Instinct says the same
@@ -48,7 +49,16 @@ class PerformGameAction(ToolProtocol):
                 metadata={"is_error": True},
             )
 
-        if not self.keybind_service.is_bound(action):
+        try:
+            is_bound = self.keybind_service.is_bound(action)
+        except KeyError:
+            return ToolReturn(
+                return_value="Game actions are not available: the keybindings "
+                "are not loaded.",
+                metadata={"is_error": True},
+            )
+
+        if not is_bound:
             return ToolReturn(
                 return_value=f"{action.value} is not bound to a keyboard key.",
                 metadata={"is_error": True},
