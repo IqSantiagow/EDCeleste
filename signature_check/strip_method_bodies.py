@@ -40,10 +40,11 @@ INTERFACE_STATEMENTS = (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign)
 
 
 def find_changed_python_files() -> list[str]:
-    """Committed changes against main, uncommitted changes and new files, only
-    Python files under src/edceleste that still exist."""
+    """Committed changes against origin/main (the local main of a worktree is not
+    kept up to date), uncommitted changes and new files, only Python files under
+    src/edceleste that still exist."""
     git_commands = [
-        ["git", "diff", "--name-only", "main...HEAD", "--", SOURCE_FOLDER],
+        ["git", "diff", "--name-only", "origin/main...HEAD", "--", SOURCE_FOLDER],
         ["git", "diff", "--name-only", "HEAD", "--", SOURCE_FOLDER],
         ["git", "ls-files", "--others", "--exclude-standard", "--", SOURCE_FOLDER],
     ]
@@ -142,7 +143,7 @@ def main() -> None:
         print("No changed backend Python files under src/edceleste (ui/ is skipped).")
         return
 
-    REPORTS_FOLDER.mkdir(parents=True)
+    REPORTS_FOLDER.mkdir(parents=True, exist_ok=True)
     print(f"Report folder: {REPORTS_FOLDER.resolve().as_posix()}")
     for file in files:
         source_code = Path(file).read_text(encoding="utf-8")

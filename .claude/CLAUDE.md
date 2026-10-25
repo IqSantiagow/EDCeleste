@@ -33,6 +33,10 @@ bash mutation_testing/run_in_docker.sh                                       # w
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
 
+> **Worktree:** the virtualenv belongs to the main checkout and its editable install imports `edceleste` from the
+> main checkout's `src`. In a worktree run every command with `PYTHONPATH=src` (never together with `python -I`,
+> which ignores it) and print `edceleste.__file__` once per session to see which copy the tests load.
+
 The CI pipelines have a built-in Allure report of the test results, published from `main` to
 https://iqsantiagow.github.io/EDCeleste/. The e2e conventions that feed it live in the `e2e-test-writer` agent.
 
@@ -45,7 +49,10 @@ by themselves. They send the working copy with `bash mutation_testing/send_code.
 
 Go through the steps in order. Do not call the work done before step 6 is done.
 
-1. **Implement** the feature or the fix.
+1. **Implement** the feature or the fix. For a bug, first make it fail in the form closest to how the user
+   meets it (a failing test, or a run of the real flow) and say what you saw; the issue text is a lead, not a
+   reproduction. The new tests of step 2 must be seen red once on the code without the fix (a detached worktree
+   at HEAD or a reversed patch, never a bare `git stash`).
 2. **Unit tests** — write them with the `unit-test-writer` skill, until `python -m pytest` is green.
 3. **End-to-end tests** — ask the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`):
    1. It scans the changes and returns proposed scenarios. Review them and approve (or trim) them.

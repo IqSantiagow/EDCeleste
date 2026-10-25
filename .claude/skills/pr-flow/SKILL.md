@@ -12,7 +12,7 @@ Before committing, verify locally that the code is clean and the tests pass — 
 ```bash
 ruff check
 ruff format --diff
-coverage run -m unittest discover
+coverage run -m pytest
 coverage report -m
 ```
 
@@ -28,7 +28,7 @@ git diff HEAD
 ```
 
 Make sure that:
-- The branch is `feature/*` or `fix/*` — not `main`
+- The branch is not `main` (any prefix is fine: `feature/`, `fix/`, `chore/`, `claude/`)
 - There are changes to commit
 
 ## Step 3 — Commit
@@ -84,6 +84,9 @@ Note the PR number — it will be needed to fetch comments.
 
 Wait for all checks to finish. Jobs run sequentially: `lint → test → claude-review`.
 
+In the desktop app the host watches the PR itself: call `get_status` of the `ccd_pr` tools (bind the PR with `bind_pr` if it is not bound yet), do not poll, and start Step 7 when the host reports the checks done or the user says so.
+
+Without the host (a plain terminal):
 ```bash
 gh pr checks --watch
 ```
@@ -126,7 +129,7 @@ When the `test` job fails:
 
 2. Reproduce the failure locally:
    ```bash
-   coverage run -m unittest discover
+   coverage run -m pytest
    coverage report -m
    ```
 

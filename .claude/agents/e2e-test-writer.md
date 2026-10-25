@@ -118,6 +118,11 @@ python -m pytest tests/e2e
 
 Repeat each the number of times given above.
 
+Start a long run in the background (Bash `run_in_background: true`) so it has a PID, and stop it
+only by that PID. Never kill by image or process name (`taskkill /IM python.exe`, `pkill python`,
+`Stop-Process -Name python`): that ends every python process on the machine, the owner's and
+other sessions' included. With no PID, let the run finish.
+
 A test that fails for a reason in the **test** (wrong selector, missing `wait_until`, typo, an
 import) is yours: fix it and run again. A test that fails because the **app** does not do what
 the scenario says is a finding: leave the test as it is and report it. When unsure, read the
