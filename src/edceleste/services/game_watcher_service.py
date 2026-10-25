@@ -106,7 +106,9 @@ class GameWatcherService:
         when the method ends. An OSError when the journal file cannot be
         opened ends the task with that error, nothing is published.
         """
-        with open(journal_file_path, "r") as journal_file:
+        with open(
+            journal_file_path, "r", encoding="utf-8", errors="replace"
+        ) as journal_file:
             await self.__publish_lines_already_in_journal(journal_file)
             status_modified_time = await self.__publish_side_file_already_on_disk(
                 "Status.json", StatusEvent
@@ -336,7 +338,7 @@ class GameWatcherService:
         rewriting it right now). Raises OSError when the file cannot be
         opened."""
         file_path = os.path.join(self.journal_path, file_name)
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             text = f.read()
         if not text:
             return None
