@@ -15,7 +15,7 @@ dependencies = [
     "anthropic==2.1.0",
     "anyio==4.15.1",
     "attrs==26.1.0",
-    "certifi==2026.7.22",
+    "certifi==2026.10.19",
     "dependency-injector==4.49.1",
     "distro==1.9.0",
     "docstring_parser==0.18.0",
@@ -31,11 +31,11 @@ dependencies = [
     "mdit-py-plugins==0.6.1",
     "mdurl==0.1.2",
     "multidict==7.1.0",
-    "platformdirs==4.13.3",
+    "platformdirs==4.13.5",
     "propcache==0.5.4",
-    "pydantic-settings==2.16.0",
+    "pydantic-settings==2.16.1",
     "pydantic==2.14.1",
-    "pydantic-ai-slim[anthropic,openai]==2.57.0",
+    "pydantic-ai-slim[anthropic,openai]==2.59.0",
     "Pygments==2.21.0",
     "python-dotenv==1.2.4",
     "PyYAML==6.0.3",
@@ -58,7 +58,7 @@ dependencies = [
     "sentencepiece==0.2.2",
     "textual-slider==0.2.0",
     "textual-fspicker==1.0.1",
-    "decider-ai==1.9.0",
+    "decider-ai==1.10.0",
     "triton-windows==3.8.0.post29; sys_platform == 'win32'",
 ]
 
@@ -76,7 +76,7 @@ mutation = [
 ]
 dev = [
     "aiohttp-jinja2==1.6",
-    "ast_serialize==0.13.0",
+    "ast_serialize==0.13.1",
     "click==8.5.0",
     "colorama==0.4.6",
     "Jinja2==3.1.6",
