@@ -104,6 +104,18 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
             "UseShieldCell is not bound to a keyboard key.",
         )
 
+    async def test_should_return_error_when_keybinds_are_not_loaded(self):
+        self.keybind_service.is_bound.side_effect = KeyError(EdAction.USE_SHIELD_CELL)
+
+        result = await self.tool.execute(EdAction.USE_SHIELD_CELL)
+
+        self.keybind_service.press_keys_for_action.assert_not_awaited()
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(
+            result.return_value,
+            "Game actions are not available: the keybindings are not loaded.",
+        )
+
     async def test_should_return_error_when_game_window_not_found(self):
         self.keybind_service.press_keys_for_action.side_effect = (
             GameWindowNotFoundException()
