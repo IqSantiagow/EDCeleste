@@ -529,15 +529,22 @@ class FakeMicrophone:
         self.heard_text = ""
         self.times_opened = 0
         self.times_closed = 0
+        self.why_it_cannot_be_opened: str | None = None
 
     def hears(self, text: str) -> None:
         self.heard_text = text
 
+    def cannot_be_opened(self, reason: str) -> None:
+        self.why_it_cannot_be_opened = reason
+
+    def open_stream(self, callback, **settings) -> FakeMicrophoneStream:
+        if self.why_it_cannot_be_opened is not None:
+            raise OSError(self.why_it_cannot_be_opened)
+        return FakeMicrophoneStream(self, callback)
+
     def build_sounddevice_module(self) -> ModuleType:
         sounddevice = ModuleType("sounddevice")
-        sounddevice.InputStream = lambda callback, **settings: FakeMicrophoneStream(
-            self, callback
-        )
+        sounddevice.InputStream = self.open_stream
         return sounddevice
 
     def build_whisper_model(self) -> SimpleNamespace:
@@ -708,10 +715,15 @@ class EdCelesteTestEnvironment:
 
         self.container.wire(modules=MODULES_USING_PROVIDE)
 
-    def use_scripted_model(self, stream_function: StreamFunction) -> None:
-        # function= answers the non streamed "Respond with only 'OK'" of the preflight
+    def use_scripted_model(
+        self,
+        stream_function: StreamFunction,
+        preflight_function=answer_preflight_connection_test,
+    ) -> None:
+        # function= answers the non streamed "Respond with only 'OK'" of the preflight.
+        # A preflight_function that raises is a provider that refuses the test request
         scripted_model = FunctionModel(
-            function=answer_preflight_connection_test, stream_function=stream_function
+            function=preflight_function, stream_function=stream_function
         )
         self.container.llm_service()._LLMService__build_model = lambda provider: (
             scripted_model
