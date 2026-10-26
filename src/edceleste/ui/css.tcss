@@ -91,6 +91,22 @@ WidgetSttContainer {
     width: auto;
 }
 
+.service-dot {
+    margin-right: 2;
+}
+
+.service-dot.-ok {
+    color: $success;
+}
+
+.service-dot.-off {
+    color: $font-muted-color;
+}
+
+.service-dot.-error {
+    color: $error;
+}
+
 #dashboard-title {
     color: $primary;
     text-style: bold;

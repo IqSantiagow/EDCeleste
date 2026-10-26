@@ -44,6 +44,7 @@ from edceleste.services.models.event_reaction_event import EventReactionEvent
 from edceleste.services.models.game_events import LoadedGameEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.llm_status import LLMStatus
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import (
     LLMModel,
     LLMProviderModel,
@@ -110,6 +111,15 @@ def _make_loaded_game_event() -> LoadedGameEvent:
         FuelLevel=1.0,
         FuelCapacity=4.0,
     )
+
+
+async def _latest_status(service: LLMService) -> ServiceStatus:
+    """The status a new listener of stream_status() gets at once."""
+    stream = service.stream_status()
+    try:
+        return await asyncio.wait_for(stream.__anext__(), timeout=1)
+    finally:
+        await stream.aclose()
 
 
 class FakeTool:
@@ -411,6 +421,66 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         result = await self.llm_service.fetch_available_model_names()
 
         self.assertEqual(result, ["openai/gpt-4o", "google/gemini-pro"])
+
+    # --- status for the app header ---
+
+    async def test_status_is_off_before_anything_was_checked(self):
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OFF, "Not checked yet"))
+
+    async def test_status_is_ok_after_a_successful_request(self):
+        self.llm_service.add_llm_request_to_queue("Test message")
+        await self._collect_stream_items(3)
+
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(
+            status, ServiceStatus(ServiceState.OK, "The last request succeeded")
+        )
+
+    async def test_status_is_error_with_the_error_text_after_a_failed_request(self):
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            RuntimeError("agent down")
+        )
+        self.llm_service.add_llm_request_to_queue("Failing message")
+        await self._collect_stream_items(3)
+
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(
+            status,
+            ServiceStatus(ServiceState.ERROR, "The last request failed: agent down"),
+        )
+
+    async def test_status_is_not_changed_by_a_reply_without_llm(self):
+        self.llm_service.add_reply_without_llm_to_queue(
+            "deploy landing gear", "Done: Landing gear toggle"
+        )
+        await self._collect_stream_items(1)
+
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OFF, "Not checked yet"))
+
+    async def test_cold_start_sets_ok_status_when_the_llm_answers(self):
+        [status async for status in self.llm_service.cold_start()]
+
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OK, "The LLM answered"))
+
+    async def test_cold_start_sets_error_status_with_the_message_when_the_test_fails(
+        self,
+    ):
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError(
+            "agent unreachable"
+        )
+
+        [status async for status in self.llm_service.cold_start()]
+
+        status = await _latest_status(self.llm_service)
+        self.assertEqual(status, ServiceStatus(ServiceState.ERROR, "agent unreachable"))
 
     # --- cold_start ---
 

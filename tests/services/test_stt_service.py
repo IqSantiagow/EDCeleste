@@ -8,6 +8,7 @@ import numpy as np
 
 from edceleste.services.exceptions.stt_exception import SttException
 from edceleste.services.llm_service import SYSTEM_PROMPT
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
@@ -80,6 +81,61 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         # here so self.model/self.enabled reflect the settings above before
         # each test runs.
         self.service.reload_service()
+
+    # --- status for the app header ---
+
+    async def _latest_status(self) -> ServiceStatus:
+        """The status a new listener of stream_status() gets at once."""
+        stream = self.service.stream_status()
+        try:
+            return await asyncio.wait_for(stream.__anext__(), timeout=1)
+        finally:
+            await stream.aclose()
+
+    async def test_status_is_ok_after_reload_when_stt_is_on(self):
+        status = await self._latest_status()
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OK, "Speech-to-text is on"))
+
+    async def test_status_is_off_after_reload_when_stt_is_switched_off(self):
+        self.settings_service.get_settings.return_value = _make_settings(
+            model=MODEL, enabled=False
+        )
+
+        self.service.reload_service()
+
+        status = await self._latest_status()
+        self.assertEqual(
+            status,
+            ServiceStatus(
+                ServiceState.OFF, "Speech-to-text is switched off in settings"
+            ),
+        )
+
+    async def test_status_is_ok_when_the_microphone_opens(self):
+        self.service.start_recording()
+
+        status = await self._latest_status()
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OK, "The microphone works"))
+
+    async def test_status_is_error_and_stream_is_dropped_when_the_microphone_fails(
+        self,
+    ):
+        # The stream object exists and is already stored when start() fails
+        self.mock_stream.start.side_effect = OSError("no device")
+
+        with self.assertRaises(OSError):
+            self.service.start_recording()
+
+        status = await self._latest_status()
+        self.assertEqual(
+            status,
+            ServiceStatus(
+                ServiceState.ERROR, "The microphone cannot be opened: no device"
+            ),
+        )
+        self.assertIsNone(self.service._recording_stream)
 
     # --- start_recording ---
 

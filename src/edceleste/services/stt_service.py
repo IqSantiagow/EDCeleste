@@ -11,7 +11,9 @@ from edceleste.protocols.speaker_protocol import SpeakerProtocol
 from edceleste.services.exceptions.stt_exception import SttException
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.hotkey_model import Hotkey
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
+from edceleste.services.service_status_stream import ServiceStatusStream
 from edceleste.services.settings_service import SettingsService
 
 import logging
@@ -58,6 +60,18 @@ class SttService:
         self._stt_queue: asyncio.Queue[str] = asyncio.Queue()
         self._app_loop: asyncio.AbstractEventLoop | None = None
         self._recorded_frames = []
+        self.__status_stream = ServiceStatusStream(
+            ServiceStatus(ServiceState.OFF, "Not checked yet")
+        )
+
+    def stream_status(self) -> AsyncGenerator[ServiceStatus, None]:
+        """The status of the microphone for the app header
+        (ServiceStatusProtocol). Starts as OFF "Not checked yet".
+        reload_service() sets OFF when STT is switched off in settings and OK
+        when it is on. Every recording then sets OK when the microphone opened,
+        or ERROR with the error when it did not. An unplugged microphone is
+        seen only at the next recording, not before."""
+        return self.__status_stream.stream_latest_status_then_every_new_one()
 
     def validate_settings(
         self, new_settings: SettingsModel
@@ -95,14 +109,22 @@ class SttService:
             raise SttException("Recording is already in progress.")
         self.__speaker_protocol.stop_speaking()
         self._recorded_frames = []
-        self._recording_stream = sd.InputStream(
-            samplerate=_WHISPER_SAMPLE_RATE,
-            channels=1,
-            dtype="float32",
-            device=self.input_device,
-            callback=self._audio_recording_callback,
-        )
-        self._recording_stream.start()
+        try:
+            self._recording_stream = sd.InputStream(
+                samplerate=_WHISPER_SAMPLE_RATE,
+                channels=1,
+                dtype="float32",
+                device=self.input_device,
+                callback=self._audio_recording_callback,
+            )
+            self._recording_stream.start()
+        except Exception as error:
+            self._recording_stream = None
+            self.__status_stream.set_status(
+                ServiceState.ERROR, f"The microphone cannot be opened: {error}"
+            )
+            raise
+        self.__status_stream.set_status(ServiceState.OK, "The microphone works")
         logger.info("Audio recording started.")
 
     def _audio_recording_callback(
@@ -224,6 +246,12 @@ class SttService:
         self.enabled = new_enabled
         self.model = new_model
         self.input_device = new_input_device
+        if new_enabled:
+            self.__status_stream.set_status(ServiceState.OK, "Speech-to-text is on")
+        else:
+            self.__status_stream.set_status(
+                ServiceState.OFF, "Speech-to-text is switched off in settings"
+            )
 
         if self._hotkey_key_name is not None:
             self.__hotkey_protocol.unregister_hotkey(self._hotkey_key_name)

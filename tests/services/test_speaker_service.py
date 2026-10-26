@@ -10,6 +10,7 @@ import numpy as np
 
 from edceleste.protocols.speaker_protocol import PRIORITY_ANSWER, PRIORITY_REACTION
 from edceleste.services import speaker_service
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.speaker_service import SpeakerService
 
 SAMPLE_RATE = 1000  # one slice of the speaker (50 ms) is 50 samples
@@ -257,6 +258,69 @@ class SpeechQueueTest(SpeakerServiceTestCase):
 
         self.assertTrue(waiting.cancelled())
         gate.set()
+
+
+class SpeakerStatusTest(SpeakerServiceTestCase):
+    async def _latest_status(self) -> ServiceStatus:
+        """The status a new listener of stream_status() gets at once."""
+        stream = self.service.stream_status()
+        try:
+            return await asyncio.wait_for(stream.__anext__(), timeout=1)
+        finally:
+            await stream.aclose()
+
+    async def test_status_is_ok_before_anything_was_played(self):
+        status = await self._latest_status()
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OK, "Nothing played yet"))
+
+    async def test_status_is_ok_after_a_speech_was_played(self):
+        await self.service.queue_speech(self._speech("a"), PRIORITY_ANSWER)
+
+        status = await self._latest_status()
+
+        self.assertEqual(
+            status, ServiceStatus(ServiceState.OK, "The last speech was played")
+        )
+
+    async def test_status_is_error_with_the_error_after_a_speech_failed(self):
+        broken = self.service.queue_speech(
+            self._speech("broken", error=RuntimeError("no speaker")), PRIORITY_ANSWER
+        )
+
+        with self.assertLogs("edceleste.services.speaker_service", "ERROR"):
+            with self.assertRaises(RuntimeError):
+                await broken
+        status = await self._latest_status()
+
+        self.assertEqual(
+            status,
+            ServiceStatus(ServiceState.ERROR, "Celeste could not speak: no speaker"),
+        )
+
+    async def test_a_dropped_speech_does_not_change_the_status(self):
+        gate = asyncio.Event()
+        broken = self.service.queue_speech(
+            self._speech("broken", gate, error=RuntimeError("no speaker")),
+            PRIORITY_ANSWER,
+        )
+        stale = self.service.queue_speech(
+            self._speech("reaction"), PRIORITY_REACTION, max_wait_seconds=0.05
+        )
+        await asyncio.sleep(0.15)
+
+        gate.set()
+        with self.assertLogs("edceleste.services.speaker_service", "ERROR"):
+            with self.assertRaises(RuntimeError):
+                await broken
+        await stale
+        status = await self._latest_status()
+
+        self.assertNotIn("start reaction", self.log)
+        self.assertEqual(
+            status,
+            ServiceStatus(ServiceState.ERROR, "Celeste could not speak: no speaker"),
+        )
 
 
 class StopSpeakingTest(SpeakerServiceTestCase):

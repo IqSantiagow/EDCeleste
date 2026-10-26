@@ -18,6 +18,7 @@ from edceleste.services.models.game_events import (
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import (
     LLMModel,
     PathModel,
@@ -430,6 +431,56 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(watcher.journal_path, "C:/new-journals")
         watcher.stop_watcher_service.assert_called_once()
         watcher.start_watcher_service.assert_called_once()
+
+    # --- status for the app header ---
+
+    async def _latest_status(self, watcher: GameWatcherService):
+        """The status a new listener of stream_status() gets at once."""
+        stream = watcher.stream_status()
+        try:
+            return await asyncio.wait_for(stream.__anext__(), timeout=1)
+        finally:
+            await stream.aclose()
+
+    def _make_watcher_with_journal_path(self, journal_path: str) -> GameWatcherService:
+        settings_service = Mock()
+        settings_service.get_settings.return_value = _make_settings(journal_path)
+        return GameWatcherService(
+            journal_path=journal_path,
+            event_bus=Mock(),
+            settings_service=settings_service,
+        )
+
+    async def test_status_is_off_before_the_first_reload(self):
+        watcher = self._make_watcher_with_journal_path(JOURNAL_PATH)
+
+        status = await self._latest_status(watcher)
+
+        self.assertEqual(status, ServiceStatus(ServiceState.OFF, "Not checked yet"))
+
+    async def test_reload_service_sets_ok_status_when_the_watcher_starts(self):
+        watcher = self._make_watcher_with_journal_path(JOURNAL_PATH)
+        watcher.start_watcher_service = Mock()
+
+        watcher.reload_service()
+
+        status = await self._latest_status(watcher)
+        self.assertEqual(
+            status, ServiceStatus(ServiceState.OK, "Watching the journal folder")
+        )
+
+    async def test_reload_service_sets_error_status_and_raises_without_journal_file(
+        self,
+    ):
+        self.mock_glob.return_value = []
+        watcher = self._make_watcher_with_journal_path(JOURNAL_PATH)
+
+        with self.assertRaises(FileNotFoundError):
+            watcher.reload_service()
+
+        status = await self._latest_status(watcher)
+        self.assertEqual(status.state, ServiceState.ERROR)
+        self.assertIn(JOURNAL_PATH, status.reason)
 
     # --- watch_status_file_and_publish_event ---
 

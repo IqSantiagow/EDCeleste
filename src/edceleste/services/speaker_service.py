@@ -6,11 +6,14 @@ import queue
 import sys
 import threading
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 import numpy as np
+
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
+from edceleste.services.service_status_stream import ServiceStatusStream
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +63,14 @@ class SpeakerService:
     def __init__(self) -> None:
         """Only makes the empty speech queue and the stop flag. The worker that
         plays the queue starts on the first queue_speech(). Knows no settings
-        and no voice: it plays the audio it is given."""
+        and no voice: it plays the audio it is given. The status of TTS for the
+        app header starts as OK "Nothing played yet", because the speaker has
+        nothing to check before the first speech."""
         self.__speech_queue: asyncio.PriorityQueue[QueuedSpeech] = (
             asyncio.PriorityQueue()
+        )
+        self.__status_stream = ServiceStatusStream(
+            ServiceStatus(ServiceState.OK, "Nothing played yet")
         )
         self.__speech_order_numbers = itertools.count()
         self.__speech_worker: asyncio.Task | None = None
@@ -70,6 +78,14 @@ class SpeakerService:
         # Set by stop_speaking() (from any thread), cleared before every speech
         # starts. The playing thread and the loop that feeds it look at it.
         self.__stop_playing = threading.Event()
+
+    def stream_status(self) -> AsyncGenerator[ServiceStatus, None]:
+        """The status of TTS for the app header (ServiceStatusProtocol). Starts
+        as OK "Nothing played yet". After every speech that was played to the
+        end it is OK, after a speech that raised an error it is ERROR with the
+        error. A speech that was dropped (waited too long, or stop_speaking())
+        changes nothing."""
+        return self.__status_stream.stream_latest_status_then_every_new_one()
 
     def queue_speech(
         self,
@@ -214,8 +230,14 @@ class SpeakerService:
             try:
                 await speech.speak()
             except Exception as error:
+                self.__status_stream.set_status(
+                    ServiceState.ERROR, f"Celeste could not speak: {error}"
+                )
                 speech.finish(error)
             else:
+                self.__status_stream.set_status(
+                    ServiceState.OK, "The last speech was played"
+                )
                 speech.finish()
 
     def __write_pieces_to_speaker(
