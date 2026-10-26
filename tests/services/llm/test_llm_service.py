@@ -7,6 +7,8 @@ from pydantic_ai import ModelHTTPError, models
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    ModelRequest,
+    ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
     RetryPromptPart,
@@ -17,23 +19,23 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from edceleste.services.models.message_block import (
-    AgentFullResponse,
     AgentText,
     SystemMessage,
     Thinking,
     ToolCall,
     ToolResult,
-    UserMessage,
 )
 from edceleste.services.event_bus import EventBus
 from edceleste.services.llm_service import (
     EVENT_REACTION_PROMPT,
+    HISTORY_WINDOW_TURNS,
     SYSTEM_PROMPT,
     VOICE_RESPONSE_RULES,
     LLMService,
@@ -65,7 +67,7 @@ def _make_settings(system_prompt: str = SYSTEM_PROMPT) -> SettingsModel:
 def _make_agent_stream_of(blocks: list):
     """Build a fake stream_agent_response that yields the given blocks."""
 
-    async def stream_agent_response(prompt: str):
+    async def stream_agent_response(message: str):
         for block in blocks:
             yield block
 
@@ -75,7 +77,7 @@ def _make_agent_stream_of(blocks: list):
 def _make_failing_agent_stream(error: Exception):
     """Build a fake stream_agent_response that blows up instead of yielding."""
 
-    async def stream_agent_response(prompt: str):
+    async def stream_agent_response(message: str):
         raise error
         yield  # pragma: no cover - only here to keep this an async generator
 
@@ -133,17 +135,17 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.mock_agent_class.return_value.run = AsyncMock()
 
         # Building the provider and the model both need a reachable OpenRouter.
-        provider_patcher = patch.object(LLMService, "build_provider")
+        provider_patcher = patch.object(LLMService, "_LLMService__build_provider")
         self.mock_build_provider = provider_patcher.start()
         self.addCleanup(provider_patcher.stop)
 
-        model_patcher = patch.object(LLMService, "build_model")
+        model_patcher = patch.object(LLMService, "_LLMService__build_model")
         model_patcher.start()
         self.addCleanup(model_patcher.stop)
 
         # Every turn reads from this stream; the mapping of raw pydantic_ai events
         # onto message blocks is covered by TestLLMServiceEventMapping instead.
-        stream_patcher = patch.object(LLMService, "stream_agent_response")
+        stream_patcher = patch.object(LLMService, "_LLMService__stream_agent_response")
         self.mock_stream_agent_response = stream_patcher.start()
         self.addCleanup(stream_patcher.stop)
         self.mock_stream_agent_response.side_effect = _make_agent_stream_of(
@@ -189,42 +191,29 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_should_add_user_message_and_agent_response_to_conversation(self):
+    async def test_should_send_only_the_message_to_the_agent(self):
         self.llm_service.add_llm_request_to_queue("Test message")
 
         await self._collect_stream_items(3)
 
-        conversation = self.llm_service.conversation
-        self.assertIn(UserMessage(content="Test message"), conversation)
-        self.assertIn(
-            AgentFullResponse(content="Test output 1", tool_calls=[], tool_results=[]),
-            conversation,
+        self.mock_stream_agent_response.assert_called_once_with("Test message")
+
+    async def test_should_pass_system_prompt_and_game_state_to_agent_as_instructions(
+        self,
+    ):
+        instructions = self.mock_agent_class.call_args.kwargs["instructions"]
+
+        self.assertEqual(instructions[0], f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}")
+        self.assertEqual(instructions[1](), "Current game state is:\nTest game state")
+
+    async def test_should_follow_the_newest_game_state_in_the_instructions(self):
+        await self.llm_service.remember_latest_game_state(
+            GameStateChangedEvent(game_state="In supercruise")
         )
 
-    async def test_should_pass_system_prompt_to_agent_and_game_state_in_prompt(self):
-        self.llm_service.add_llm_request_to_queue("Test message")
+        instructions = self.mock_agent_class.call_args.kwargs["instructions"]
 
-        await self._collect_stream_items(3)
-
-        self.assertEqual(
-            self.mock_agent_class.call_args.kwargs["system_prompt"],
-            f"{VOICE_RESPONSE_RULES}\n{SYSTEM_PROMPT}",
-        )
-        self.assertIn(
-            self.test_game_state,
-            self.mock_stream_agent_response.call_args.args[0],
-        )
-
-    async def test_should_put_game_state_heading_once_on_its_own_line(self):
-        self.llm_service.add_llm_request_to_queue("Test message")
-
-        await self._collect_stream_items(3)
-
-        prompt = self.mock_stream_agent_response.call_args.args[0]
-        self.assertTrue(
-            prompt.startswith("Current game state is:\nTest game state\n"), prompt
-        )
-        self.assertEqual(1, prompt.count("Current game state is:"))
+        self.assertEqual(instructions[1](), "Current game state is:\nIn supercruise")
 
     async def test_should_publish_tts_event_for_every_agent_text(self):
         self.event_bus.publish = AsyncMock()
@@ -278,7 +267,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.mock_stream_agent_response.assert_not_called()
-        self.assertEqual(self.llm_service.conversation, [])
+        self.assertEqual(self.llm_service.history_turns, [])
 
     async def test_should_report_failed_turn_and_keep_serving_next_message(self):
         # A single broken turn cannot kill the stream - it is the only source of
@@ -338,13 +327,10 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         await self._collect_stream_items(3)
 
-        self.assertIn(
-            UserMessage(
-                content=EVENT_REACTION_PROMPT.format(
-                    event_description=loaded_game_event.model_dump_json()
-                )
-            ),
-            self.llm_service.conversation,
+        self.mock_stream_agent_response.assert_called_once_with(
+            EVENT_REACTION_PROMPT.format(
+                event_description=loaded_game_event.model_dump_json()
+            )
         )
 
     # --- settings ---
@@ -524,7 +510,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.llm_service.reload_service()
 
         self.assertEqual(
-            self.mock_agent_class.call_args.kwargs["system_prompt"],
+            self.mock_agent_class.call_args.kwargs["instructions"][0],
             f"{VOICE_RESPONSE_RULES}\nNew system prompt",
         )
 
@@ -567,15 +553,11 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         await self._collect_stream_items(1)
 
-        self.assertEqual(
-            self.llm_service.conversation,
-            [
-                UserMessage(content="deploy landing gear"),
-                AgentFullResponse(
-                    content="Done: Landing gear toggle", tool_calls=[], tool_results=[]
-                ),
-            ],
-        )
+        [[pilot_request, celeste_reply]] = self.llm_service.history_turns
+        self.assertIsInstance(pilot_request, ModelRequest)
+        self.assertEqual(pilot_request.parts[0].content, "deploy landing gear")
+        self.assertIsInstance(celeste_reply, ModelResponse)
+        self.assertEqual(celeste_reply.parts[0].content, "Done: Landing gear toggle")
 
     async def test_should_not_speak_a_reply_without_llm(self):
         self.event_bus.publish = AsyncMock()
@@ -605,18 +587,17 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             items, [AgentText(content="Done: First"), AgentText(content="Done: Second")]
         )
 
-    async def test_should_give_the_llm_a_reply_without_llm_in_the_next_prompt(self):
-        self.llm_service.add_reply_without_llm_to_queue(
-            "deploy landing gear", "Done: Landing gear toggle"
-        )
-        self.llm_service.add_llm_request_to_queue("and now retract it")
+    async def test_should_keep_the_window_when_a_reply_without_llm_is_added(self):
+        for number in range(HISTORY_WINDOW_TURNS + 3):
+            self.llm_service.add_reply_without_llm_to_queue(
+                f"command {number}", f"Done: {number}"
+            )
 
-        await self._collect_stream_items(4)
+        await self._collect_stream_items(HISTORY_WINDOW_TURNS + 3)
 
-        prompt = self.mock_stream_agent_response.call_args.args[0]
-        self.assertIn("Human: deploy landing gear", prompt)
-        self.assertIn("Celeste: Done: Landing gear toggle", prompt)
-        self.assertIn("Human: and now retract it", prompt)
+        first_kept = self.llm_service.history_turns[0][0]
+        self.assertEqual(len(self.llm_service.history_turns), HISTORY_WINDOW_TURNS)
+        self.assertEqual(first_kept.parts[0].content, "command 3")
 
 
 class TestLLMServiceProvider(unittest.TestCase):
@@ -630,7 +611,7 @@ class TestLLMServiceProvider(unittest.TestCase):
         )
 
     def test_should_build_the_provider_class_pydantic_ai_knows_for_that_name(self):
-        provider = self.llm_service.build_provider(
+        provider = self.llm_service._LLMService__build_provider(
             LLMProviderModel(
                 type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
             )
@@ -641,14 +622,14 @@ class TestLLMServiceProvider(unittest.TestCase):
     def test_should_build_any_other_supported_provider_the_same_way(self):
         # Nothing about openrouter is hard wired - every provider goes through
         # the same infer_provider_class call.
-        provider = self.llm_service.build_provider(
+        provider = self.llm_service._LLMService__build_provider(
             LLMProviderModel(type="openai", model="gpt-4o", api_key="key-123")
         )
 
         self.assertIsInstance(provider, OpenAIProvider)
 
     def test_should_pass_a_custom_base_url_to_the_provider(self):
-        provider = self.llm_service.build_provider(
+        provider = self.llm_service._LLMService__build_provider(
             LLMProviderModel(
                 type="openai",
                 model="qwen2.5",
@@ -661,7 +642,7 @@ class TestLLMServiceProvider(unittest.TestCase):
 
     def test_should_reject_a_provider_type_pydantic_ai_does_not_serve(self):
         with self.assertRaises(ValueError):
-            self.llm_service.build_provider(
+            self.llm_service._LLMService__build_provider(
                 LLMProviderModel(type="lm_studio", model="llama-3", api_key="k")
             )
 
@@ -670,14 +651,18 @@ class TestLLMServiceProvider(unittest.TestCase):
             type="openrouter", model="anthropic/claude-haiku-4.5", api_key="key-123"
         )
 
-        self.assertIsInstance(self.llm_service.build_model(provider), OpenRouterModel)
+        self.assertIsInstance(
+            self.llm_service._LLMService__build_model(provider), OpenRouterModel
+        )
 
     def test_should_build_a_different_model_class_for_a_different_provider(self):
         provider = LLMProviderModel(
             type="anthropic", model="claude-haiku-4-5-20251001", api_key="key-123"
         )
 
-        self.assertIsInstance(self.llm_service.build_model(provider), AnthropicModel)
+        self.assertIsInstance(
+            self.llm_service._LLMService__build_model(provider), AnthropicModel
+        )
 
     def test_find_connection_error_should_build_the_model_and_reach_the_request(self):
         # Blocked requests fail only at the request itself, so this error proves
@@ -712,7 +697,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         event = PartEndEvent(index=0, part=TextPart(content="Hello Commander"))
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             AgentText(content="Hello Commander"),
         )
 
@@ -720,14 +705,14 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         event = PartEndEvent(index=0, part=ThinkingPart(content="weighing options"))
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             Thinking(content="weighing options"),
         )
 
     def test_should_ignore_text_deltas_so_speech_is_not_cut_into_pieces(self):
         event = PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Hel"))
 
-        self.assertIsNone(self.llm_service.to_message_block(event))
+        self.assertIsNone(self.llm_service._LLMService__to_message_block(event))
 
     def test_should_map_a_tool_call_to_the_readable_name_of_a_known_tool(self):
         event = FunctionToolCallEvent(
@@ -739,7 +724,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         )
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             ToolCall(
                 tool_name="perform_game_action",
                 input={"action": "ToggleFlightAssist"},
@@ -754,7 +739,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         )
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             ToolCall(
                 tool_name="mystery_tool",
                 input={},
@@ -774,7 +759,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         )
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             ToolResult(content="Game actions are disabled by the user.", is_error=True),
         )
 
@@ -789,7 +774,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         )
 
         self.assertEqual(
-            self.llm_service.to_message_block(event),
+            self.llm_service._LLMService__to_message_block(event),
             ToolResult(content="Performed game action: Supercruise", is_error=False),
         )
 
@@ -804,7 +789,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
             )
         )
 
-        block = self.llm_service.to_message_block(event)
+        block = self.llm_service._LLMService__to_message_block(event)
 
         assert isinstance(block, ToolResult)
         self.assertTrue(block.is_error)
@@ -821,13 +806,18 @@ class TestLLMServiceStreamsFromAgent(unittest.IsolatedAsyncioTestCase):
             tools=[FakeTool()],
         )
         with (
-            patch.object(LLMService, "build_provider"),
-            patch.object(LLMService, "build_model", return_value=TestModel()),
+            patch.object(LLMService, "_LLMService__build_provider"),
+            patch.object(
+                LLMService, "_LLMService__build_model", return_value=TestModel()
+            ),
         ):
             llm_service.reload_service()
 
         blocks = [
-            block async for block in llm_service.stream_agent_response("do something")
+            block
+            async for block in llm_service._LLMService__stream_agent_response(
+                "do something"
+            )
         ]
 
         tool_calls = [block for block in blocks if isinstance(block, ToolCall)]
@@ -838,6 +828,129 @@ class TestLLMServiceStreamsFromAgent(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(tool_results), 1)
         self.assertFalse(tool_results[0].is_error)
         self.assertTrue(any(isinstance(block, AgentText) for block in blocks))
+
+
+class TestLLMServiceHistory(unittest.IsolatedAsyncioTestCase):
+    """Drives a real Agent with a function model that records what it receives."""
+
+    def setUp(self):
+        self.llm_service = LLMService(
+            event_bus=EventBus(),
+            settings_service=Mock(spec=SettingsService),
+            tools=[],
+        )
+        self.llm_service.game_state = "Docked at Jameson Memorial"
+        self.requests_seen_by_model: list[tuple[list, str | None]] = []
+
+    def _use_model_that_answers(self, answer: str) -> None:
+        async def answer_and_record(messages: list, info: AgentInfo):
+            self.requests_seen_by_model.append((messages, info.instructions))
+            yield answer
+
+        with (
+            patch.object(LLMService, "_LLMService__build_provider"),
+            patch.object(
+                LLMService,
+                "_LLMService__build_model",
+                return_value=FunctionModel(stream_function=answer_and_record),
+            ),
+        ):
+            self.llm_service.reload_service()
+
+    async def _ask(self, message: str) -> None:
+        async for _ in self.llm_service._LLMService__stream_agent_response(message):
+            pass
+
+    async def test_should_save_the_message_and_the_reply_in_the_history(self):
+        self._use_model_that_answers("Hello Commander")
+
+        await self._ask("Hello")
+
+        [[pilot_request, celeste_reply]] = self.llm_service.history_turns
+        self.assertEqual(pilot_request.parts[0].content, "Hello")
+        self.assertEqual(celeste_reply.parts[0].content, "Hello Commander")
+
+    async def test_should_send_the_earlier_turns_with_the_next_message(self):
+        self._use_model_that_answers("Hello Commander")
+        await self._ask("Hello")
+
+        await self._ask("Where are we?")
+
+        messages_of_second_run, _ = self.requests_seen_by_model[1]
+        self.assertEqual(len(messages_of_second_run), 3)
+        self.assertEqual(messages_of_second_run[0].parts[0].content, "Hello")
+        self.assertEqual(messages_of_second_run[2].parts[0].content, "Where are we?")
+
+    async def test_should_give_the_newest_game_state_to_every_run(self):
+        self._use_model_that_answers("OK")
+        await self._ask("Hello")
+        self.llm_service.game_state = "In supercruise"
+
+        await self._ask("Where are we?")
+
+        self.assertIn("Docked at Jameson Memorial", self.requests_seen_by_model[0][1])
+        self.assertIn("In supercruise", self.requests_seen_by_model[1][1])
+        self.assertNotIn(
+            "Docked at Jameson Memorial", self.requests_seen_by_model[1][1]
+        )
+
+    async def test_should_keep_only_the_newest_turns_after_many_runs(self):
+        self._use_model_that_answers("OK")
+
+        for number in range(HISTORY_WINDOW_TURNS + 5):
+            await self._ask(f"message {number}")
+
+        first_kept_request = self.llm_service.history_turns[0][0]
+        self.assertEqual(len(self.llm_service.history_turns), HISTORY_WINDOW_TURNS)
+        self.assertEqual(first_kept_request.parts[0].content, "message 5")
+
+    async def test_should_not_save_anything_when_the_run_fails(self):
+        async def break_down(messages: list, info: AgentInfo):
+            raise RuntimeError("provider down")
+            yield  # pragma: no cover - only here to keep this an async generator
+
+        with (
+            patch.object(LLMService, "_LLMService__build_provider"),
+            patch.object(
+                LLMService,
+                "_LLMService__build_model",
+                return_value=FunctionModel(stream_function=break_down),
+            ),
+        ):
+            self.llm_service.reload_service()
+
+        with self.assertRaises(RuntimeError):
+            await self._ask("Hello")
+
+        self.assertEqual(self.llm_service.history_turns, [])
+
+    async def test_should_keep_tool_calls_and_their_results_in_the_history(self):
+        llm_service = LLMService(
+            event_bus=EventBus(),
+            settings_service=Mock(spec=SettingsService),
+            tools=[FakeTool()],
+        )
+        with (
+            patch.object(LLMService, "_LLMService__build_provider"),
+            patch.object(
+                LLMService, "_LLMService__build_model", return_value=TestModel()
+            ),
+        ):
+            llm_service.reload_service()
+        llm_service.game_state = "Docked at Jameson Memorial"
+
+        blocks = [
+            block
+            async for block in llm_service._LLMService__stream_agent_response(
+                "deploy gear"
+            )
+        ]
+
+        self.assertTrue(any(isinstance(block, ToolCall) for block in blocks))
+        [turn_messages] = llm_service.history_turns
+        kept_parts = [part for message in turn_messages for part in message.parts]
+        self.assertTrue(any(isinstance(part, ToolCallPart) for part in kept_parts))
+        self.assertTrue(any(isinstance(part, ToolReturnPart) for part in kept_parts))
 
 
 if __name__ == "__main__":

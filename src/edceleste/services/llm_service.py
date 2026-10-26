@@ -1,14 +1,11 @@
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Union
 import logging
 import asyncio
 
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.message_block import (
-    AgentFullResponse,
     SystemMessage,
-    UserMessage,
     AgentText,
     Thinking,
     ToolCall,
@@ -28,22 +25,31 @@ from edceleste.services.models.settings_model import (
 )
 from edceleste.services.tts_service import TTSEvent
 from edceleste.services.settings_service import SettingsService
-from pydantic_ai import Agent, ModelHTTPError, Tool
+from pydantic_ai import Agent, AgentRunResultEvent, ModelHTTPError, Tool
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
     PartEndEvent,
     RetryPromptPart,
     TextPart,
     ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
+    UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.providers import Provider, infer_provider_class
 
 
 logger = logging.getLogger(__name__)
+
+# How many of the newest turns the history keeps. One turn is one message to
+# the LLM (pilot text or game event) with everything that came back for it:
+# tool calls, tool results and the reply.
+HISTORY_WINDOW_TURNS = 10
 
 VOICE_RESPONSE_RULES = """
 Every word you write is spoken out loud by a text to speech engine, so you
@@ -112,7 +118,7 @@ class LLMService:
         - EventReactionEvent -> queue_reply_to_journal_event
         - GameStateChangedEvent -> remember_latest_game_state
         """
-        self.conversation: list[Union[UserMessage, AgentFullResponse]] = []
+        self.history_turns: list[list[ModelMessage]] = []
         self.game_state: str | None = None
         self.__agent: Agent | None = None
 
@@ -130,23 +136,24 @@ class LLMService:
             GameStateChangedEvent, self.remember_latest_game_state
         )
 
-    async def __stream_reply_speak_it_and_save_to_history(
+    async def __run_turn_and_speak_reply(
         self, message: str
     ) -> AsyncGenerator[LLMStreamItem, None]:
         """One full conversation turn for one message from the queue.
 
         1. No game state yet -> yields a SystemMessage and stops, the LLM is not
            called.
-        2. Adds the message to the conversation history as UserMessage.
-        3. Sends game state + whole history as one prompt to the agent.
-        4. Yields every block (text, tool call, tool result, thinking) to the UI
+        2. Sends the message to the agent. The agent gets the history on top.
+        3. Yields every block (text, tool call, tool result, thinking) to the UI
            and, after yielding, publishes every AgentText as TTSEvent, so Celeste
            says it out loud.
-        5. Saves the whole reply as one AgentFullResponse in the history.
 
-        On error the UserMessage from step 2 is removed from the history, so a
-        failed turn leaves no half conversation behind, and the error is raised
-        again.
+        The history is saved by __stream_agent_response() when the run ends. On
+        error (network, provider, a tool) the history stays as it was, so a
+        failed turn leaves no half conversation behind, and the exception is
+        raised again unchanged for consume_llm_queue() to show. Text spoken
+        before the error stays spoken. The SystemMessage of step 1 is not
+        spoken, because it is not an AgentText.
         """
         logger.info("Got an LLM request: %s", message)
 
@@ -159,85 +166,82 @@ class LLMService:
 
             return
 
-        self.conversation.append(UserMessage(content=message))
-
-        prompt = self.__build_prompt_from_game_state_and_history(self.game_state)
-
-        logger.info("Built a prompt : %s", prompt)
-
-        full_response = AgentFullResponse(content="", tool_calls=[], tool_results=[])
         try:
-            async for response in self.stream_agent_response(prompt):
-                if isinstance(response, AgentText):
-                    full_response.content = full_response.content + response.content
-                if isinstance(response, ToolCall):
-                    full_response.tool_calls.append(response)
-                if isinstance(response, ToolResult):
-                    full_response.tool_results.append(response)
-
+            async for response in self.__stream_agent_response(message):
                 yield response
 
                 # Speaking blocks the turn, so the text reaches COMMS first.
                 if isinstance(response, AgentText):
                     await self.__event_bus.publish(TTSEvent(response.content))
 
-            self.conversation.append(full_response)
-
         except Exception as e:
             logger.error("Error while processing LLM response: %s", e)
-            # Remove the last user message from the conversation on error
-            self.conversation.pop()
             raise e
 
-    def __build_prompt_from_game_state_and_history(self, game_state: str) -> str:
-        """The agent keeps no memory between runs, so every prompt carries the
-        current game state first and then the whole conversation history.
-        The "Current game state is:" heading is added only here, on its own
-        line above the game state lines."""
-        conversation_history = self.__conversation_history_as_text()
+    def __build_game_state_instructions(self) -> str:
+        """Returns the "Current game state is:" heading on its own line and the
+        newest game state text below it, as one str.
 
-        return f"Current game state is:\n{game_state}\n{conversation_history}"
+        The agent calls this before every request (it is one of its
+        instructions), so the state is always the newest one and old states do
+        not pile up in the history. game_state is never None here, because
+        __run_turn_and_speak_reply() stops before the run when there is no
+        state yet. No side effects."""
+        return f"Current game state is:\n{self.game_state}"
 
-    def __conversation_history_as_text(self) -> str:
-        """One line per message: "Human: ..." for the pilot and "Celeste: ..."
-        for the agent. Only the text goes in, tool calls and results are left
-        out."""
-        merged_history = "\n".join(
-            [
-                f"{'Celeste' if isinstance(msg, AgentFullResponse) else 'Human'}: "
-                f"{msg.content}"
-                for msg in self.conversation
-            ]
-        )
-        message_history_prompt = f"""
-    This is the conversation history between the pilot and Celeste
-                                {merged_history}"""
+    def __remember_turn(self, turn_messages: list[ModelMessage]) -> None:
+        """Adds one finished turn to the history and drops the oldest turns above
+        HISTORY_WINDOW_TURNS. A turn is the list of messages of one run, from the
+        message that started it to the reply, and it is kept whole, so a tool
+        call never loses its tool result. Replaces history_turns with a new list,
+        the list given in is not changed. The history lives in memory only."""
+        self.history_turns = (self.history_turns + [turn_messages])[
+            -HISTORY_WINDOW_TURNS:
+        ]
 
-        return message_history_prompt
-
-    async def stream_agent_response(
-        self, prompt: str
+    async def __stream_agent_response(
+        self, message: str
     ) -> AsyncGenerator[AgentText | ToolCall | ToolResult | Thinking, None]:
         """Runs the agent once and yields only the blocks the app shows.
 
-        The agent may call tools in between. pydantic_ai runs them by itself
-        and they come back here as ToolCall and ToolResult blocks.
+        The agent gets the saved history and the message. It may call tools in
+        between. pydantic_ai runs them by itself and they come back here as
+        ToolCall and ToolResult blocks. When the run ends, everything this run
+        added (the message, tool calls, tool results, the reply) is saved as one
+        turn of the history. A run that fails saves nothing, and so does a
+        caller that stops reading the generator before the run ends.
+        Every request also carries the system prompt and the newest game state
+        as instructions of the agent, they are not part of the history.
         Raises RuntimeError when reload_service() has not built the agent yet.
-        Does not touch the history and does not speak, the caller does that.
+        Errors of the run (network, provider) come out unchanged.
+        Uses the network and tokens, tools may act in the game. Does not speak,
+        the caller does that.
         """
         if self.__agent is None:
             raise RuntimeError(
                 "LLM is not configured. Check the LLM settings and restart."
             )
 
-        async with self.__agent.run_stream_events(prompt) as events:
+        history_messages = [
+            history_message
+            for turn_messages in self.history_turns
+            for history_message in turn_messages
+        ]
+
+        async with self.__agent.run_stream_events(
+            message, message_history=history_messages
+        ) as events:
             async for event in events:
-                block = self.to_message_block(event)
+                if isinstance(event, AgentRunResultEvent):
+                    self.__remember_turn(event.result.new_messages())
+                    continue
+
+                block = self.__to_message_block(event)
 
                 if block is not None:
                     yield block
 
-    def to_message_block(
+    def __to_message_block(
         self, event: object
     ) -> AgentText | ToolCall | ToolResult | Thinking | None:
         """Turns one pydantic_ai stream event into one app block.
@@ -256,18 +260,20 @@ class LLMService:
             if isinstance(event.part, ThinkingPart):
                 return Thinking(content=event.part.content)
         if isinstance(event, FunctionToolCallEvent):
-            return self.to_tool_call(event.part)
+            return self.__to_tool_call(event.part)
         if isinstance(event, FunctionToolResultEvent):
-            return self.to_tool_result(event.part)
+            return self.__to_tool_result(event.part)
 
         return None
 
-    def to_tool_call(self, part: ToolCallPart) -> ToolCall:
-        """Adds the readable name and the parameter name of our tool, so the UI
-        can show "Perform Game Action" instead of "perform_game_action".
-        When the LLM calls a tool we do not have, the raw tool name is used and
-        param_name is None."""
-        tool = self.find_tool(part.tool_name)
+    def __to_tool_call(self, part: ToolCallPart) -> ToolCall:
+        """Turns the tool call of pydantic_ai into the ToolCall the UI shows:
+        tool name, the arguments of the LLM (input) and, from our tool, the
+        readable name and the parameter name, so the UI can show "Perform Game
+        Action" instead of "perform_game_action". When the LLM calls a tool we
+        do not have, the raw tool name is used and param_name is None. No side
+        effects."""
+        tool = self.__find_tool(part.tool_name)
 
         return ToolCall(
             tool_name=part.tool_name,
@@ -276,7 +282,7 @@ class LLMService:
             param_name=tool.param_name if tool else None,
         )
 
-    def to_tool_result(self, part: ToolReturnPart | RetryPromptPart) -> ToolResult:
+    def __to_tool_result(self, part: ToolReturnPart | RetryPromptPart) -> ToolResult:
         """RetryPromptPart means pydantic_ai rejected the tool call (bad
         arguments, unknown tool) and asks the LLM to try again, so it is shown
         as an error. A normal ToolReturnPart is an error only when the tool put
@@ -291,14 +297,15 @@ class LLMService:
             is_error=bool(metadata.get("is_error")),
         )
 
-    def build_tools(self) -> list[Tool]:
+    def __build_tools(self) -> list[Tool]:
         """Wraps every tool's execute method in pydantic_ai.Tool. pydantic_ai
         reads the arguments from the execute signature and the description from
         its docstring, so no tool writes a JSON schema by hand."""
         return [Tool(tool.execute, name=tool.name) for tool in self.__tools]
 
-    def find_tool(self, tool_name: str) -> ToolProtocol | None:
-        """Returns None when the LLM asked for a tool name we do not have."""
+    def __find_tool(self, tool_name: str) -> ToolProtocol | None:
+        """Returns the tool whose name is tool_name. Returns None when the LLM
+        asked for a tool name we do not have."""
         return next((tool for tool in self.__tools if tool.name == tool_name), None)
 
     async def validate_settings(
@@ -349,17 +356,20 @@ class LLMService:
 
     def reload_service(self):
         """Builds a new agent from the current settings: model, system prompt
-        and tools. The conversation history, the game state and the queue stay
-        as they are. Does not go to the network, a wrong API key shows up only
+        and tools. The history, the game state and the queue stay as they
+        are. Does not go to the network, a wrong API key shows up only
         on the first request or in find_connection_error()."""
         settings = self.__settings_service.get_settings()
 
-        self.model = self.build_model(settings.llm.provider)
+        self.model = self.__build_model(settings.llm.provider)
 
         self.__agent = Agent(
             model=self.model,
-            system_prompt=self.build_system_prompt(settings),
-            tools=self.build_tools(),
+            instructions=[
+                self.__build_system_prompt(settings),
+                self.__build_game_state_instructions,
+            ],
+            tools=self.__build_tools(),
         )
 
     async def queue_reply_to_journal_event(self, event: EventReactionEvent) -> None:
@@ -380,15 +390,16 @@ class LLMService:
         call the LLM."""
         self.game_state = game_state_changed_event.game_state
 
-    def build_system_prompt(self, settings: SettingsModel) -> str:
-        """VOICE_RESPONSE_RULES always go first, so a user system prompt cannot
-        drop them. Without a user system prompt the built in SYSTEM_PROMPT is
-        used."""
+    def __build_system_prompt(self, settings: SettingsModel) -> str:
+        """Returns one str: VOICE_RESPONSE_RULES, then the system prompt. The
+        voice rules always go first, so a user system prompt cannot drop them.
+        An empty user system prompt in the settings means the built in
+        SYSTEM_PROMPT is used."""
         user_system_prompt = settings.llm.system_prompt or SYSTEM_PROMPT
 
         return f"{VOICE_RESPONSE_RULES}\n{user_system_prompt}"
 
-    def build_provider(self, provider_settings: LLMProviderModel) -> Provider:
+    def __build_provider(self, provider_settings: LLMProviderModel) -> Provider:
         """Lets pydantic_ai pick the provider class from the type name, so every
         provider it supports works from config alone. base_url is passed only
         when set (ollama, vllm, azure). Raises ValueError for a type we do not
@@ -409,18 +420,20 @@ class LLMService:
 
         return provider_class(api_key=provider_settings.api_key)  # type: ignore
 
-    def build_model(self, provider_settings: LLMProviderModel) -> Model:
+    def __build_model(self, provider_settings: LLMProviderModel) -> Model:
         """pydantic_ai names a model "provider:model", our config keeps the two
         apart, so they are joined here. The provider comes from
-        build_provider(), so the API key and base_url are used."""
+        __build_provider(), so the API key and base_url are used."""
         return infer_model(
             f"{provider_settings.type}:{provider_settings.model}",
-            provider_factory=lambda _: self.build_provider(provider_settings),
+            provider_factory=lambda _: self.__build_provider(provider_settings),
         )
 
     def add_llm_request_to_queue(self, message: str) -> None:
-        """Does not wait for the reply. The reply comes out of
-        consume_llm_queue()."""
+        """Puts a text typed or said by the pilot at the end of the LLM queue,
+        behind the messages that wait there. Does not wait for the reply and
+        does not go to the network, the reply comes out of consume_llm_queue()
+        later. Needs the app event loop, like add_reply_without_llm_to_queue."""
         self.__llm_queue.put_nowait(message)
 
     def add_reply_without_llm_to_queue(self, pilot_message: str, reply: str) -> None:
@@ -444,7 +457,7 @@ class LLMService:
         A failed turn does not stop the loop, the error is yielded as a
         SystemMessage (LLMStatus.IDLE still follows) and the next message is
         taken. The reply is spoken too: every AgentText is published as a
-        TTSEvent by __stream_reply_speak_it_and_save_to_history. The stream has
+        TTSEvent by __run_turn_and_speak_reply. The stream has
         exactly one consumer, a queue does not copy items.
 
         A ReplyWithoutLLM skips all that: its text is yielded as one AgentText,
@@ -455,11 +468,13 @@ class LLMService:
             message = await self.__llm_queue.get()
 
             if isinstance(message, ReplyWithoutLLM):
-                self.conversation.append(UserMessage(content=message.pilot_message))
-                self.conversation.append(
-                    AgentFullResponse(
-                        content=message.reply, tool_calls=[], tool_results=[]
-                    )
+                self.__remember_turn(
+                    [
+                        ModelRequest(
+                            parts=[UserPromptPart(content=message.pilot_message)]
+                        ),
+                        ModelResponse(parts=[TextPart(content=message.reply)]),
+                    ]
                 )
                 yield AgentText(content=message.reply)
                 continue
@@ -467,9 +482,7 @@ class LLMService:
             yield LLMStatus.THINKING
 
             try:
-                async for response in self.__stream_reply_speak_it_and_save_to_history(
-                    message
-                ):
+                async for response in self.__run_turn_and_speak_reply(message):
                     yield response
             except Exception as error:
                 logger.exception(f"LLM turn failed: {error}", exc_info=error)
@@ -489,7 +502,7 @@ class LLMService:
         provider_settings = (
             provider_settings or self.__settings_service.get_settings().llm.provider
         )
-        built_provider = self.build_provider(provider_settings)
+        built_provider = self.__build_provider(provider_settings)
 
         client = getattr(built_provider, "client", None)
         if not hasattr(client, "models"):
@@ -554,7 +567,7 @@ class LLMService:
         """
         MAX_REASON = 200
         try:
-            model = self.build_model(provider_settings)
+            model = self.__build_model(provider_settings)
 
             await asyncio.wait_for(
                 Agent(model=model).run("Respond with only 'OK'"), timeout=15
