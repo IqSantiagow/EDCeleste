@@ -29,6 +29,9 @@ from edceleste.use_cases.dashboard.send_pilot_message_use_case import (
 from edceleste.use_cases.app.stream_app_header_stats_usecase import (
     StreamAppHeaderStatsUseCase,
 )
+from edceleste.use_cases.app.stream_service_statuses_usecase import (
+    StreamServiceStatusesUseCase,
+)
 from edceleste.use_cases.dashboard.stream_flight_and_drive_stats_use_case import (
     StreamFlightAndDriveStatsUseCase,
 )
@@ -231,6 +234,14 @@ class Container(containers.DeclarativeContainer):
 
     stream_app_header_stats_use_case = providers.Factory(
         StreamAppHeaderStatsUseCase, game_state_protocol=game_state_service
+    )
+
+    stream_service_statuses_use_case = providers.Factory(
+        StreamServiceStatusesUseCase,
+        llm_status=llm_service,
+        tts_status=speaker_service,
+        mic_status=stt_service,
+        journal_status=game_watcher_service,
     )
 
     stream_journal_events_use_case = providers.Factory(
@@ -444,4 +455,5 @@ class Container(containers.DeclarativeContainer):
     app_header_repository = providers.Singleton(
         AppHeaderRepository,
         stream_app_header_stats_usecase=stream_app_header_stats_use_case,
+        stream_service_statuses_usecase=stream_service_statuses_use_case,
     )

@@ -17,12 +17,14 @@ from edceleste.services.models.event_reaction_event import EventReactionEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.llm_status import LLMStatus
 from edceleste.services.models.llm_stream_item import LLMStreamItem
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import (
     SUPPORTED_LLM_PROVIDER_TYPES,
     LLMProviderModel,
     SettingsIssueModel,
     SettingsModel,
 )
+from edceleste.services.service_status_stream import ServiceStatusStream
 from edceleste.services.tts_service import TTSEvent
 from edceleste.services.settings_service import SettingsService
 from pydantic_ai import Agent, AgentRunResultEvent, ModelHTTPError, Tool
@@ -126,6 +128,9 @@ class LLMService:
         self.__event_bus = event_bus
 
         self.__llm_queue: asyncio.Queue[str | ReplyWithoutLLM] = asyncio.Queue()
+        self.__status_stream = ServiceStatusStream(
+            ServiceStatus(ServiceState.OFF, "Not checked yet")
+        )
 
         self.__tools = tools
 
@@ -456,8 +461,10 @@ class LLMService:
         3. LLMStatus.IDLE.
         A failed turn does not stop the loop, the error is yielded as a
         SystemMessage (LLMStatus.IDLE still follows) and the next message is
-        taken. The reply is spoken too: every AgentText is published as a
-        TTSEvent by __run_turn_and_speak_reply. The stream has
+        taken. A turn also sets the LLM status of the app header (stream_status,
+        a different thing than LLMStatus): OK when it went well, ERROR with the
+        error when it failed. The reply is spoken too: every AgentText is
+        published as a TTSEvent by __run_turn_and_speak_reply. The stream has
         exactly one consumer, a queue does not copy items.
 
         A ReplyWithoutLLM skips all that: its text is yielded as one AgentText,
@@ -486,7 +493,14 @@ class LLMService:
                     yield response
             except Exception as error:
                 logger.exception(f"LLM turn failed: {error}", exc_info=error)
+                self.__status_stream.set_status(
+                    ServiceState.ERROR, f"The last request failed: {error}"
+                )
                 yield SystemMessage(content=f"LLM turn failed: {error}")
+            else:
+                self.__status_stream.set_status(
+                    ServiceState.OK, "The last request succeeded"
+                )
 
             yield LLMStatus.IDLE
 
@@ -525,7 +539,9 @@ class LLMService:
         1. Yields a "not completed" status, so the UI shows a spinner.
         2. Builds the agent (reload_service) and sends one real test request
            (find_connection_error), which costs a few tokens.
-        3. Yields the status again with completed=True and the error text in
+        3. Sets the LLM status of the app header (stream_status): ERROR with the
+           error text, or OK when the LLM answered.
+        4. Yields the status again with completed=True and the error text in
            message, or message=None when the LLM answered.
         Never raises, every error ends up in the status message.
         """
@@ -542,12 +558,30 @@ class LLMService:
             # Same check as the Test connection button in settings.
             provider_settings = self.__settings_service.get_settings().llm.provider
             status.message = await self.find_connection_error(provider_settings)
+            self.__set_status_after_connection_test(status.message)
             status.completed = True
             yield status
         except Exception as e:
             status.completed = True
             status.message = str(e)
+            self.__set_status_after_connection_test(status.message)
             yield status
+
+    def __set_status_after_connection_test(self, connection_error: str | None) -> None:
+        """Sets the LLM status after the test request of cold_start(): ERROR with
+        the error text when there is one, OK when the LLM answered (None)."""
+        if connection_error is None:
+            self.__status_stream.set_status(ServiceState.OK, "The LLM answered")
+        else:
+            self.__status_stream.set_status(ServiceState.ERROR, connection_error)
+
+    def stream_status(self) -> AsyncGenerator[ServiceStatus, None]:
+        """The status of the LLM for the app header (ServiceStatusProtocol).
+        Starts as OFF "Not checked yet". cold_start() sets it from the test
+        request, then every finished request sets it: OK, or ERROR with the
+        error. A message answered without the LLM (ReplyWithoutLLM) changes
+        nothing."""
+        return self.__status_stream.stream_latest_status_then_every_new_one()
 
     async def find_connection_error(
         self, provider_settings: LLMProviderModel

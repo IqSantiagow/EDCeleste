@@ -14,7 +14,9 @@ from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
 from edceleste.services.settings_service import SettingsService
+from edceleste.services.models.service_status import ServiceState, ServiceStatus
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
+from edceleste.services.service_status_stream import ServiceStatusStream
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,16 @@ class GameWatcherService:
         self.adapter: TypeAdapter = TypeAdapter(JournalEvent)
         self.exit_signal: bool = False
         self._game_watcher_tasks: list[asyncio.Task] = []
+        self.__status_stream = ServiceStatusStream(
+            ServiceStatus(ServiceState.OFF, "Not checked yet")
+        )
+
+    def stream_status(self) -> AsyncGenerator[ServiceStatus, None]:
+        """The status of the journal for the app header (ServiceStatusProtocol).
+        Starts as OFF "Not checked yet". reload_service() sets OK when the
+        journal folder is watched, or ERROR when it has no journal file. A quiet
+        journal (docked, nothing written) never changes it."""
+        return self.__status_stream.stream_latest_status_then_every_new_one()
 
     def start_watcher_service(self) -> None:
         """Starts one asyncio task on the running loop, so it needs a running
@@ -264,7 +276,12 @@ class GameWatcherService:
         new_settings = self.__settings_service.get_settings()
         self.journal_path = new_settings.paths.journal_path
         self.stop_watcher_service()
-        self.start_watcher_service()
+        try:
+            self.start_watcher_service()
+        except FileNotFoundError as error:
+            self.__status_stream.set_status(ServiceState.ERROR, str(error))
+            raise
+        self.__status_stream.set_status(ServiceState.OK, "Watching the journal folder")
 
     async def cold_start(self) -> AsyncGenerator[ColdStartStatus, None]:
         """Startup check shown in the system check screen.
