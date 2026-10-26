@@ -22,7 +22,14 @@ import whisper
 import yaml
 from dependency_injector import providers
 from pydantic_ai import models
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from textual.app import App
 from textual.pilot import Pilot
@@ -553,6 +560,36 @@ def answer_preflight_connection_test(
     return ModelResponse(parts=[TextPart("OK")])
 
 
+def history_lines(messages: list[ModelMessage]) -> list[str]:
+    """What the LLM was sent as the conversation, one line per part: the pilot's
+    text, Celeste's text, a tool call with its arguments and a tool result."""
+    lines = []
+    for message in messages:
+        for part in message.parts:
+            if isinstance(part, UserPromptPart):
+                lines.append(f"pilot: {part.content}")
+            elif isinstance(part, TextPart):
+                lines.append(f"celeste: {part.content}")
+            elif isinstance(part, ToolCallPart):
+                lines.append(f"tool call: {part.tool_name} {part.args_as_dict()}")
+            elif isinstance(part, ToolReturnPart):
+                lines.append(f"tool result: {part.tool_name}")
+    return lines
+
+
+def history_remembering_llm(
+    histories_sent_to_llm: list[list[str]], answer: str = "Copy that, Commander."
+):
+    """Remembers, for every request, the history it was sent with (see
+    history_lines). The answer may hold {number}, the number of the request."""
+
+    async def answer_and_remember_history(messages, agent_info):
+        histories_sent_to_llm.append(history_lines(messages))
+        yield answer.format(number=len(histories_sent_to_llm))
+
+    return answer_and_remember_history
+
+
 async def answer_not_scripted(messages: list[ModelMessage], agent_info: AgentInfo):
     yield NOT_SCRIPTED_ANSWER
 
@@ -676,7 +713,9 @@ class EdCelesteTestEnvironment:
         scripted_model = FunctionModel(
             function=answer_preflight_connection_test, stream_function=stream_function
         )
-        self.container.llm_service().build_model = lambda provider: scripted_model
+        self.container.llm_service()._LLMService__build_model = lambda provider: (
+            scripted_model
+        )
 
     async def remember_played_audio(
         self, samples, sample_rate, volume, with_ship_effect=False

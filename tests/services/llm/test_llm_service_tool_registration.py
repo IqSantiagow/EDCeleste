@@ -30,31 +30,31 @@ class TestLLMServiceToolRegistration(unittest.TestCase):
         )
 
     def test_should_build_one_pydantic_ai_tool_per_registered_tool(self):
-        built_tools = self.llm_service.build_tools()
+        built_tools = self.llm_service._LLMService__build_tools()
 
         self.assertEqual([tool.name for tool in built_tools], ["fake_tool"])
 
     def test_should_take_tool_description_from_the_docstring(self):
-        built_tool = self.llm_service.build_tools()[0]
+        built_tool = self.llm_service._LLMService__build_tools()[0]
 
         self.assertEqual(built_tool.description, "Does a fake thing")
 
     def test_should_build_tool_arguments_from_the_execute_signature(self):
-        built_tool = self.llm_service.build_tools()[0]
+        built_tool = self.llm_service._LLMService__build_tools()[0]
 
         self.assertEqual(built_tool.function_schema.json_schema["required"], ["thing"])
 
     def test_should_find_registered_tool_by_its_name(self):
-        self.assertIs(self.llm_service.find_tool("fake_tool"), self.tool)
+        self.assertIs(self.llm_service._LLMService__find_tool("fake_tool"), self.tool)
 
     def test_should_return_none_for_a_tool_that_is_not_registered(self):
-        self.assertIsNone(self.llm_service.find_tool("not_a_tool"))
+        self.assertIsNone(self.llm_service._LLMService__find_tool("not_a_tool"))
 
     def test_should_hand_the_tools_to_the_agent_on_reload(self):
         with (
             patch("edceleste.services.llm_service.Agent") as mock_agent,
-            patch.object(LLMService, "build_provider"),
-            patch.object(LLMService, "build_model"),
+            patch.object(LLMService, "_LLMService__build_provider"),
+            patch.object(LLMService, "_LLMService__build_model"),
         ):
             self.llm_service.reload_service()
 

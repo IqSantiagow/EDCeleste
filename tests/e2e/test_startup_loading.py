@@ -70,14 +70,14 @@ def remember_prompts_and_answer(prompts_sent_to_llm: list[str], answer: str):
     return scripted_answer
 
 
-def answer_with_the_system_from_the_game_state(prompts_sent_to_llm: list[str]):
+def answer_with_the_system_from_the_game_state(instructions_sent_to_llm: list[str]):
+    """The game state is the last part of the instructions the agent sends with
+    every request, not a part of the conversation history."""
+
     async def scripted_answer(messages, agent_info):
-        prompt = ""
-        for part in messages[-1].parts:
-            if isinstance(part, UserPromptPart):
-                prompt = str(part.content)
-        prompts_sent_to_llm.append(prompt)
-        system = re.search(r"Player is currently in the (.+?) system\.", prompt)
+        instructions = agent_info.instructions or ""
+        instructions_sent_to_llm.append(instructions)
+        system = re.search(r"Player is currently in the (.+?) system\.", instructions)
         if system:
             yield f"You are in {system.group(1)}."
         else:
@@ -139,14 +139,14 @@ async def test_should_show_the_header_and_the_hud_at_once_when_started_in_a_sess
 
 @allure.title("Celeste answers 'where am I?' right after she started in a session")
 async def test_should_answer_where_am_i_right_after_starting_in_a_session(edceleste):
-    prompts_sent_to_llm: list[str] = []
+    instructions_sent_to_llm: list[str] = []
 
     with allure.step("Given the game already wrote its journal and Status.json"):
         write_the_files_of_a_session_in_progress(edceleste)
 
     with allure.step("And the LLM names the system it finds in the game state"):
         edceleste.use_scripted_model(
-            answer_with_the_system_from_the_game_state(prompts_sent_to_llm)
+            answer_with_the_system_from_the_game_state(instructions_sent_to_llm)
         )
 
     async with edceleste.run_app() as pilot:
@@ -172,10 +172,12 @@ async def test_should_answer_where_am_i_right_after_starting_in_a_session(edcele
                 "You are in Beta Sculptoris."
             ]
 
-        with allure.step("And the LLM was told who the Commander is and the fuel"):
-            assert len(prompts_sent_to_llm) == 1
-            assert "Commander name is SANTIAGOW." in prompts_sent_to_llm[0]
-            assert "Current fuel level is: 12.5." in prompts_sent_to_llm[0]
+        with allure.step(
+            "And the LLM was told who the Commander is and the fuel in its instructions"
+        ):
+            assert len(instructions_sent_to_llm) == 1
+            assert "Commander name is SANTIAGOW." in instructions_sent_to_llm[0]
+            assert "Current fuel level is: 12.5." in instructions_sent_to_llm[0]
 
 
 @allure.title("Celeste stays silent about what the game wrote before she started")

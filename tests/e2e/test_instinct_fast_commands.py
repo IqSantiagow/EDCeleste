@@ -1,7 +1,11 @@
 import allure
 import pytest
 
-from tests.e2e.conftest import comms_entries, send_comms_message
+from tests.e2e.conftest import (
+    comms_entries,
+    history_remembering_llm,
+    send_comms_message,
+)
 from tests.e2e.test_game_state_prompt import prompt_remembering_llm
 
 pytestmark = [pytest.mark.anyio, allure.feature("Instinct fast commands")]
@@ -95,7 +99,7 @@ async def test_should_send_a_message_that_is_no_command_to_celeste_and_press_no_
 async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
     edceleste,
 ):
-    prompts_sent_to_llm: list[str] = []
+    history_texts_sent_to_llm: list[list[str]] = []
 
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
@@ -106,8 +110,10 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
-    with allure.step("And the LLM remembers every prompt it receives"):
-        edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
+    with allure.step("And the LLM remembers the history of every request"):
+        edceleste.use_scripted_model(
+            history_remembering_llm(history_texts_sent_to_llm, LLM_ANSWER)
+        )
 
     async with edceleste.run_app() as pilot:
         await edceleste.boot_to_dashboard(pilot, step_keyword="And")
@@ -123,17 +129,20 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
         with allure.step("When the Commander asks 'what did you just do?' in COMMS"):
             await send_comms_message(pilot, "what did you just do?")
 
-        with allure.step("Then Celeste's prompt has the command and Instinct's reply"):
+        with allure.step(
+            "Then Celeste's history has the command and Instinct's reply, "
+            "before the question"
+        ):
             await edceleste.wait_until(
                 pilot,
-                lambda: len(prompts_sent_to_llm) == 1,
+                lambda: len(history_texts_sent_to_llm) == 1,
                 "the question reaching the LLM",
             )
-            assert (
-                f"Human: {SET_THROTTLE_TO_ZERO}\n"
-                "Celeste: Throttle zero\n"
-                "Human: what did you just do?"
-            ) in prompts_sent_to_llm[0]
+            assert history_texts_sent_to_llm[0] == [
+                f"pilot: {SET_THROTTLE_TO_ZERO}",
+                "celeste: Throttle zero",
+                "pilot: what did you just do?",
+            ]
 
         with allure.step("And Instinct's reply was spoken before Celeste's answer"):
             await edceleste.wait_until(
