@@ -180,6 +180,43 @@ async def test_should_show_the_saved_edge_voice_after_switching_engines_back(
             assert edge_voice_shown(pilot) == "en-US-AriaNeural"
 
 
+async def edge_voice_list_cannot_be_downloaded() -> list[str]:
+    raise ConnectionError("No internet connection")
+
+
+@allure.title(
+    "When the Edge voice list cannot be downloaded, the saved voice is still shown"
+)
+async def test_should_show_the_saved_edge_voice_when_the_voice_list_download_fails(
+    edceleste,
+):
+    with allure.step("Given Edge is saved with the voice en-US-AriaNeural"):
+        edceleste.save_tts_settings(edge_with_voice("en-US-AriaNeural"))
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the list of Edge voices cannot be downloaded"):
+            tts_service = edceleste.container.tts_service()
+            tts_service.fetch_edge_tts_voice_names = (
+                edge_voice_list_cannot_be_downloaded
+            )
+
+        with allure.step("When the Commander opens Settings > Text to speech"):
+            await open_settings_section(edceleste, pilot, "settings-tts")
+
+        with allure.step("Then the voice row shows the saved voice en-US-AriaNeural"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: pilot.app.screen.query("#voice-input Select"),
+                "the voice row with the saved voice",
+            )
+            assert edge_voice_shown(pilot) == "en-US-AriaNeural"
+
+        with allure.step("And the loading spinner is gone"):
+            assert not pilot.app.screen.query("#loading-voices-indicator")
+
+
 @allure.title("Switching to Chatterbox a second time still lists the cloned voices")
 async def test_should_list_the_cloned_voices_on_a_second_switch_to_chatterbox(
     edceleste,
