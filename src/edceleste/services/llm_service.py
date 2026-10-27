@@ -276,8 +276,9 @@ class LLMService:
         tool name, the arguments of the LLM (input) and, from our tool, the
         readable name and the parameter name, so the UI can show "Perform Game
         Action" instead of "perform_game_action". When the LLM calls a tool we
-        do not have, the raw tool name is used and param_name is None. No side
-        effects."""
+        do not have, the raw tool name is used and param_name is None. Writes
+        the call to the log file, COMMS does not show it."""
+        logger.info("LLM tool call: %s %s", part.tool_name, part.args_as_dict())
         tool = self.__find_tool(part.tool_name)
 
         return ToolCall(
@@ -291,15 +292,19 @@ class LLMService:
         """RetryPromptPart means pydantic_ai rejected the tool call (bad
         arguments, unknown tool) and asks the LLM to try again, so it is shown
         as an error. A normal ToolReturnPart is an error only when the tool put
-        "is_error" in its metadata."""
+        "is_error" in its metadata. Writes the result to the log file, COMMS does
+        not show it."""
         if isinstance(part, RetryPromptPart):
+            logger.warning("LLM tool call rejected: %s", part.model_response())
             return ToolResult(content=part.model_response(), is_error=True)
 
         metadata = part.metadata or {}
+        is_error = bool(metadata.get("is_error"))
+        logger.info("LLM tool result (is_error=%s): %s", is_error, part.content)
 
         return ToolResult(
             content=part.content,  # type: ignore
-            is_error=bool(metadata.get("is_error")),
+            is_error=is_error,
         )
 
     def __build_tools(self) -> list[Tool]:

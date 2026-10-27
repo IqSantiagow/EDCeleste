@@ -6,7 +6,12 @@ from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.function import DeltaToolCall
 from textual.app import App
 
-from tests.e2e.conftest import comms_entries, send_comms_message
+from tests.e2e.conftest import (
+    PILOT_AND_CELESTE_ENTRIES,
+    comms_entries,
+    comms_entry_types,
+    send_comms_message,
+)
 
 pytestmark = [pytest.mark.anyio, allure.feature("COMMS conversation with Celeste")]
 
@@ -115,16 +120,13 @@ async def test_should_press_the_bound_key_when_celeste_performs_a_game_action(
         with allure.step("When the Commander sends 'gear' in COMMS"):
             await send_comms_message(pilot, "gear")
 
-        with allure.step("Then COMMS shows the game action and Celeste's answer"):
+        with allure.step("Then COMMS shows only the Commander and Celeste"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Celeste's answer after the game action",
             )
-            assert comms_entries(pilot.app, "llm-action") == [
-                "Perform Game Action -> LandingGearToggle"
-            ]
-            assert comms_entries(pilot.app, "llm-error") == []
+            assert set(comms_entry_types(pilot.app)) <= PILOT_AND_CELESTE_ENTRIES
             assert comms_entries(pilot.app, "llm-response") == [
                 "Landing gear toggled, Commander."
             ]
@@ -153,18 +155,13 @@ async def test_should_show_an_error_and_press_nothing_when_game_actions_are_off(
         with allure.step("When the Commander sends 'gear' in COMMS"):
             await send_comms_message(pilot, "gear")
 
-        with allure.step("Then COMMS shows that the game action was refused"):
+        with allure.step("Then COMMS shows Celeste telling the action was refused"):
             await edceleste.wait_until(
                 pilot,
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Celeste's answer after the refused game action",
             )
-            assert comms_entries(pilot.app, "llm-action") == [
-                "Perform Game Action -> LandingGearToggle"
-            ]
-            assert comms_entries(pilot.app, "llm-error") == [
-                "Game actions are disabled by the user."
-            ]
+            assert set(comms_entry_types(pilot.app)) <= PILOT_AND_CELESTE_ENTRIES
 
         with allure.step("And no key is pressed in the game"):
             assert edceleste.fake_keyboard.keyboard_log == []

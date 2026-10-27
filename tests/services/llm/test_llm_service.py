@@ -803,6 +803,29 @@ class TestLLMServiceEventMapping(unittest.TestCase):
             ),
         )
 
+    def test_should_write_a_tool_call_and_its_result_to_the_log_file(self):
+        call_event = FunctionToolCallEvent(
+            part=ToolCallPart(
+                tool_name="perform_game_action",
+                args={"action": "LandingGearToggle"},
+                tool_call_id="call-1",
+            )
+        )
+        result_event = FunctionToolResultEvent(
+            part=ToolReturnPart(
+                tool_name="perform_game_action",
+                content="Performed LandingGearToggle",
+                tool_call_id="call-1",
+            )
+        )
+
+        with self.assertLogs("edceleste.services.llm_service", "INFO") as logs:
+            self.llm_service._LLMService__to_message_block(call_event)
+            self.llm_service._LLMService__to_message_block(result_event)
+
+        self.assertIn("LandingGearToggle", logs.output[0])
+        self.assertIn("Performed LandingGearToggle", logs.output[1])
+
     def test_should_fall_back_to_the_raw_name_for_an_unknown_tool(self):
         event = FunctionToolCallEvent(
             part=ToolCallPart(tool_name="mystery_tool", args={}, tool_call_id="call-1")
