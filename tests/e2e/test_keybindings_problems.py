@@ -8,7 +8,12 @@ import pytest
 
 from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from tests import TEST_BINDS_FILE_LOCATION
-from tests.e2e.conftest import comms_entries, send_comms_message
+from tests.e2e.conftest import (
+    PILOT_AND_CELESTE_ENTRIES,
+    comms_entries,
+    comms_entry_types,
+    send_comms_message,
+)
 from tests.e2e.test_boot import preflight_row
 from tests.e2e.test_game_action_availability import (
     tell_the_pilot_what_the_scoop_tool_answered,
@@ -160,8 +165,8 @@ async def test_should_say_game_actions_are_unavailable_without_keybindings(
                 f"Negative, Commander. {KEYBINDS_NOT_LOADED}"
             ]
 
-        with allure.step("And COMMS shows the same reason as an error line"):
-            assert comms_entries(pilot.app, "llm-error") == [KEYBINDS_NOT_LOADED]
+        with allure.step("And COMMS shows no error line"):
+            assert set(comms_entry_types(pilot.app)) <= PILOT_AND_CELESTE_ENTRIES
 
         with allure.step("And no key is pressed in the game"):
             assert edceleste.fake_keyboard.keyboard_log == []

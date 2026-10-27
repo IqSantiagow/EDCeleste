@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from edceleste.services.models.message_block import (
     AgentText,
     SystemMessage,
-    ToolCall,
-    ToolResult,
 )
 from edceleste.services.models.llm_stream_item import LLMStreamItem
 
@@ -12,8 +10,6 @@ from edceleste.services.models.llm_stream_item import LLMStreamItem
 USER_COMMAND_ENTRY = "user-command"
 LLM_RESPONSE_ENTRY = "llm-response"
 SYSTEM_MESSAGE_ENTRY = "system-message"
-LLM_ACTION_ENTRY = "llm-action"
-LLM_ERROR_ENTRY = "llm-error"
 
 
 @dataclass
@@ -33,29 +29,15 @@ class CommsMessageViewModel:
 
         - AgentText -> Celeste's reply.
         - SystemMessage -> system line (e.g. "Game state is not set").
-        - ToolCall -> action line: the readable tool name, plus " -> <value>"
-          of the tool's main parameter when the tool has one.
-        - ToolResult with is_error -> error line.
-        - Anything else (Thinking, a good ToolResult, LLMStatus) -> None, so
-          the caller shows nothing.
+        - Anything else (ToolCall, ToolResult, Thinking, LLMStatus) -> None, so
+          the caller shows nothing. Tool calls and results are only written to
+          the log file by LLMService, a failed tool reaches the pilot as
+          Celeste's own sentence.
         """
         if isinstance(block, AgentText):
             return cls(content=block.content, entry_type=LLM_RESPONSE_ENTRY)
 
         if isinstance(block, SystemMessage):
             return cls(content=block.content, entry_type=SYSTEM_MESSAGE_ENTRY)
-
-        if isinstance(block, ToolCall):
-            action_name = ""
-            if block.param_name:
-                action_name = " -> " + block.input.get(block.param_name, "").strip()
-
-            return cls(
-                content=f"{block.tool_readable_name}{action_name}",
-                entry_type=LLM_ACTION_ENTRY,
-            )
-
-        if isinstance(block, ToolResult) and block.is_error:
-            return cls(content=str(block.content), entry_type=LLM_ERROR_ENTRY)
 
         return None

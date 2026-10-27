@@ -20,7 +20,6 @@ from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     CATEGORY_COMBAT,
     CATEGORY_NAV,
     CATEGORY_OTHER,
-    CATEGORY_TOOLS,
     _CATEGORIES,
     JournalLogViewModel,
 )
@@ -178,12 +177,12 @@ class TestJournalLogViewModelCategories(unittest.TestCase):
             JournalLogViewModel.from_event(make_fsd_jump()).category, CATEGORY_NAV
         )
 
-    def test_fuel_scoop_is_tools_category(self):
+    def test_fuel_scoop_is_other_category(self):
         event = FuelScoopEvent(
             event="FuelScoop", timestamp=datetime.now(), Scooped=2.41, Total=31.2
         )
 
-        self.assertEqual(JournalLogViewModel.from_event(event).category, CATEGORY_TOOLS)
+        self.assertEqual(JournalLogViewModel.from_event(event).category, CATEGORY_OTHER)
 
     def test_died_is_combat_category(self):
         event = DiedEvent(event="Died", timestamp=datetime.now())

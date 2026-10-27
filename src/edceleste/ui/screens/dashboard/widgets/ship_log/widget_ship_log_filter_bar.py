@@ -7,7 +7,6 @@ from textual.widgets import Label
 from edceleste.ui.screens.dashboard.view_models.journal_log_view_model import (
     CATEGORY_COMBAT,
     CATEGORY_NAV,
-    CATEGORY_TOOLS,
 )
 
 # An empty value means "show everything".
@@ -17,7 +16,6 @@ SHIP_LOG_FILTERS = (
     ("ALL", FILTER_ALL),
     ("NAV", CATEGORY_NAV),
     ("COMBAT", CATEGORY_COMBAT),
-    ("TOOLS", CATEGORY_TOOLS),
 )
 
 

@@ -5,7 +5,7 @@
    the active Theme — don't redefine them here.
    ============================================================ */
 $font-muted-color: #6F4A24;
-$human-command-color: #2518d4;
+$human-command-color: #7C89FF;
 $shields-color: #22C7E0;
 
 /* ============================================================
@@ -353,16 +353,6 @@ WidgetCommsEntry.system-message .comms-entry-content {
     color: $font-muted-color;
 }
 
-WidgetCommsEntry.llm-action .comms-entry-title,
-WidgetCommsEntry.llm-action .comms-entry-content {
-    color: $accent;
-}
-
-WidgetCommsEntry.llm-error .comms-entry-title,
-WidgetCommsEntry.llm-error .comms-entry-content {
-    color: $error;
-}
-
 /* ============================================================
    Dashboard: ship log
    (WidgetShipLogPanel, WidgetShipLogExtendedPanel,
@@ -556,11 +546,6 @@ WidgetShipLogExtendedRow.log-nav .log-marker {
 WidgetShipLogRow.log-combat .log-marker,
 WidgetShipLogExtendedRow.log-combat .log-marker {
     color: $error;
-}
-
-WidgetShipLogRow.log-tools .log-marker,
-WidgetShipLogExtendedRow.log-tools .log-marker {
-    color: $success;
 }
 
 WidgetShipLogRow.log-other .log-marker,

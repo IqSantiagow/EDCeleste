@@ -51,7 +51,7 @@ class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_should_map_tool_call_and_failed_tool_result(self):
+    async def test_should_drop_tool_call_and_failed_tool_result(self):
         llm = FakeLLMProtocol(
             items=[
                 ToolCall(
@@ -67,18 +67,7 @@ class TestStreamLLMResponsesUseCase(unittest.IsolatedAsyncioTestCase):
 
         results = [item async for item in use_case()]
 
-        self.assertEqual(
-            results,
-            [
-                CommsMessageViewModel(
-                    content="Perform game action -> Boost",
-                    entry_type="llm-action",
-                ),
-                CommsMessageViewModel(
-                    content="keybind missing", entry_type="llm-error"
-                ),
-            ],
-        )
+        self.assertEqual(results, [])
 
     async def test_should_complete_when_stream_is_empty(self):
         llm = FakeLLMProtocol(items=[])
