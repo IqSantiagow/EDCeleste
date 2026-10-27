@@ -90,6 +90,7 @@ class WidgetSttContainer(WidgetBaseSettingsContainer):
                     "Input device: ",
                     options=device_labels,
                     values=device_values,
+                    blank_means_empty=True,
                     value=str(self.stt_model.input_device)
                     if self.stt_model.input_device is not None
                     else "",

@@ -21,6 +21,7 @@ class WidgetLabeledSelectRow(WidgetBaseInput):
         options: list[str],
         value: str,
         values: list[str] | None = None,
+        blank_means_empty: bool = False,
         *args,
         **kwargs,
     ):
@@ -40,11 +41,17 @@ class WidgetLabeledSelectRow(WidgetBaseInput):
             emits and receives items from `values`.  Useful when you want to
             display a friendly name but store a compact key (e.g. a device
             index as a string).
+        blank_means_empty:
+            False (default): picking the empty dropdown entry is ignored and
+            the row keeps its value. True: picking it sets the value to "",
+            for a row where empty is a real choice (e.g. system default
+            microphone).
         """
         super().__init__(*args, value=value, initial_value=value, **kwargs)
         self.label = label
         self.options = options
         self.values = values
+        self.blank_means_empty = blank_means_empty
         assert self.id is not None, "WidgetLabeledSelectRow must have an id"
 
     def compose(self) -> ComposeResult:
@@ -75,5 +82,10 @@ class WidgetLabeledSelectRow(WidgetBaseInput):
                 )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        self.value = str(event.value)
+        if event.value == Select.NULL:
+            if not self.blank_means_empty:
+                return
+            self.value = ""
+        else:
+            self.value = str(event.value)
         self.post_message(ValueChanged(self.id, self.value))  # type: ignore
