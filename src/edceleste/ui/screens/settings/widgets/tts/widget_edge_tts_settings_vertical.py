@@ -55,8 +55,9 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
     @work
     async def fetch_voices(self) -> None:
         """Worker. Downloads the Edge voice names from Microsoft over the
-        network. On error it shows a notification and voices stays None, so
-        the loading indicator never goes away."""
+        network. On error it logs, shows a notification and falls back to the
+        saved voice as the only choice, so the voice row still appears. Setting
+        voices recomposes the widget and removes the loading indicator."""
         try:
             self.voices = await self.settings_repository.fetch_edge_tts_voice_names()
         except Exception as e:
@@ -65,3 +66,4 @@ class WidgetEdgeTTSSettingsVertical(Vertical):
                 "Error fetching voices. Please check your internet connection "
                 "or TTS service."
             )
+            self.voices = [self.edge_params.voice]
