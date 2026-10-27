@@ -25,3 +25,4 @@ LOG.md
 /allure-report
 /signature_check/stripped
 /signature_check/reports
+/tests/e2e/swarm
