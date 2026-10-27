@@ -609,6 +609,14 @@ def comms_entries(app: App, entry_type: str) -> list[str]:
     ]
 
 
+# What COMMS may show: the pilot, Celeste and the SYSTEM welcome line.
+PILOT_AND_CELESTE_ENTRIES = {"user-command", "llm-response", "system-message"}
+
+
+def comms_entry_types(app: App) -> list[str]:
+    return [entry.entry_type for entry in app.screen.query(WidgetCommsEntry)]
+
+
 async def send_comms_message(pilot: Pilot, message: str) -> None:
     await pilot.click("#comms-input")
     await pilot.press(*message)

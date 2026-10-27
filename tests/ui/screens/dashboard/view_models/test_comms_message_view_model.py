@@ -29,7 +29,7 @@ class TestCommsMessageViewModel(unittest.TestCase):
         self.assertEqual(view_model.content, "Game state is not set.")
         self.assertEqual(view_model.entry_type, "system-message")
 
-    def test_from_message_block_maps_tool_call_to_action_entry(self):
+    def test_from_message_block_skips_tool_call(self):
         view_model = CommsMessageViewModel.from_message_block(
             ToolCall(
                 tool_readable_name="Perform game action",
@@ -39,19 +39,14 @@ class TestCommsMessageViewModel(unittest.TestCase):
             )
         )
 
-        self.assertEqual(
-            view_model.content,
-            "Perform game action -> ToggleFlightAssist",
-        )
-        self.assertEqual(view_model.entry_type, "llm-action")
+        self.assertIsNone(view_model)
 
-    def test_from_message_block_maps_failed_tool_result_to_error_entry(self):
+    def test_from_message_block_skips_failed_tool_result(self):
         view_model = CommsMessageViewModel.from_message_block(
             ToolResult(content="Keybind not available", is_error=True)
         )
 
-        self.assertEqual(view_model.content, "Keybind not available")
-        self.assertEqual(view_model.entry_type, "llm-error")
+        self.assertIsNone(view_model)
 
     def test_from_message_block_skips_successful_tool_result(self):
         view_model = CommsMessageViewModel.from_message_block(

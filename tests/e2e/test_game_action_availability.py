@@ -3,7 +3,12 @@ import pytest
 from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.function import DeltaToolCall
 
-from tests.e2e.conftest import comms_entries, send_comms_message
+from tests.e2e.conftest import (
+    PILOT_AND_CELESTE_ENTRIES,
+    comms_entries,
+    comms_entry_types,
+    send_comms_message,
+)
 from tests.e2e.test_game_state_prompt import prompt_remembering_llm
 from tests.e2e.test_journal_to_dashboard_stats import label_text
 from tests.e2e.test_startup_loading import fuel_in_the_hud
@@ -131,15 +136,12 @@ async def test_should_tell_the_llm_why_the_cargo_scoop_is_unavailable_when_docke
                 lambda: comms_entries(pilot.app, "llm-response") != [],
                 "Celeste's answer after the game action",
             )
-            assert comms_entries(pilot.app, "llm-action") == [
-                "Perform Game Action -> ToggleCargoScoop"
-            ]
             assert comms_entries(pilot.app, "llm-response") == [
                 f"Negative, Commander. {SCOOP_UNAVAILABLE_WHEN_DOCKED}"
             ]
 
-        with allure.step("And COMMS shows no error"):
-            assert comms_entries(pilot.app, "llm-error") == []
+        with allure.step("And COMMS shows no action or error line"):
+            assert set(comms_entry_types(pilot.app)) <= PILOT_AND_CELESTE_ENTRIES
 
         with allure.step("And the LLM was told the scoop is unavailable while docked"):
             assert tool_answers_seen_by_llm == [SCOOP_UNAVAILABLE_WHEN_DOCKED]

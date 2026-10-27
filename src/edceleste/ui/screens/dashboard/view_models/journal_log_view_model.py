@@ -41,7 +41,6 @@ from edceleste.services.models.rank_ladders import (
 # so it has to match ui/css.tcss (WidgetShipLogRow.log-nav and friends).
 CATEGORY_NAV = "log-nav"
 CATEGORY_COMBAT = "log-combat"
-CATEGORY_TOOLS = "log-tools"
 CATEGORY_OTHER = "log-other"
 
 
@@ -293,11 +292,11 @@ _CATEGORIES: dict[type, str] = {
     # COMBAT - death and rebuy
     DiedEvent: CATEGORY_COMBAT,
     ResurrectEvent: CATEGORY_COMBAT,
-    # TOOLS - fuel and outfitting
-    FuelScoopEvent: CATEGORY_TOOLS,
-    RefuelAllEvent: CATEGORY_TOOLS,
-    ReservoirReplenishedEvent: CATEGORY_TOOLS,
-    LoadoutEvent: CATEGORY_TOOLS,
+    # OTHER - fuel and outfitting
+    FuelScoopEvent: CATEGORY_OTHER,
+    RefuelAllEvent: CATEGORY_OTHER,
+    ReservoirReplenishedEvent: CATEGORY_OTHER,
+    LoadoutEvent: CATEGORY_OTHER,
     # OTHER - pilot account and session
     LoadedGameEvent: CATEGORY_OTHER,
     CommanderEvent: CATEGORY_OTHER,
