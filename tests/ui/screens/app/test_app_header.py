@@ -3,8 +3,12 @@ import unittest
 
 from textual.app import App, ComposeResult
 from textual.widgets import Label
+from textual.worker import WorkerState
 
 from edceleste.services.models.service_status import ServiceState, ServiceStatus
+from edceleste.ui.screens.app.view_models.app_header_view_model import (
+    AppHeaderViewModel,
+)
 from edceleste.ui.screens.app.view_models.service_statuses_view_model import (
     ServiceStatusesViewModel,
 )
@@ -27,8 +31,25 @@ class FakeAppHeaderRepository:
         await asyncio.Event().wait()
 
 
+class QueueAppHeaderRepository:
+    """Passes on service statuses and header stats only when the test puts them
+    into the queues, so a test decides when the next one arrives."""
+
+    def __init__(self):
+        self.service_statuses: asyncio.Queue[ServiceStatusesViewModel] = asyncio.Queue()
+        self.header_stats: asyncio.Queue[AppHeaderViewModel] = asyncio.Queue()
+
+    async def stream_app_header_stats(self):
+        while True:
+            yield await self.header_stats.get()
+
+    async def stream_service_statuses(self):
+        while True:
+            yield await self.service_statuses.get()
+
+
 class HeaderApp(App):
-    def __init__(self, repository: FakeAppHeaderRepository):
+    def __init__(self, repository: FakeAppHeaderRepository | QueueAppHeaderRepository):
         super().__init__()
         self.repository = repository
 
@@ -71,6 +92,58 @@ class AppHeaderServiceDotsTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(str(journal_dot.content), "● JRNL")
             self.assertTrue(journal_dot.has_class("-ok"))
             self.assertEqual(journal_dot.tooltip, "Watching the journal folder")
+
+
+class AppHeaderShutdownTest(unittest.IsolatedAsyncioTestCase):
+    """On shutdown Textual removes the header children before it stops the
+    header workers. remove_children() makes the same gap on purpose."""
+
+    @staticmethod
+    def find_worker(header: AppHeader, worker_name: str):
+        """The running worker with this name. Take it before the status
+        arrives: Textual forgets a worker as soon as it is finished."""
+        return next(worker for worker in header.workers if worker.name == worker_name)
+
+    async def test_dots_worker_ends_quietly_when_dots_are_gone(
+        self,
+    ):
+        repository = QueueAppHeaderRepository()
+        app = HeaderApp(repository)
+
+        async with app.run_test() as pilot:
+            header = app.query_one(AppHeader)
+            await pilot.pause(0.2)
+            worker = self.find_worker(header, "stream_service_statuses_into_dots")
+            await header.remove_children()
+
+            ok = ServiceStatus(ServiceState.OK, "fine")
+            await repository.service_statuses.put(
+                ServiceStatusesViewModel(llm=ok, tts=ok, mic=ok, journal=ok)
+            )
+            await pilot.pause(0.2)
+
+            self.assertEqual(worker.state, WorkerState.SUCCESS)
+
+    async def test_stats_worker_ends_quietly_when_labels_are_gone(
+        self,
+    ):
+        repository = QueueAppHeaderRepository()
+        app = HeaderApp(repository)
+
+        async with app.run_test() as pilot:
+            header = app.query_one(AppHeader)
+            await pilot.pause(0.2)
+            worker = self.find_worker(header, "stream_header_stats_into_state")
+            await header.remove_children()
+
+            await repository.header_stats.put(
+                AppHeaderViewModel(
+                    player_name="Jameson", player_ship="Cobra", credits=5
+                )
+            )
+            await pilot.pause(0.2)
+
+            self.assertEqual(worker.state, WorkerState.SUCCESS)
 
 
 if __name__ == "__main__":
