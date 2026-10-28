@@ -1,6 +1,7 @@
 from dependency_injector.wiring import Provide, inject
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup
+from textual.css.query import NoMatches
 from datetime import datetime
 from textual.reactive import reactive
 from textual.widgets import Label, Rule
@@ -82,19 +83,30 @@ class AppHeader(HorizontalGroup):
         """Textual worker that never ends. For every new view model it draws
         the four dots: a filled dot for OK and ERROR, an empty one for OFF, the
         CSS class -ok / -off / -error gives the colour, and the reason of the
-        status is the tooltip."""
+        status is the tooltip. When the app shuts down, Textual removes the
+        dots before it stops this worker. A status that arrives in that gap
+        finds no dot (NoMatches), so the worker ends quietly."""
         async for statuses in self.app_header_repository.stream_service_statuses():
-            for service_name, dot_text in SERVICE_DOT_TEXTS.items():
-                status = getattr(statuses, service_name)
-                dot = self.query_one(f"#stat-{service_name}", Label)
-                symbol = "○" if status.state == ServiceState.OFF else "●"
-                dot.update(f"{symbol} {dot_text}")
-                dot.set_classes(f"service-dot -{status.state}")
-                dot.tooltip = status.reason
+            try:
+                for service_name, dot_text in SERVICE_DOT_TEXTS.items():
+                    status = getattr(statuses, service_name)
+                    dot = self.query_one(f"#stat-{service_name}", Label)
+                    symbol = "○" if status.state == ServiceState.OFF else "●"
+                    dot.update(f"{symbol} {dot_text}")
+                    dot.set_classes(f"service-dot -{status.state}")
+                    dot.tooltip = status.reason
+            except NoMatches:
+                return
 
     @work
     async def stream_header_stats_into_state(self) -> None:
         """Textual worker that never ends. Puts every new header view model
-        into the state reactive, watch_state() redraws the labels."""
+        into the state reactive, watch_state() redraws the labels. When the app
+        shuts down, the labels are removed before this worker stops, so
+        watch_state() can find no label (NoMatches) and the worker ends
+        quietly."""
         async for header_stats in self.app_header_repository.stream_app_header_stats():
-            self.state = header_stats
+            try:
+                self.state = header_stats
+            except NoMatches:
+                return
