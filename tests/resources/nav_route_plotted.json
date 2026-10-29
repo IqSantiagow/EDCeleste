@@ -1,0 +1,8 @@
+{ "timestamp":"2026-10-23T19:40:12Z", "event":"NavRoute", "Route":[
+{ "StarSystem":"Sol", "SystemAddress":10477373803, "StarPos":[0.00000,0.00000,0.00000], "StarClass":"G" },
+{ "StarSystem":"Alpha Centauri", "SystemAddress":5855232035290, "StarPos":[3.03125,-0.09375,3.15625], "StarClass":"G" },
+{ "StarSystem":"Barnard's Star", "SystemAddress":3932277478106, "StarPos":[-3.03125,1.40625,4.90625], "StarClass":"M" },
+{ "StarSystem":"Wolf 359", "SystemAddress":3107509474002, "StarPos":[3.875,6.46875,-1.90625], "StarClass":"M" },
+{ "StarSystem":"Lalande 21185", "SystemAddress":3932277741026, "StarPos":[-3.28125,5.84375,4.71875], "StarClass":"M" },
+{ "StarSystem":"Ross 154", "SystemAddress":2870946989474, "StarPos":[-1.9375,-3.0625,8.46875], "StarClass":"M" }
+ ] }

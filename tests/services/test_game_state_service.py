@@ -16,10 +16,13 @@ from edceleste.services.models.game_state_changed_event import GameStateChangedE
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
+from tests.projection.test_cargo_projection import make_cargo_event
 from tests.projection.test_market_projection import (
     make_docked_event,
     make_market_event,
 )
+from tests.projection.test_modules_projection import make_module_info_event
+from tests.projection.test_route_projection import make_nav_route_event
 
 
 def _loaded_game_event(**overrides) -> LoadedGameEvent:
@@ -417,6 +420,48 @@ class TestGameStateServiceProjectionText(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(expected_game_state, service.get_game_state_projection())
 
+    async def test_route_modules_and_cargo_lines_come_after_their_neighbours(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        await service.process_event(_loaded_game_event())
+        await service.process_event(make_docked_event())
+        await service.process_event(make_market_event())
+        await service.process_event(
+            make_nav_route_event(["Beta Sculptoris", "Sol", "Sirius"])
+        )
+        await service.process_event(
+            make_cargo_event([dict(Name="gold", Name_Localised="Gold", Count=5)])
+        )
+        await service.process_event(
+            make_module_info_event(
+                [
+                    dict(
+                        Slot="Radar",
+                        Item="int_sensors_size3_class1",
+                        Power=0.22,
+                        Priority=2,
+                    )
+                ]
+            )
+        )
+
+        expected_game_state = (
+            "Commander name is TestCommander. Commander has 1000000 of credits. "
+            "Commander ship is Sidewinder. Commander plays in Solo game mode.\n"
+            "Player is currently in the Beta Sculptoris system. "
+            "Player is currently un-docked from station: Fan Horizons flying nearby.\n"
+            "Plotted route: destination Sirius, 2 jumps left. "
+            "Next systems on the route: Sol, Sirius.\n"
+            "Current fuel level is: 1.0.\n"
+            "Ship hull health is at 100%.\n"
+            "Ship modules (slot: module, power draw, power priority): "
+            "Radar: int_sensors_size3_class1, 0.22 MW, priority 2.\n"
+            "Cargo hold contains: 5 t Gold.\n"
+            "Station Fan Horizons sells 1 commodities. The best prices against "
+            "the galactic average: Platinum at 42220 (+22464 per tonne)."
+        )
+        self.assertEqual(expected_game_state, service.get_game_state_projection())
+
     async def test_game_state_leaves_out_parts_with_nothing_to_say(self):
         service = GameStateService(Mock(spec=EventBus))
 
@@ -625,6 +670,36 @@ class TestGameStateServiceStartupLoading(unittest.IsolatedAsyncioTestCase):
         game_state_listener.assert_called_once()
         self.assertIn("TestCommander", game_state_listener.call_args.args[0].game_state)
         self.assertIn("TestCommander", service.get_game_state_projection())
+
+    async def test_route_cargo_and_modules_of_the_loading_reach_the_state_when_it_ends(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+        await service.process_event(_as_startup_loading(make_docked_event()))
+        await service.process_event(
+            _as_startup_loading(make_nav_route_event(["Beta Sculptoris", "Sol"]))
+        )
+        await service.process_event(
+            _as_startup_loading(
+                make_cargo_event([dict(Name="gold", Name_Localised="Gold", Count=5)])
+            )
+        )
+        await service.process_event(
+            _as_startup_loading(
+                make_module_info_event([dict(Slot="Radar", Item="int_sensors")])
+            )
+        )
+
+        self.assertEqual("", service.get_game_state_projection())
+
+        await service.publish_game_state_after_startup_loading(
+            StartupLoadingFinishedEvent()
+        )
+
+        state = service.get_game_state_projection()
+        self.assertIn("destination Sol, 1 jump left", state)
+        self.assertIn("Cargo hold contains: 5 t Gold.", state)
+        self.assertIn("Radar: int_sensors", state)
 
     async def test_loading_the_same_events_twice_gives_the_same_state(self):
         service = GameStateService(Mock(spec=EventBus))

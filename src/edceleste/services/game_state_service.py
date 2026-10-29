@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 import logging
 
+from edceleste.projection.event_projections.cargo_projection import CargoProjection
 from edceleste.projection.event_projections.fuel_projection import FuelProjection
 from edceleste.projection.event_projections.loadout_projection import (
     LoadoutProjection,
@@ -10,8 +11,10 @@ from edceleste.projection.event_projections.location_projection import (
     LocationProjection,
 )
 from edceleste.projection.event_projections.market_projection import MarketProjection
+from edceleste.projection.event_projections.modules_projection import ModulesProjection
 from edceleste.projection.event_projections.player_projection import PlayerProjection
 from edceleste.projection.event_projections.projection import Projection
+from edceleste.projection.event_projections.route_projection import RouteProjection
 from edceleste.projection.event_projections.ship_projection import ShipProjection
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.game_events import (
@@ -68,9 +71,12 @@ class GameStateService:
         self.__projections: list[Projection] = [
             self.__player_projection,
             self.__location_projection,
+            RouteProjection(),
             self.__ship_projection,
             self.__fuel_projection,
             self.__loadout_projection,
+            ModulesProjection(),
+            CargoProjection(),
             self.__market_projection,
         ]
         self.__journal_queue_watchers: list[asyncio.Queue[GameEvent]] = []
@@ -185,10 +191,11 @@ class GameStateService:
 
     def __rebuild_game_state_text(self) -> None:
         """Asks every projection for its text and puts each one on its own
-        line, in the order of the projections list: commander, location, ship,
-        fuel, hull, market. A projection with nothing to say is left out, so
-        there are no empty lines. Returns nothing: the result is stored and
-        get_game_state_projection hands it out until the next rebuild."""
+        line, in the order of the projections list: commander, location, route,
+        ship, fuel, hull, modules, cargo, market. A projection with nothing to
+        say is left out, so there are no empty lines. Returns nothing: the
+        result is stored and get_game_state_projection hands it out until the
+        next rebuild."""
         projection_texts = [
             projection.create_projection() for projection in self.__projections
         ]

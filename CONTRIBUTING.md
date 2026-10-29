@@ -25,7 +25,7 @@ All source lives under `src/edceleste/`.
 
 ```mermaid
 flowchart LR
-    Files["Journal, Status.json,<br/>Market.json"] --> Watcher["GameWatcherService"]
+    Files["Journal, Status, Market,<br/>NavRoute, Cargo, ModulesInfo"] --> Watcher["GameWatcherService"]
     Watcher --> Bus["EventBus"]
     Bus --> State["GameStateService<br/>+ projections"]
     Bus --> Reactions["EventReactionsService"]
@@ -41,7 +41,7 @@ flowchart LR
 |--------|------------------|
 | `services/` | Core services. Each one has `cold_start()` (the start-up check), `validate_settings()` and `reload_service()`. |
 | `services/models/` | Pydantic models for game events, settings and stats. |
-| `projection/` | One projection per slice of the game state (player, location, fuel, ship, loadout, market). |
+| `projection/` | One projection per slice of the game state (player, location, route, fuel, ship, loadout, modules, cargo, market). |
 | `adapters/tools/` | Tools the LLM can call. `pydantic-ai` reads the arguments from `execute` and the description from its docstring. |
 | `protocols/` | Protocols the UI and use cases depend on instead of concrete services. |
 | `use_cases/` | Thin callables between services and the UI, grouped by screen. |

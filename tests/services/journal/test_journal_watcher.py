@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 import tempfile
 import unittest
 from datetime import datetime
@@ -7,6 +8,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 from edceleste.services.game_watcher_service import (
+    SIDE_FILES,
     GameWatcherService,
     find_journal_files,
 )
@@ -27,6 +29,7 @@ from edceleste.services.models.settings_model import (
     TTSModel,
 )
 
+RESOURCES = Path(__file__).parent.parent.parent / "resources"
 JOURNAL_PATH = "C:/journals"
 JOURNAL_FILE = f"{JOURNAL_PATH}/Journal.log"
 
@@ -388,7 +391,9 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_publish_event(last_modified_time=100)
+            await watcher.watch_side_file_and_publish_event(
+                "Status.json", StatusEvent, last_modified_time=100
+            )
 
         # Passes 1 and 2 see the loaded version 100. Only the rewrite at
         # version 200 is published, and it is a live event.
@@ -482,7 +487,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status.state, ServiceState.ERROR)
         self.assertIn(JOURNAL_PATH, status.reason)
 
-    # --- watch_status_file_and_publish_event ---
+    # --- watch_side_file_and_publish_event with Status.json ---
 
     async def test_watch_status_file_waits_until_status_file_appears(self):
         status_event = StatusEvent(
@@ -508,7 +513,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Status.json", StatusEvent)
 
         # First pass finds no file and only waits; the event is only
         # published once Status.json actually shows up on disk.
@@ -531,7 +536,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Status.json", StatusEvent)
 
         self.mock_event_bus.publish.assert_not_awaited()
 
@@ -565,7 +570,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_status_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Status.json", StatusEvent)
 
         self.mock_event_bus.publish.assert_awaited_once_with(status_event)
 
@@ -608,7 +613,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(last_status.completed)
         self.assertEqual(last_status.message, "no journal path")
 
-    # --- watch_market_file_and_publish_event ---
+    # --- watch_side_file_and_publish_event with Market.json ---
 
     def _make_market_event(self):
         return MarketEvent(
@@ -642,7 +647,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Market.json", MarketEvent)
 
         # The game only writes Market.json once the player opens the commodity
         # screen, so an absent file is normal and must not raise.
@@ -665,7 +670,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Market.json", MarketEvent)
 
         self.mock_event_bus.publish.assert_not_awaited()
 
@@ -697,7 +702,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=fake_sleep),
             ),
         ):
-            await watcher.watch_market_file_and_publish_event()
+            await watcher.watch_side_file_and_publish_event("Market.json", MarketEvent)
 
         self.mock_event_bus.publish.assert_awaited_once_with(market_event)
 
@@ -705,14 +710,13 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         """One task at the start (it loads the game state and follows the
-        journal), the Status.json and Market.json watchers join it when the
-        loading is done. Tests elsewhere stub these out by name, so a new one
-        must not go unnoticed."""
+        journal), a watcher for every file of SIDE_FILES joins it when the
+        loading is done. Tests elsewhere stub the watcher out by name, so a
+        rename must not go unnoticed."""
         watcher = self._make_watcher()
 
         with (
-            patch.object(GameWatcherService, "watch_status_file_and_publish_event"),
-            patch.object(GameWatcherService, "watch_market_file_and_publish_event"),
+            patch.object(GameWatcherService, "watch_side_file_and_publish_event"),
             patch.object(
                 GameWatcherService,
                 "_GameWatcherService__follow_open_journal_file_and_publish_new_lines",
@@ -728,8 +732,23 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             await asyncio.sleep(0)
 
-            self.assertEqual(len(watcher._game_watcher_tasks), 3)
+            self.assertEqual(len(watcher._game_watcher_tasks), 1 + len(SIDE_FILES))
             watcher.stop_watcher_service()
+
+    def test_side_files_list_holds_the_five_game_files_in_loading_order(self):
+        self.assertEqual(
+            [
+                ("Status.json", "Status"),
+                ("Market.json", "Market"),
+                ("NavRoute.json", "NavRoute"),
+                ("Cargo.json", "Cargo"),
+                ("ModulesInfo.json", "ModuleInfo"),
+            ],
+            [
+                (file_name, event_model.model_fields["event"].annotation.__args__[0])
+                for file_name, event_model in SIDE_FILES
+            ],
+        )
 
     def test_start_watcher_service_raises_and_starts_nothing_without_a_journal(self):
         self.mock_glob.return_value = []
@@ -892,6 +911,75 @@ class StartupLoadingOnDiskTest(unittest.IsolatedAsyncioTestCase):
                 ("StartupLoadingFinished", False),
                 ("Status", False),
             ],
+        )
+
+    def _copy_sample_to_game_folder(self, sample_name: str, file_name: str) -> Path:
+        """Puts a sample of tests/resources into the journal folder under the
+        name the game gives it. Returns the path of the copy."""
+        copy_path = self.folder / file_name
+        shutil.copy(RESOURCES / sample_name, copy_path)
+        return copy_path
+
+    async def test_all_five_side_files_are_loaded_at_startup_and_not_published_again(
+        self,
+    ):
+        self._write_status_file()
+        self._write_market_file()
+        self._copy_sample_to_game_folder("nav_route_plotted.json", "NavRoute.json")
+        self._copy_sample_to_game_folder("cargo_with_inventory.json", "Cargo.json")
+        self._copy_sample_to_game_folder("modules_info.json", "ModulesInfo.json")
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        # Wait for more than one round of the watchers (they check once a
+        # second), so a second publication of a loaded file would show up.
+        await asyncio.sleep(1.5)
+
+        self.assertEqual(
+            self.published,
+            [
+                ("Status", True),
+                ("Market", True),
+                ("NavRoute", True),
+                ("Cargo", True),
+                ("ModuleInfo", True),
+                ("StartupLoadingFinished", False),
+            ],
+        )
+
+    async def test_rewritten_nav_route_file_is_published_as_a_live_event(self):
+        nav_route_path = self._copy_sample_to_game_folder(
+            "nav_route_plotted.json", "NavRoute.json"
+        )
+
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+        # The pilot clears the route: the game rewrites the file, and the event
+        # inside is called NavRouteClear.
+        newer_time = nav_route_path.stat().st_mtime + 10
+        self._copy_sample_to_game_folder("nav_route_clear.json", "NavRoute.json")
+        os.utime(nav_route_path, (newer_time, newer_time))
+        await self._wait_until(lambda: ("NavRouteClear", False) in self.published)
+
+        self.assertEqual(
+            self.published,
+            [
+                ("NavRoute", True),
+                ("StartupLoadingFinished", False),
+                ("NavRouteClear", False),
+            ],
+        )
+
+    async def test_side_file_that_appears_after_startup_is_published_as_live(self):
+        self.watcher.start_watcher_service()
+        await self._wait_until(lambda: self._was_published("StartupLoadingFinished"))
+
+        self._copy_sample_to_game_folder("cargo_with_inventory.json", "Cargo.json")
+        await self._wait_until(lambda: ("Cargo", False) in self.published)
+
+        self.assertEqual(
+            self.published,
+            [("StartupLoadingFinished", False), ("Cargo", False)],
         )
 
     async def test_line_written_between_loading_and_live_following_is_not_lost(self):

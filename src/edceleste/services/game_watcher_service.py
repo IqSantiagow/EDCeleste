@@ -8,7 +8,14 @@ from pydantic import TypeAdapter, ValidationError
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.models.cold_start_status import ColdStartStatus
-from edceleste.services.models.game_events import GameEvent, MarketEvent, StatusEvent
+from edceleste.services.models.game_events import (
+    CargoEvent,
+    GameEvent,
+    MarketEvent,
+    ModuleInfoEvent,
+    NavRouteEvent,
+    StatusEvent,
+)
 from edceleste.services.models.journal_event import JournalEvent
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
@@ -19,6 +26,16 @@ from edceleste.services.models.settings_model import SettingsIssueModel, Setting
 from edceleste.services.service_status_stream import ServiceStatusStream
 
 logger = logging.getLogger(__name__)
+
+# The files next to the journal that the game rewrites as a whole, and the event
+# each one becomes. A new side file is one more line here.
+SIDE_FILES: tuple[tuple[str, type[GameEvent]], ...] = (
+    ("Status.json", StatusEvent),
+    ("Market.json", MarketEvent),
+    ("NavRoute.json", NavRouteEvent),
+    ("Cargo.json", CargoEvent),
+    ("ModulesInfo.json", ModuleInfoEvent),
+)
 
 
 def find_journal_files(folder: str) -> list[str]:
@@ -66,9 +83,9 @@ class GameWatcherService:
         loop. The task publishes game events on the event bus in two phases
         (see __load_game_state_then_follow_the_game_files):
         1. loading: everything the game had already written, silently,
-        2. live: new lines of the newest Journal*.log file, Status.json and
-           Market.json. The Status.json and Market.json watchers are two more
-           tasks, which the first task starts when the loading is done.
+        2. live: new lines of the newest Journal*.log file and every side file
+           of SIDE_FILES. The side file watchers are more tasks, which the
+           first task starts when the loading is done.
         Sets exit_signal back to False, so the loops can run again after a
         stop. Returns at once, it does not wait for the task.
         Raises FileNotFoundError, before any task starts, when journal_path has
@@ -104,14 +121,14 @@ class GameWatcherService:
         """The whole life of the watcher, in this order:
 
         1. Loading: reads the journal from its first line to its end, then
-           Status.json and Market.json once. Every event gets
+           every side file of SIDE_FILES once. Every event gets
            is_startup_loading=True, so it only builds the game state: no
            reaction, no LLM request.
         2. Publishes StartupLoadingFinishedEvent.
-        3. Live: starts the Status.json and Market.json watchers (they skip
-           the file version already loaded) and follows new journal lines on
-           the same open file, from the place where the loading stopped, so no
-           line written in between is lost.
+        3. Live: starts a watcher for every side file (it skips the file
+           version already loaded) and follows new journal lines on the same
+           open file, from the place where the loading stopped, so no line
+           written in between is lost.
         Runs until exit_signal is set or the task is cancelled. Stopping the
         watcher cancels this task, so a loading that is stopped halfway does
         not publish StartupLoadingFinishedEvent. The journal file is closed
@@ -122,24 +139,23 @@ class GameWatcherService:
             journal_file_path, "r", encoding="utf-8", errors="replace"
         ) as journal_file:
             await self.__publish_lines_already_in_journal(journal_file)
-            status_modified_time = await self.__publish_side_file_already_on_disk(
-                "Status.json", StatusEvent
-            )
-            market_modified_time = await self.__publish_side_file_already_on_disk(
-                "Market.json", MarketEvent
-            )
+            loaded_modified_times = {}
+            for file_name, event_model in SIDE_FILES:
+                loaded_modified_times[
+                    file_name
+                ] = await self.__publish_side_file_already_on_disk(
+                    file_name, event_model
+                )
             await self.event_bus.publish(StartupLoadingFinishedEvent())
 
-            self._game_watcher_tasks.append(
-                asyncio.create_task(
-                    self.watch_status_file_and_publish_event(status_modified_time)
+            for file_name, event_model in SIDE_FILES:
+                self._game_watcher_tasks.append(
+                    asyncio.create_task(
+                        self.watch_side_file_and_publish_event(
+                            file_name, event_model, loaded_modified_times[file_name]
+                        )
+                    )
                 )
-            )
-            self._game_watcher_tasks.append(
-                asyncio.create_task(
-                    self.watch_market_file_and_publish_event(market_modified_time)
-                )
-            )
             await self.__follow_open_journal_file_and_publish_new_lines(journal_file)
 
     async def __publish_lines_already_in_journal(self, journal_file: TextIO) -> None:
@@ -311,40 +327,6 @@ class GameWatcherService:
             status.message = str(e)
             yield status
 
-    async def watch_status_file_and_publish_event(
-        self, last_modified_time: float | None = None
-    ) -> None:
-        """Publishes a StatusEvent every time the game rewrites Status.json
-        (ship flags, fuel, pips). Runs until exit_signal is set. Returns
-        nothing. It is public, but the watcher task starts it, so calling it
-        from outside adds a second watcher of the same file.
-
-        last_modified_time is the version of the file that is already known
-        (loaded at startup), as os.path.getmtime gives it: seconds as a
-        float. That version is not published again. None means every version
-        counts as new."""
-        await self.__watch_side_file_and_publish_event(
-            "Status.json", StatusEvent, last_modified_time
-        )
-
-    async def watch_market_file_and_publish_event(
-        self, last_modified_time: float | None = None
-    ) -> None:
-        """Publishes a MarketEvent every time the game rewrites Market.json
-        (commodities of the station market). Runs until exit_signal is set.
-        Returns nothing. The game writes Market.json only after the pilot
-        opens a market, until then it logs a warning every second. It is
-        public, but the watcher task starts it, so calling it from outside
-        adds a second watcher of the same file.
-
-        last_modified_time is the version of the file that is already known
-        (loaded at startup), as os.path.getmtime gives it: seconds as a
-        float. That version is not published again. None means every version
-        counts as new."""
-        await self.__watch_side_file_and_publish_event(
-            "Market.json", MarketEvent, last_modified_time
-        )
-
     def __read_side_file_event(
         self, file_name: str, event_model: type[GameEvent]
     ) -> GameEvent | None:
@@ -372,7 +354,7 @@ class GameWatcherService:
     async def __publish_side_file_already_on_disk(
         self, file_name: str, event_model: type[GameEvent]
     ) -> float | None:
-        """Loads one side file (Status.json or Market.json) at startup. When
+        """Loads one side file (one of SIDE_FILES) at startup. When
         the file is there, publishes its content once as an event with
         is_startup_loading=True and waits until the subscribers have handled it.
 
@@ -401,14 +383,22 @@ class GameWatcherService:
             await self.event_bus.publish(event)
         return modified_time
 
-    async def __watch_side_file_and_publish_event(
+    async def watch_side_file_and_publish_event(
         self,
         file_name: str,
         event_model: type[GameEvent],
-        last_modified_time: float | None,
+        last_modified_time: float | None = None,
     ) -> None:
-        """Checks the file next to the journal once a second until exit_signal
-        is set.
+        """Checks the file file_name next to the journal (one of SIDE_FILES)
+        once a second until exit_signal is set, and publishes it as event_model
+        every time the game rewrites it. Returns nothing. It is public, but the
+        watcher task starts it for every side file, so calling it from outside
+        adds a second watcher of the same file.
+
+        last_modified_time is the version of the file that is already known
+        (loaded at startup), as os.path.getmtime gives it: seconds as a
+        float. That version is not published again. None means every version
+        counts as new.
 
         - File missing -> logs a warning and checks again in 1 s.
         - Modified time differs from last_modified_time -> reads the whole

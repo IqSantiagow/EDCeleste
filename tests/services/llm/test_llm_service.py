@@ -225,6 +225,15 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(instructions[1](), "Current game state is:\nIn supercruise")
 
+    async def test_should_log_the_size_of_the_game_state_for_every_request(self):
+        instructions = self.mock_agent_class.call_args.kwargs["instructions"]
+
+        with self.assertLogs("edceleste.services.llm_service", level="INFO") as logs:
+            instructions[1]()
+
+        # "Test game state" is 15 characters.
+        self.assertIn("Game state in the prompt: 15 characters", logs.output[0])
+
     async def test_should_publish_tts_event_for_every_agent_text(self):
         self.event_bus.publish = AsyncMock()
         self.mock_stream_agent_response.side_effect = _make_agent_stream_of(
