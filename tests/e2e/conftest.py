@@ -171,7 +171,7 @@ FAKE_VOICE_PIECE_SAMPLES = FAKE_SAMPLE_RATE // 10
 
 
 # A speaker that never gets released must not keep the test run from ending
-HELD_SPEAKER_GIVES_UP_AFTER_SECONDS = 3
+HELD_SPEAKER_GIVES_UP_AFTER_SECONDS = 30
 
 
 class FakeSpeaker:
