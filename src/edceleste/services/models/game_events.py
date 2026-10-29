@@ -397,5 +397,47 @@ class MarketEvent(GameEvent, NonJournalFileEvent):
     Items: list[MarketItemModel] = []
 
 
+class NavRouteSystemModel(IgnoreExtraFieldsModel):
+    StarSystem: str
+    SystemAddress: int
+    StarPos: list[float]
+    StarClass: str
+
+
+class NavRouteEvent(GameEvent, NonJournalFileEvent):
+    # NavRoute.json says "NavRoute" while a route is plotted and
+    # "NavRouteClear" (with an empty Route) after the pilot clears it. The first
+    # system of the route is the system where the route was plotted.
+    event: Literal["NavRoute", "NavRouteClear"]
+    Route: list[NavRouteSystemModel] = []
+
+
+class CargoItemModel(IgnoreExtraFieldsModel):
+    Name: str
+    Name_Localised: Optional[str] = None
+    Count: int
+
+
+class CargoEvent(GameEvent, NonJournalFileEvent):
+    event: Literal["Cargo"]
+    Vessel: str
+    Count: int
+    Inventory: list[CargoItemModel] = []
+
+
+class ModuleInfoItemModel(IgnoreExtraFieldsModel):
+    Slot: str
+    Item: str
+    Power: float = 0.0
+    # The game leaves the priority out for modules that draw no power.
+    Priority: Optional[int] = None
+
+
+class ModuleInfoEvent(GameEvent, NonJournalFileEvent):
+    # The file is called ModulesInfo.json, but the event inside is "ModuleInfo".
+    event: Literal["ModuleInfo"]
+    Modules: list[ModuleInfoItemModel] = []
+
+
 class UnknownCheckedEvent(GameEvent):
     event: str

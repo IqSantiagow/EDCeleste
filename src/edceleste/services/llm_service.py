@@ -191,7 +191,11 @@ class LLMService:
         instructions), so the state is always the newest one and old states do
         not pile up in the history. game_state is never None here, because
         __run_turn_and_speak_reply() stops before the run when there is no
-        state yet. No side effects."""
+        state yet. Logs the size of the state in characters (info), so its real
+        size in the prompt is known."""
+        logger.info(
+            "Game state in the prompt: %d characters", len(self.game_state or "")
+        )
         return f"Current game state is:\n{self.game_state}"
 
     def __remember_turn(self, turn_messages: list[ModelMessage]) -> None:
