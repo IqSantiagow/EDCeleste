@@ -358,17 +358,18 @@ class TestLocationProjection(unittest.TestCase):
             location_projection.create_projection(),
         )
 
-    def test_should_process_fsd_target_event_and_create_projection(self):
+    def test_should_keep_fsd_target_for_the_dashboard_and_leave_it_out_of_the_text(
+        self,
+    ):
         location_projection = LocationProjection()
 
         location_projection.process_event(self.fsd_target_event)
 
-        expected_projection = (
-            "Player's next plotted jump is to system Proxima Centauri, "
-            "a class M star, with 3 jumps remaining on the route."
-        )
-
-        self.assertEqual(expected_projection, location_projection.create_projection())
+        # RouteProjection says the route from NavRoute.json, so the two never
+        # contradict each other after the pilot clears the route.
+        self.assertEqual("Proxima Centauri", location_projection.route_next_star_system)
+        self.assertEqual(3, location_projection.route_remaining_jumps)
+        self.assertEqual("", location_projection.create_projection())
 
     def test_should_clear_route_next_hop_once_player_arrives(self):
         location_projection = LocationProjection()

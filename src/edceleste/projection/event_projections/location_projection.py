@@ -45,11 +45,6 @@ class LocationProjection(Projection):
 
     SUPERCRUISE_DROP_PROJECTION = "Player dropped out of supercruise at {0}."
 
-    ROUTE_NEXT_HOP_PROJECTION = (
-        "Player's next plotted jump is to system {0}, a class {1} star, "
-        "with {2} jumps remaining on the route."
-    )
-
     def __init__(self):
         """Everything starts as None or False, which means "not known yet"."""
         self.current_star_system = None
@@ -241,9 +236,9 @@ class LocationProjection(Projection):
         5. close to a settlement,
         6. the assigned landing pad and its station,
         7. where the ship dropped out of supercruise,
-        8. during the FSD jump, with the target system,
-        9. the next hop of the plotted route (system, star class, jumps left).
-        The system facts (security, allegiance, government, economy,
+        8. during the FSD jump, with the target system.
+        The plotted route is not in the text, RouteProjection says it from
+        NavRoute.json. The system facts (security, allegiance, government, economy,
         population) are not in the text, only the dashboard shows them. Reads
         the fields only, changes nothing."""
         sentences = []
@@ -282,15 +277,6 @@ class LocationProjection(Projection):
 
         if self.is_in_fsd_jump:
             sentences.append(self.FSD_TRAVEL_PROJECTION.format(self.target_star_system))
-
-        if self.route_next_star_system:
-            sentences.append(
-                self.ROUTE_NEXT_HOP_PROJECTION.format(
-                    self.route_next_star_system,
-                    self.route_next_star_class,
-                    self.route_remaining_jumps,
-                )
-            )
 
         return " ".join(sentences)
 
