@@ -1,8 +1,10 @@
 import asyncio
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
@@ -16,6 +18,9 @@ from edceleste.services.models.startup_loading_finished_event import (
 from edceleste.services.settings_service import SettingsService
 from tests.services.test_event_reactions_service import _make_settings
 
+NEW_JOURNAL_FILE_CHECK_SECONDS_NAME = (
+    "edceleste.services.game_watcher_service.NEW_JOURNAL_FILE_CHECK_SECONDS"
+)
 RECORDED_JOURNAL = Path(__file__).parents[2] / "resources" / "test_known_events.jsonl"
 
 STATUS_FILE_CONTENT = (
@@ -131,6 +136,80 @@ class StartupLoadingIntegrationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first_state, second_service.get_game_state_projection())
         first_listener.assert_not_called()
         second_listener.assert_not_called()
+
+    def _write_newer_journal_file(self, lines: list[str]) -> Path:
+        """What the game does when it starts again: a new journal file, newer
+        than the one the app is following."""
+        newer_journal_file = self.folder / "Journal.2026-10-18T180000.01.log"
+        newer_journal_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.utime(newer_journal_file, (time.time() + 60, time.time() + 60))
+        return newer_journal_file
+
+    async def _wait_until(self, condition) -> None:
+        async with asyncio.timeout(5):
+            while not condition():
+                await asyncio.sleep(0.02)
+
+    async def test_game_restart_forgets_the_old_session_and_follows_the_new_journal(
+        self,
+    ):
+        with patch(NEW_JOURNAL_FILE_CHECK_SECONDS_NAME, 0.05):
+            (
+                game_state_service,
+                reaction_listener,
+            ) = await self._start_the_app_on_the_game_files()
+            self.assertIn(
+                "Beta Sculptoris", game_state_service.get_game_state_projection()
+            )
+
+            newer_journal_file = self._write_newer_journal_file(
+                [recorded_journal_line("LoadGame")]
+            )
+            await self._wait_until(
+                lambda: (
+                    "Beta Sculptoris"
+                    not in game_state_service.get_game_state_projection()
+                )
+            )
+
+            # The new file is loaded silently, then it is followed live.
+            game_state = game_state_service.get_game_state_projection()
+            self.assertIn("Commander name is SANTIAGOW.", game_state)
+            reaction_listener.assert_not_called()
+            with newer_journal_file.open("a", encoding="utf-8") as journal:
+                journal.write(recorded_journal_line("FSDJump") + "\n")
+            await self._wait_until(lambda: reaction_listener.called)
+            self.assertIn(
+                "Beta Sculptoris", game_state_service.get_game_state_projection()
+            )
+
+    async def test_next_part_of_a_long_session_keeps_the_state(self):
+        with patch(NEW_JOURNAL_FILE_CHECK_SECONDS_NAME, 0.05):
+            (
+                game_state_service,
+                reaction_listener,
+            ) = await self._start_the_app_on_the_game_files()
+
+            newer_journal_file = self._write_newer_journal_file(
+                [
+                    '{ "timestamp":"2026-10-18T18:00:00Z", "event":"Fileheader", '
+                    '"part":2, "language":"English/UK", "Odyssey":true }',
+                    recorded_journal_line("Location"),
+                ]
+            )
+            # The Location line of the new part is loaded silently, its system
+            # shows that the part is followed.
+            await self._wait_until(
+                lambda: "HIP 115966" in game_state_service.get_game_state_projection()
+            )
+            reaction_listener.assert_not_called()
+            with newer_journal_file.open("a", encoding="utf-8") as journal:
+                journal.write(recorded_journal_line("StartJump") + "\n")
+            await self._wait_until(lambda: reaction_listener.called)
+
+            # The commander comes only from the old part's LoadGame.
+            game_state = game_state_service.get_game_state_projection()
+            self.assertIn("Commander name is SANTIAGOW.", game_state)
 
 
 if __name__ == "__main__":

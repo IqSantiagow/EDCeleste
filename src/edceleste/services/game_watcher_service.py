@@ -1,5 +1,6 @@
 import asyncio
 import glob
+import json
 import logging
 import os
 from typing import AsyncGenerator, TextIO
@@ -17,6 +18,7 @@ from edceleste.services.models.game_events import (
     StatusEvent,
 )
 from edceleste.services.models.journal_event import JournalEvent
+from edceleste.services.models.new_game_session_event import NewGameSessionEvent
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
@@ -36,6 +38,10 @@ SIDE_FILES: tuple[tuple[str, type[GameEvent]], ...] = (
     ("Cargo.json", CargoEvent),
     ("ModulesInfo.json", ModuleInfoEvent),
 )
+
+
+# How often the watcher looks for a newer Journal*.log file in the folder.
+NEW_JOURNAL_FILE_CHECK_SECONDS = 3
 
 
 def find_journal_files(folder: str) -> list[str]:
@@ -66,6 +72,7 @@ class GameWatcherService:
         self.event_bus = event_bus
         self.adapter: TypeAdapter = TypeAdapter(JournalEvent)
         self.exit_signal: bool = False
+        self.__followed_journal_file_path: str | None = None
         self._game_watcher_tasks: list[asyncio.Task] = []
         self.__status_stream = ServiceStatusStream(
             ServiceStatus(ServiceState.OFF, "Not checked yet")
@@ -84,18 +91,22 @@ class GameWatcherService:
         (see __load_game_state_then_follow_the_game_files):
         1. loading: everything the game had already written, silently,
         2. live: new lines of the newest Journal*.log file and every side file
-           of SIDE_FILES. The side file watchers are more tasks, which the
+           of SIDE_FILES. The side file watchers, and the watcher that looks
+           for a newer journal file (a game restart), are more tasks, which the
            first task starts when the loading is done.
         Sets exit_signal back to False, so the loops can run again after a
         stop. Returns at once, it does not wait for the task.
         Raises FileNotFoundError, before any task starts, when journal_path has
-        no journal file. The journal file is picked only here, a new journal
-        file written later by the game is not followed.
+        no journal file. The newest journal file is picked here and remembered.
+        When the game later writes a newer one, the watcher of new journal
+        files starts everything again (see
+        __restart_when_a_newer_journal_file_appears).
         Calling it twice without stop_watcher_service in between starts a
         second set of tasks, then every event is published twice.
         reload_service always stops first.
         """
         latest_journal_file_path = self.__get_latest_journal_filepath()
+        self.__followed_journal_file_path = latest_journal_file_path
 
         self.exit_signal = False
         self._game_watcher_tasks.append(
@@ -126,9 +137,9 @@ class GameWatcherService:
            reaction, no LLM request.
         2. Publishes StartupLoadingFinishedEvent.
         3. Live: starts a watcher for every side file (it skips the file
-           version already loaded) and follows new journal lines on the same
-           open file, from the place where the loading stopped, so no line
-           written in between is lost.
+           version already loaded), the watcher of newer journal files, and
+           follows new journal lines on the same open file, from the place
+           where the loading stopped, so no line written in between is lost.
         Runs until exit_signal is set or the task is cancelled. Stopping the
         watcher cancels this task, so a loading that is stopped halfway does
         not publish StartupLoadingFinishedEvent. The journal file is closed
@@ -156,7 +167,53 @@ class GameWatcherService:
                         )
                     )
                 )
+            self._game_watcher_tasks.append(
+                asyncio.create_task(self.__restart_when_a_newer_journal_file_appears())
+            )
             await self.__follow_open_journal_file_and_publish_new_lines(journal_file)
+
+    async def __restart_when_a_newer_journal_file_appears(self) -> None:
+        """Looks every NEW_JOURNAL_FILE_CHECK_SECONDS into the journal folder
+        until exit_signal is set. Returns nothing.
+
+        When the newest Journal*.log file is not the one that is followed, the
+        game wrote a new file:
+        1. A file whose first line is a Fileheader with "part" above 1 is the
+           next part of the same long session: the game state is kept.
+        2. Any other new file is a new game session (the game was restarted):
+           publishes NewGameSessionEvent, so the game state is forgotten.
+        3. Stops all watcher tasks, this one too, and starts them again. That
+           loads the new file silently from its first line and follows it live.
+        A folder without any journal file is ignored until one appears."""
+        while not self.exit_signal:
+            await asyncio.sleep(NEW_JOURNAL_FILE_CHECK_SECONDS)
+            journal_files = find_journal_files(self.journal_path)
+            if not journal_files:
+                continue
+            newest_journal_file_path = max(journal_files, key=os.path.getmtime)
+            if newest_journal_file_path == self.__followed_journal_file_path:
+                continue
+
+            if not self.__is_later_part_of_a_split_session(newest_journal_file_path):
+                await self.event_bus.publish(NewGameSessionEvent())
+            # Nothing may be awaited after the stop: it cancels this task too.
+            self.stop_watcher_service()
+            self.start_watcher_service()
+            return
+
+    def __is_later_part_of_a_split_session(self, journal_file_path: str) -> bool:
+        """Reads the first line of the journal file and tells if it is a
+        Fileheader of part 2 or more, which the game writes when it splits a
+        long session into several files. Reads the disk, changes nothing.
+        Returns False for part 1, for a file with no "part", and for an empty
+        or unreadable first line (the game has not written it yet), so such a
+        file counts as a new session."""
+        try:
+            with open(journal_file_path, "r", encoding="utf-8", errors="replace") as f:
+                first_line = f.readline()
+            return json.loads(first_line).get("part", 1) > 1
+        except (OSError, ValueError):
+            return False
 
     async def __publish_lines_already_in_journal(self, journal_file: TextIO) -> None:
         """Reads the open journal file from its current place to its end (the
