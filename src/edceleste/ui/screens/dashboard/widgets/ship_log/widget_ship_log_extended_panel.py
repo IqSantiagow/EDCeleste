@@ -35,9 +35,12 @@ class WidgetShipLogExtendedPanel(Widget):
     BORDER_TITLE = "SHIP LOG"
 
     def __init__(self, **kwargs) -> None:
-        """Starts with no entries, a zero event counter and the ALL filter."""
+        """Starts with no entries, no rows, a zero event counter and the ALL
+        filter. `shown_rows` is the panel's own list of the rows on screen,
+        oldest first."""
         super().__init__(**kwargs)
         self.entries: list[JournalLogViewModel] = []
+        self.shown_rows: list[WidgetShipLogExtendedRow] = []
         self.total_events_count = 0
         self.active_filter = FILTER_ALL
 
@@ -83,31 +86,37 @@ class WidgetShipLogExtendedPanel(Widget):
         return self.active_filter == FILTER_ALL or entry.category == self.active_filter
 
     def mount_row(self, entry: JournalLogViewModel) -> None:
-        """Adds the row at the bottom and scrolls down to it at once. Every
-        second row gets the zebra background, counted from the rows already in
-        the scroll."""
+        """Adds the row at the bottom, remembers it in `shown_rows` and scrolls
+        down to it at once. Every second row gets the zebra background, counted
+        from the rows already in `shown_rows`."""
         scroll = self.query_one(f"#{SCROLL_ID}", VerticalScroll)
-        is_even_row = len(scroll.children) % 2 == 0
-        scroll.mount(WidgetShipLogExtendedRow(entry, is_even_row))
+        is_even_row = len(self.shown_rows) % 2 == 0
+        row = WidgetShipLogExtendedRow(entry, is_even_row)
+        self.shown_rows.append(row)
+        scroll.mount(row)
         scroll.scroll_end(animate=False)
 
     def rebuild_rows(self) -> None:
         """Removes every row and mounts again the remembered entries that pass
         the active filter, oldest first."""
         self.query_one(f"#{SCROLL_ID}", VerticalScroll).remove_children()
+        self.shown_rows = []
         for entry in self.entries:
             if self.matches_active_filter(entry):
                 self.mount_row(entry)
 
     def drop_oldest_entry_over_limit(self) -> None:
         """Does nothing up to MAX_ROWS entries. Above it forgets the oldest
-        entry and removes the top row, but only if that entry was shown under
-        the active filter. The event counter is not lowered."""
+        entry and removes the oldest row from `shown_rows`, but only if that
+        entry was shown under the active filter. The row is taken from our own
+        list, because removing a widget is asynchronous and the screen would
+        still return a row that is already being removed. The event counter is
+        not lowered."""
         if len(self.entries) <= MAX_ROWS:
             return
         oldest_entry = self.entries.pop(0)
         if self.matches_active_filter(oldest_entry):
-            self.query(WidgetShipLogExtendedRow).first().remove()
+            self.shown_rows.pop(0).remove()
 
     @on(WidgetShipLogFilterBar.FilterSelected)
     def show_only_rows_of_selected_filter(
