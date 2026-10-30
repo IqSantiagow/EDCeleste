@@ -26,6 +26,7 @@ from edceleste.services.models.game_events import (
     UndockedEvent,
 )
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.new_game_session_event import NewGameSessionEvent
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
@@ -56,10 +57,30 @@ class GameStateService:
         Subscriptions:
         - GameEvent -> process_event
         - StartupLoadingFinishedEvent -> publish_game_state_after_startup_loading
+        - NewGameSessionEvent -> forget_old_game_session
         """
         self.event_bus = event_bus
         self.__game_state_projection = ""
         self.__has_loaded_any_event = False
+        self.__create_empty_projections()
+        self.__journal_queue_watchers: list[asyncio.Queue[GameEvent]] = []
+        self.__status_queue_watchers: list[
+            asyncio.Queue[GameEvent | StartupLoadingFinishedEvent]
+        ] = []
+        self.__market_queue_watchers: list[
+            asyncio.Queue[GameEvent | StartupLoadingFinishedEvent]
+        ] = []
+
+        event_bus.subscribe(GameEvent, self.process_event)
+        event_bus.subscribe(
+            StartupLoadingFinishedEvent, self.publish_game_state_after_startup_loading
+        )
+        event_bus.subscribe(NewGameSessionEvent, self.forget_old_game_session)
+
+    def __create_empty_projections(self) -> None:
+        """Replaces every projection with a new empty one, so nothing is known
+        about the game, as right after the app starts. The UI streams and the
+        game state text are not touched. Returns nothing."""
         self.__player_projection = PlayerProjection()
         self.__fuel_projection = FuelProjection()
         self.__location_projection = LocationProjection()
@@ -79,18 +100,19 @@ class GameStateService:
             CargoProjection(),
             self.__market_projection,
         ]
-        self.__journal_queue_watchers: list[asyncio.Queue[GameEvent]] = []
-        self.__status_queue_watchers: list[
-            asyncio.Queue[GameEvent | StartupLoadingFinishedEvent]
-        ] = []
-        self.__market_queue_watchers: list[
-            asyncio.Queue[GameEvent | StartupLoadingFinishedEvent]
-        ] = []
 
-        event_bus.subscribe(GameEvent, self.process_event)
-        event_bus.subscribe(
-            StartupLoadingFinishedEvent, self.publish_game_state_after_startup_loading
-        )
+    async def forget_old_game_session(self, _event: NewGameSessionEvent) -> None:
+        """Runs when the game started again and writes a new journal file. Throws
+        away everything the projections knew (for example an old landing pad),
+        so only the new session counts. Returns nothing.
+
+        Publishes nothing and wakes no UI stream: the watcher loads the new
+        journal file right after this event, and the end of that loading
+        (publish_game_state_after_startup_loading) tells the UI and the LLM.
+        The game state text keeps the old session until then, and
+        __has_loaded_any_event stays set, so the end of that loading publishes
+        even when the new journal file is still empty."""
+        self.__create_empty_projections()
 
     async def process_event(self, event: GameEvent) -> None:
         """Runs for every game event on the event bus, live or from the

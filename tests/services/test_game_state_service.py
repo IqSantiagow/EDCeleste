@@ -13,6 +13,7 @@ from edceleste.services.models.game_events import (
     StatusFuelModel,
 )
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
+from edceleste.services.models.new_game_session_event import NewGameSessionEvent
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
@@ -737,6 +738,60 @@ class TestGameStateServiceStartupLoading(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state_after_first_loading, service.get_game_state_projection())
         self.assertEqual(stats_after_first_loading, await self._first_snapshot(service))
         self.assertEqual(stats_after_first_loading.ship.cargo_current, 12.0)
+
+
+class TestGameStateServiceNewGameSession(unittest.IsolatedAsyncioTestCase):
+    """The game was started again: the old session must not linger."""
+
+    async def _loaded_service(self, event_bus: EventBus) -> GameStateService:
+        service = GameStateService(event_bus)
+        await service.process_event(_as_startup_loading(_loaded_game_event()))
+        await service.process_event(_as_startup_loading(make_docked_event()))
+        return service
+
+    async def test_new_game_session_event_empties_the_game_stats(self):
+        event_bus = EventBus()
+        service = await self._loaded_service(event_bus)
+        self.assertEqual(service.get_game_stats().player.name, "TestCommander")
+
+        await event_bus.publish(NewGameSessionEvent())
+
+        stats = service.get_game_stats()
+        self.assertEqual(stats.player.name, "")
+        self.assertEqual(stats.player.ship, "")
+        self.assertFalse(stats.navigation.is_docked)
+
+    async def test_new_game_session_event_keeps_the_open_ui_streams_working(self):
+        event_bus = EventBus()
+        service = await self._loaded_service(event_bus)
+        stats_stream = service.stream_game_stats()
+        await stats_stream.__anext__()
+        pending_snapshot = asyncio.ensure_future(stats_stream.__anext__())
+        await asyncio.sleep(0)
+
+        await event_bus.publish(NewGameSessionEvent())
+        await service.process_event(
+            _as_startup_loading(_loaded_game_event(Ship="Anaconda"))
+        )
+        await event_bus.publish(StartupLoadingFinishedEvent())
+
+        snapshot = await asyncio.wait_for(pending_snapshot, timeout=1)
+        self.assertEqual(snapshot.player.ship, "Anaconda")
+        await stats_stream.aclose()
+
+    async def test_new_game_session_event_publishes_nothing(self):
+        event_bus = EventBus()
+        service = await self._loaded_service(event_bus)
+        game_state_listener = AsyncMock()
+        event_bus.subscribe(GameStateChangedEvent, game_state_listener)
+        await event_bus.publish(StartupLoadingFinishedEvent())
+        game_state_listener.reset_mock()
+
+        await event_bus.publish(NewGameSessionEvent())
+
+        # The old text stays until the loading of the new session ends.
+        game_state_listener.assert_not_called()
+        self.assertIn("TestCommander", service.get_game_state_projection())
 
 
 if __name__ == "__main__":

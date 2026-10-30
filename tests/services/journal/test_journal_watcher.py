@@ -17,6 +17,7 @@ from edceleste.services.models.game_events import (
     StatusEvent,
     UnknownCheckedEvent,
 )
+from edceleste.services.models.new_game_session_event import NewGameSessionEvent
 from edceleste.services.models.startup_loading_finished_event import (
     StartupLoadingFinishedEvent,
 )
@@ -710,9 +711,9 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         """One task at the start (it loads the game state and follows the
-        journal), a watcher for every file of SIDE_FILES joins it when the
-        loading is done. Tests elsewhere stub the watcher out by name, so a
-        rename must not go unnoticed."""
+        journal), a watcher for every file of SIDE_FILES and the watcher of
+        newer journal files join it when the loading is done. Tests elsewhere
+        stub the watcher out by name, so a rename must not go unnoticed."""
         watcher = self._make_watcher()
 
         with (
@@ -732,7 +733,7 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
 
             await asyncio.sleep(0)
 
-            self.assertEqual(len(watcher._game_watcher_tasks), 1 + len(SIDE_FILES))
+            self.assertEqual(len(watcher._game_watcher_tasks), 1 + len(SIDE_FILES) + 1)
             watcher.stop_watcher_service()
 
     def test_side_files_list_holds_the_five_game_files_in_loading_order(self):
@@ -1297,6 +1298,198 @@ class JournalFilesOnDiskTest(unittest.TestCase):
 
                 self.assertEqual(passes_validation, has_journal)
                 self.assertEqual(watcher_can_start, has_journal)
+
+
+class NewJournalFileOnDiskTest(unittest.IsolatedAsyncioTestCase):
+    """Real journal files in a temporary folder. The watcher that looks for a
+    newer journal file runs with a fake sleep, so no test waits for 3 s, and
+    stop/start of the watcher are mocks that only count the restarts."""
+
+    def setUp(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.folder = Path(temp_dir.name)
+        self.old_journal_file = self._write_journal_file(
+            "Journal.2026-10-18T120000.01.log", [], modified_time=100
+        )
+        self.event_bus = AsyncMock()
+        self.watcher = GameWatcherService(
+            journal_path=str(self.folder),
+            event_bus=self.event_bus,
+            settings_service=Mock(),
+        )
+        # The watcher follows the old file, as after start_watcher_service.
+        self.watcher._GameWatcherService__followed_journal_file_path = str(  # type: ignore
+            self.old_journal_file
+        )
+        self.stop_watcher = self.enterContext(
+            patch.object(self.watcher, "stop_watcher_service")
+        )
+        self.start_watcher = self.enterContext(
+            patch.object(self.watcher, "start_watcher_service")
+        )
+
+    def _write_journal_file(
+        self, file_name: str, lines: list[str], modified_time: int
+    ) -> Path:
+        journal_file = self.folder / file_name
+        journal_file.write_text("\n".join(lines), encoding="utf-8")
+        os.utime(journal_file, (modified_time, modified_time))
+        return journal_file
+
+    def _fileheader_line(self, part: int) -> str:
+        return (
+            '{ "timestamp":"2026-10-18T18:00:00Z", "event":"Fileheader", '
+            f'"part":{part}, "language":"English/UK" }}'
+        )
+
+    def _is_later_part(self, journal_file: Path) -> bool:
+        return self.watcher._GameWatcherService__is_later_part_of_a_split_session(  # type: ignore
+            str(journal_file)
+        )
+
+    async def _look_for_a_newer_journal_file(self, in_second_check=None) -> None:
+        """Runs the watcher of newer journal files. The first check happens at
+        once, in_second_check (a function) runs between the first and the
+        second check, and the loop ends after the second sleep."""
+        sleep_calls = 0
+
+        async def fake_sleep(_seconds):
+            nonlocal sleep_calls
+            sleep_calls += 1
+            if sleep_calls == 2 and in_second_check is not None:
+                in_second_check()
+            if sleep_calls >= 3:
+                self.watcher.exit_signal = True
+
+        with patch(
+            "edceleste.services.game_watcher_service.asyncio.sleep",
+            new=AsyncMock(side_effect=fake_sleep),
+        ):
+            look_for_newer_file = (
+                self.watcher._GameWatcherService__restart_when_a_newer_journal_file_appears  # type: ignore
+            )
+            await look_for_newer_file()
+
+    # --- __is_later_part_of_a_split_session ---
+
+    def test_first_line_with_part_2_is_a_later_part_of_a_split_session(self):
+        journal_file = self._write_journal_file(
+            "Journal.part2.log", [self._fileheader_line(2)], modified_time=200
+        )
+
+        self.assertTrue(self._is_later_part(journal_file))
+
+    def test_first_line_with_part_1_is_a_new_session(self):
+        journal_file = self._write_journal_file(
+            "Journal.part1.log", [self._fileheader_line(1)], modified_time=200
+        )
+
+        self.assertFalse(self._is_later_part(journal_file))
+
+    def test_first_line_without_part_is_a_new_session(self):
+        journal_file = self._write_journal_file(
+            "Journal.nopart.log",
+            ['{ "timestamp":"2026-10-18T18:00:00Z", "event":"Fileheader" }'],
+            modified_time=200,
+        )
+
+        self.assertFalse(self._is_later_part(journal_file))
+
+    def test_empty_or_broken_first_line_is_a_new_session(self):
+        for case, lines in [("empty file", []), ("not json", ["{ half a line"])]:
+            with self.subTest(case=case):
+                journal_file = self._write_journal_file(
+                    "Journal.broken.log", lines, modified_time=200
+                )
+
+                self.assertFalse(self._is_later_part(journal_file))
+
+    def test_unreadable_journal_file_is_a_new_session(self):
+        self.assertFalse(self._is_later_part(self.folder / "Journal.missing.log"))
+
+    # --- __restart_when_a_newer_journal_file_appears ---
+
+    async def test_new_session_file_publishes_new_game_session_event_then_restarts(
+        self,
+    ):
+        self._write_journal_file(
+            "Journal.2026-10-18T180000.01.log",
+            [self._fileheader_line(1)],
+            modified_time=200,
+        )
+
+        await self._look_for_a_newer_journal_file()
+
+        self.event_bus.publish.assert_awaited_once()
+        self.assertIsInstance(
+            self.event_bus.publish.await_args.args[0], NewGameSessionEvent
+        )
+        self.stop_watcher.assert_called_once()
+        self.start_watcher.assert_called_once()
+
+    async def test_next_part_file_restarts_without_new_game_session_event(self):
+        self._write_journal_file(
+            "Journal.2026-10-18T120000.02.log",
+            [self._fileheader_line(2)],
+            modified_time=200,
+        )
+
+        await self._look_for_a_newer_journal_file()
+
+        self.event_bus.publish.assert_not_called()
+        self.stop_watcher.assert_called_once()
+        self.start_watcher.assert_called_once()
+
+    async def test_same_journal_file_changes_nothing(self):
+        await self._look_for_a_newer_journal_file()
+
+        self.event_bus.publish.assert_not_called()
+        self.stop_watcher.assert_not_called()
+        self.start_watcher.assert_not_called()
+
+    async def test_folder_without_journal_files_is_ignored_until_one_appears(self):
+        self.old_journal_file.unlink()
+
+        def the_game_writes_a_new_journal_file():
+            self._write_journal_file(
+                "Journal.2026-10-18T180000.01.log",
+                [self._fileheader_line(1)],
+                modified_time=200,
+            )
+
+        await self._look_for_a_newer_journal_file(
+            in_second_check=the_game_writes_a_new_journal_file
+        )
+
+        self.event_bus.publish.assert_awaited_once()
+        self.start_watcher.assert_called_once()
+
+    async def test_start_watcher_service_remembers_the_newest_journal_file(self):
+        newest_journal_file = self._write_journal_file(
+            "Journal.2026-10-18T180000.01.log",
+            [self._fileheader_line(1)],
+            modified_time=200,
+        )
+
+        with (
+            patch("edceleste.services.game_watcher_service.asyncio.create_task"),
+            patch.object(
+                GameWatcherService,
+                "_GameWatcherService__load_game_state_then_follow_the_game_files",
+            ),
+        ):
+            # The real method, the instance one is mocked in setUp.
+            GameWatcherService.start_watcher_service(self.watcher)
+        await self._look_for_a_newer_journal_file()
+
+        # The newest file is already followed, so there is nothing to restart.
+        self.event_bus.publish.assert_not_called()
+        self.stop_watcher.assert_not_called()
+        self.assertEqual(
+            self.watcher._GameWatcherService__followed_journal_file_path,  # type: ignore
+            str(newest_journal_file),
+        )
 
 
 if __name__ == "__main__":
