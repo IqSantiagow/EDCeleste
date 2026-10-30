@@ -62,6 +62,9 @@ from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
     WidgetCommsEntry,
 )
+from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_extended_row import (  # noqa: E501
+    WidgetShipLogExtendedRow,
+)
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_row import (
     WidgetShipLogRow,
 )
@@ -628,6 +631,24 @@ def ship_log_events(app: App) -> list[str]:
     return [row.entry.event for row in rail_rows]
 
 
+def ship_log_systems(app: App) -> list[str]:
+    rail_rows = app.screen.query_one("#ship-log-rail").query(WidgetShipLogRow)
+    return [row.entry.system for row in rail_rows]
+
+
+def ship_log_counter(app: App) -> str:
+    return str(app.screen.query_one("#ship-log-rail").border_subtitle)
+
+
+def wide_ship_log_systems(app: App) -> list[str]:
+    wide_rows = app.screen.query_one("#ship-log-wide").query(WidgetShipLogExtendedRow)
+    return [row.entry.system for row in wide_rows]
+
+
+def wide_ship_log_counter(app: App) -> str:
+    return str(app.screen.query_one("#ship-log-wide").border_subtitle)
+
+
 StreamFunction = Callable[[list[ModelMessage], AgentInfo], AsyncIterator]
 
 
@@ -819,6 +840,18 @@ class EdCelesteTestEnvironment:
     def append_journal_event(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
             journal.write(recorded_journal_line(event_name) + "\n")
+
+    def append_fsd_jumps_to_systems(self, system_names: list[str]) -> None:
+        # One write for all lines, so the app gets them as one burst
+        jump_line = recorded_journal_line("FSDJump")
+        recorded_system = '"StarSystem":"Beta Sculptoris"'
+        assert recorded_system in jump_line
+        lines = [
+            jump_line.replace(recorded_system, f'"StarSystem":"{system_name}"')
+            for system_name in system_names
+        ]
+        with self.journal_file.open("a", encoding="utf-8") as journal:
+            journal.write("\n".join(lines) + "\n")
 
     def write_status_file(
         self,
