@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 from pydantic_ai import ModelHTTPError, models
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
@@ -460,6 +461,24 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             status,
             ServiceStatus(ServiceState.ERROR, "The last request failed: agent down"),
+        )
+
+    async def test_status_names_the_error_type_when_the_error_has_no_text(self):
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            httpx.ReadTimeout("")
+        )
+        self.llm_service.add_llm_request_to_queue("Failing message")
+        failed_turn_items = await self._collect_stream_items(3)
+
+        status = await _latest_status(self.llm_service)
+
+        self.assertEqual(
+            status,
+            ServiceStatus(ServiceState.ERROR, "The last request failed: ReadTimeout"),
+        )
+        self.assertEqual(
+            failed_turn_items[1],
+            SystemMessage(content="LLM turn failed: ReadTimeout"),
         )
 
     async def test_status_is_not_changed_by_a_reply_without_llm(self):

@@ -469,10 +469,12 @@ class LLMService:
         2. every block of the reply,
         3. LLMStatus.IDLE.
         A failed turn does not stop the loop, the error is yielded as a
-        SystemMessage (LLMStatus.IDLE still follows) and the next message is
-        taken. A turn also sets the LLM status of the app header (stream_status,
+        SystemMessage "LLM turn failed: <error>" (LLMStatus.IDLE still follows)
+        and the next message is taken. <error> is the error text, or the name
+        of the error type when the text is empty (for example "ReadTimeout").
+        A turn also sets the LLM status of the app header (stream_status,
         a different thing than LLMStatus): OK when it went well, ERROR with the
-        error when it failed. The reply is spoken too: every AgentText is
+        same <error> when it failed. The reply is spoken too: every AgentText is
         published as a TTSEvent by __run_turn_and_speak_reply. The stream has
         exactly one consumer, a queue does not copy items.
 
@@ -501,11 +503,12 @@ class LLMService:
                 async for response in self.__run_turn_and_speak_reply(message):
                     yield response
             except Exception as error:
-                logger.exception(f"LLM turn failed: {error}", exc_info=error)
+                error_text = self._error_text_or_type_name(error)
+                logger.exception(f"LLM turn failed: {error_text}", exc_info=error)
                 self.__status_stream.set_status(
-                    ServiceState.ERROR, f"The last request failed: {error}"
+                    ServiceState.ERROR, f"The last request failed: {error_text}"
                 )
-                yield SystemMessage(content=f"LLM turn failed: {error}")
+                yield SystemMessage(content=f"LLM turn failed: {error_text}")
             else:
                 self.__status_stream.set_status(
                     ServiceState.OK, "The last request succeeded"
@@ -572,9 +575,16 @@ class LLMService:
             yield status
         except Exception as e:
             status.completed = True
-            status.message = str(e)
+            status.message = self._error_text_or_type_name(e)
             self.__set_status_after_connection_test(status.message)
             yield status
+
+    @staticmethod
+    def _error_text_or_type_name(error: Exception) -> str:
+        """The text of the error for the UI. Some errors have an empty text
+        (httpx.ReadTimeout), then the type name is returned instead
+        ("ReadTimeout"), so the pilot can tell a timeout from a rejected key."""
+        return str(error) or type(error).__name__
 
     def __set_status_after_connection_test(self, connection_error: str | None) -> None:
         """Sets the LLM status after the test request of cold_start(): ERROR with
@@ -627,7 +637,7 @@ class LLMService:
                 error_message += f" Did you mean to use: {e.suggested_model_id} ?"
 
         except Exception as e:
-            error_message = str(e)
+            error_message = self._error_text_or_type_name(e)
 
         if provider_settings.api_key:
             # If there is any chance the API key appears in the error message,
