@@ -1,4 +1,5 @@
 import allure
+import httpx
 import pytest
 from pydantic_ai import ModelHTTPError
 from textual.app import App
@@ -194,6 +195,44 @@ async def test_should_turn_the_llm_dot_red_then_green_around_a_failed_request(
                 "the LLM dot green again",
             )
             assert dot_reason(pilot.app, LLM_DOT) == "The last request succeeded"
+
+
+@allure.title("A request that times out names the problem in the LLM dot and in COMMS")
+async def test_should_name_the_problem_when_a_request_fails_with_an_empty_error_text(
+    edceleste,
+):
+    async def time_out_without_a_message(messages, agent_info):
+        raise httpx.ReadTimeout("")
+        yield
+
+    with allure.step("Given the LLM provider times out without any error text"):
+        edceleste.use_scripted_model(time_out_without_a_message)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then the LLM dot turns red and names the timeout"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "error",
+                "the LLM dot red",
+            )
+            assert dot_reason(pilot.app, LLM_DOT) == (
+                "The last request failed: ReadTimeout"
+            )
+
+        with allure.step("And COMMS shows that the turn failed because of the timeout"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: (
+                    "LLM turn failed: ReadTimeout"
+                    in comms_entries(pilot.app, "system-message")
+                ),
+                "the timeout named in the failed turn in COMMS",
+            )
 
 
 @allure.title("A voice that breaks while speaking turns the TTS dot red")
