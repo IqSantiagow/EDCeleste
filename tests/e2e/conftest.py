@@ -6,6 +6,7 @@ and edge-tts voices.
 
 import asyncio
 import enum
+import os
 import shutil
 import sys
 import threading
@@ -840,6 +841,17 @@ class EdCelesteTestEnvironment:
     def append_journal_event(self, event_name: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
             journal.write(recorded_journal_line(event_name) + "\n")
+
+    def game_writes_a_new_journal_file(self, lines: list[str]) -> None:
+        # What the game does when it starts again: a new Journal file in the same
+        # folder, newer than the one Celeste follows. From now on
+        # append_journal_event writes to the new file. The file time is set to the
+        # future, so "the newest file" is the same on every machine
+        new_journal_file = self.journal_file.parent / "Journal.2026-10-05T180000.01.log"
+        new_journal_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        in_a_minute = time.time() + 60
+        os.utime(new_journal_file, (in_a_minute, in_a_minute))
+        self.journal_file = new_journal_file
 
     def append_fsd_jumps_to_systems(self, system_names: list[str]) -> None:
         # One write for all lines, so the app gets them as one burst
