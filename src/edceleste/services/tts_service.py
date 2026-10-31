@@ -449,8 +449,14 @@ class TTSService:
         LLM does not wait for the voice. The text is spoken live with
         __synthesize_and_play(), never from a prepared clip. The switch
         settings.tts.play_ship_replies does not apply: it silences only the
-        short prepared replies of __play_reply(), not the answers of the LLM. An
-        error of the voice is logged by the speech queue."""
+        short prepared replies of __play_reply(), not the answers of the LLM. A
+        blank text (empty, only spaces or newlines) is not queued, because a
+        real voice may fail on it and turn the TTS dot red for nothing. An error
+        of the voice is logged by the speech queue."""
+        if not event.text.strip():
+            logger.info("Blank TTS request, nothing to say")
+            return
+
         logger.info("Received TTS request: %s", event.text)
         self.__speaker_protocol.queue_speech(
             partial(self.__synthesize_and_play, event.text), PRIORITY_ANSWER
