@@ -1,0 +1,1 @@
+{"id":"bf27863bb910a944c6c569559fdac324.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_synthesize_and_play_passes_the_profile_path_to_cloning_provider","name":"test_synthesize_and_play_passes_the_profile_path_to_cloning_provider","status":"passed","testResultsByEnv":{"default":"3d453e760c1f73426cec78bfc8380a18"}}

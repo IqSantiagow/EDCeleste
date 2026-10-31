@@ -1,0 +1,1 @@
+{"id":"cba97fe89ece649b0f64da9c0014519c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderSynthesizeTest#test_synthesize_skips_loading_the_same_profile_again","name":"test_synthesize_skips_loading_the_same_profile_again","status":"passed","testResultsByEnv":{"default":"2211f57f65e018d70656011e201b1691"}}

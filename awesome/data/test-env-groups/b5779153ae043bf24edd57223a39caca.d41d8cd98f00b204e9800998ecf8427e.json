@@ -1,0 +1,1 @@
+{"id":"b5779153ae043bf24edd57223a39caca.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_keybindings_problems#test_should_say_game_actions_are_unavailable_without_keybindings","name":"Celeste says game actions are not available when the keybindings failed","status":"passed","testResultsByEnv":{"default":"756aa2c415ca77c1ecfa710632bdff92"}}

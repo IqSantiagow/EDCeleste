@@ -1,0 +1,1 @@
+{"id":"0a4427f36b12a019525f88796f087765.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_turn_the_tts_dot_red_when_the_voice_breaks_then_green","name":"A voice that breaks while speaking turns the TTS dot red","status":"passed","testResultsByEnv":{"default":"e84a1a76951f8e972ec23768dc3d0d15"}}

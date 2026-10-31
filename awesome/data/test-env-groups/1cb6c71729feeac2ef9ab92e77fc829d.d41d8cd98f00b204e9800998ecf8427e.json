@@ -1,0 +1,1 @@
+{"id":"1cb6c71729feeac2ef9ab92e77fc829d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_refuse_to_save_pocket_tts_without_a_voice","name":"Saving Pocket TTS with no voice shows an error and keeps config.yaml","status":"passed","testResultsByEnv":{"default":"7c5e9bb27962c2f771f4b7c75cd4ed1e"}}

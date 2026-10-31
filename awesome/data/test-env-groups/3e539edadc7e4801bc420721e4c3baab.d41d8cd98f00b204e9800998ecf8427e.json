@@ -1,0 +1,1 @@
+{"id":"3e539edadc7e4801bc420721e4c3baab.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_transcribed_text_is_stripped_before_it_is_queued","name":"test_transcribed_text_is_stripped_before_it_is_queued","status":"passed","testResultsByEnv":{"default":"a545c5ed0d021d123a13289c162eff1d"}}

@@ -1,0 +1,1 @@
+ERROR    edceleste.services.game_watcher_service:game_watcher_service.py:278 Error during validation for event: this is not a journal line

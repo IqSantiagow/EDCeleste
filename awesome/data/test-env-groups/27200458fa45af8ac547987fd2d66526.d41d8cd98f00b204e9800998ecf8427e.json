@@ -1,0 +1,1 @@
+{"id":"27200458fa45af8ac547987fd2d66526.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies_setting#test_should_show_the_ship_replies_switch_on_in_the_text_to_speech_settings","name":"Settings > Text to speech has a Ship replies switch, on by default","status":"passed","testResultsByEnv":{"default":"5446354ff50c91523fa9757fa83fe8b4"}}

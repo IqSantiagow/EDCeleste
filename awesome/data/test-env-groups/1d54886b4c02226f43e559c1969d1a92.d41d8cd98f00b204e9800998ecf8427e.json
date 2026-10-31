@@ -1,0 +1,1 @@
+{"id":"1d54886b4c02226f43e559c1969d1a92.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_route_cargo_modules_in_game_state#test_should_tell_the_llm_the_modules_of_the_ship","name":"The modules of the ship show in the game state with power and priority","status":"passed","testResultsByEnv":{"default":"df983633093ddd7536a3426e2362fff6"}}

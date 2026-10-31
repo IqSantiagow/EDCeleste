@@ -1,0 +1,1 @@
+{"id":"f27efe94d4ed40b1d4f57a926abcf1dd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderValidateParamsTest#test_validate_params_reports_issue_when_voice_missing","name":"test_validate_params_reports_issue_when_voice_missing","status":"passed","testResultsByEnv":{"default":"64cfdaf479c8c60f3ce85fbecf390f91"}}

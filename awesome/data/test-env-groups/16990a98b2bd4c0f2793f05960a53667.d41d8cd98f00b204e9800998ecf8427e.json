@@ -1,0 +1,1 @@
+{"id":"16990a98b2bd4c0f2793f05960a53667.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_get_cloning_provider_for_returns_the_active_provider_of_the_same_type","name":"test_get_cloning_provider_for_returns_the_active_provider_of_the_same_type","status":"passed","testResultsByEnv":{"default":"9a23940011b3b21da68ca0ff76ac8d03"}}

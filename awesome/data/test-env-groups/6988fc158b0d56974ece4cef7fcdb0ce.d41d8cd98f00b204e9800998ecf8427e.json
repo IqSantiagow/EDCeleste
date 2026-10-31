@@ -1,0 +1,1 @@
+{"id":"6988fc158b0d56974ece4cef7fcdb0ce.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_route_cargo_modules_in_game_state#test_should_tell_the_llm_what_is_in_the_cargo_hold","name":"When the cargo changes Celeste names what is in the hold, then an empty hold","status":"passed","testResultsByEnv":{"default":"bf02f9d0f732a301b7782fac3daa039d"}}

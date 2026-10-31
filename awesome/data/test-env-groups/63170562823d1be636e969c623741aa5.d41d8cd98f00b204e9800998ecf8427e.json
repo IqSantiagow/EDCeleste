@@ -1,0 +1,1 @@
+{"id":"63170562823d1be636e969c623741aa5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceNewGameSession#test_new_game_session_event_keeps_the_open_ui_streams_working","name":"test_new_game_session_event_keeps_the_open_ui_streams_working","status":"passed","testResultsByEnv":{"default":"5819c0c2d26f248ca41c8d6220690edd"}}

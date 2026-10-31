@@ -1,0 +1,1 @@
+{"id":"66b04bf9052fc4d6500f82c7d6b4cfdf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_route_cargo_modules_in_game_state#test_should_tell_the_llm_the_route_the_commander_plotted","name":"A route plotted in the game shows in the game state with its length","status":"passed","testResultsByEnv":{"default":"8d7a19d5a6c0e8ee3cf28f5a93ef2e00"}}

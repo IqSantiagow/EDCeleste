@@ -1,0 +1,1 @@
+{"id":"ed248763141ab08326afc875e9336e0a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_queue#test_should_stop_thinking_while_celeste_is_still_saying_the_answer","name":"Celeste stops thinking when her answer is written, not when it is said","status":"passed","testResultsByEnv":{"default":"722bf7ba5c7138635c415ae4d39b53ff"}}

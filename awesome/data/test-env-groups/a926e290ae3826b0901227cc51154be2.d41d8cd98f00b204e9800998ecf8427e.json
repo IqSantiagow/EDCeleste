@@ -1,0 +1,1 @@
+{"id":"a926e290ae3826b0901227cc51154be2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_remove_the_yellow_mark_from_the_journal_path_after_a_save","name":"A changed journal path is not yellow any more after a successful save","status":"passed","testResultsByEnv":{"default":"c9708c91ad947121a3f2af97af7e3501"}}

@@ -1,0 +1,1 @@
+{"id":"a8c613071f44399dc7a103e3186cc42e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceGameStats#test_get_game_stats_returns_the_current_stats_without_a_stream","name":"test_get_game_stats_returns_the_current_stats_without_a_stream","status":"passed","testResultsByEnv":{"default":"1fc13cf956bba6d9c8eb979398c7b39f"}}

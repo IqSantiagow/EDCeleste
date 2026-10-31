@@ -1,0 +1,1 @@
+{"id":"1acfee0a4b3ba307842b8e49e1a0ab23.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_ship_voice_effect.TestShipVoiceEffect#test_output_is_stereo_float32_of_the_same_length_as_the_piece","name":"test_output_is_stereo_float32_of_the_same_length_as_the_piece","status":"passed","testResultsByEnv":{"default":"dcf1cf79df08ef863bc1eb6203bc1f05"}}

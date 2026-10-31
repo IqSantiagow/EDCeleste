@@ -1,0 +1,1 @@
+{"id":"336e1530ae76ce1a99b32af5b0ae4926.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.SpeechQueueTest#test_a_cancelled_waiter_does_not_kill_the_speech_queue","name":"test_a_cancelled_waiter_does_not_kill_the_speech_queue","status":"passed","testResultsByEnv":{"default":"bd74448784c922109d65d0f96f427171"}}

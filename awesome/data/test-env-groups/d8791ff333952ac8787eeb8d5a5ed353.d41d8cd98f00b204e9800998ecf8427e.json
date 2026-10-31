@@ -1,0 +1,1 @@
+{"id":"d8791ff333952ac8787eeb8d5a5ed353.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_keybinds_service.KeybindServiceTest#test_get_keybinds_returns_copy_not_internal_list","name":"test_get_keybinds_returns_copy_not_internal_list","status":"passed","testResultsByEnv":{"default":"bd8f12a617af7d9fa4e731ab8661af7f"}}

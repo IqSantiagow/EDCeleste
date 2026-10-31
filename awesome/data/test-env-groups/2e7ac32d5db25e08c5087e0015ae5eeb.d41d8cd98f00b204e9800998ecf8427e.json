@@ -1,0 +1,1 @@
+{"id":"2e7ac32d5db25e08c5087e0015ae5eeb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalFilesOnDiskTest#test_validate_settings_keeps_the_message_for_an_empty_path","name":"test_validate_settings_keeps_the_message_for_an_empty_path","status":"passed","testResultsByEnv":{"default":"09150336b2a32847b723b48b2214065f"}}

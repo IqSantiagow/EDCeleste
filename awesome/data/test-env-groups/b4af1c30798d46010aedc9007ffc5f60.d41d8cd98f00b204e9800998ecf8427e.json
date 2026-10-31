@@ -1,0 +1,1 @@
+{"id":"b4af1c30798d46010aedc9007ffc5f60.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_warm_up_voice_runs_the_model_on_the_warm_up_text_without_sound","name":"test_warm_up_voice_runs_the_model_on_the_warm_up_text_without_sound","status":"passed","testResultsByEnv":{"default":"34e18486634482e8c32b5db5933f48c8"}}

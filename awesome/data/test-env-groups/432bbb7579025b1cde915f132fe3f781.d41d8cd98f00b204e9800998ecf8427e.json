@@ -1,0 +1,1 @@
+{"id":"432bbb7579025b1cde915f132fe3f781.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_new_game_session#test_should_follow_the_journal_the_game_opens_after_celeste_started","name":"Celeste started before the game follows the journal the game opens later","status":"passed","testResultsByEnv":{"default":"a792a530898177f384284e2433b29684"}}

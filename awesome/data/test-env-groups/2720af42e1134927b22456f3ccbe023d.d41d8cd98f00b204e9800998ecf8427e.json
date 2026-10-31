@@ -1,0 +1,1 @@
+{"id":"2720af42e1134927b22456f3ccbe023d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SpeedVerdictTest#test_can_stream_raises_type_error_for_params_of_another_provider","name":"test_can_stream_raises_type_error_for_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"3fb3610d3d8bf862fcf720f822185e38"}}

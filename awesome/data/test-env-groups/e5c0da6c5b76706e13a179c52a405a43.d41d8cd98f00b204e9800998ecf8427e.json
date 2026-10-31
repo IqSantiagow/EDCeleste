@@ -1,0 +1,1 @@
+{"id":"e5c0da6c5b76706e13a179c52a405a43.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.CreateVoiceProfileTest#test_gives_the_clip_to_the_model_with_its_sample_rate","name":"test_gives_the_clip_to_the_model_with_its_sample_rate","status":"passed","testResultsByEnv":{"default":"62f23d4f792cf9f62f0087a533f76a6b"}}

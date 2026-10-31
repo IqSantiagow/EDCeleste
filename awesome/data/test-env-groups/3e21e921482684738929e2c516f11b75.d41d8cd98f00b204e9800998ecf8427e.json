@@ -1,0 +1,1 @@
+{"id":"3e21e921482684738929e2c516f11b75.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_instinct_fast_commands#test_should_say_nothing_was_pressed_when_the_game_window_is_not_found","name":"When the game is not running Celeste says nothing was pressed","status":"passed","testResultsByEnv":{"default":"bb22c05b42a2a9111d70ec93305dc0f3"}}

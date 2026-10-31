@@ -1,0 +1,1 @@
+{"id":"83cf2b524c0fe8fedae074364f15b932.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_reply_texts.TestReplyTextsForChangedFlags#test_says_a_warning_only_when_its_bit_is_set","name":"test_says_a_warning_only_when_its_bit_is_set","status":"passed","testResultsByEnv":{"default":"097b8fe2ff1c6c210d274ba83c4461a1"}}

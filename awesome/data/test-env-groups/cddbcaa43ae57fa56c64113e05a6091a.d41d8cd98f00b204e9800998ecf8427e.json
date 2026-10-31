@@ -1,0 +1,1 @@
+{"id":"cddbcaa43ae57fa56c64113e05a6091a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_bind_hotkey_dialog#test_should_keep_the_key_when_the_dialog_is_cancelled","name":"Cancelling the dialog keeps the push-to-talk key as it was","status":"passed","testResultsByEnv":{"default":"d40ba7c830389e89b7ccfd20069dff7a"}}

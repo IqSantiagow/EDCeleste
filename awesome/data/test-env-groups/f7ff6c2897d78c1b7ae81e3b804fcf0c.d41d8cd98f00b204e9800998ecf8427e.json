@@ -1,0 +1,1 @@
+{"id":"f7ff6c2897d78c1b7ae81e3b804fcf0c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_transcribe_in_background_stops_recording_when_loop_is_unknown","name":"test_transcribe_in_background_stops_recording_when_loop_is_unknown","status":"passed","testResultsByEnv":{"default":"f053742480d93eeb4476be31a9d41a9a"}}

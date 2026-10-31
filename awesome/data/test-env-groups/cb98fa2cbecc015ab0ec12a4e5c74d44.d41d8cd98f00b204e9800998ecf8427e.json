@@ -1,0 +1,1 @@
+{"id":"cb98fa2cbecc015ab0ec12a4e5c74d44.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_edge_tts_provider.EdgeTTSProviderSynthesizeTest#test_synthesize_saves_audio_using_the_voice_from_params","name":"test_synthesize_saves_audio_using_the_voice_from_params","status":"passed","testResultsByEnv":{"default":"b9213a1e563d3a96889630d25e241585"}}

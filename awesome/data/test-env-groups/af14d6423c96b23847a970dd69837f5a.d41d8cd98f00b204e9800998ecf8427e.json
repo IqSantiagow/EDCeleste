@@ -1,0 +1,1 @@
+{"id":"af14d6423c96b23847a970dd69837f5a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_game_state_service.TestGameStateServiceNewGameSession#test_new_game_session_event_empties_the_game_stats","name":"test_new_game_session_event_empties_the_game_stats","status":"passed","testResultsByEnv":{"default":"314b3be3c195024c11caf15ab380f5fd"}}

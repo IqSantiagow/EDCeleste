@@ -1,0 +1,1 @@
+{"id":"490843ec4ab776582c41310ad19ecc60.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_bind_hotkey_dialog#test_should_keep_confirm_disabled_until_a_key_is_caught","name":"CONFIRM stays disabled until a key is caught","status":"passed","testResultsByEnv":{"default":"e24c6dde3ec39aa941242e39bc739a61"}}

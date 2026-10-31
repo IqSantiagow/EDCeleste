@@ -1,0 +1,1 @@
+{"id":"55352d0fcbbe4ec5c531914ef03adead.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderSynthesizeStreamTest#test_synthesize_stream_gives_every_piece_in_order","name":"test_synthesize_stream_gives_every_piece_in_order","status":"passed","testResultsByEnv":{"default":"7414ce4c0a7c1af4f26531393bf5de1c"}}

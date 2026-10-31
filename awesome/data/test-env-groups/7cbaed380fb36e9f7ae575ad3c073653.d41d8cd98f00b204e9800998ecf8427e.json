@@ -1,0 +1,1 @@
+{"id":"7cbaed380fb36e9f7ae575ad3c073653.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeStreamTest#test_makes_frames_only_as_the_caller_reads_them","name":"test_makes_frames_only_as_the_caller_reads_them","status":"passed","testResultsByEnv":{"default":"5c2f360dd56cfcde0bdeba35016768a2"}}

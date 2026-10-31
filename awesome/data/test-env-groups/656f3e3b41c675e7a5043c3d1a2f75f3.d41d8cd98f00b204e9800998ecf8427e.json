@@ -1,0 +1,1 @@
+{"id":"656f3e3b41c675e7a5043c3d1a2f75f3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.PlayPiecesFromTest#test_the_voice_is_not_asked_for_more_after_stop_speaking","name":"test_the_voice_is_not_asked_for_more_after_stop_speaking","status":"passed","testResultsByEnv":{"default":"9f807ddb49a18ef5407112795ae62df9"}}

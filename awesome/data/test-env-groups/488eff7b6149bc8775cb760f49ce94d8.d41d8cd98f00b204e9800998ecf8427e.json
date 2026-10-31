@@ -1,0 +1,1 @@
+{"id":"488eff7b6149bc8775cb760f49ce94d8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_startup_loading#test_should_show_the_header_and_the_hud_at_once_when_started_in_a_session","name":"Celeste started in the middle of a session shows the header and the HUD at once","status":"passed","testResultsByEnv":{"default":"87172b874d8d2ed27d53eaaae857d90d"}}

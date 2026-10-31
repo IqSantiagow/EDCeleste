@@ -1,0 +1,1 @@
+{"id":"6f34f23aa4078fbffa96ac598d3455a0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_conversation_memory#test_should_forget_a_turn_that_failed_after_a_tool_call","name":"A turn that fails halfway leaves nothing of itself in Celeste's memory","status":"passed","testResultsByEnv":{"default":"dc19ccc0bddb859005131a8283c89172"}}

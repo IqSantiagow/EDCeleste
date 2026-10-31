@@ -1,0 +1,1 @@
+{"id":"f61c4bd1bce859e737218f58a66e31c3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_pocket_tts#test_should_list_only_the_voices_of_the_engine_on_the_screen","name":"Pocket TTS lists only its own voices, not the ones of Chatterbox","status":"passed","testResultsByEnv":{"default":"abac1ed792dc2dd00c125409166fe28f"}}

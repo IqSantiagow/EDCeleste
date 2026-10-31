@@ -1,0 +1,1 @@
+{"id":"b373465d9f2c9e759e477e1345ec9112.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.StopSpeakingTest#test_a_speech_queued_right_after_stop_speaking_on_the_loop_is_not_dropped","name":"test_a_speech_queued_right_after_stop_speaking_on_the_loop_is_not_dropped","status":"passed","testResultsByEnv":{"default":"f481ee92a78629a7b3993d2e791d27a8"}}

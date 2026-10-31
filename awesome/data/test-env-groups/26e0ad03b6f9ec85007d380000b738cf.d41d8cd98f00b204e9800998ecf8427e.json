@@ -1,0 +1,1 @@
+{"id":"26e0ad03b6f9ec85007d380000b738cf.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.SpeakerStatusTest#test_a_dropped_speech_does_not_change_the_status","name":"test_a_dropped_speech_does_not_change_the_status","status":"passed","testResultsByEnv":{"default":"81562feaadd9b2e25bb576dfc9c86857"}}

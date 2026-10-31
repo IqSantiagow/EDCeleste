@@ -1,0 +1,81 @@
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Status.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Status.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Market.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Market.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 NavRoute.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/NavRoute.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Cargo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Cargo.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 ModulesInfo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/ModulesInfo.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Status.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Status.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Market.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Market.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 NavRoute.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/NavRoute.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 Cargo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/Cargo.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:477 ModulesInfo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_failed_turn0/journal/ModulesInfo.json'. Waiting for it to appear...
+ERROR    edceleste.services.llm_service:llm_service.py:183 Error while processing LLM response: Provider is down
+ERROR    edceleste.services.llm_service:llm_service.py:507 LLM turn failed: Provider is down
+Traceback (most recent call last):
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 503, in consume_llm_queue
+    async for response in self.__run_turn_and_speak_reply(message):
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 184, in __run_turn_and_speak_reply
+    raise e
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 175, in __run_turn_and_speak_reply
+    async for response in self.__stream_agent_response(message):
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/llm_service.py", line 243, in __stream_agent_response
+    async for event in events:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 197, in __anext__
+    result = await self._task
+             ^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 304, in run_agent
+    result = await self._run_agent(event_stream_handler)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 1576, in run_agent
+    return await self.run(
+           ^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 684, in run
+    node = await agent_run._run_node_with_hooks(node, _stream_step)  # pyright: ignore[reportPrivateUsage]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/run.py", line 571, in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/run.py", line 551, in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 668, in _stream_and_advance
+    await _handler(run_ctx, stream)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/agent/abstract.py", line 297, in event_stream_handler
+    async for event in events:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/result.py", line 535, in _pull_shared
+    event = await anext(events_iterator)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/capabilities/combined.py", line 662, in wrap_run_event_stream
+    async for event in stream:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/capabilities/abstract.py", line 950, in wrap_run_event_stream
+    async for event in stream:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/capabilities/abstract.py", line 950, in wrap_run_event_stream
+    async for event in stream:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/_run_context.py", line 104, in dispatch_event_stream
+    async for event in stream:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/result.py", line 566, in _events_iter
+    event = await anext(base_iter)
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/result.py", line 506, in _model_events
+    event = await anext(events)
+            ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/_continuation.py", line 443, in _iterator_with_cancel_guard
+    async for event in iterator:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/_utils.py", line 696, in __anext__
+    return await anext(self._source_iter)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/_continuation.py", line 544, in _get_event_iterator
+    async for event in sub:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/__init__.py", line 1548, in iterator_with_cancel_guard
+    async for event in iterator:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/__init__.py", line 1524, in iterator_with_part_end
+    async for event in iterator:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/__init__.py", line 1500, in iterator_with_final_event
+    async for event in iterator:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/models/function.py", line 358, in _get_event_iterator
+    async for item in self._iter:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pydantic_ai/_utils.py", line 696, in __anext__
+    return await anext(self._source_iter)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/e2e/test_comms.py", line 176, in answer_and_lose_the_connection
+    raise ConnectionError("Provider is down")
+ConnectionError: Provider is down

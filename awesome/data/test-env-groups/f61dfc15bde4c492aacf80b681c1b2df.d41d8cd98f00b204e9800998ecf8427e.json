@@ -1,0 +1,1 @@
+{"id":"f61dfc15bde4c492aacf80b681c1b2df.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.NewJournalFileOnDiskTest#test_start_watcher_service_remembers_the_newest_journal_file","name":"test_start_watcher_service_remembers_the_newest_journal_file","status":"passed","testResultsByEnv":{"default":"fb115551e2180c500921fef39a65bcd2"}}

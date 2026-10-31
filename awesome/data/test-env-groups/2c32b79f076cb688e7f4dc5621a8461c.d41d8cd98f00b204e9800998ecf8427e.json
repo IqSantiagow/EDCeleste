@@ -1,0 +1,1 @@
+{"id":"2c32b79f076cb688e7f4dc5621a8461c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.IsModuleEnabledTest#test_is_false_when_the_model_runs_on_the_cpu","name":"test_is_false_when_the_model_runs_on_the_cpu","status":"passed","testResultsByEnv":{"default":"60013853ba64c5cd01125ed4e7e1cff3"}}

@@ -1,0 +1,1 @@
+{"id":"6ba39c55bfeff47897a9b64fe5af51c2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_refuse_to_save_chatterbox_without_a_voice","name":"Saving Chatterbox with no voice shows an error and keeps config.yaml","status":"passed","testResultsByEnv":{"default":"f77e397f0e2aab1e19c748d4ad816735"}}

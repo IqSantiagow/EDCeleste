@@ -1,0 +1,1 @@
+{"id":"12b217520d9923c75458fc57f5077b15.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.CreateVoiceProfileTest#test_loads_the_model_once_for_the_profile_and_the_speech","name":"test_loads_the_model_once_for_the_profile_and_the_speech","status":"passed","testResultsByEnv":{"default":"b4701efdc37ee814c7ac500b0204d43f"}}

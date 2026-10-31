@@ -1,0 +1,1 @@
+{"id":"6319e45768711d3438bdcf575635652a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_transcribe_in_background_puts_text_in_the_queue","name":"test_transcribe_in_background_puts_text_in_the_queue","status":"passed","testResultsByEnv":{"default":"9782dc36ab329f94aadb83fd287f33be"}}

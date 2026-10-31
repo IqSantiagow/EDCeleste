@@ -1,0 +1,1 @@
+{"id":"816e38f411540f8e898d9ae6887bd18a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_new_game_session#test_should_stay_silent_about_the_new_journal_and_react_to_the_next_jump","name":"After the game restarts Celeste stays silent about the new journal and reacts to the next jump","status":"passed","testResultsByEnv":{"default":"0528a36b32b297aa0952642329548b23"}}

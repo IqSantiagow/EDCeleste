@@ -1,0 +1,1 @@
+{"id":"7df091a1e8ebb30119cbd10daa54fde9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.TryFastCommandTest#test_does_not_ask_the_model_when_the_game_state_is_empty","name":"test_does_not_ask_the_model_when_the_game_state_is_empty","status":"passed","testResultsByEnv":{"default":"0dc8af624c8d63b028f2988c63bd7c84"}}

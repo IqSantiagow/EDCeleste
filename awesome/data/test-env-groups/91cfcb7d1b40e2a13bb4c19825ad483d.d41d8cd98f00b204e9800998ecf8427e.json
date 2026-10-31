@@ -1,0 +1,1 @@
+{"id":"91cfcb7d1b40e2a13bb4c19825ad483d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_not_save_the_selected_voice_after_it_was_deleted","name":"Saving never stores a voice that the Commander has just deleted","status":"passed","testResultsByEnv":{"default":"3a90db8e86c89a22010c630246027761"}}

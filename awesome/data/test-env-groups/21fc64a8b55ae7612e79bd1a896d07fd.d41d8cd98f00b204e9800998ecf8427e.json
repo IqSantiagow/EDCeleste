@@ -1,0 +1,1 @@
+{"id":"21fc64a8b55ae7612e79bd1a896d07fd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_reload_service_keeps_the_same_provider_when_the_type_is_the_same","name":"test_reload_service_keeps_the_same_provider_when_the_type_is_the_same","status":"passed","testResultsByEnv":{"default":"77b4b9ce3e21da04a3d09c8210d9c57f"}}

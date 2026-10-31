@@ -1,0 +1,1 @@
+{"id":"568d3983346c0dd3a6c917ec1ee48e1c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_new_game_session#test_should_show_the_new_session_after_the_game_restarts","name":"After the game restarts the header and the navigation show the new session","status":"passed","testResultsByEnv":{"default":"499f0e94edb1687bfa559d26f2658f37"}}

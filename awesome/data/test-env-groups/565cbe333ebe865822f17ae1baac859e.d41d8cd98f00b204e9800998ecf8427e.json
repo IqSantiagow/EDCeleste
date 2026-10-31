@@ -1,0 +1,1 @@
+{"id":"565cbe333ebe865822f17ae1baac859e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalFilesOnDiskTest#test_start_watcher_service_raises_for_a_folder_with_only_app_log","name":"test_start_watcher_service_raises_for_a_folder_with_only_app_log","status":"passed","testResultsByEnv":{"default":"4d7dafff6f001123071c6bb0895f937e"}}

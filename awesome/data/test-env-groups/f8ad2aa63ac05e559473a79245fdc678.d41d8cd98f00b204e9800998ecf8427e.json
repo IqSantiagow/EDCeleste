@@ -1,0 +1,1 @@
+{"id":"f8ad2aa63ac05e559473a79245fdc678.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_status_is_error_and_stream_is_dropped_when_the_microphone_fails","name":"test_status_is_error_and_stream_is_dropped_when_the_microphone_fails","status":"passed","testResultsByEnv":{"default":"8ed43a031ffd268cd0343190fc005ab5"}}

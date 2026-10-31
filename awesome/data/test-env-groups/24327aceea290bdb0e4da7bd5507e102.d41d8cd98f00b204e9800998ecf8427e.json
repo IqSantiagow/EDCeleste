@@ -1,0 +1,1 @@
+{"id":"24327aceea290bdb0e4da7bd5507e102.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_synthesize_and_play_leaves_the_ship_effect_out_when_switched_off","name":"test_synthesize_and_play_leaves_the_ship_effect_out_when_switched_off","status":"passed","testResultsByEnv":{"default":"fc06be9dd56c6ea25730fa52c7bb6c8b"}}

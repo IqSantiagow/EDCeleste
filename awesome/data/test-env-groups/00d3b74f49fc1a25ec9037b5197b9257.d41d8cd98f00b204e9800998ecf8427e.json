@@ -1,0 +1,1 @@
+{"id":"00d3b74f49fc1a25ec9037b5197b9257.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies#test_should_say_the_frame_shift_drive_once_when_the_game_reports_the_charge","name":"An FSD command is written in COMMS, the voice comes with the game","status":"passed","testResultsByEnv":{"default":"655151fe44afc846551439d7de90a033"}}

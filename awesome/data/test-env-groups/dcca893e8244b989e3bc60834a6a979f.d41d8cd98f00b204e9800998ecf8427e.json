@@ -1,0 +1,1 @@
+{"id":"dcca893e8244b989e3bc60834a6a979f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_service_status_stream.ServiceStatusStreamTest#test_stream_yields_the_first_status_at_once","name":"test_stream_yields_the_first_status_at_once","status":"passed","testResultsByEnv":{"default":"e1ead54188362de28b5641d90c7d7081"}}

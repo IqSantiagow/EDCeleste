@@ -1,0 +1,1 @@
+{"id":"d91fe8bc4107ce543b6a55acd5eb26cc.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.JournalFilesOnDiskTest#test_validate_settings_accepts_a_folder_with_a_journal_file","name":"test_validate_settings_accepts_a_folder_with_a_journal_file","status":"passed","testResultsByEnv":{"default":"5c811e4606cc805812237e9a43cdeebf"}}

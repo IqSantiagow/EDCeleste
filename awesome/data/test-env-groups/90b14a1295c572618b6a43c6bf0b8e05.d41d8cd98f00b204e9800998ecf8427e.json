@@ -1,0 +1,1 @@
+{"id":"90b14a1295c572618b6a43c6bf0b8e05.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_cloning#test_should_not_touch_the_recordings_kept_in_the_voices_folder","name":"Cloning a recording from the voices folder leaves the recordings there untouched","status":"passed","testResultsByEnv":{"default":"715e01d01889f59a34268e9d4acc594b"}}

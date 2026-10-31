@@ -1,0 +1,2 @@
+WARNING  edceleste.services.stt_service:stt_service.py:179 Nobody consumes the STT queue, dropped: 'Turn on the engines'
+WARNING  edceleste.services.stt_service:stt_service.py:179 Nobody consumes the STT queue, dropped: 'Turn on the engines'

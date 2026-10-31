@@ -1,0 +1,1 @@
+{"id":"9cb1e1b2d2f9a37141702211c30d1235.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.NewJournalFileOnDiskTest#test_next_part_file_restarts_without_new_game_session_event","name":"test_next_part_file_restarts_without_new_game_session_event","status":"passed","testResultsByEnv":{"default":"d875fcbdd96507668794caa51ad62c24"}}

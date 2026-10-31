@@ -1,0 +1,1 @@
+{"id":"1694fb54feb896e01b4629f3e260bd30.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_turn_the_mic_dot_red_when_the_microphone_cannot_be_opened","name":"A microphone that cannot be opened turns the MIC dot red","status":"passed","testResultsByEnv":{"default":"e6f59f175aa90e62bb0d5d11cb9e9b5b"}}

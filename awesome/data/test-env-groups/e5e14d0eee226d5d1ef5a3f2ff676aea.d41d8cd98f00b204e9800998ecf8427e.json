@@ -1,0 +1,1 @@
+{"id":"e5e14d0eee226d5d1ef5a3f2ff676aea.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_route_cargo_modules_in_game_state#test_should_tell_the_llm_that_no_route_is_plotted_after_the_route_is_cleared","name":"After the Commander clears the route Celeste knows there is none","status":"passed","testResultsByEnv":{"default":"b5981a46157e970fb2174cede309ab71"}}

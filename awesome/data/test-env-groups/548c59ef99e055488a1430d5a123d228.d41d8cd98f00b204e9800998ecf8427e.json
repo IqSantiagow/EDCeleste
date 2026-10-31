@@ -1,0 +1,1 @@
+{"id":"548c59ef99e055488a1430d5a123d228.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.app.test_stream_service_statuses_usecase.StreamServiceStatusesUseCaseTest#test_every_service_status_lands_in_its_own_field","name":"test_every_service_status_lands_in_its_own_field","status":"passed","testResultsByEnv":{"default":"29e29af055021dff9de6dca5672318a1"}}

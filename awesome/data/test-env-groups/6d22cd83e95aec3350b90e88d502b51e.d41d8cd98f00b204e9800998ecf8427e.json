@@ -1,0 +1,1 @@
+{"id":"6d22cd83e95aec3350b90e88d502b51e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.models.test_reply_texts.TestReplyTextsForChangedFlags#test_ignores_bits_that_are_not_ship_switches","name":"test_ignores_bits_that_are_not_ship_switches","status":"passed","testResultsByEnv":{"default":"e03affb85fd561eb2a88c89c63f74a5e"}}

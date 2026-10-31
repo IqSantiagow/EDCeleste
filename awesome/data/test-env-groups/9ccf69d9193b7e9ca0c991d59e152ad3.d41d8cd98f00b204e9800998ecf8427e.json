@@ -1,0 +1,1 @@
+{"id":"9ccf69d9193b7e9ca0c991d59e152ad3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_keep_the_journal_path_yellow_when_the_save_fails","name":"A journal path that fails the check stays yellow and shows the error","status":"passed","testResultsByEnv":{"default":"034d0d87a4d532258185dbf4e76c213b"}}

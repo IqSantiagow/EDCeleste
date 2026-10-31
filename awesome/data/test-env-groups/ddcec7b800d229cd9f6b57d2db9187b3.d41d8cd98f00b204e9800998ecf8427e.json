@@ -1,0 +1,1 @@
+{"id":"ddcec7b800d229cd9f6b57d2db9187b3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_hotkey_service.TestHotkeyServiceKeys#test_release_without_press_does_not_call_on_release","name":"test_release_without_press_does_not_call_on_release","status":"passed","testResultsByEnv":{"default":"a5ea0da79ba28f66e15741f0b996a019"}}

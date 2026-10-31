@@ -1,0 +1,1 @@
+{"id":"821e68d5e8498e33308b27c8b6454ff9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_status_is_error_with_the_error_text_after_a_failed_request","name":"test_status_is_error_with_the_error_text_after_a_failed_request","status":"passed","testResultsByEnv":{"default":"d217b50e8d599c584eb29adae2d82be1"}}

@@ -1,0 +1,1 @@
+{"id":"ad3bc142a1c9dc90d9800dfdccd2ef2c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_not_show_the_path_in_yellow_when_the_saved_value_is_typed_back","name":"A path typed back to the saved value is not shown in yellow","status":"passed","testResultsByEnv":{"default":"d9d913465e6a52848919d93838d9ca1c"}}

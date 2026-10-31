@@ -1,0 +1,1 @@
+{"id":"2cb69a3ccbdffacc56c6b4c189251644.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.SpeechQueueTest#test_an_error_of_a_speech_goes_to_its_future_and_the_next_one_plays","name":"test_an_error_of_a_speech_goes_to_its_future_and_the_next_one_plays","status":"passed","testResultsByEnv":{"default":"acf416e533a02ae32b6d678ca5e50918"}}

@@ -1,0 +1,1 @@
+{"id":"4cfc4b5d55525b2b48c66a506cc96573.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_add_ship_effect_to_whole_audio_returns_stereo_longer_by_the_tail","name":"test_add_ship_effect_to_whole_audio_returns_stereo_longer_by_the_tail","status":"passed","testResultsByEnv":{"default":"7575b83f95cfcdc80a6e07228f87e12b"}}

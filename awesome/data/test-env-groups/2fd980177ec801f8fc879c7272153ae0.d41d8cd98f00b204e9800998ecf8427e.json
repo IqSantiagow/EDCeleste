@@ -1,0 +1,1 @@
+{"id":"2fd980177ec801f8fc879c7272153ae0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_instinct_spoken_reply#test_should_show_the_reply_in_comms_while_the_voice_is_still_speaking","name":"The reply is on the screen while Celeste is still saying it","status":"passed","testResultsByEnv":{"default":"bfa9a6a9aed97efe8253b1487fbdae03"}}

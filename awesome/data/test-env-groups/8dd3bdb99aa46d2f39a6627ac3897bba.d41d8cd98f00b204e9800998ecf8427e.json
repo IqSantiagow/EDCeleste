@@ -1,0 +1,1 @@
+{"id":"8dd3bdb99aa46d2f39a6627ac3897bba.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_game_state_prompt#test_should_send_the_game_state_parts_commander_first_and_market_last","name":"The parts of the game state come in a fixed order, market last","status":"passed","testResultsByEnv":{"default":"a75d4692fe2f786c9f02e2db00a55ffb"}}

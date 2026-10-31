@@ -1,0 +1,3 @@
+WARNING  edceleste.services.llm_service:llm_service.py:302 LLM tool call rejected: action is not a valid EdAction
+
+Fix the errors and try again.

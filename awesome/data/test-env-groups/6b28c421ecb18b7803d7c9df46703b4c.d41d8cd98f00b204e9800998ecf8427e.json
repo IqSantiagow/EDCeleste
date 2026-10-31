@@ -1,0 +1,1 @@
+{"id":"6b28c421ecb18b7803d7c9df46703b4c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_chatterbox_tts_provider.ChatterboxTTSProviderSplitTextIntoSentencesTest#test_splits_after_every_sentence_end","name":"test_splits_after_every_sentence_end","status":"passed","testResultsByEnv":{"default":"4b6c600dbedde54a9d7cc4250d415f5e"}}

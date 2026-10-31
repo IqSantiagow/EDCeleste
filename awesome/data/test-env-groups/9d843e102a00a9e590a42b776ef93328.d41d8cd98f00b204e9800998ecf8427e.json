@@ -1,0 +1,1 @@
+{"id":"9d843e102a00a9e590a42b776ef93328.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.OpenSpeakerTest#test_falls_back_to_the_default_speaker_when_wasapi_fails","name":"test_falls_back_to_the_default_speaker_when_wasapi_fails","status":"passed","testResultsByEnv":{"default":"4c75eb086353ac83526716c555a33006"}}

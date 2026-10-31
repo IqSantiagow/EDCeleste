@@ -1,0 +1,1 @@
+{"id":"548f5174460638d8f35cf126cc65f542.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceHistory#test_should_keep_tool_calls_and_their_results_in_the_history","name":"test_should_keep_tool_calls_and_their_results_in_the_history","status":"passed","testResultsByEnv":{"default":"3b707698c4fd973f55b27a4cd829f9c5"}}

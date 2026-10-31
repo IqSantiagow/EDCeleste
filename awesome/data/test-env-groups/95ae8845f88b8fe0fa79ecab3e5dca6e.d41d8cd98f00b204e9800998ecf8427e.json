@@ -1,0 +1,1 @@
+{"id":"95ae8845f88b8fe0fa79ecab3e5dca6e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.app.test_stream_service_statuses_usecase.StreamServiceStatusesUseCaseTest#test_two_streams_at_once_both_get_every_change","name":"test_two_streams_at_once_both_get_every_change","status":"passed","testResultsByEnv":{"default":"9de2687db8593d6484b03192a5b3b64b"}}

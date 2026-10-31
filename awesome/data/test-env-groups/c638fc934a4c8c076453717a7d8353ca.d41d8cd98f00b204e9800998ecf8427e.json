@@ -1,0 +1,1 @@
+{"id":"c638fc934a4c8c076453717a7d8353ca.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.OpenSpeakerTest#test_uses_wasapi_with_low_latency_on_windows","name":"test_uses_wasapi_with_low_latency_on_windows","status":"passed","testResultsByEnv":{"default":"81c485673d6154cbae1835be25ffd168"}}

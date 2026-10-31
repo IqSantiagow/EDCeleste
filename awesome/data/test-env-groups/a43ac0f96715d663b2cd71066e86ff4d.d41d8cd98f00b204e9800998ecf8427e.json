@@ -1,0 +1,1 @@
+{"id":"a43ac0f96715d663b2cd71066e86ff4d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_clone_voice_writes_the_trimmed_clip_outside_the_voices_folder","name":"test_clone_voice_writes_the_trimmed_clip_outside_the_voices_folder","status":"passed","testResultsByEnv":{"default":"e524218b4c5ef9b05ee58f22b926aa05"}}

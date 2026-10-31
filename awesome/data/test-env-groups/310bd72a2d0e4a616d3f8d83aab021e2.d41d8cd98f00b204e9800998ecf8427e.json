@@ -1,0 +1,1 @@
+{"id":"310bd72a2d0e4a616d3f8d83aab021e2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_tts_settings#test_should_show_pocket_tts_without_a_voice_after_switching_to_local","name":"Switching the location to Local shows Pocket TTS with no voice picked","status":"passed","testResultsByEnv":{"default":"bb717c44b0a0e9a1b7cf69125c35f5b9"}}

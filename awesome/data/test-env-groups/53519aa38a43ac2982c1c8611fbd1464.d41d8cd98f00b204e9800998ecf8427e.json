@@ -1,0 +1,1 @@
+{"id":"53519aa38a43ac2982c1c8611fbd1464.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_turn_the_llm_dot_red_then_green_around_a_failed_request","name":"A failed LLM request turns the LLM dot red, the next good one green","status":"passed","testResultsByEnv":{"default":"0f92c7f2504f189b67c5354f803060aa"}}

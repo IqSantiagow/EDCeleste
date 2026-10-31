@@ -1,0 +1,1 @@
+{"id":"b3787eb3af8cdc86893c3252c6f7d7f5.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_voice_cloning#test_should_not_write_outside_the_voices_folder_for_a_name_with_dots","name":"A voice name with ../ cannot write outside the voices folder","status":"passed","testResultsByEnv":{"default":"0f9a158e9b0e3a7867d84c1999d7b671"}}

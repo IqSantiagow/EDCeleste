@@ -1,0 +1,1 @@
+{"id":"d9541bf845c957458d1b255ecbd258cd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.ui.screens.dashboard.view_models.test_comms_message_view_model.TestCommsMessageViewModel#test_from_message_block_skips_tool_call","name":"test_from_message_block_skips_tool_call","status":"passed","testResultsByEnv":{"default":"35b9e1b67966441ef62dd156fb5f4c33"}}

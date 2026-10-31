@@ -1,0 +1,1 @@
+{"id":"e2b8ce10438be180c9bdf7e3137f728b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_start_recording_leaves_celeste_alone_when_disabled","name":"test_start_recording_leaves_celeste_alone_when_disabled","status":"passed","testResultsByEnv":{"default":"a8ef692da55e77ba6b8c9ab0cc902798"}}

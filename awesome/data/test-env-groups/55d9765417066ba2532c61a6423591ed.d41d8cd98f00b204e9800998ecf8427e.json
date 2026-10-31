@@ -1,0 +1,1 @@
+{"id":"55d9765417066ba2532c61a6423591ed.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings_llm#test_should_not_show_a_change_when_the_journal_path_is_left_unchanged","name":"Clicking into the journal path and leaving it unchanged shows no change","status":"passed","testResultsByEnv":{"default":"c4989c42af2e6cd5ae3ce0f08da26e72"}}

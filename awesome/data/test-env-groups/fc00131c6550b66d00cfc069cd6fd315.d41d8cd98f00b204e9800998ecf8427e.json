@@ -1,0 +1,1 @@
+{"id":"fc00131c6550b66d00cfc069cd6fd315.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_route_cargo_modules_in_game_state#test_should_know_the_side_files_written_before_the_start_and_stay_silent","name":"Celeste started in a session knows route, cargo and modules but says nothing","status":"passed","testResultsByEnv":{"default":"41a9e6280630b4f32665ad9fa4dd72fe"}}

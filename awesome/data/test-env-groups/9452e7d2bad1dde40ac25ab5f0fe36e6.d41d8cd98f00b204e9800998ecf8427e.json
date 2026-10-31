@@ -1,0 +1,1 @@
+{"id":"9452e7d2bad1dde40ac25ab5f0fe36e6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.StopSpeakingTest#test_the_cut_speech_stops_the_speaker_and_the_next_one_waits_for_it","name":"test_the_cut_speech_stops_the_speaker_and_the_next_one_waits_for_it","status":"passed","testResultsByEnv":{"default":"c7ba8e2e814b022d6bae2896e0b475fa"}}

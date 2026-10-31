@@ -1,0 +1,1 @@
+{"id":"0219e4ef91a11bf8cee6d6149edcaf88.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_start_recording_makes_celeste_go_silent_before_the_microphone_opens","name":"test_start_recording_makes_celeste_go_silent_before_the_microphone_opens","status":"passed","testResultsByEnv":{"default":"055d0e16d3e2807d793f39cecec6c6fa"}}

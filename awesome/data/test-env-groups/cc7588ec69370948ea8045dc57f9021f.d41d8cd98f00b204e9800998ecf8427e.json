@@ -1,0 +1,1 @@
+{"id":"cc7588ec69370948ea8045dc57f9021f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_dim_the_mic_dot_when_speech_to_text_is_switched_off_in_settings","name":"Switching speech to text off in Settings dims the MIC dot","status":"passed","testResultsByEnv":{"default":"89fb5f3e8fe1062c3a3c11adef9ade9a"}}

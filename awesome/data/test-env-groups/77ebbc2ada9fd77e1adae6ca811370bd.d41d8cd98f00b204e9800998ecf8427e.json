@@ -1,0 +1,1 @@
+{"id":"77ebbc2ada9fd77e1adae6ca811370bd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_consume_stt_queue_yields_texts_in_order","name":"test_consume_stt_queue_yields_texts_in_order","status":"passed","testResultsByEnv":{"default":"15baa6520fc54bf779b99491703d1835"}}

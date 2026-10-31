@@ -1,0 +1,1 @@
+{"id":"dc05f27262f03d82af3ed06f99c252fd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeTest#test_raises_type_error_for_params_of_another_provider","name":"test_raises_type_error_for_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"dcb96c7ab16d5d2ae7c10e50c09083c5"}}

@@ -1,0 +1,1 @@
+{"id":"0f96cd890754004de913538098881331.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_show_the_llm_dot_red_when_the_provider_rejects_the_key","name":"A wrong LLM key shows the LLM dot red when Celeste starts","status":"passed","testResultsByEnv":{"default":"ef0fbee9b6b3c4a1e0ecd14da5f550a3"}}

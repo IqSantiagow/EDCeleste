@@ -1,0 +1,1 @@
+{"id":"7cd24435b9bd69ceeccbba8f4e44bed6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_keybindings_problems#test_should_open_the_dashboard_when_there_is_no_keybindings_file","name":"The dashboard opens even when there is no keybindings file at all","status":"passed","testResultsByEnv":{"default":"845a5b2cf8fa0fc64a33c75e6ce04c4d"}}

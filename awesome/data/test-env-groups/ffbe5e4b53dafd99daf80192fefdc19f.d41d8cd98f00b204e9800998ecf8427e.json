@@ -1,0 +1,1 @@
+{"id":"ffbe5e4b53dafd99daf80192fefdc19f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceTest#test_analysis_accepts_a_clip_exactly_as_long_as_reference_seconds","name":"test_analysis_accepts_a_clip_exactly_as_long_as_reference_seconds","status":"passed","testResultsByEnv":{"default":"c39466a6c06a8b08d1a0970ea8ed4124"}}

@@ -1,0 +1,1 @@
+{"id":"8d6bfb6fb6c8f072c6446f456084f9d9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_conversation_memory#test_should_forget_the_exchanges_older_than_the_last_ten","name":"Celeste forgets what is older than her last ten exchanges, reactions included","status":"passed","testResultsByEnv":{"default":"3fe737274ae4bc8c9eb54c8e9b7d333f"}}

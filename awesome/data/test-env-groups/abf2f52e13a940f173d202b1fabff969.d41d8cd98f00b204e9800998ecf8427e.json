@@ -1,0 +1,1 @@
+{"id":"abf2f52e13a940f173d202b1fabff969.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_tts_service.TTSServiceStreamingTest#test_stream_voice_to_speaker_raises_the_error_of_the_provider","name":"test_stream_voice_to_speaker_raises_the_error_of_the_provider","status":"passed","testResultsByEnv":{"default":"1e4102f5e9cf1ba8b3171a9434a81352"}}

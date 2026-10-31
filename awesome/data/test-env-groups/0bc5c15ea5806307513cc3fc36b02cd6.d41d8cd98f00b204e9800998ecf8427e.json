@@ -1,0 +1,1 @@
+{"id":"0bc5c15ea5806307513cc3fc36b02cd6.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.ValidateParamsTest#test_raises_type_error_for_params_of_another_provider","name":"test_raises_type_error_for_params_of_another_provider","status":"passed","testResultsByEnv":{"default":"24d5421b29392e9d6b08cc3bc5a44273"}}

@@ -1,0 +1,1 @@
+{"id":"acb9e2b9bbd96b15b7a1e5cdb6fa0ea8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_stt_transcriptions_use_case.TestStreamSttTranscriptionsUseCase#test_should_return_the_stream_of_the_stt_protocol","name":"test_should_return_the_stream_of_the_stt_protocol","status":"passed","testResultsByEnv":{"default":"50d37a05cf2294c821fba35e934e69ef"}}

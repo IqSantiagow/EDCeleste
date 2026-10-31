@@ -1,0 +1,1 @@
+{"id":"78862e3e7c6ebf54c893e2a00c471669.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_refuse_a_folder_named_like_journals_that_has_only_an_app_log","name":"A folder called MyJournals with only an app.log is refused: the file name counts, not the folder name","status":"passed","testResultsByEnv":{"default":"89cd7ed5e5d458ffb240d7ce100762db"}}

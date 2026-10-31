@@ -1,0 +1,1 @@
+{"id":"ba27d68efc84334e2e04274b8d45fe30.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_remove_the_yellow_mark_from_both_paths_after_a_save","name":"A changed journal path and a changed keybinds path are not yellow any more after a successful save","status":"passed","testResultsByEnv":{"default":"483c109c5f072fb582a0fcb51e470022"}}

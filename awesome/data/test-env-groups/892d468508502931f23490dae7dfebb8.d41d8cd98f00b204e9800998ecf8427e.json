@@ -1,0 +1,1 @@
+{"id":"892d468508502931f23490dae7dfebb8.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_new_game_session#test_should_keep_the_state_when_the_game_continues_in_a_second_journal_part","name":"The second part of a long session keeps what Celeste knows and is followed","status":"passed","testResultsByEnv":{"default":"da282c66410896967faabb76efc0fca1"}}

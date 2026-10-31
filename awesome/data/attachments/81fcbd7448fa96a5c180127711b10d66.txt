@@ -1,0 +1,277 @@
+ERROR    asyncio:base_events.py:1833 Task exception was never retrieved
+future: <Task finished name='Task-354294' coro=<SpeakerService.__run_speech_queue_worker() done, defined at /home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py:212> exception=RuntimeError('cannot reuse already awaited coroutine') created at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py:420>
+source_traceback: Object created at (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/bin/coverage", line 6, in <module>
+    sys.exit(main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1174, in main
+    status = CoverageScript().command_line(argv)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 863, in command_line
+    return self.do_run(options, args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1053, in do_run
+    runner.run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/execfile.py", line 222, in run
+    exec(code, main_mod.__dict__)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/unittest.py", line 391, in runtest
+    testcase(result=self)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 690, in __call__
+    return self.run(*args, **kwds)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 132, in run
+    return super().run(result)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 634, in run
+    self._callTestMethod(testMethod)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 91, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 113, in _callMaybeAsync
+    return self._asyncioRunner.run(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 678, in run_until_complete
+    self.run_forever()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 645, in run_forever
+    self._run_once()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 1991, in _run_once
+    handle._run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/services/test_speaker_service.py", line 203, in test_an_error_of_a_speech_goes_to_its_future_and_the_next_one_plays
+    broken = self.service.queue_speech(
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py", line 107, in queue_speech
+    self.__speech_worker = asyncio.create_task(self.__run_speech_queue_worker())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py", line 420, in create_task
+    task = loop.create_task(coro)
+RuntimeError: cannot reuse already awaited coroutine
+ERROR    asyncio:base_events.py:1833 Task exception was never retrieved
+future: <Task finished name='Task-354330' coro=<SpeakerService.__run_speech_queue_worker() done, defined at /home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py:212> exception=RuntimeError('cannot reuse already awaited coroutine') created at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py:420>
+source_traceback: Object created at (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/bin/coverage", line 6, in <module>
+    sys.exit(main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1174, in main
+    status = CoverageScript().command_line(argv)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 863, in command_line
+    return self.do_run(options, args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1053, in do_run
+    runner.run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/execfile.py", line 222, in run
+    exec(code, main_mod.__dict__)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/unittest.py", line 391, in runtest
+    testcase(result=self)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 690, in __call__
+    return self.run(*args, **kwds)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 132, in run
+    return super().run(result)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 634, in run
+    self._callTestMethod(testMethod)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 91, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 113, in _callMaybeAsync
+    return self._asyncioRunner.run(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 678, in run_until_complete
+    self.run_forever()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 645, in run_forever
+    self._run_once()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 1991, in _run_once
+    handle._run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/services/test_speaker_service.py", line 287, in test_status_is_error_with_the_error_after_a_speech_failed
+    broken = self.service.queue_speech(
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py", line 107, in queue_speech
+    self.__speech_worker = asyncio.create_task(self.__run_speech_queue_worker())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py", line 420, in create_task
+    task = loop.create_task(coro)
+RuntimeError: cannot reuse already awaited coroutine
+ERROR    asyncio:base_events.py:1833 Task exception was never retrieved
+future: <Task finished name='Task-354324' coro=<SpeakerService.__run_speech_queue_worker() done, defined at /home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py:212> exception=RuntimeError('cannot reuse already awaited coroutine') created at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py:420>
+source_traceback: Object created at (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/bin/coverage", line 6, in <module>
+    sys.exit(main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1174, in main
+    status = CoverageScript().command_line(argv)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 863, in command_line
+    return self.do_run(options, args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/cmdline.py", line 1053, in do_run
+    runner.run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/coverage/execfile.py", line 222, in run
+    exec(code, main_mod.__dict__)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_caller.py", line 197, in __call__
+    return self._hookexec(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_manager.py", line 183, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/pluggy/_execution.py", line 147, in _multicall
+    res = hook_impl.function(*args)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/_pytest/unittest.py", line 391, in runtest
+    testcase(result=self)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 690, in __call__
+    return self.run(*args, **kwds)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 132, in run
+    return super().run(result)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/case.py", line 634, in run
+    self._callTestMethod(testMethod)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 91, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/unittest/async_case.py", line 113, in _callMaybeAsync
+    return self._asyncioRunner.run(
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 678, in run_until_complete
+    self.run_forever()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 645, in run_forever
+    self._run_once()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/base_events.py", line 1991, in _run_once
+    handle._run()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/services/test_speaker_service.py", line 303, in test_a_dropped_speech_does_not_change_the_status
+    broken = self.service.queue_speech(
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/speaker_service.py", line 107, in queue_speech
+    self.__speech_worker = asyncio.create_task(self.__run_speech_queue_worker())
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/tasks.py", line 420, in create_task
+    task = loop.create_task(coro)
+RuntimeError: cannot reuse already awaited coroutine
+WARNING  asyncio:base_events.py:1994 Executing <Task finished name='Task-354418' coro=<PlayPiecesFromTest.test_an_unread_error_of_the_speaker_does_not_upset_asyncio() done, defined at /home/runner/work/EDCeleste/EDCeleste/tests/services/test_speaker_service.py:504> result=None created at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/asyncio/runners.py:100> took 0.555 seconds

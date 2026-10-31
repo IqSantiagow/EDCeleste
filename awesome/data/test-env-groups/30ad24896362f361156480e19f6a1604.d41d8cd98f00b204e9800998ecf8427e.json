@@ -1,0 +1,1 @@
+{"id":"30ad24896362f361156480e19f6a1604.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.TryFastCommandTest#test_sends_talk_to_the_llm_when_game_actions_are_off","name":"test_sends_talk_to_the_llm_when_game_actions_are_off","status":"passed","testResultsByEnv":{"default":"483e03860ed080c2f2892b90abb4d1f5"}}

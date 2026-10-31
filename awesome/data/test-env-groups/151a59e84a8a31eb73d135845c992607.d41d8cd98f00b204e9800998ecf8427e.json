@@ -1,0 +1,1 @@
+{"id":"151a59e84a8a31eb73d135845c992607.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.use_cases.dashboard.test_stream_stt_transcriptions_use_case.TestStreamSttTranscriptionsUseCase#test_should_give_texts_from_the_queue_one_by_one","name":"test_should_give_texts_from_the_queue_one_by_one","status":"passed","testResultsByEnv":{"default":"7e0c263298a160e6e5fe442b85b99d5c"}}

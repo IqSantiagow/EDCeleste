@@ -1,0 +1,1 @@
+{"id":"54acad0ad212a31bb546193724ed0a05.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_journal_to_ship_log#test_should_keep_showing_events_after_a_journal_line_with_non_english_letters","name":"Cyrillic and Polish letters in the journal do not stop the ship log","status":"passed","testResultsByEnv":{"default":"df213142108836837757b87087c7037d"}}
