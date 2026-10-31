@@ -373,3 +373,50 @@ async def test_should_dim_the_mic_dot_when_speech_to_text_is_switched_off_in_set
                 "the MIC dot dim in the dashboard header",
             )
             assert dot_text(pilot.app, MIC_DOT) == "○ MIC"
+
+
+@allure.title("A blank LLM answer is not spoken and the TTS dot stays green")
+async def test_should_not_speak_a_blank_llm_answer_and_keep_the_tts_dot_green(
+    edceleste,
+):
+    answers = ["   \n  ", "Copy that, Commander."]
+
+    async def answer_blank_first_then_copy_that(messages, agent_info):
+        yield answers.pop(0)
+
+    with allure.step("Given the LLM answers only spaces and a new line the first time"):
+        edceleste.use_scripted_model(answer_blank_first_then_copy_that)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then the LLM finishes the request"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_reason(pilot.app, LLM_DOT) == "The last request succeeded",
+                "the LLM request finished",
+            )
+
+        with allure.step("And the voice engine was asked to say nothing"):
+            assert edceleste.spoken_texts == []
+
+        with allure.step("And the TTS dot is green and nothing played yet"):
+            assert dot_state(pilot.app, TTS_DOT) == "ok"
+            assert dot_reason(pilot.app, TTS_DOT) == "Nothing played yet"
+
+        with allure.step("When the Commander sends 'again' in COMMS"):
+            await send_comms_message(pilot, "again")
+
+        with allure.step("Then Celeste speaks the next, normal answer"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_reason(pilot.app, TTS_DOT) == "The last speech was played",
+                "the normal answer played",
+            )
+            assert edceleste.spoken_texts == ["Copy that, Commander."]
+
+        with allure.step("And the TTS dot is green"):
+            assert dot_state(pilot.app, TTS_DOT) == "ok"

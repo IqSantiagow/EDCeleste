@@ -260,6 +260,18 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service._TTSService__synthesize_and_play.assert_not_awaited()
         await self.speaker.finish_speeches()
 
+    async def test_queue_answer_from_tts_event_ignores_a_blank_text(self):
+        self.service._TTSService__synthesize_and_play = AsyncMock()
+
+        for blank_text in ["", "   ", "\n", "  \n  "]:
+            await self.service._TTSService__queue_answer_from_tts_event(
+                TTSEvent(blank_text)
+            )
+        await self.speaker.finish_speeches()
+
+        self.assertEqual(self.speaker.queued, [])
+        self.service._TTSService__synthesize_and_play.assert_not_awaited()
+
     # --- build_provider ---
 
     def test_build_provider_builds_edge_provider(self):
