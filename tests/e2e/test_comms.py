@@ -6,6 +6,10 @@ from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.function import DeltaToolCall
 from textual.app import App
 
+from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
+from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_entry import (
+    WidgetCommsEntry,
+)
 from tests.e2e.conftest import (
     PILOT_AND_CELESTE_ENTRIES,
     comms_entries,
@@ -18,6 +22,16 @@ pytestmark = [pytest.mark.anyio, allure.feature("COMMS conversation with Celeste
 
 def thinking_indicator_is_visible(app: App) -> bool:
     return not app.screen.query_one("#comms-thinking-indicator").has_class("hidden")
+
+
+def comms_text_on_screen(app: App, entry_type: str) -> list[str]:
+    """The text the Commander reads in the COMMS lines of one kind, as the
+    screen draws it (entry.content is what was sent, not what is drawn)"""
+    return [
+        entry.query_one(".comms-entry-content").render().plain
+        for entry in app.screen.query(WidgetCommsEntry)
+        if entry.entry_type == entry_type
+    ]
 
 
 async def answer_with_landing_gear_toggle(messages, agent_info):
@@ -241,3 +255,125 @@ async def test_should_answer_the_next_message_after_a_failed_turn(edceleste):
                 "Celeste's answer after the failed turn",
             )
             assert comms_entries(pilot.app, "llm-response") == ["Copy that, Commander."]
+
+
+@allure.title("Square brackets in the Commander's message show exactly as typed")
+async def test_should_show_square_brackets_in_the_commanders_message_as_typed(
+    edceleste,
+):
+    message = "set [/red] and [bold on the radar"
+
+    async def answer_copy_that(messages, agent_info):
+        yield "Copy that, Commander."
+
+    with allure.step("Given the LLM answers 'Copy that, Commander.'"):
+        edceleste.use_scripted_model(answer_copy_that)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends a message with square brackets"):
+            await send_comms_message(pilot, message)
+
+        with allure.step("Then COMMS shows the message exactly as typed"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_text_on_screen(pilot.app, "user-command") != [],
+                "the Commander's message in COMMS",
+            )
+            assert comms_text_on_screen(pilot.app, "user-command") == [message]
+
+        with allure.step("And the dashboard is still on the screen"):
+            assert isinstance(pilot.app.screen, DashboardScreen)
+
+        with allure.step("And Celeste answers"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_text_on_screen(pilot.app, "llm-response") != [],
+                "Celeste's answer in COMMS",
+            )
+            assert comms_text_on_screen(pilot.app, "llm-response") == [
+                "Copy that, Commander."
+            ]
+
+
+@allure.title("Square brackets in Celeste's answer show in COMMS")
+async def test_should_show_square_brackets_in_celestes_answer(edceleste):
+    answer = "Roger, [pause] scanning, Commander."
+
+    async def answer_with_brackets(messages, agent_info):
+        yield answer
+
+    with allure.step("Given the LLM answers with a word in square brackets"):
+        edceleste.use_scripted_model(answer_with_brackets)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then COMMS shows Celeste's answer with the brackets"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_text_on_screen(pilot.app, "llm-response") != [],
+                "Celeste's answer in COMMS",
+            )
+            assert comms_text_on_screen(pilot.app, "llm-response") == [answer]
+
+        with allure.step("And the dashboard is still on the screen"):
+            assert isinstance(pilot.app.screen, DashboardScreen)
+
+
+@allure.title("A provider error with square brackets shows in full and COMMS goes on")
+async def test_should_show_a_provider_error_with_square_brackets_and_answer_again(
+    edceleste,
+):
+    connection_is_down = True
+
+    async def answer_unless_the_provider_refuses(messages, agent_info):
+        if connection_is_down:
+            raise ConnectionError("Rate limit [retry in 20s] [/limit]")
+        yield "Copy that, Commander."
+
+    with allure.step("Given the provider refuses with a text in square brackets"):
+        edceleste.use_scripted_model(answer_unless_the_provider_refuses)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then the SYSTEM line shows the whole error with brackets"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: (
+                    "LLM turn failed: Rate limit [retry in 20s] [/limit]"
+                    in comms_text_on_screen(pilot.app, "system-message")
+                ),
+                "the failed turn with the whole error text in COMMS",
+            )
+
+        with allure.step("And the thinking indicator hides"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: not thinking_indicator_is_visible(pilot.app),
+                "the thinking indicator hidden after the failed turn",
+            )
+
+        with allure.step("When the provider works again"):
+            connection_is_down = False
+
+        with allure.step("And the Commander sends 'again' in COMMS"):
+            await send_comms_message(pilot, "again")
+
+        with allure.step("Then Celeste answers in COMMS"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_text_on_screen(pilot.app, "llm-response") != [],
+                "Celeste's answer after the failed turn",
+            )
+            assert comms_text_on_screen(pilot.app, "llm-response") == [
+                "Copy that, Commander."
+            ]

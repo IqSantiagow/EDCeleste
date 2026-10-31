@@ -19,4 +19,6 @@ class WidgetCommsEntry(HorizontalGroup):
 
     def compose(self) -> ComposeResult:
         yield Label(_TITLES[self.entry_type], classes="comms-entry-title")
-        yield Label(self.content, classes="comms-entry-content")
+        # The text comes from the pilot, the LLM and provider errors, so it is
+        # shown as plain text: "[/red]" must not be read as a Textual markup tag.
+        yield Label(self.content, classes="comms-entry-content", markup=False)
