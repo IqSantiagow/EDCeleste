@@ -587,19 +587,26 @@ class LLMService:
         return str(error) or type(error).__name__
 
     def __set_status_after_connection_test(self, connection_error: str | None) -> None:
-        """Sets the LLM status after the test request of cold_start(): ERROR with
-        the error text when there is one, OK when the LLM answered (None)."""
+        """Sets the LLM status after a test request: ERROR with the error text
+        when there is one, OK when the LLM answered (None). Used by cold_start()
+        and, for the OK case, by find_connection_error()."""
         if connection_error is None:
             self.__status_stream.set_status(ServiceState.OK, "The LLM answered")
         else:
             self.__status_stream.set_status(ServiceState.ERROR, connection_error)
 
     def stream_status(self) -> AsyncGenerator[ServiceStatus, None]:
-        """The status of the LLM for the app header (ServiceStatusProtocol).
-        Starts as OFF "Not checked yet". cold_start() sets it from the test
-        request, then every finished request sets it: OK, or ERROR with the
-        error. A message answered without the LLM (ReplyWithoutLLM) changes
-        nothing."""
+        """Returns a generator for the LLM dot of the app header
+        (ServiceStatusProtocol). It yields the latest status at once, then
+        every new one, and never ends by itself.
+
+        The status starts as OFF "Not checked yet". It changes in these places:
+        - cold_start() sets it from the test request,
+        - every finished request sets OK, or ERROR with the error,
+        - a successful Test connection in settings (find_connection_error)
+          sets OK.
+        A failed Test connection and a message answered without the LLM
+        (ReplyWithoutLLM) change nothing."""
         return self.__status_stream.stream_latest_status_then_every_new_one()
 
     async def find_connection_error(
@@ -608,6 +615,10 @@ class LLMService:
         """Sends "Respond with only 'OK'" to a fresh agent built from
         provider_settings, not from the saved settings, so the settings screen
         can test values before saving them.
+
+        When the LLM answers, the LLM status of the app header is set to OK, so
+        the dot does not stay red after the pilot fixed the key. A failed test
+        does not touch the status.
 
         Returns None when the LLM answered within 15 s. Otherwise returns a
         short error text for the UI:
@@ -625,6 +636,7 @@ class LLMService:
             await asyncio.wait_for(
                 Agent(model=model).run("Respond with only 'OK'"), timeout=15
             )
+            self.__set_status_after_connection_test(None)
             return None
         except TimeoutError:
             return "No answer within 15 s"

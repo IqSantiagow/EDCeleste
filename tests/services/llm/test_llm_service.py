@@ -601,6 +601,34 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(error_message, "x" * 200)
 
+    async def test_find_connection_error_turns_a_red_dot_green_when_the_test_passes(
+        self,
+    ):
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError("bad key")
+        [_ async for _ in self.llm_service.cold_start()]
+        self.assertEqual(
+            (await _latest_status(self.llm_service)).state, ServiceState.ERROR
+        )
+        self.mock_agent_class.return_value.run.side_effect = None
+
+        error_message = await self.llm_service.find_connection_error(
+            _make_settings().llm.provider
+        )
+
+        self.assertIsNone(error_message)
+        status = await _latest_status(self.llm_service)
+        self.assertEqual(status, ServiceStatus(ServiceState.OK, "The LLM answered"))
+
+    async def test_find_connection_error_leaves_the_dot_alone_when_the_test_fails(
+        self,
+    ):
+        self.mock_agent_class.return_value.run.side_effect = RuntimeError("bad key")
+
+        await self.llm_service.find_connection_error(_make_settings().llm.provider)
+
+        status = await _latest_status(self.llm_service)
+        self.assertEqual(status, ServiceStatus(ServiceState.OFF, "Not checked yet"))
+
     def test_reload_service_rebuilds_agent_with_updated_system_prompt(self):
         new_settings = _make_settings(system_prompt="New system prompt")
         self.settings_service.get_settings.return_value = new_settings
