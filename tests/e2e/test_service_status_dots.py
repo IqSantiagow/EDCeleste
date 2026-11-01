@@ -8,13 +8,20 @@ from textual.widgets import Label
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from tests.e2e.conftest import (
+    answer_preflight_connection_test,
     comms_entries,
+    open_settings_section,
     open_stt_settings,
     send_comms_message,
 )
 from tests.e2e.test_push_to_talk_hotkey import (
     hold_and_release,
     save_settings_with_ctrl_s,
+)
+from tests.e2e.test_settings_llm import (
+    CONNECTED,
+    connection_result,
+    model_list_is_shown,
 )
 from tests.e2e.test_streaming_voice import chatterbox_settings
 from tests.e2e.test_voice_profiles import write_voice_profile_files
@@ -420,3 +427,117 @@ async def test_should_not_speak_a_blank_llm_answer_and_keep_the_tts_dot_green(
 
         with allure.step("And the TTS dot is green"):
             assert dot_state(pilot.app, TTS_DOT) == "ok"
+
+
+@allure.title("A passing Test connection in Settings turns the red LLM dot green")
+async def test_should_turn_the_llm_dot_green_when_test_connection_passes(edceleste):
+    key_is_accepted = False
+
+    def reject_the_key_until_it_is_fixed(messages, agent_info):
+        if key_is_accepted:
+            return answer_preflight_connection_test(messages, agent_info)
+        return reject_the_key(messages, agent_info)
+
+    with allure.step("Given the LLM key in config.yaml is a wrong one"):
+        edceleste.settings.llm.provider.api_key = API_KEY
+        edceleste.save_config()
+
+    with allure.step("And the provider rejects the key with HTTP 401"):
+        edceleste.use_scripted_model(
+            answer_copy_that, preflight_function=reject_the_key_until_it_is_fixed
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.open_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the LLM dot is red"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "error",
+                "the LLM dot red",
+            )
+
+        with allure.step("And the Commander opens Settings > LLM"):
+            await open_settings_section(edceleste, pilot, "settings-llm")
+            await edceleste.wait_until(
+                pilot, lambda: model_list_is_shown(pilot.app), "the list of LLM models"
+            )
+
+        with allure.step("And the provider now accepts the key"):
+            key_is_accepted = True
+
+        with allure.step("When the Commander presses Test connection"):
+            await edceleste.click_when_ready(pilot, "#test-connection-button")
+
+        with allure.step("Then Test connection shows Connected"):
+            await edceleste.wait_until(
+                pilot, lambda: connection_result(pilot.app) == CONNECTED, "Connected"
+            )
+
+        with allure.step("And the LLM dot in the Settings header is green"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "ok",
+                "the LLM dot green",
+            )
+            assert dot_reason(pilot.app, LLM_DOT) == "The LLM answered"
+
+        with allure.step("When the Commander presses Escape"):
+            await pilot.press("escape")
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.screen, DashboardScreen),
+                "the dashboard",
+            )
+
+        with allure.step("Then the LLM dot on the dashboard is green"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "ok",
+                "the LLM dot green on the dashboard",
+            )
+
+
+@allure.title("A failing Test connection in Settings leaves the LLM dot red")
+async def test_should_keep_the_llm_dot_red_when_test_connection_fails(edceleste):
+    with allure.step("Given the LLM key in config.yaml is a wrong one"):
+        edceleste.settings.llm.provider.api_key = API_KEY
+        edceleste.save_config()
+
+    with allure.step("And the provider rejects the key with HTTP 401"):
+        edceleste.use_scripted_model(
+            answer_copy_that, preflight_function=reject_the_key
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.open_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the LLM dot is red"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "error",
+                "the LLM dot red",
+            )
+
+        with allure.step("And the Commander opens Settings > LLM"):
+            await open_settings_section(edceleste, pilot, "settings-llm")
+            await edceleste.wait_until(
+                pilot, lambda: model_list_is_shown(pilot.app), "the list of LLM models"
+            )
+
+        with allure.step("When the Commander presses Test connection"):
+            await edceleste.click_when_ready(pilot, "#test-connection-button")
+
+        with allure.step("Then Test connection shows the HTTP 401 failure"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: "HTTP 401" in connection_result(pilot.app),
+                "the failure of Test connection",
+            )
+            assert connection_result(pilot.app).startswith("✗")
+            assert API_KEY not in connection_result(pilot.app)
+
+        with allure.step("And the LLM dot is still red and names the HTTP 401"):
+            assert dot_state(pilot.app, LLM_DOT) == "error"
+            assert "HTTP 401" in dot_reason(pilot.app, LLM_DOT)
+            assert API_KEY not in dot_reason(pilot.app, LLM_DOT)
