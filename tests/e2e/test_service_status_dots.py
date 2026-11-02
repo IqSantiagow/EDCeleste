@@ -139,6 +139,7 @@ async def test_should_show_the_llm_dot_red_when_the_provider_rejects_the_key(
                 assert "HTTP 401" in reason
                 assert "Incorrect API key provided" in reason
                 assert API_KEY not in reason
+                assert "[REDACTED API KEY]" in reason
 
             with allure.step("And TTS, MIC and JRNL are green"):
                 for dot_id in [TTS_DOT, MIC_DOT, JOURNAL_DOT]:
@@ -202,6 +203,64 @@ async def test_should_turn_the_llm_dot_red_then_green_around_a_failed_request(
                 "the LLM dot green again",
             )
             assert dot_reason(pilot.app, LLM_DOT) == "The last request succeeded"
+
+
+@allure.title("A rejected API key is hidden in the LLM dot and in COMMS")
+async def test_should_hide_the_api_key_when_the_provider_rejects_a_message(edceleste):
+    async def reject_the_chat_request(messages, agent_info):
+        raise ModelHTTPError(
+            status_code=401,
+            model_name="test-model",
+            body={"error": {"message": f"Incorrect API key provided: {API_KEY}"}},
+        )
+        yield
+
+    with allure.step("Given the LLM key in config.yaml is a wrong one"):
+        edceleste.settings.llm.provider.api_key = API_KEY
+        edceleste.save_config()
+
+    with allure.step("And the provider rejects every message with HTTP 401"):
+        edceleste.use_scripted_model(reject_the_chat_request)
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander sends 'hello' in COMMS"):
+            await send_comms_message(pilot, "hello")
+
+        with allure.step("Then the LLM dot turns red and shows the 401"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, LLM_DOT) == "error",
+                "the LLM dot red",
+            )
+            reason = dot_reason(pilot.app, LLM_DOT)
+            assert reason.startswith("The last request failed:")
+            assert "401" in reason
+            assert "Incorrect API key provided" in reason
+
+        with allure.step("And the LLM dot does not show the API key"):
+            assert API_KEY not in reason
+            assert "[REDACTED API KEY]" in reason
+
+        with allure.step("And the SYSTEM line in COMMS says the turn failed"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: any(
+                    line.startswith("LLM turn failed:")
+                    for line in comms_entries(pilot.app, "system-message")
+                ),
+                "the failed turn in COMMS",
+            )
+
+        with allure.step("And the SYSTEM line does not show the API key"):
+            failed_line = next(
+                line
+                for line in comms_entries(pilot.app, "system-message")
+                if line.startswith("LLM turn failed:")
+            )
+            assert API_KEY not in failed_line
+            assert "[REDACTED API KEY]" in failed_line
 
 
 @allure.title("A request that times out names the problem in the LLM dot and in COMMS")

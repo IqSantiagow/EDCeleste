@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 import logging
 import asyncio
+import traceback
 
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.message_block import (
@@ -180,7 +181,10 @@ class LLMService:
                     await self.__event_bus.publish(TTSEvent(response.content))
 
         except Exception as e:
-            logger.error("Error while processing LLM response: %s", e)
+            logger.error(
+                "Error while processing LLM response: %s",
+                self.__hide_saved_api_key(str(e)),
+            )
             raise e
 
     def __build_game_state_instructions(self) -> str:
@@ -472,6 +476,8 @@ class LLMService:
         SystemMessage "LLM turn failed: <error>" (LLMStatus.IDLE still follows)
         and the next message is taken. <error> is the error text, or the name
         of the error type when the text is empty (for example "ReadTimeout").
+        The API key is replaced with "[REDACTED API KEY]" in the SystemMessage,
+        in the header status and in the log (traceback included).
         A turn also sets the LLM status of the app header (stream_status,
         a different thing than LLMStatus): OK when it went well, ERROR with the
         same <error> when it failed. The reply is spoken too: every AgentText is
@@ -503,8 +509,14 @@ class LLMService:
                 async for response in self.__run_turn_and_speak_reply(message):
                     yield response
             except Exception as error:
-                error_text = self._error_text_or_type_name(error)
-                logger.exception(f"LLM turn failed: {error_text}", exc_info=error)
+                error_text = self.__hide_saved_api_key(
+                    self._error_text_or_type_name(error)
+                )
+                error_with_traceback = "".join(traceback.format_exception(error))
+                logger.error(
+                    "LLM turn failed: %s",
+                    self.__hide_saved_api_key(error_with_traceback),
+                )
                 self.__status_stream.set_status(
                     ServiceState.ERROR, f"The last request failed: {error_text}"
                 )
@@ -555,7 +567,8 @@ class LLMService:
            error text, or OK when the LLM answered.
         4. Yields the status again with completed=True and the error text in
            message, or message=None when the LLM answered.
-        Never raises, every error ends up in the status message.
+        Never raises, every error ends up in the status message, with the API
+        key replaced by "[REDACTED API KEY]".
         """
         status = ColdStartStatus(
             service="llm",
@@ -575,7 +588,7 @@ class LLMService:
             yield status
         except Exception as e:
             status.completed = True
-            status.message = self._error_text_or_type_name(e)
+            status.message = self.__hide_saved_api_key(self._error_text_or_type_name(e))
             self.__set_status_after_connection_test(status.message)
             yield status
 
@@ -585,6 +598,25 @@ class LLMService:
         (httpx.ReadTimeout), then the type name is returned instead
         ("ReadTimeout"), so the pilot can tell a timeout from a rejected key."""
         return str(error) or type(error).__name__
+
+    @staticmethod
+    def _hide_api_key(text: str, api_key: str) -> str:
+        """Replaces the API key in text with "[REDACTED API KEY]". Every error
+        text that reaches the screen or the log goes through here, because a
+        provider may repeat the key in its message. An empty key changes
+        nothing."""
+        if not api_key:
+            return text
+        return text.replace(api_key, "[REDACTED API KEY]")
+
+    def __hide_saved_api_key(self, text: str) -> str:
+        """Same as _hide_api_key, with the API key read from the saved settings
+        (not from settings that are only being tested, find_connection_error
+        has its own key for that). Used for errors of the running app: a failed
+        chat turn and a failed start-up check. Returns text with every copy of
+        the key replaced."""
+        saved_api_key = self.__settings_service.get_settings().llm.provider.api_key
+        return self._hide_api_key(text, saved_api_key)
 
     def __set_status_after_connection_test(self, connection_error: str | None) -> None:
         """Sets the LLM status after a test request: ERROR with the error text
@@ -651,13 +683,7 @@ class LLMService:
         except Exception as e:
             error_message = self._error_text_or_type_name(e)
 
-        if provider_settings.api_key:
-            # If there is any chance the API key appears in the error message,
-            # redact it.
-            error_message = error_message.replace(
-                provider_settings.api_key, "[REDACTED API KEY]"
-            )
-
+        error_message = self._hide_api_key(error_message, provider_settings.api_key)
         error_message = error_message[:MAX_REASON]
 
         return error_message
