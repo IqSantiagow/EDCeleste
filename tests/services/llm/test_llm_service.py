@@ -481,6 +481,64 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
             SystemMessage(content="LLM turn failed: ReadTimeout"),
         )
 
+    async def test_failed_turn_hides_the_api_key_in_comms_and_in_the_status(self):
+        self.settings_service.get_settings.return_value.llm.provider.api_key = (
+            "sk-secret-key-123"
+        )
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            RuntimeError("HTTP 401: invalid key sk-secret-key-123")
+        )
+        self.llm_service.add_llm_request_to_queue("hello")
+
+        failed_turn_items = await self._collect_stream_items(3)
+
+        self.assertEqual(
+            failed_turn_items[1],
+            SystemMessage(
+                content="LLM turn failed: HTTP 401: invalid key [REDACTED API KEY]"
+            ),
+        )
+        status = await _latest_status(self.llm_service)
+        self.assertEqual(
+            status,
+            ServiceStatus(
+                ServiceState.ERROR,
+                "The last request failed: HTTP 401: invalid key [REDACTED API KEY]",
+            ),
+        )
+
+    async def test_failed_turn_hides_the_api_key_in_the_log(self):
+        self.settings_service.get_settings.return_value.llm.provider.api_key = (
+            "sk-secret-key-123"
+        )
+        self.mock_stream_agent_response.side_effect = _make_failing_agent_stream(
+            RuntimeError("HTTP 401: invalid key sk-secret-key-123")
+        )
+        self.llm_service.add_llm_request_to_queue("hello")
+
+        with self.assertLogs("edceleste.services.llm_service", level="DEBUG") as logs:
+            await self._collect_stream_items(3)
+
+        all_log_text = "\n".join(logs.output)
+        self.assertIn("[REDACTED API KEY]", all_log_text)
+        self.assertNotIn("sk-secret-key-123", all_log_text)
+
+    async def test_cold_start_hides_the_api_key_when_building_the_agent_fails(self):
+        self.settings_service.get_settings.return_value.llm.provider.api_key = (
+            "sk-secret-key-123"
+        )
+        self.llm_service.reload_service = Mock(
+            side_effect=RuntimeError("bad key sk-secret-key-123")
+        )
+
+        statuses = [status async for status in self.llm_service.cold_start()]
+
+        self.assertEqual(statuses[-1].message, "bad key [REDACTED API KEY]")
+        status = await _latest_status(self.llm_service)
+        self.assertEqual(
+            status, ServiceStatus(ServiceState.ERROR, "bad key [REDACTED API KEY]")
+        )
+
     async def test_status_is_not_changed_by_a_reply_without_llm(self):
         self.llm_service.add_reply_without_llm_to_queue(
             "deploy landing gear", "Done: Landing gear toggle"
