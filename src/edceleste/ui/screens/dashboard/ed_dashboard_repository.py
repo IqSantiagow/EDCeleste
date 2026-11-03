@@ -106,10 +106,11 @@ class EdDashboardRepository:
         runs."""
         self.stt_stop_recording_usecase()
 
-    def stream_stt_transcriptions(self) -> AsyncGenerator[str, None]:
+    def stream_stt_transcriptions(self) -> AsyncGenerator[str | Exception, None]:
         """Never ends. Gives every spoken text, from the mic button or from the
-        hotkey. Must have only one reader, the comms input worker, because it
-        empties the STT queue."""
+        hotkey, and the error of every hotkey transcription that failed. Must
+        have only one reader, the comms input worker, because it empties the
+        STT queue."""
         return self.stream_stt_transcriptions_usecase()
 
     def is_stt_enabled(self) -> bool:

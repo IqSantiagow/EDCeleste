@@ -49,6 +49,12 @@ class SpeakerProtocol(Protocol):
         plays the pieces it already has and stops."""
         ...
 
+    def set_tts_status_to_error(self, reason: str) -> None:
+        """Turns the TTS dot of the app header red with reason as its tooltip,
+        for a voice that failed outside a speech (the warm-up at start). The
+        next speech played to the end turns it green again."""
+        ...
+
     def stop_speaking(self) -> None:
         """Celeste goes silent at once: what she is saying is cut off and
         everything waiting in the speech queue is dropped (the future of every

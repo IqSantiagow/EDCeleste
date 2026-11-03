@@ -283,6 +283,15 @@ class SpeakerStatusTest(SpeakerServiceTestCase):
             status, ServiceStatus(ServiceState.OK, "The last speech was played")
         )
 
+    async def test_status_is_error_with_the_reason_after_set_tts_status_to_error(self):
+        self.service.set_tts_status_to_error("CUDA out of memory")
+
+        status = await self._latest_status()
+
+        self.assertEqual(
+            status, ServiceStatus(ServiceState.ERROR, "CUDA out of memory")
+        )
+
     async def test_status_is_error_with_the_error_after_a_speech_failed(self):
         broken = self.service.queue_speech(
             self._speech("broken", error=RuntimeError("no speaker")), PRIORITY_ANSWER

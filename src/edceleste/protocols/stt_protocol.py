@@ -55,11 +55,18 @@ class SttProtocol(BaseServiceProtocol, Protocol):
         transcribes, so the UI and the hotkey run it in a thread. Returns
         nothing, the text comes out of consume_stt_queue(), and nothing comes
         out when nothing was recorded or heard. Raises SttException when no
-        recording is running."""
+        recording is running or no model name is set. An error of Whisper
+        (load or transcription) turns the MIC dot of the header red and is
+        raised to the caller."""
         ...
 
-    def consume_stt_queue(self) -> AsyncGenerator[str, None]:
+    def consume_stt_queue(self) -> AsyncGenerator[str | Exception, None]:
         """Never ends. Yields every text that stop_recording_and_transcribe()
-        puts in the queue, one by one. The stream has exactly one consumer, a
-        queue does not duplicate items."""
+        puts in the queue, one by one, and the error of every transcription
+        started by the push-to-talk key that failed (as an Exception item,
+        never raised). An error after the mic button is not here, it is
+        raised by stop_recording_and_transcribe() to its caller. The first
+        call binds the queue to the running event loop, a text spoken before
+        it is dropped. The stream has exactly one consumer, a queue does not
+        duplicate items."""
         ...

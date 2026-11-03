@@ -84,8 +84,14 @@ class SpeakerService:
         as OK "Nothing played yet". After every speech that was played to the
         end it is OK, after a speech that raised an error it is ERROR with the
         error. A speech that was dropped (waited too long, or stop_speaking())
-        changes nothing."""
+        changes nothing. set_tts_status_to_error() sets ERROR too."""
         return self.__status_stream.stream_latest_status_then_every_new_one()
+
+    def set_tts_status_to_error(self, reason: str) -> None:
+        """Sets the TTS status to ERROR with reason, for a voice that failed
+        before any speech (TTSService.cold_start). Plays nothing. The next
+        speech played to the end sets OK again."""
+        self.__status_stream.set_status(ServiceState.ERROR, reason)
 
     def queue_speech(
         self,

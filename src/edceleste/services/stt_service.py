@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from typing import TYPE_CHECKING, AsyncGenerator
 
 import numpy as np
@@ -57,7 +58,8 @@ class SttService:
         self.__hotkey_protocol = hotkey_protocol
         self.__speaker_protocol = speaker_protocol
         self._hotkey_key_name: str | None = None
-        self._stt_queue: asyncio.Queue[str] = asyncio.Queue()
+        # The spoken texts, and the errors of hotkey transcriptions for a toast
+        self._stt_queue: asyncio.Queue[str | Exception] = asyncio.Queue()
         self._app_loop: asyncio.AbstractEventLoop | None = None
         self._recorded_frames = []
         self.__status_stream = ServiceStatusStream(
@@ -68,9 +70,11 @@ class SttService:
         """The status of the microphone for the app header
         (ServiceStatusProtocol). Starts as OFF "Not checked yet".
         reload_service() sets OFF when STT is switched off in settings and OK
-        when it is on. Every recording then sets OK when the microphone opened,
-        or ERROR with the error when it did not. An unplugged microphone is
-        seen only at the next recording, not before."""
+        when it is on, and cold_start() sets ERROR when Whisper cannot be
+        loaded. Every recording then sets OK when the microphone opened, or
+        ERROR with the error when it did not, and ERROR when Whisper fails to
+        load or transcribe. An unplugged microphone is seen only at the next
+        recording, not before."""
         return self.__status_stream.stream_latest_status_then_every_new_one()
 
     def validate_settings(
@@ -150,6 +154,10 @@ class SttService:
            words like "FSD" and "hardpoints" right.
         6. Puts the text in the STT queue. Nothing is queued when Whisper heard
            no words, or when nobody consumes the queue yet (logged).
+
+        An error of steps 4 and 5 turns the MIC dot of the header red with the
+        error and is raised again. The next recording turns the dot green
+        when the microphone opens (start_recording).
         """
         if self._recording_stream is None:
             logger.warning(
@@ -165,13 +173,18 @@ class SttService:
             logger.warning("No audio data was captured during the recording.")
             return
 
-        whisper_model = self.load_stt_model()
-
         audio = np.concatenate(self._recorded_frames)
         self._recorded_frames = []
-        result = whisper_model.transcribe(
-            audio, fp16=False, initial_prompt=GAME_VOCABULARY_PROMPT
-        )
+        try:
+            whisper_model = self.load_stt_model()
+            result = whisper_model.transcribe(
+                audio, fp16=False, initial_prompt=GAME_VOCABULARY_PROMPT
+            )
+        except Exception as error:
+            self.__status_stream.set_status(
+                ServiceState.ERROR, f"Speech-to-text failed: {error}"
+            )
+            raise
         text: str = result.get("text", "").strip()
         if not text:
             return
@@ -191,8 +204,10 @@ class SttService:
 
         Before the app loop is known (nobody consumes the STT queue yet) it
         does the same on this thread, so the microphone is closed anyway and
-        the text is dropped and logged. An error of the transcription is
-        logged when the worker thread ends, it is not raised here.
+        the text is dropped and logged, and an error is raised here, to the
+        pynput thread. With the app loop an error of the transcription is
+        logged and put in the STT queue when the worker thread ends, it is not
+        raised here.
         """
         if self._app_loop is None:
             self.stop_recording_and_transcribe()
@@ -200,23 +215,31 @@ class SttService:
         transcription = asyncio.run_coroutine_threadsafe(
             asyncio.to_thread(self.stop_recording_and_transcribe), self._app_loop
         )
-        transcription.add_done_callback(self._log_error_of_transcription)
+        transcription.add_done_callback(
+            self._log_and_queue_error_if_transcription_failed
+        )
 
-    def _log_error_of_transcription(self, transcription) -> None:
-        """Called when the background transcription ends. Logs its error, an
-        error of a worker thread would otherwise be lost. A cancelled or
-        successful transcription logs nothing."""
-        if not transcription.cancelled() and transcription.exception() is not None:
-            logger.error(
-                "The transcription from the hotkey failed.",
-                exc_info=transcription.exception(),
-            )
+    def _log_and_queue_error_if_transcription_failed(
+        self, transcription: concurrent.futures.Future
+    ) -> None:
+        """Called when the background transcription ends. Logs its error and
+        puts the error in the STT queue, so the pilot gets a toast like for
+        the mic button. An error of a worker thread would otherwise be lost. A
+        cancelled or successful transcription does nothing."""
+        if transcription.cancelled():
+            return
+        error = transcription.exception()
+        if not isinstance(error, Exception):
+            return
+        logger.error("The transcription from the hotkey failed.", exc_info=error)
+        if self._app_loop is not None:
+            self._app_loop.call_soon_threadsafe(self._stt_queue.put_nowait, error)
 
-    async def consume_stt_queue(self) -> AsyncGenerator[str, None]:
+    async def consume_stt_queue(self) -> AsyncGenerator[str | Exception, None]:
         """Never ends. Yields every text that stop_recording_and_transcribe()
-        puts in the queue, one by one, in the order they were spoken. The
-        first call remembers the running event loop, the texts are queued on
-        it.
+        puts in the queue, one by one, in the order they were spoken, and the
+        error of every failed hotkey transcription. The first call remembers
+        the running event loop, the texts are queued on it.
 
         Exactly one consumer, a queue does not copy items."""
         self._app_loop = asyncio.get_running_loop()
@@ -311,7 +334,8 @@ class SttService:
         2. Applies the settings and, when STT is enabled, loads Whisper now,
            so the first push to talk is fast. The load blocks the event loop.
         3. Yields completed. Never raises, an error ends up in the status
-           message.
+           message and turns the MIC dot of the header red with the same
+           text.
         """
         status = ColdStartStatus(
             service="stt",
@@ -327,6 +351,7 @@ class SttService:
             status.completed = True
             yield status
         except Exception as e:
+            self.__status_stream.set_status(ServiceState.ERROR, str(e))
             status.completed = True
             status.message = str(e)
             yield status
