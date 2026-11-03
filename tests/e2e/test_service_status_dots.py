@@ -771,6 +771,15 @@ async def test_should_show_a_toast_and_a_red_mic_dot_when_whisper_fails_on_the_h
         with allure.step("And the MIC dot is green again"):
             assert dot_state(pilot.app, MIC_DOT) == "ok"
 
+        with allure.step("And Celeste has finished answering"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: pilot.app.screen.query_one(
+                    "#comms-thinking-indicator"
+                ).has_class("hidden"),
+                "the thinking indicator hidden",
+            )
+
 
 @allure.title(
     "A failed transcription after the mic button shows a toast and a red MIC dot"
