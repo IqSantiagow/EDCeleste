@@ -7,6 +7,7 @@ from textual.widgets import Label
 
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
+from edceleste.ui.screens.system_check.system_check_screen import SystemCheckScreen
 from tests.e2e.conftest import (
     answer_preflight_connection_test,
     comms_entries,
@@ -14,6 +15,7 @@ from tests.e2e.conftest import (
     open_stt_settings,
     send_comms_message,
 )
+from tests.e2e.test_boot import preflight_row
 from tests.e2e.test_push_to_talk_hotkey import (
     hold_and_release,
     save_settings_with_ctrl_s,
@@ -24,7 +26,7 @@ from tests.e2e.test_settings_llm import (
     model_list_is_shown,
 )
 from tests.e2e.test_streaming_voice import chatterbox_settings
-from tests.e2e.test_voice_profiles import write_voice_profile_files
+from tests.e2e.test_voice_profiles import notification_texts, write_voice_profile_files
 
 pytestmark = [pytest.mark.anyio, allure.feature("Service status dots in the header")]
 
@@ -600,3 +602,211 @@ async def test_should_keep_the_llm_dot_red_when_test_connection_fails(edceleste)
             assert dot_state(pilot.app, LLM_DOT) == "error"
             assert "HTTP 401" in dot_reason(pilot.app, LLM_DOT)
             assert API_KEY not in dot_reason(pilot.app, LLM_DOT)
+
+
+@allure.title(
+    "A Whisper that cannot be loaded fails the STT check and turns the MIC dot red"
+)
+async def test_should_show_stt_failed_and_the_mic_dot_red_when_whisper_cannot_be_loaded(
+    edceleste,
+    monkeypatch,
+):
+    with allure.step("Given speech to text is on and F9 is the push-to-talk key"):
+        edceleste.turn_speech_to_text_on("Key.f9")
+
+    with allure.step("And the preflight stays open one second so it can be read"):
+        monkeypatch.setattr(SystemCheckScreen, "SECONDS_BEFORE_DASHBOARD", 1)
+
+    with allure.step("And Whisper cannot be loaded"):
+        edceleste.microphone.whisper_cannot_be_loaded("Whisper model file is corrupted")
+
+    with allure.step("When EDCeleste starts"):
+        async with edceleste.run_app() as pilot:
+            with allure.step(
+                "Then the STT row of the preflight is failed with the reason"
+            ):
+                await edceleste.wait_until(
+                    pilot,
+                    lambda: preflight_row(pilot.app, "stt").state == "failed",
+                    "the STT row of the preflight marked as failed",
+                )
+                assert (
+                    preflight_row(pilot.app, "stt").error_message
+                    == "Whisper model file is corrupted"
+                )
+
+            await edceleste.open_dashboard(pilot, step_keyword="And")
+
+            with allure.step("And the MIC dot is red with the same reason"):
+                await edceleste.wait_until(
+                    pilot,
+                    lambda: dot_state(pilot.app, MIC_DOT) == "error",
+                    "the MIC dot red",
+                )
+                assert dot_text(pilot.app, MIC_DOT) == "● MIC"
+                assert (
+                    dot_reason(pilot.app, MIC_DOT) == "Whisper model file is corrupted"
+                )
+
+            with allure.step("And the other dots are not red"):
+                for dot_id in [LLM_DOT, TTS_DOT, JOURNAL_DOT]:
+                    assert dot_state(pilot.app, dot_id) != "error"
+
+
+@allure.title(
+    "A voice that fails while warming up fails the TTS check and turns the TTS dot red"
+)
+async def test_should_show_tts_failed_and_the_dot_red_when_the_voice_fails_to_warm_up(
+    edceleste,
+    monkeypatch,
+):
+    with allure.step("Given Chatterbox on a GPU is saved with the voice 'narrator'"):
+        write_voice_profile_files(edceleste, "narrator")
+        edceleste.save_tts_settings(chatterbox_settings(device="cuda"))
+
+    with allure.step("And speech to text is on and F9 is the push-to-talk key"):
+        edceleste.turn_speech_to_text_on("Key.f9")
+
+    with allure.step("And the preflight stays open one second so it can be read"):
+        monkeypatch.setattr(SystemCheckScreen, "SECONDS_BEFORE_DASHBOARD", 1)
+
+    with allure.step("And the voice engine runs out of memory while warming up"):
+        edceleste.fake_tts_providers["chatterbox"].break_the_warm_up(
+            "CUDA out of memory"
+        )
+
+    with allure.step("When EDCeleste starts"):
+        async with edceleste.run_app() as pilot:
+            with allure.step(
+                "Then the TTS row of the preflight is failed with the reason"
+            ):
+                await edceleste.wait_until(
+                    pilot,
+                    lambda: preflight_row(pilot.app, "tts").state == "failed",
+                    "the TTS row of the preflight marked as failed",
+                )
+                assert (
+                    preflight_row(pilot.app, "tts").error_message
+                    == "CUDA out of memory"
+                )
+
+            await edceleste.open_dashboard(pilot, step_keyword="And")
+
+            with allure.step("And the TTS dot is red with the same reason"):
+                await edceleste.wait_until(
+                    pilot,
+                    lambda: dot_state(pilot.app, TTS_DOT) == "error",
+                    "the TTS dot red",
+                )
+                assert dot_text(pilot.app, TTS_DOT) == "● TTS"
+                assert dot_reason(pilot.app, TTS_DOT) == "CUDA out of memory"
+
+            with allure.step("And the other dots are not red"):
+                for dot_id in [LLM_DOT, MIC_DOT, JOURNAL_DOT]:
+                    assert dot_state(pilot.app, dot_id) != "error"
+
+
+@allure.title(
+    "A failed transcription after the push-to-talk key shows a toast and a red "
+    "MIC dot until the next recording"
+)
+async def test_should_show_a_toast_and_a_red_mic_dot_when_whisper_fails_on_the_hotkey(
+    edceleste,
+):
+    with allure.step("Given speech to text is on and F9 is the push-to-talk key"):
+        edceleste.turn_speech_to_text_on("Key.f9")
+
+    with allure.step("And the microphone hears 'Request docking'"):
+        edceleste.microphone.hears("Request docking")
+
+    with allure.step("And the LLM answers 'Copy that, Commander.'"):
+        edceleste.use_scripted_model(answer_copy_that)
+
+    with allure.step("And Whisper fails while turning the recording into text"):
+        edceleste.microphone.whisper_fails("Whisper ran out of memory")
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander holds F9, speaks and lets go of it"):
+            await hold_and_release(edceleste, "Key.f9")
+
+        with allure.step("Then a toast says the speech to text failed and why"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: any(
+                    "STT error: Whisper ran out of memory" in text
+                    for text in notification_texts(pilot.app)
+                ),
+                "the toast with the speech to text error",
+            )
+
+        with allure.step("And the MIC dot is red with the same reason"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, MIC_DOT) == "error",
+                "the MIC dot red",
+            )
+            assert dot_reason(pilot.app, MIC_DOT) == (
+                "Speech-to-text failed: Whisper ran out of memory"
+            )
+
+        with allure.step("And nothing was sent to COMMS"):
+            assert comms_entries(pilot.app, "user-command") == []
+
+        with allure.step("And Whisper works again"):
+            edceleste.microphone.whisper_works_again()
+
+        with allure.step("When the Commander holds F9, speaks and lets go of it again"):
+            await hold_and_release(edceleste, "Key.f9")
+
+        with allure.step("Then COMMS shows the spoken command and the answer"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_entries(pilot.app, "llm-response") != [],
+                "Celeste's answer in COMMS",
+            )
+            assert comms_entries(pilot.app, "user-command") == ["Request docking"]
+
+        with allure.step("And the MIC dot is green again"):
+            assert dot_state(pilot.app, MIC_DOT) == "ok"
+
+
+@allure.title(
+    "A failed transcription after the mic button shows a toast and a red MIC dot"
+)
+async def test_should_show_a_toast_and_a_red_mic_dot_when_whisper_fails_on_the_button(
+    edceleste,
+):
+    with allure.step("Given speech to text is on and no push-to-talk key is set"):
+        edceleste.turn_speech_to_text_on(None)
+
+    with allure.step("And Whisper fails while turning the recording into text"):
+        edceleste.microphone.whisper_fails("Whisper ran out of memory")
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander holds the mic button and lets go of it"):
+            await pilot.mouse_down("#comms-stt-button")
+            await pilot.mouse_up("#comms-stt-button")
+
+        with allure.step("Then a toast says the speech to text failed and why"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: any(
+                    "STT error: Whisper ran out of memory" in text
+                    for text in notification_texts(pilot.app)
+                ),
+                "the toast with the speech to text error",
+            )
+
+        with allure.step("And the MIC dot is red with the same reason"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: dot_state(pilot.app, MIC_DOT) == "error",
+                "the MIC dot red",
+            )
+            assert dot_reason(pilot.app, MIC_DOT) == (
+                "Speech-to-text failed: Whisper ran out of memory"
+            )
