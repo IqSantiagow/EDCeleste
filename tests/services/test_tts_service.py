@@ -113,6 +113,7 @@ class FakeSpeaker:
         self.pieces: list[np.ndarray] = []
         self.piece_sample_rates: list[int] = []
         self.stop_count = 0
+        self.voice_error_reasons: list[str] = []
         self._speeches: list[asyncio.Future] = []
 
     def queue_speech(self, speak, priority, max_wait_seconds=None):
@@ -136,6 +137,9 @@ class FakeSpeaker:
 
     def stop_speaking(self):
         self.stop_count += 1
+
+    def set_tts_status_to_error(self, reason):
+        self.voice_error_reasons.append(reason)
 
 
 class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
@@ -2606,6 +2610,27 @@ class TTSServiceStreamingTest(unittest.IsolatedAsyncioTestCase):
         completed, _, message, _ = statuses[-1]
         self.assertTrue(completed)
         self.assertEqual(message, "Voice profile not found: celeste.pt")
+
+    async def test_cold_start_shows_a_failed_warm_up_on_the_tts_dot(self):
+        self._make_provider_speak([])
+        self.service._TTSService__warm_up_voice = AsyncMock(
+            side_effect=RuntimeError("CUDA out of memory")
+        )
+
+        await self._run_cold_start()
+
+        self.assertEqual(self.speaker.voice_error_reasons, ["CUDA out of memory"])
+
+    async def test_cold_start_does_not_touch_the_tts_dot_when_the_warm_up_succeeds(
+        self,
+    ):
+        self._make_provider_speak([])
+        self.service._TTSService__warm_up_voice = AsyncMock()
+
+        statuses = await self._run_cold_start()
+
+        self.assertEqual(statuses[-1], (True, None, None, 1))
+        self.assertEqual(self.speaker.voice_error_reasons, [])
 
 
 def _make_pocket_params(profile: str = "celeste") -> PocketParamsModel:

@@ -137,6 +137,32 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(self.service._recording_stream)
 
+    async def test_status_is_error_when_whisper_fails_to_transcribe(self):
+        self.mock_whisper_model.transcribe.side_effect = RuntimeError("CUDA error")
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        with self.assertRaises(RuntimeError):
+            self.service.stop_recording_and_transcribe()
+
+        self.assertEqual(
+            await self._latest_status(),
+            ServiceStatus(ServiceState.ERROR, "Speech-to-text failed: CUDA error"),
+        )
+
+    async def test_status_is_error_when_whisper_fails_to_load_at_transcription(self):
+        self.mock_load_model.side_effect = RuntimeError("No network")
+        self.service.start_recording()
+        self.service._recorded_frames = [np.array([0.1, 0.2])]
+
+        with self.assertRaises(RuntimeError):
+            self.service.stop_recording_and_transcribe()
+
+        self.assertEqual(
+            await self._latest_status(),
+            ServiceStatus(ServiceState.ERROR, "Speech-to-text failed: No network"),
+        )
+
     # --- start_recording ---
 
     def test_start_recording_raises_when_disabled(self):
@@ -449,6 +475,19 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(last_status.message)
         self.mock_load_model.assert_not_called()
 
+    async def test_status_is_error_with_the_reason_when_whisper_cannot_load_at_cold_start(  # noqa: E501
+        self,
+    ):
+        self.mock_load_model.side_effect = RuntimeError("No network, no cache")
+
+        statuses = [status async for status in self.service.cold_start()]
+
+        self.assertEqual(statuses[-1].message, "No network, no cache")
+        self.assertEqual(
+            await self._latest_status(),
+            ServiceStatus(ServiceState.ERROR, "No network, no cache"),
+        )
+
     async def test_cold_start_yields_error_message_when_model_load_fails(self):
         self.settings_service.get_settings.return_value = _make_settings(model="")
 
@@ -581,6 +620,21 @@ class SttServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs("edceleste.services.stt_service", level="ERROR"):
             self.service.transcribe_in_background()
             await asyncio.sleep(0.2)
+
+    async def test_transcribe_in_background_puts_the_error_of_the_transcription_in_the_queue(  # noqa: E501
+        self,
+    ):
+        whisper_error = RuntimeError("CUDA error")
+        self.service.stop_recording_and_transcribe = Mock(side_effect=whisper_error)
+        consumer = self.service.consume_stt_queue()
+        next_item = asyncio.create_task(anext(consumer))
+        await asyncio.sleep(0)
+
+        with self.assertLogs("edceleste.services.stt_service", level="ERROR"):
+            self.service.transcribe_in_background()
+            item = await asyncio.wait_for(next_item, timeout=1)
+
+        self.assertIs(item, whisper_error)
 
     # --- STT queue ---
 

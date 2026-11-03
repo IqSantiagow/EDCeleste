@@ -294,6 +294,7 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
         ]
         self.voice_may_continue: asyncio.Event | None = None
         self.voice_breaks_once = False
+        self.why_warm_up_fails: str | None = None
 
     def make_the_model_slow(self) -> None:
         self.model_may_finish = asyncio.Event()
@@ -312,6 +313,9 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
     def break_the_voice_once(self) -> None:
         self.voice_breaks_once = True
 
+    def break_the_warm_up(self, reason: str) -> None:
+        self.why_warm_up_fails = reason
+
     async def synthesize_stream(
         self,
         text: str,
@@ -320,6 +324,11 @@ class FakeChatterboxTtsProvider(ChatterboxTTSProvider):
     ) -> AsyncIterator[np.ndarray]:
         if profile_path is not None and not profile_path.exists():
             raise FileNotFoundError(f"Voice profile not found: {profile_path}")
+        if (
+            self.why_warm_up_fails is not None
+            and text == tts_service_module.WARM_UP_TEXT
+        ):
+            raise RuntimeError(self.why_warm_up_fails)
         self.spoken_texts.append(text)
         self.spoken_params.append(params)
         self.spoken_profile_paths.append(profile_path)
@@ -534,12 +543,23 @@ class FakeMicrophone:
         self.times_opened = 0
         self.times_closed = 0
         self.why_it_cannot_be_opened: str | None = None
+        self.why_whisper_cannot_be_loaded: str | None = None
+        self.why_whisper_fails: str | None = None
 
     def hears(self, text: str) -> None:
         self.heard_text = text
 
     def cannot_be_opened(self, reason: str) -> None:
         self.why_it_cannot_be_opened = reason
+
+    def whisper_cannot_be_loaded(self, reason: str) -> None:
+        self.why_whisper_cannot_be_loaded = reason
+
+    def whisper_fails(self, reason: str) -> None:
+        self.why_whisper_fails = reason
+
+    def whisper_works_again(self) -> None:
+        self.why_whisper_fails = None
 
     def open_stream(self, callback, **settings) -> FakeMicrophoneStream:
         if self.why_it_cannot_be_opened is not None:
@@ -551,10 +571,15 @@ class FakeMicrophone:
         sounddevice.InputStream = self.open_stream
         return sounddevice
 
+    def transcribe(self, audio, **settings) -> dict:
+        if self.why_whisper_fails is not None:
+            raise RuntimeError(self.why_whisper_fails)
+        return {"text": f" {self.heard_text} "}
+
     def build_whisper_model(self) -> SimpleNamespace:
-        return SimpleNamespace(
-            transcribe=lambda audio, **settings: {"text": f" {self.heard_text} "}
-        )
+        if self.why_whisper_cannot_be_loaded is not None:
+            raise RuntimeError(self.why_whisper_cannot_be_loaded)
+        return SimpleNamespace(transcribe=self.transcribe)
 
 
 def recorded_journal_line(event_name: str) -> str:

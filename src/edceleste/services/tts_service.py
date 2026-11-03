@@ -1055,9 +1055,9 @@ class TTSService:
            would wait for that on the first reply. Other providers load
            nothing, a broken voice shows up on the first reply.
         4. Yields completed. Never raises, an error (also a voice profile that
-           is missing) ends up in the status message. The check is not
-           critical: with an error the app still starts, and the problem shows
-           on the first reply.
+           is missing) ends up in the status message and turns the TTS dot of
+           the header red with the same text (SpeakerProtocol.set_tts_status_to_error).
+           The check is not critical: with an error the app still starts.
         """
         status = ColdStartStatus(
             service="tts",
@@ -1080,6 +1080,7 @@ class TTSService:
             status.completed = True
             yield status
         except Exception as e:
+            self.__speaker_protocol.set_tts_status_to_error(str(e))
             status.completed = True
             status.message = str(e)
             yield status

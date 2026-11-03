@@ -106,10 +106,14 @@ class WidgetCommsInput(VerticalGroup):
         """Worker that never ends and is the only reader of the STT queue.
         Every text that comes out of it, from the mic button or from the
         hotkey, is put in the input and submitted, so it takes the same way as
-        a typed message."""
+        a typed message. A failed hotkey transcription comes out as an error
+        and is shown as a toast, the same one as for the mic button."""
         stream = self.ed_dashboard_repository.stream_stt_transcriptions()
-        async for spoken_text in stream:
-            self.query_one("#comms-input", Input).value = spoken_text
+        async for spoken_text_or_error in stream:
+            if isinstance(spoken_text_or_error, Exception):
+                self.notify(f"STT error: {spoken_text_or_error}", severity="error")
+                continue
+            self.query_one("#comms-input", Input).value = spoken_text_or_error
             await self.query_one("#comms-input", Input).action_submit()
 
     @on(Input.Submitted)
