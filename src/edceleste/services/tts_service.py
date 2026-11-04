@@ -21,10 +21,10 @@ from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.game_events import GameEvent, StatusEvent
 from edceleste.services.models.reply_texts import (
     JOURNAL_EVENT_REPLY_TEXTS,
-    REPLY_TEXTS,
     build_reply_wav_file_name,
     pick_reply_texts_for_changed_flags,
 )
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.services.models.settings_model import (
     SettingsIssueModel,
     SettingsModel,

@@ -21,7 +21,8 @@ from edceleste.services.models.game_events import (
     StatusFlags,
     UnknownCheckedEvent,
 )
-from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
+from edceleste.services.models.reply_texts import build_reply_wav_file_name
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     EdgeParamsModel,
