@@ -268,14 +268,27 @@ class GameWatcherService:
 
         A line that does not parse (bad JSON, fields that fail the model, an
         empty line) is logged and skipped, nothing is published and nothing is
-        raised. Errors of the subscribers do not come back, the event bus
-        swallows them."""
+        raised. That includes a line that is valid JSON but not an object
+        (123, [], null). Errors of the subscribers do not come back, the event
+        bus swallows them."""
+        if self.__is_json_but_not_object(line):
+            logger.error("Journal line is not a JSON object: %s", line)
+            return
         try:
             event = self.adapter.validate_json(line.strip())
             event.is_startup_loading = is_startup_loading
             await self.event_bus.publish(event)
         except ValidationError:
             logger.error("Error during validation for event: %s", line)
+
+    def __is_json_but_not_object(self, line: str) -> bool:
+        """Returns True when the line is valid JSON whose value is not an
+        object (123, [], null, "text"). Returns False for an object and for
+        bad JSON, which the validation reports as before."""
+        try:
+            return not isinstance(json.loads(line), dict)
+        except ValueError:
+            return False
 
     def __get_latest_journal_filepath(self) -> str:
         """Looks in the folder self.journal_path and returns the full path of
