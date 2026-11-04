@@ -321,3 +321,139 @@ async def test_should_keep_the_reply_and_press_the_key_once_when_the_voice_break
                 "Throttle zero",
                 "Throttle zero",
             ]
+
+
+STATUS_HARDPOINTS_DEPLOYED = 64
+STATUS_FLIGHT_ASSIST_OFF = 32
+STATUS_LIGHTS_ON = 256
+STATUS_CARGO_SCOOP_DEPLOYED = 512
+STATUS_NIGHT_VISION = 268435456
+
+NIGHT_VISION_KEYS = [
+    "keyDown ctrlleft",
+    "keyDown shiftleft",
+    "press l",
+    "keyUp shiftleft",
+    "keyUp ctrlleft",
+]
+
+TOGGLE_COMMANDS = [
+    pytest.param(
+        "DeployHardpointToggle",
+        0,
+        "Hardpoints deployed",
+        ["press u"],
+        id="hardpoints-deployed",
+    ),
+    pytest.param(
+        "DeployHardpointToggle",
+        STATUS_HARDPOINTS_DEPLOYED,
+        "Hardpoints retracted",
+        ["press u"],
+        id="hardpoints-retracted",
+    ),
+    pytest.param(
+        "ToggleCargoScoop",
+        0,
+        "Cargo scoop deployed",
+        ["press home"],
+        id="scoop-deployed",
+    ),
+    pytest.param(
+        "ToggleCargoScoop",
+        STATUS_CARGO_SCOOP_DEPLOYED,
+        "Cargo scoop retracted",
+        ["press home"],
+        id="scoop-retracted",
+    ),
+    pytest.param("ShipSpotLightToggle", 0, "Lights on", ["press l"], id="lights-on"),
+    pytest.param(
+        "ShipSpotLightToggle",
+        STATUS_LIGHTS_ON,
+        "Lights off",
+        ["press l"],
+        id="lights-off",
+    ),
+    pytest.param(
+        "ToggleFlightAssist",
+        0,
+        "Flight assist off",
+        ["press z"],
+        id="flight-assist-off",
+    ),
+    pytest.param(
+        "ToggleFlightAssist",
+        STATUS_FLIGHT_ASSIST_OFF,
+        "Flight assist on",
+        ["press z"],
+        id="flight-assist-on",
+    ),
+    pytest.param(
+        "NightVisionToggle",
+        0,
+        "Night vision on",
+        NIGHT_VISION_KEYS,
+        id="night-vision-on",
+    ),
+    pytest.param(
+        "NightVisionToggle",
+        STATUS_NIGHT_VISION,
+        "Night vision off",
+        NIGHT_VISION_KEYS,
+        id="night-vision-off",
+    ),
+]
+
+
+@allure.title("A toggle command does the opposite of the ship and COMMS says '{reply}'")
+@pytest.mark.parametrize("action_name, flags_before, reply, keys", TOGGLE_COMMANDS)
+async def test_should_reply_the_opposite_of_the_ship_state_to_a_toggle_command(
+    edceleste, action_name, flags_before, reply, keys
+):
+    prompts_sent_to_llm: list[str] = []
+    command = "switch it please"
+
+    with allure.step("Given game actions are allowed in the settings"):
+        edceleste.allow_game_actions()
+
+    with allure.step(f"And Instinct on the GPU picks {action_name} for the command"):
+        instinct_model = edceleste.turn_instinct_on()
+        instinct_model.choices_by_message[command] = action_name
+
+    with allure.step("And the LLM remembers every prompt it receives"):
+        edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("And the game reports the ship as it is now"):
+            edceleste.write_status_file(
+                fuel_main=FUEL_IN_THE_BASELINE, flags=flags_before
+            )
+            await edceleste.wait_until(
+                pilot,
+                lambda: fuel_in_the_hud(pilot.app) == str(FUEL_IN_THE_BASELINE),
+                "the fuel of the first Status.json in the HUD",
+            )
+
+        with allure.step("When the Commander sends the command in COMMS"):
+            await send_comms_message(pilot, command)
+
+        with allure.step(f"Then COMMS shows the reply '{reply}'"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: comms_entries(pilot.app, "llm-response") != [],
+                "Instinct's reply in COMMS",
+            )
+            assert comms_entries(pilot.app, "llm-response") == [reply]
+
+        with allure.step("And Celeste does not say it herself, the game state will"):
+            await pilot.pause(0.5)
+            assert edceleste.spoken_texts == []
+            assert edceleste.played_audio == []
+
+        with allure.step("And the key of the switch is pressed once"):
+            assert edceleste.fake_keyboard.keyboard_log == keys
+
+        with allure.step("And Celeste (the LLM) is not asked anything"):
+            assert prompts_sent_to_llm == []

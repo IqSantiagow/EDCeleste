@@ -7,7 +7,8 @@ from textual.pilot import Pilot
 from textual.widgets import Label, Select
 from textual.widgets._toast import Toast
 
-from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
+from edceleste.services.models.reply_texts import build_reply_wav_file_name
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from edceleste.ui.screens.settings.widgets.tts.voice_clone_modal_screen import (

@@ -11,7 +11,7 @@ from edceleste.services.exceptions.game_window_exception import (
 from edceleste.services.keybinds_service import KeybindService
 from edceleste.services.models.game_stats import GameStatsSnapshot
 from edceleste.services.models.keybinds_model import EdAction
-from edceleste.services.models.reply_texts import REPLY_TEXTS
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.services.models.settings_model import GameActionsModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 from tests.use_cases.dashboard.game_stats_fixtures import (

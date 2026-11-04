@@ -4,7 +4,8 @@ import pytest
 import soundfile
 from textual.pilot import Pilot
 
-from edceleste.services.models.reply_texts import REPLY_TEXTS, build_reply_wav_file_name
+from edceleste.services.models.reply_texts import build_reply_wav_file_name
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
 from tests.e2e.test_voice_profiles import (
     FAKE_SAMPLE_RATE_FOR_FILES,

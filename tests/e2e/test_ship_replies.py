@@ -17,9 +17,12 @@ pytestmark = [pytest.mark.anyio, allure.feature("Ship replies")]
 # The bits of the Flags field the game writes to Status.json
 STATUS_LANDING_GEAR_DOWN = 4
 STATUS_FLIGHT_ASSIST_OFF = 32
+STATUS_HARDPOINTS_DEPLOYED = 64
 STATUS_LIGHTS_ON = 256
+STATUS_CARGO_SCOOP_DEPLOYED = 512
 STATUS_FSD_CHARGING = 131072
 STATUS_LOW_FUEL = 524288
+STATUS_NIGHT_VISION = 268435456
 
 FUEL_IN_THE_BASELINE = 12.5
 SAVED_VOLUME = 0.5
@@ -120,10 +123,29 @@ SHIP_SWITCHES = [
     pytest.param(
         STATUS_LANDING_GEAR_DOWN, 0, "Landing gear retracted", id="gear-retracted"
     ),
+    pytest.param(0, STATUS_LANDING_GEAR_DOWN, "Landing gear deployed", id="gear-down"),
+    pytest.param(
+        0, STATUS_HARDPOINTS_DEPLOYED, "Hardpoints deployed", id="hardpoints-deployed"
+    ),
+    pytest.param(
+        STATUS_HARDPOINTS_DEPLOYED, 0, "Hardpoints retracted", id="hardpoints-retracted"
+    ),
+    pytest.param(
+        0, STATUS_CARGO_SCOOP_DEPLOYED, "Cargo scoop deployed", id="scoop-deployed"
+    ),
+    pytest.param(
+        STATUS_CARGO_SCOOP_DEPLOYED, 0, "Cargo scoop retracted", id="scoop-retracted"
+    ),
+    pytest.param(0, STATUS_LIGHTS_ON, "Lights on", id="lights-on"),
     pytest.param(STATUS_LIGHTS_ON, 0, "Lights off", id="lights-off"),
     pytest.param(
         0, STATUS_FLIGHT_ASSIST_OFF, "Flight assist off", id="flight-assist-off"
     ),
+    pytest.param(
+        STATUS_FLIGHT_ASSIST_OFF, 0, "Flight assist on", id="flight-assist-on"
+    ),
+    pytest.param(0, STATUS_NIGHT_VISION, "Night vision on", id="night-vision-on"),
+    pytest.param(STATUS_NIGHT_VISION, 0, "Night vision off", id="night-vision-off"),
     pytest.param(0, STATUS_LOW_FUEL, "Main fuel tank low", id="low-fuel"),
 ]
 
