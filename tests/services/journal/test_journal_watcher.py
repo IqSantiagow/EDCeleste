@@ -128,6 +128,60 @@ class JournalWatcherTest(unittest.IsolatedAsyncioTestCase):
         for published_call in self.mock_event_bus.publish.await_args_list:
             self.assertFalse(published_call.args[0].is_startup_loading)
 
+    async def test_follow_skips_json_line_that_is_not_an_object_and_keeps_reading(self):
+        for not_an_object_line in ["123", "[]", "null", '"text"']:
+            with self.subTest(line=not_an_object_line):
+                event_after = self._make_event("EventAfterBrokenLine")
+                watcher = self._make_watcher()
+
+                def readline_side_effect():
+                    yield not_an_object_line
+                    yield event_after.model_dump_json()
+                    watcher.stop_watcher_service()
+                    yield ""
+
+                journal_file = Mock()
+                journal_file.readline.side_effect = readline_side_effect()
+
+                follow_journal = getattr(
+                    watcher,
+                    "_GameWatcherService__follow_open_journal_file_and_publish_new_lines",
+                )
+                with self.assertLogs(
+                    "edceleste.services.game_watcher_service", level="ERROR"
+                ) as captured_logs:
+                    await follow_journal(journal_file)
+
+                self.assertIn("not a JSON object", captured_logs.output[0])
+                self.assertEqual(
+                    self.mock_event_bus.publish.await_args_list,
+                    [((event_after,),)],
+                )
+
+    async def test_follow_skips_bad_json_line_and_keeps_reading(self):
+        event_after = self._make_event("EventAfterBrokenLine")
+        watcher = self._make_watcher()
+
+        def readline_side_effect():
+            yield "{ half a line"
+            yield event_after.model_dump_json()
+            watcher.stop_watcher_service()
+            yield ""
+
+        journal_file = Mock()
+        journal_file.readline.side_effect = readline_side_effect()
+
+        await (
+            watcher._GameWatcherService__follow_open_journal_file_and_publish_new_lines(  # type: ignore
+                journal_file
+            )
+        )
+
+        self.assertEqual(
+            self.mock_event_bus.publish.await_args_list,
+            [((event_after,),)],
+        )
+
     async def test_should_stop_emitting_events_on_stop_signal(self):
         event1 = self._make_event("SomeEvent1")
         watcher = self._make_watcher()
