@@ -30,10 +30,8 @@ from edceleste.services.models.instinct_status import (
 )
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.fast_command_reply import FastCommandReply
-from edceleste.services.models.reply_texts import (
-    ACTIONS_SAID_BY_GAME_STATE,
-    REPLY_TEXTS,
-)
+from edceleste.services.models.reply_texts import ACTIONS_SAID_BY_GAME_STATE
+from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.services.models.settings_model import (
     GameActionsModel,
     InstinctModel,
