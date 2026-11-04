@@ -35,9 +35,9 @@ from edceleste.services.models.instinct_status import (
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.reply_texts import (
     ACTIONS_SAID_BY_GAME_STATE,
-    GAME_ACTIONS_DISABLED_TEXT,
     pick_reply_text_for_pressed_action,
 )
+from edceleste.services.models.reply_text import ReplyTexts
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
@@ -467,7 +467,7 @@ class InstinctService:
                     pilot_message,
                     action.value,
                 )
-                return FastCommandReply(GAME_ACTIONS_DISABLED_TEXT)
+                return FastCommandReply(ReplyTexts.GAME_ACTIONS_DISABLED)
             # Read before the press: the key changes the ship, and a toggle is
             # named after what it did, not after what the ship is now
             ship_before_press = self.game_state_protocol.get_game_stats().ship

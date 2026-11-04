@@ -4,15 +4,14 @@ from edceleste.services.models.game_events import StatusFlags
 from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.reply_texts import (
     ACTIONS_SAID_BY_GAME_STATE,
-    GAME_ACTIONS_DISABLED_TEXT,
     JOURNAL_EVENT_REPLY_TEXTS,
     REPLY_TEXT_OF_ONE_SHOT_ACTION,
-    REPLY_TEXTS,
     SHIP_FLAG_REPLY_TEXTS,
     build_reply_wav_file_name,
     pick_reply_text_for_pressed_action,
     pick_reply_texts_for_changed_flags,
 )
+from edceleste.services.models.reply_text import ReplyTexts, REPLY_TEXTS
 from tests.use_cases.dashboard.game_stats_fixtures import make_ship_stats
 
 
@@ -158,7 +157,7 @@ class TestReplyTexts(unittest.TestCase):
         self.assertEqual(len(set(file_names)), len(REPLY_TEXTS))
 
     def test_the_game_actions_disabled_text_is_in_the_set(self):
-        self.assertIn(GAME_ACTIONS_DISABLED_TEXT, REPLY_TEXTS)
+        self.assertIn(ReplyTexts.GAME_ACTIONS_DISABLED, REPLY_TEXTS)
 
 
 class TestPickReplyTextForPressedAction(unittest.TestCase):
