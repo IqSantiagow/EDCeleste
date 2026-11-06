@@ -150,7 +150,8 @@ class SettingsRepository:
         2. Any issue: nothing is saved and all issues are returned.
         3. No issue: the settings are written to config.yaml, every service
            reloads with them and an empty list is returned.
-        Other errors are not caught.
+        Other errors are not caught, e.g. an OSError when config.yaml cannot be
+        written reaches the settings screen, which shows the save as failed.
         """
         try:
             await self.update_settings_use_case(new_settings)

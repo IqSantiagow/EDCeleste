@@ -563,3 +563,49 @@ async def test_should_not_show_the_path_in_yellow_when_the_saved_value_is_typed_
                 lambda: save_state_text(pilot.app) == "",
                 "no MODIFIED in the settings header",
             )
+
+
+@allure.title(
+    "A config.yaml that cannot be written shows a saving error and the save works "
+    "again once it is writable"
+)
+async def test_should_show_a_saving_error_when_config_yaml_is_read_only(edceleste):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("Given config.yaml is read-only"):
+            config_before = edceleste.config_file.read_text()
+            edceleste.config_file.chmod(0o444)
+
+        with allure.step("And the Commander opens Settings > Game actions"):
+            await open_settings_section(edceleste, pilot, "settings-game_actions")
+
+        with allure.step("And the Commander turns game actions on"):
+            await pilot.click("#game-actions-enabled-input Switch")
+            await pilot.pause()
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+
+        with allure.step("Then the header shows ERROR DURING SAVING"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ ERROR DURING SAVING",
+                "ERROR DURING SAVING in the settings header",
+            )
+
+        with allure.step("And Settings stays open and config.yaml is unchanged"):
+            assert isinstance(pilot.app.screen, SettingsScreen)
+            assert edceleste.config_file.read_text() == config_before
+
+        with allure.step("When config.yaml becomes writable and the Commander saves"):
+            edceleste.config_file.chmod(0o644)
+            await pilot.press("ctrl+s")
+
+        with allure.step("Then the header shows SAVED and config.yaml has the change"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ SAVED",
+                "SAVED in the settings header",
+            )
+            assert saved_config(edceleste)["game_actions"]["enabled"] is True

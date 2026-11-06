@@ -105,9 +105,17 @@ class SettingsScreen(Screen):
         if not self.settings_state:
             return
 
-        failures = await self.settings_repository.validate_and_save_settings(
-            self.settings_state
-        )
+        try:
+            failures = await self.settings_repository.validate_and_save_settings(
+                self.settings_state
+            )
+        except OSError:
+            # config.yaml cannot be written (read-only, locked by an editor):
+            # stay on the screen, show the error and keep the old settings.
+            logger.exception("Could not write config.yaml.")
+            self.query_one(WidgetSettingsHeaderContent).save_state = SaveState.FAILED
+            return
+
         if failures:
             self.query_one(WidgetSettingsHeaderContent).save_state = SaveState.FAILED
             self.show_validation_errors_in_sections(failures)
