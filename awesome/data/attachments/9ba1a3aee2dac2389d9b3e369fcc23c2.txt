@@ -1,0 +1,1 @@
+WARNING  edceleste.services.game_window:game_window.py:65 Game window not found, is the game running?

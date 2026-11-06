@@ -1,0 +1,19 @@
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:490 Status.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_toast_and_a0/journal/Status.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:490 Market.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_toast_and_a0/journal/Market.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:490 NavRoute.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_toast_and_a0/journal/NavRoute.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:490 Cargo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_toast_and_a0/journal/Cargo.json'. Waiting for it to appear...
+WARNING  edceleste.services.game_watcher_service:game_watcher_service.py:490 ModulesInfo.json not found at '/tmp/pytest-of-runner/pytest-0/test_should_show_a_toast_and_a0/journal/ModulesInfo.json'. Waiting for it to appear...
+ERROR    edceleste.services.stt_service:stt_service.py:234 The transcription from the hotkey failed.
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/EDCeleste/EDCeleste/src/edceleste/services/stt_service.py", line 180, in stop_recording_and_transcribe
+    result = whisper_model.transcribe(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/EDCeleste/EDCeleste/tests/e2e/conftest.py", line 576, in transcribe
+    raise RuntimeError(self.why_whisper_fails)
+RuntimeError: Whisper ran out of memory

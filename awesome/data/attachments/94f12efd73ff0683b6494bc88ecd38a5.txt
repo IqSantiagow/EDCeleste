@@ -1,0 +1,1 @@
+WARNING  edceleste.services.keybinds_service:keybinds_service.py:244 No .binds files found in C:/k

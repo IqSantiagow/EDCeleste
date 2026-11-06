@@ -1,0 +1,1 @@
+{"id":"0e5927d2e3dca314e7d8935b1f2c971a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.TestLLMServiceHistory#test_should_not_save_anything_when_the_run_fails","name":"test_should_not_save_anything_when_the_run_fails","status":"passed","testResultsByEnv":{"default":"b80c91b716b233ddb2c3058acca44898"}}

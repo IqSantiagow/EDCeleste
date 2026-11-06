@@ -1,0 +1,1 @@
+{"id":"71a5f5ae68ec929ecb8f114f2fa3d998.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_stt_service.SttServiceTest#test_status_is_error_with_the_reason_when_whisper_cannot_load_at_cold_start","name":"test_status_is_error_with_the_reason_when_whisper_cannot_load_at_cold_start","status":"passed","testResultsByEnv":{"default":"f1fa8378ac425409b37aeaadc70e3a9a"}}

@@ -1,0 +1,1 @@
+{"id":"3a60b38af04409ca33d7b8edcfc2bfcd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_show_four_green_dots_when_everything_works","name":"When everything is configured the header shows four green dots","status":"passed","testResultsByEnv":{"default":"6754a2e0bd8aa2762806a36d6678bce7"}}

@@ -1,0 +1,1 @@
+{"id":"2fec70a094e533b394033eed8cbb92a9.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_show_a_toast_and_a_red_mic_dot_when_whisper_fails_on_the_button","name":"A failed transcription after the mic button shows a toast and a red MIC dot","status":"passed","testResultsByEnv":{"default":"3fe331261cd9dfbcf203e3ab37fb8b96"}}

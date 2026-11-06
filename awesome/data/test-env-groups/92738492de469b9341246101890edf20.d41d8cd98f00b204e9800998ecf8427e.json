@@ -1,0 +1,1 @@
+{"id":"92738492de469b9341246101890edf20.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_keep_the_llm_dot_red_when_test_connection_fails","name":"A failing Test connection in Settings leaves the LLM dot red","status":"passed","testResultsByEnv":{"default":"c7d1e75cbeb5b81e16ca2e88ac3376d5"}}

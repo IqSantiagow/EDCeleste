@@ -1,0 +1,1 @@
+{"id":"b4f26d4b229fbc476ebc4e3c102d07cd.a0dab16664f8dd16abe9417fd282df77","fullName":"tests.e2e.test_instinct_spoken_reply#test_should_reply_the_opposite_of_the_ship_state_to_a_toggle_command","name":"A toggle command does the opposite of the ship and COMMS says 'Lights on'","status":"passed","testResultsByEnv":{"default":"4430d71e3044a1a4d183405fd3d83e9a"}}

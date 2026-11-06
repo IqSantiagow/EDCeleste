@@ -1,0 +1,1 @@
+{"id":"55e2f57c8af23a8748f3aac6dd55c07a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.llm.test_llm_service.LLMServiceTest#test_find_connection_error_leaves_the_dot_alone_when_the_test_fails","name":"test_find_connection_error_leaves_the_dot_alone_when_the_test_fails","status":"passed","testResultsByEnv":{"default":"9d00ffe492e90e3b72cfe54860c8dd97"}}
