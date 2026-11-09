@@ -70,7 +70,7 @@ EOF
 f.e if you implemented new stt feature then keep it concise
 
 ```markdown
-Closes: #... (replace with the issue number this PR addresses)
+Closes IqSantiagow/EDCeleste-planning#... (replace with the number of the issue this PR addresses; plans live in the private planning repo, a bare `#N` would point to a public bug issue)
 ## Summary
 - new stt feature
 ```

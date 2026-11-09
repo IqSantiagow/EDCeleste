@@ -16,7 +16,7 @@ Celeste follows your game as it happens, talks with you, and presses keys for yo
 
 ![EDCeleste dashboard: navigation, flight and ship panels on top, the COMMS conversation with Celeste on the left and the ship log on the right](docs/screenshots/dashboard.png)
 
-> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, presses the key for a single command when it runs on the GPU. Before any key is pressed, by Instinct or by Celeste, the ship's state is checked: the landing gear, the cargo scoop and the hardpoints are refused when the ship cannot use them, and the reply says why. A command combined with a question and the "already deployed" check are next ([M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154)).
+> **Status:** in active development. The game state, the LLM co-pilot, voice in and out, key presses and event reactions work today. Instinct, the local model for fast commands, presses the key for a single command when it runs on the GPU. Before any key is pressed, by Instinct or by Celeste, the ship's state is checked: the landing gear, the cargo scoop and the hardpoints are refused when the ship cannot use them, and the reply says why. A command combined with a question and the "already deployed" check are next (M1 · Fast commands).
 
 ## What Celeste does
 
@@ -125,9 +125,9 @@ flowchart LR
 - **The question is multiple choice.** For a command, the options are the actions the pilot has bound, plus `none`. The model scores one letter per option and picks one. It cannot answer outside the list, so it cannot press a key that does not exist.
 - **The model chooses, there is no threshold.** If the chosen option is an action, its key is pressed. If it is `none`, the message goes to Celeste, as it did before Instinct. The scores of the best options go to the log, only for development.
 - **The list can change.** It was trained on random subsets of 5 to 42 actions, in random order, with `none` last, so it learns to choose from whatever list it is given.
-- **A second question will guard the door (planned, [M1.2](https://github.com/IqSantiagow/EDCeleste/issues/114)).** `needs_llm` will ask whether the message needs knowledge, planning or conversation, so a command combined with a question can be split.
+- **A second question will guard the door (planned, M1.2).** `needs_llm` will ask whether the message needs knowledge, planning or conversation, so a command combined with a question can be split.
 
-The same model answers the other questions the app will ask it: whether Celeste should speak up about a game event under the pilot's own rule ([M3](https://github.com/IqSantiagow/EDCeleste/issues/156)), and yes/no facts about the ship ("is the landing gear down?"), so toggles can check the state before pressing ([M1.3](https://github.com/IqSantiagow/EDCeleste/issues/113)).
+The same model answers the other questions the app will ask it: whether Celeste should speak up about a game event under the pilot's own rule (M3), and yes/no facts about the ship ("is the landing gear down?"), so toggles can check the state before pressing (M1.3).
 
 ### How well it decides
 
@@ -201,10 +201,10 @@ The [model card](https://huggingface.co/IqSantiagow/edceleste-decider-0.8b) has 
 
 | Milestone | What the pilot gets |
 |-----------|---------------------|
-| [M1 · Fast commands](https://github.com/IqSantiagow/EDCeleste/issues/154) | A command happens in about a second and Celeste confirms it, without waiting for the LLM. |
-| [M2 · Celeste knows the game](https://github.com/IqSantiagow/EDCeleste/issues/155) | From the first second Celeste knows the route, cargo and modules, and follows a game restart. |
-| [M3 · Reflex API](https://github.com/IqSantiagow/EDCeleste/issues/156) | One list of reactions: an instant rule, or Celeste judging the moment with your own prompt. |
-| [M4 · Cockpit cards](https://github.com/IqSantiagow/EDCeleste/issues/139) | Cards for the ship, route, station and system next to the conversation. |
+| M1 · Fast commands | A command happens in about a second and Celeste confirms it, without waiting for the LLM. |
+| M2 · Celeste knows the game | From the first second Celeste knows the route, cargo and modules, and follows a game restart. |
+| M3 · Reflex API | One list of reactions: an instant rule, or Celeste judging the moment with your own prompt. |
+| M4 · Cockpit cards | Cards for the ship, route, station and system next to the conversation. |
 
 ## Getting started
 
