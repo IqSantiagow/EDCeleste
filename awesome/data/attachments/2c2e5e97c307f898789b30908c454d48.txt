@@ -1,0 +1,1 @@
+WARNING  edceleste.services.keybinds_service:keybinds_service.py:132 Action 'UseShieldCell' has no keyboard key, nothing is pressed

@@ -1,0 +1,1 @@
+{"id":"b4f26d4b229fbc476ebc4e3c102d07cd.06298e71db05e3118f93ecaee848e0d5","fullName":"tests.e2e.test_instinct_spoken_reply#test_should_reply_the_opposite_of_the_ship_state_to_a_toggle_command","name":"A toggle command does the opposite of the ship and COMMS says 'Flight assist on'","status":"passed","testResultsByEnv":{"default":"68392d57830466c322aa251b22b45ded"}}

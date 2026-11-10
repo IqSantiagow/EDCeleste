@@ -1,0 +1,1 @@
+{"id":"b4f26d4b229fbc476ebc4e3c102d07cd.968a22d2d3e525b7ce4840448c0a3a77","fullName":"tests.e2e.test_instinct_spoken_reply#test_should_reply_the_opposite_of_the_ship_state_to_a_toggle_command","name":"A toggle command does the opposite of the ship and COMMS says 'Night vision off'","status":"passed","testResultsByEnv":{"default":"887337d6c85c87fd8b14d1db4adad992"}}

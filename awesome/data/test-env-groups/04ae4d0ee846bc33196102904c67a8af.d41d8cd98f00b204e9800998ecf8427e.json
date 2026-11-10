@@ -1,0 +1,1 @@
+{"id":"04ae4d0ee846bc33196102904c67a8af.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_speaker_service.SpeakerStatusTest#test_status_is_error_with_the_reason_after_set_tts_status_to_error","name":"test_status_is_error_with_the_reason_after_set_tts_status_to_error","status":"passed","testResultsByEnv":{"default":"0840d43995b4cb336d11c186d78183dc"}}

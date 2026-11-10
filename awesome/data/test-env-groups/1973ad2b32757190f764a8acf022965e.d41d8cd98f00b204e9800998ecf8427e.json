@@ -1,0 +1,1 @@
+{"id":"1973ad2b32757190f764a8acf022965e.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.journal.test_journal_watcher.NewJournalFileOnDiskTest#test_folder_without_journal_files_is_ignored_until_one_appears","name":"test_folder_without_journal_files_is_ignored_until_one_appears","status":"passed","testResultsByEnv":{"default":"ae6bc12fe63990a3385fead892d43914"}}

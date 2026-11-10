@@ -1,0 +1,1 @@
+{"id":"4c7ef2be14a945811204f45cb8f518f1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_hide_the_api_key_when_the_provider_rejects_a_message","name":"A rejected API key is hidden in the LLM dot and in COMMS","status":"passed","testResultsByEnv":{"default":"5f342c9d218402f378a28194e42a89bd"}}

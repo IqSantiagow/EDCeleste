@@ -1,0 +1,1 @@
+{"id":"60703cb6d732133db3ca3a846b10b687.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.tts_providers.test_pocket_tts_provider.SynthesizeStreamTest#test_loads_the_model_once_for_two_speeches","name":"test_loads_the_model_once_for_two_speeches","status":"passed","testResultsByEnv":{"default":"fd5d0e43946ff498b52c6ec54933a971"}}

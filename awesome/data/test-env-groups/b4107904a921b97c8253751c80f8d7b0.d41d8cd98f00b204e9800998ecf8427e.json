@@ -1,0 +1,1 @@
+{"id":"b4107904a921b97c8253751c80f8d7b0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_show_stt_failed_and_the_mic_dot_red_when_whisper_cannot_be_loaded","name":"A Whisper that cannot be loaded fails the STT check and turns the MIC dot red","status":"passed","testResultsByEnv":{"default":"8ad2f33293d99bbe199ae046b96cb07f"}}

@@ -1,0 +1,1 @@
+{"id":"3ccc04d3f324be98d30b53186fbcf9ae.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_show_a_saving_error_when_config_yaml_is_read_only","name":"A config.yaml that cannot be written shows a saving error and the save works again once it is writable","status":"passed","testResultsByEnv":{"default":"80e184e739507a125e4ab56b3858657f"}}

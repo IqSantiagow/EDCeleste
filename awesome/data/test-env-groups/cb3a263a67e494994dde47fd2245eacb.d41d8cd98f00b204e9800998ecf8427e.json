@@ -1,0 +1,1 @@
+{"id":"cb3a263a67e494994dde47fd2245eacb.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_service_status_dots#test_should_turn_the_llm_dot_green_when_test_connection_passes","name":"A passing Test connection in Settings turns the red LLM dot green","status":"passed","testResultsByEnv":{"default":"0efcb26f5fabd8655197bfb23ea61800"}}
