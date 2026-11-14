@@ -236,12 +236,14 @@ class GameStateService:
         second). Used for the dashboard cards and by PerformGameAction to check
         whether an action is possible. A value the game has not sent yet
         becomes "" or 0 for the fields that cannot be None, and a flag stays
-        False."""
+        False. The screen the pilot is on is "unknown" until the first
+        Status.json."""
         return GameStatsSnapshot(
             player=PlayerStats(
                 name=self.__player_projection.player_name or "",
                 ship=self.__player_projection.player_ship or "",
                 credits=self.__player_projection.player_credits,
+                screen=self.__player_projection.current_screen,
             ),
             navigation=NavigationStats(
                 current_star_system=self.__location_projection.current_star_system

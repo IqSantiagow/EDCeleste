@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 from typing import Literal, Optional
 
 from pydantic import Field
@@ -327,6 +327,39 @@ class StatusFlags(IntFlag):
     SrvHighBeam = 2147483648
 
 
+class GameScreen(StrEnum):
+    UNKNOWN = "unknown"
+    COCKPIT = "cockpit"
+    RIGHT_PANEL = "right panel"
+    LEFT_PANEL = "left panel"
+    COMMS_PANEL = "comms panel"
+    ROLE_PANEL = "role panel"
+    STATION_SERVICES = "station services"
+    GALAXY_MAP = "galaxy map"
+    SYSTEM_MAP = "system map"
+    ORRERY = "orrery"
+    FSS = "fss"
+    SAA = "saa"
+    CODEX = "codex"
+
+
+# The numbers the game writes as GuiFocus in Status.json (Journal manual).
+GAME_SCREEN_BY_GUI_FOCUS: dict[int | None, GameScreen] = {
+    0: GameScreen.COCKPIT,
+    1: GameScreen.RIGHT_PANEL,
+    2: GameScreen.LEFT_PANEL,
+    3: GameScreen.COMMS_PANEL,
+    4: GameScreen.ROLE_PANEL,
+    5: GameScreen.STATION_SERVICES,
+    6: GameScreen.GALAXY_MAP,
+    7: GameScreen.SYSTEM_MAP,
+    8: GameScreen.ORRERY,
+    9: GameScreen.FSS,
+    10: GameScreen.SAA,
+    11: GameScreen.CODEX,
+}
+
+
 class StatusFlags2(IntFlag):
     OnFoot = 1
     InTaxi = 2
@@ -368,6 +401,7 @@ class StatusEvent(GameEvent, NonJournalFileEvent):
     event: Literal["Status"]
     Flags: int = 0
     Flags2: int = 0
+    GuiFocus: Optional[int] = None
     Pips: list[int] = []
     Cargo: Optional[float] = None
     LegalState: Optional[str] = None
