@@ -10,6 +10,7 @@ from edceleste.services.models.game_events import (
     ReputationEvent,
     DiedEvent,
     ResurrectEvent,
+    GameScreen,
     StatusEvent,
     StatusFlags,
     StatusFlags2,
@@ -307,6 +308,111 @@ class PlayerProjectionTest(unittest.TestCase):
         self.assertNotIn(PlayerProjection.IN_TAXI_PROJECTION, projection)
         self.assertNotIn(PlayerProjection.IN_SRV_PROJECTION, projection)
         self.assertNotIn(PlayerProjection.IN_FIGHTER_PROJECTION, projection)
+
+    def test_should_start_with_unknown_screen(self):
+        self.assertEqual(PlayerProjection().current_screen, GameScreen.UNKNOWN)
+
+    def test_should_read_the_screen_from_every_gui_focus_the_game_writes(self):
+        expected_screens = {
+            0: GameScreen.COCKPIT,
+            1: GameScreen.RIGHT_PANEL,
+            2: GameScreen.LEFT_PANEL,
+            3: GameScreen.COMMS_PANEL,
+            4: GameScreen.ROLE_PANEL,
+            5: GameScreen.STATION_SERVICES,
+            6: GameScreen.GALAXY_MAP,
+            7: GameScreen.SYSTEM_MAP,
+            8: GameScreen.ORRERY,
+            9: GameScreen.FSS,
+            10: GameScreen.SAA,
+            11: GameScreen.CODEX,
+        }
+        for gui_focus, expected_screen in expected_screens.items():
+            with self.subTest(gui_focus=gui_focus):
+                player_projection = PlayerProjection()
+
+                player_projection.process_event(self._make_status_event(gui_focus))
+
+                self.assertEqual(player_projection.current_screen, expected_screen)
+
+    def test_should_read_the_screen_from_a_recorded_status_json(self):
+        recorded_status_json = (
+            '{ "timestamp":"2026-11-09T20:10:11Z", "event":"Status", '
+            '"Flags":16842765, "Flags2":0, "Pips":[4,8,0], "FireGroup":0, '
+            '"GuiFocus":6, "Fuel":{ "FuelMain":16.0, "FuelReservoir":0.63 } }'
+        )
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(
+            StatusEvent.model_validate_json(recorded_status_json)
+        )
+
+        self.assertEqual(player_projection.current_screen, GameScreen.GALAXY_MAP)
+
+    def test_should_report_unknown_screen_when_gui_focus_is_missing(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self._make_status_event(None))
+
+        self.assertEqual(player_projection.current_screen, GameScreen.UNKNOWN)
+
+    def test_should_report_unknown_screen_when_gui_focus_is_not_a_known_number(self):
+        player_projection = PlayerProjection()
+
+        player_projection.process_event(self._make_status_event(99))
+
+        self.assertEqual(player_projection.current_screen, GameScreen.UNKNOWN)
+
+    def test_should_go_back_to_unknown_when_a_later_status_has_no_gui_focus(self):
+        player_projection = PlayerProjection()
+        player_projection.process_event(self._make_status_event(6))
+
+        player_projection.process_event(self._make_status_event(None))
+
+        self.assertEqual(player_projection.current_screen, GameScreen.UNKNOWN)
+
+    def test_should_log_the_screen_change_and_stay_quiet_when_it_is_the_same(self):
+        player_projection = PlayerProjection()
+        player_projection.process_event(self._make_status_event(0))
+
+        with self.assertLogs(
+            "edceleste.projection.event_projections.player_projection", level="INFO"
+        ) as logs:
+            player_projection.process_event(self._make_status_event(2))
+            player_projection.process_event(self._make_status_event(2))
+
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("cockpit", logs.output[0])
+        self.assertIn("left panel", logs.output[0])
+
+    def test_should_set_the_screen_silently_when_status_comes_from_startup_loading(
+        self,
+    ):
+        player_projection = PlayerProjection()
+        startup_status_event = self._make_status_event(6)
+        startup_status_event.is_startup_loading = True
+
+        with self.assertNoLogs(
+            "edceleste.projection.event_projections.player_projection", level="INFO"
+        ):
+            player_projection.process_event(startup_status_event)
+
+        self.assertEqual(player_projection.current_screen, GameScreen.GALAXY_MAP)
+
+    def test_should_not_tell_the_llm_which_screen_the_pilot_is_on(self):
+        player_projection = PlayerProjection()
+        player_projection.process_event(self.loaded_game_event)
+        projection_before = player_projection.create_projection()
+
+        player_projection.process_event(self._make_status_event(6))
+
+        self.assertEqual(player_projection.create_projection(), projection_before)
+
+    @staticmethod
+    def _make_status_event(gui_focus) -> StatusEvent:
+        return StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=0, GuiFocus=gui_focus
+        )
 
     def test_should_prioritize_on_foot_over_vehicle_flags(self):
         # OnFoot (Flags2) and InSRV (Flags) should never really be set

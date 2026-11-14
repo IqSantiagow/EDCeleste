@@ -895,10 +895,15 @@ class EdCelesteTestEnvironment:
         fuel_main: float | None = None,
         cargo: float | None = None,
         flags: int = 0,
+        gui_focus: int | None = None,
     ) -> None:
         # Without arguments the file is the same as it always was. flags is the
-        # bit field of the game: 1 docked, 2 landed, 16 supercruise
+        # bit field of the game: 1 docked, 2 landed, 16 supercruise. gui_focus is
+        # the screen of the game: 0 cockpit, 2 left panel, 6 galaxy map. None
+        # leaves the field out, like a Status.json that does not have it
         extra_fields = ""
+        if gui_focus is not None:
+            extra_fields += f', "GuiFocus":{gui_focus}'
         if cargo is not None:
             extra_fields += f', "Cargo":{cargo}'
         if fuel_main is not None:

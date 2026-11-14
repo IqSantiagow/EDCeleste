@@ -17,6 +17,8 @@ from edceleste.services.models.game_events import (
     ReputationEvent,
     DiedEvent,
     ResurrectEvent,
+    GAME_SCREEN_BY_GUI_FOCUS,
+    GameScreen,
     StatusEvent,
     StatusFlags,
     StatusFlags2,
@@ -64,6 +66,7 @@ class PlayerProjection(Projection):
         self.is_in_taxi = False
         self.is_in_srv = False
         self.is_in_fighter = False
+        self.current_screen = GameScreen.UNKNOWN
 
     def process_event(self, event: BaseModel):
         """- LoadGame -> name, credits, readable ship name, game mode, and
@@ -73,7 +76,8 @@ class PlayerProjection(Projection):
         - Promotion -> only the ranks the event carries, the others stay.
         - Reputation -> Empire, Federation and Alliance reputation.
         - Died / Resurrect -> dead / alive.
-        - Status (Status.json) -> in SRV, in fighter, on foot, in taxi flags.
+        - Status (Status.json) -> in SRV, in fighter, on foot, in taxi flags,
+          and the screen the pilot is on (see __remember_screen).
         Any other event is skipped."""
         if isinstance(event, LoadedGameEvent):
             logger.debug("Received player state event: %s", event)
@@ -129,9 +133,23 @@ class PlayerProjection(Projection):
             self.is_in_fighter = bool(event.Flags & StatusFlags.InFighter)
             self.is_on_foot = bool(event.Flags2 & StatusFlags2.OnFoot)
             self.is_in_taxi = bool(event.Flags2 & StatusFlags2.InTaxi)
+            self.__remember_screen(event)
             return
 
         logger.debug("Received event but not withing allowed events. Skipping...")
+
+    def __remember_screen(self, status_event: StatusEvent) -> None:
+        """Stores the screen the pilot is on, read from GuiFocus of Status.json.
+        A missing GuiFocus or a number we do not know becomes UNKNOWN, never
+        a guess. A change of the screen is logged at info level, except for
+        the Status.json read at the app start (is_startup_loading), which
+        only sets the state. The screen never goes to the LLM text."""
+        new_screen = GAME_SCREEN_BY_GUI_FOCUS.get(
+            status_event.GuiFocus, GameScreen.UNKNOWN
+        )
+        if new_screen != self.current_screen and not status_event.is_startup_loading:
+            logger.info("Screen changed from %s to %s", self.current_screen, new_screen)
+        self.current_screen = new_screen
 
     def create_projection(self) -> str:
         """Never empty. The sentences, joined with one space:

@@ -7,6 +7,7 @@ from edceleste.services.event_bus import EventBus
 from edceleste.services.game_state_service import GameStateService
 from edceleste.services.models.game_events import (
     GameEvent,
+    GameScreen,
     LoadedGameEvent,
     StatusEvent,
     StatusFlags,
@@ -134,6 +135,50 @@ class TestGameStateServiceGameStats(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(stats.navigation.is_in_fsd_jump)
         self.assertFalse(stats.navigation.is_in_supercruise)
         self.assertFalse(stats.ship.is_landed)
+
+
+class TestGameStateServiceScreen(unittest.IsolatedAsyncioTestCase):
+    """The screen the pilot is on goes out in the stats snapshot."""
+
+    @staticmethod
+    def _status_event_on_screen(gui_focus, is_startup_loading=False) -> StatusEvent:
+        status_event = StatusEvent(
+            event="Status", timestamp=datetime.now(), Flags=0, GuiFocus=gui_focus
+        )
+        status_event.is_startup_loading = is_startup_loading
+        return status_event
+
+    async def test_get_game_stats_screen_is_unknown_before_the_first_status(self):
+        service = GameStateService(Mock(spec=EventBus))
+
+        self.assertEqual(service.get_game_stats().player.screen, GameScreen.UNKNOWN)
+
+    async def test_get_game_stats_follows_the_screen_when_the_pilot_opens_and_closes_it(
+        self,
+    ):
+        service = GameStateService(Mock(spec=EventBus))
+
+        await service.process_event(self._status_event_on_screen(2))
+        screen_with_left_panel_open = service.get_game_stats().player.screen
+        await service.process_event(self._status_event_on_screen(0))
+        screen_after_closing_it = service.get_game_stats().player.screen
+
+        self.assertEqual(screen_with_left_panel_open, GameScreen.LEFT_PANEL)
+        self.assertEqual(screen_after_closing_it, GameScreen.COCKPIT)
+
+    async def test_get_game_stats_has_the_screen_loaded_at_startup_and_wakes_nobody(
+        self,
+    ):
+        event_bus = Mock(spec=EventBus)
+        event_bus.publish = AsyncMock()
+        service = GameStateService(event_bus)
+
+        await service.process_event(
+            self._status_event_on_screen(6, is_startup_loading=True)
+        )
+
+        self.assertEqual(service.get_game_stats().player.screen, GameScreen.GALAXY_MAP)
+        event_bus.publish.assert_not_awaited()
 
 
 class TestGameStateServiceStreams(unittest.IsolatedAsyncioTestCase):

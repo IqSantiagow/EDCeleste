@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 
+from edceleste.services.models.game_events import GameScreen
+
 
 @dataclass(frozen=True, slots=True)
 class PlayerStats:
     name: str
     ship: str
     credits: int
+    screen: GameScreen = GameScreen.UNKNOWN
 
 
 @dataclass(frozen=True, slots=True)
