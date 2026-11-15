@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import threading
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from chatterbox.tts_turbo import ChatterboxTurboTTS
+    from chatterbox.tts_turbo import ChatterboxTurboTTS, Conditionals
 
 # Speaking in pieces (issue #179). The first piece is small to start fast, the
 # next ones are about one second of speech each.
@@ -80,13 +81,20 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
     stream_sample_rate = 24000
 
     def __init__(self) -> None:
-        """Only sets the state of the loaded model. The model is loaded on the
-        first use, not here, because loading takes seconds and a lot of memory.
-        The settings are not stored, they come with every call."""
+        """Only sets the state of the loaded model: no model yet, no device, no
+        nano flag and no voice profile loaded, plus voice_lock (a
+        threading.Lock, see below). The model is loaded on the first use, not
+        here, because loading takes seconds and a lot of memory. The settings
+        are not stored, they come with every call."""
         self.model: "ChatterboxTurboTTS | None" = None
         self.loaded_device: str | None = None
         self.loaded_nano: bool | None = None
         self.loaded_profile_path: Path | None = None
+        # The voice (model.conds) is one for the whole model. Whoever loads,
+        # replaces or reads it holds this lock, so a sentence, a voice preview
+        # and a clone never work on it at the same time. A threading lock,
+        # because the work runs in worker threads.
+        self.voice_lock = threading.Lock()
 
     async def synthesize(
         self,
@@ -100,8 +108,11 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
            the loaded model. This may download it from the Hugging Face Hub the
            first time.
         2. Loads the voice profile into the model when it is not the loaded one.
-        3. Generates the speech in a worker thread with the exaggeration and
-           cfg_weight from params.
+        3. Generates the speech with the exaggeration and cfg_weight from
+           params.
+        All three steps run in one worker thread while holding voice_lock, so a
+        reply, a preview and a clone never touch the voice together: the one
+        that comes second waits until the first has finished.
         Returns the samples and the sample rate, plays nothing. Raises
         TypeError for params of another provider, ValueError when
         profile_path is None and FileNotFoundError for a missing profile file.
@@ -113,17 +124,9 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
         if profile_path is None:
             raise ValueError("Chatterbox needs a voice profile.")
 
-        model = await asyncio.to_thread(self.__get_or_load_model, params)
-        await asyncio.to_thread(self.__load_voice_profile_into_model, profile_path)
-
-        output = await asyncio.to_thread(
-            model.generate,
-            text=text,
-            norm_loudness=False,
-            exaggeration=params.exaggeration,
-            cfg_weight=params.cfg_weight,
+        return await asyncio.to_thread(
+            self.__generate_whole_text_with_voice_lock, text, params, profile_path
         )
-        return output.squeeze(0).cpu().numpy(), model.sr
 
     async def synthesize_stream(
         self,
@@ -143,6 +146,11 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
            about 2.6 GB however long the reply is.
         3. For each sentence asks __make_audio_pieces for the next piece in a
            worker thread, so the event loop stays free while the GPU works.
+           Every piece is made while holding voice_lock and after loading the
+           voice of this reply again (a no-op when nothing changed it). So a
+           preview or a clone started meanwhile waits for at most one piece,
+           and the reply goes on in its own voice, also when the preview used
+           another one between two pieces.
         4. Gives each piece as it comes: mono float32 at stream_sample_rate.
         5. After each sentence gives the memory that torch kept for itself back
            to the GPU (torch.cuda.empty_cache, in a worker thread, a no-op
@@ -175,12 +183,19 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
         if profile_path is None:
             raise ValueError("Chatterbox needs a voice profile.")
 
-        model = await asyncio.to_thread(self.__get_or_load_model, params)
-        await asyncio.to_thread(self.__load_voice_profile_into_model, profile_path)
+        model = await asyncio.to_thread(
+            self.__load_model_and_voice_profile_with_voice_lock, params, profile_path
+        )
 
         for sentence in split_text_into_sentences(text):
             pieces = self.__make_audio_pieces(model, sentence)
-            while (piece := await asyncio.to_thread(next, pieces, None)) is not None:
+            while (
+                piece := await asyncio.to_thread(
+                    self.__reload_voice_and_take_next_piece_with_voice_lock,
+                    pieces,
+                    profile_path,
+                )
+            ) is not None:
                 yield piece
             await asyncio.to_thread(torch.cuda.empty_cache)
 
@@ -214,6 +229,11 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
            the model, also when it fails or is cancelled half way. The next
            synthesize() then loads its profile from the file again.
         3. Learns the voice in a worker thread, then saves the file.
+        Steps 1 and 2 and the learning run while holding voice_lock, so it
+        waits for the piece or the sentence being made and makes the next ones
+        wait for it. The saved voice is the one that was learned, even when a
+        sentence loads another profile into the model before the file is
+        written.
 
         Raises TypeError for params of another provider, before anything is
         loaded. Errors of the model (e.g. a clip it cannot read) come out as
@@ -225,14 +245,10 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
                 f"Chatterbox needs ChatterboxParamsModel, got {type(params)}"
             )
 
-        model = await asyncio.to_thread(self.__get_or_load_model, params)
-        self.loaded_profile_path = None
-        await asyncio.to_thread(
-            model.prepare_conditionals,
-            wav_fpath=reference_audio_path,
-            norm_loudness=False,
+        learned_voice = await asyncio.to_thread(
+            self.__learn_voice_from_clip_with_voice_lock, reference_audio_path, params
         )
-        model.conds.save(profile_path)
+        learned_voice.save(profile_path)
 
     def validate_params(self, params: TtsProviderParams) -> SettingsIssueModel | None:
         """Only checks that a profile name is set. Does not check that the
@@ -531,3 +547,71 @@ class ChatterboxTTSProvider(CloningTTSProviderProtocol, StreamingTTSProviderProt
 
         self.model.conds = Conditionals.load(profile_path, self.model.device)
         self.loaded_profile_path = profile_path
+
+    def __generate_whole_text_with_voice_lock(
+        self, text: str, params: ChatterboxParamsModel, profile_path: Path
+    ) -> tuple[np.ndarray, int]:
+        """The work of synthesize(), in one worker thread: loads the model and
+        the profile and generates the whole text, all while holding voice_lock,
+        so nothing else touches the voice meanwhile. Blocking. Errors come out
+        as they are (the lock is released)."""
+        with self.voice_lock:
+            model = self.__get_or_load_model(params)
+            self.__load_voice_profile_into_model(profile_path)
+            output = model.generate(
+                text=text,
+                norm_loudness=False,
+                exaggeration=params.exaggeration,
+                cfg_weight=params.cfg_weight,
+            )
+        return output.squeeze(0).cpu().numpy(), model.sr
+
+    def __load_model_and_voice_profile_with_voice_lock(
+        self, params: ChatterboxParamsModel, profile_path: Path
+    ) -> "ChatterboxTurboTTS":
+        """The first step of synthesize_stream(), in a worker thread: loads the
+        model if needed and the profile into it, while holding voice_lock.
+        Returns the model. Blocking. Raises FileNotFoundError for a missing
+        profile file."""
+        with self.voice_lock:
+            model = self.__get_or_load_model(params)
+            self.__load_voice_profile_into_model(profile_path)
+        return model
+
+    def __reload_voice_and_take_next_piece_with_voice_lock(
+        self, pieces: Iterator[np.ndarray], profile_path: Path
+    ) -> np.ndarray | None:
+        """Asks pieces for the next piece of audio, in a worker thread, while
+        holding voice_lock. Before that it loads profile_path into the model
+        again, which does nothing when it is still the loaded voice and puts the
+        voice of this reply back when a preview or a clone changed it between
+        two pieces. The lock is held for one piece only, so a preview or a clone
+        waits at most for the piece being made. None when there are no more
+        pieces of this sentence. Blocking."""
+        with self.voice_lock:
+            self.__load_voice_profile_into_model(profile_path)
+            return next(pieces, None)
+
+    def __learn_voice_from_clip_with_voice_lock(
+        self, reference_audio_path: str, params: ChatterboxParamsModel
+    ) -> "Conditionals":
+        """The work of create_voice_profile(), in a worker thread, while holding
+        voice_lock: loads the model if needed, forgets the loaded profile (the
+        learning replaces the voice in the model, also when it fails) and lets
+        the model learn the voice from the clip. Returns the new voice: the
+        Conditionals object the model made for this clip, not a copy of the
+        voice of an older profile. It is saved by the caller, outside the lock.
+        By then the next sentence may load another profile into the model, but
+        that puts a new object in model.conds and never changes this one, so
+        what is saved is what was learned. Blocking.
+        Errors of the model come out as they are, with the lock released: an
+        error from the library for a clip it cannot use (it asserts a clip
+        longer than 5 seconds), or from loading the model. Nothing is returned
+        then, and loaded_profile_path is already cleared."""
+        with self.voice_lock:
+            model = self.__get_or_load_model(params)
+            self.loaded_profile_path = None
+            model.prepare_conditionals(
+                wav_fpath=reference_audio_path, norm_loudness=False
+            )
+            return model.conds
