@@ -1,6 +1,8 @@
+import asyncio
 import itertools
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -684,6 +686,199 @@ class ChatterboxTTSProviderSynthesizeStreamTest(unittest.IsolatedAsyncioTestCase
         self.assertEqual(len(given_pieces), 1)
         # Only the sentence that was finished gave its memory back
         self.empty_cache.assert_called_once()
+
+
+class ChatterboxTTSProviderVoiceOverlapTest(unittest.IsolatedAsyncioTestCase):
+    """A sentence, a voice preview and a clone all use the one voice
+    (model.conds) of the one model, so they must never work on it together."""
+
+    def setUp(self):
+        self.fake_tts_turbo_module = _install_fake_chatterbox_module(self)
+        self.model = _make_model_mock(np.zeros(3))
+        self.fake_tts_turbo_module.ChatterboxTurboTTS.from_pretrained.return_value = (
+            self.model
+        )
+
+        profiles_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(profiles_directory.cleanup)
+        self.celeste_profile_path = Path(profiles_directory.name) / "celeste.pt"
+        self.other_profile_path = Path(profiles_directory.name) / "other.pt"
+        self.celeste_profile_path.touch()
+        self.other_profile_path.touch()
+
+        # Every step of the fake model writes its name here, in the order it ran
+        self.log: list[str] = []
+        self.conds_of_profile = {"celeste": Mock(), "other": Mock()}
+        self.conds_when_generating: list[Mock] = []
+        self.fake_tts_turbo_module.Conditionals.load.side_effect = self.__fake_load
+        # Generating and learning wait for this, so a test can start another
+        # job while the first one is still running
+        self.let_slow_steps_finish = threading.Event()
+        self.addCleanup(self.let_slow_steps_finish.set)
+        self.generated_waveform = self.model.generate.return_value
+        self.model.generate.side_effect = self.__fake_slow_generate
+        self.model.prepare_conditionals.side_effect = self.__fake_slow_learning
+
+        self.provider = ChatterboxTTSProvider()
+        self.params = _make_chatterbox_params()
+
+    def __fake_load(self, profile_path: Path, device: str) -> Mock:
+        self.log.append(f"load {profile_path.stem}")
+        return self.conds_of_profile[profile_path.stem]
+
+    def __fake_slow_generate(self, **kwargs) -> Mock:
+        self.conds_when_generating.append(self.model.conds)
+        self.log.append("generate start")
+        self.let_slow_steps_finish.wait(timeout=5)
+        self.log.append("generate end")
+        return self.generated_waveform
+
+    def __fake_slow_learning(self, **kwargs) -> None:
+        self.log.append("learn start")
+        self.let_slow_steps_finish.wait(timeout=5)
+        self.log.append("learn end")
+
+    async def __wait_until_logged(self, entry: str) -> None:
+        for _ in range(200):
+            if entry in self.log:
+                return
+            await asyncio.sleep(0.01)
+        self.fail(f"'{entry}' never happened, the log is {self.log}")
+
+    async def __give_the_waiting_job_time_to_run_if_it_can(self) -> None:
+        await asyncio.sleep(0.2)
+
+    async def test_a_preview_started_during_a_sentence_waits_for_the_sentence(self):
+        sentence = asyncio.create_task(
+            self.provider.synthesize("Long", self.params, self.celeste_profile_path)
+        )
+        await self.__wait_until_logged("generate start")
+        preview = asyncio.create_task(
+            self.provider.synthesize("Preview", self.params, self.other_profile_path)
+        )
+        await self.__give_the_waiting_job_time_to_run_if_it_can()
+        self.let_slow_steps_finish.set()
+        await asyncio.gather(sentence, preview)
+
+        self.assertEqual(
+            self.log,
+            [
+                "load celeste",
+                "generate start",
+                "generate end",
+                "load other",
+                "generate start",
+                "generate end",
+            ],
+        )
+
+    async def test_a_sentence_started_during_a_preview_waits_for_the_preview(self):
+        preview = asyncio.create_task(
+            self.provider.synthesize("Preview", self.params, self.other_profile_path)
+        )
+        await self.__wait_until_logged("generate start")
+        sentence = asyncio.create_task(
+            self.provider.synthesize("Long", self.params, self.celeste_profile_path)
+        )
+        await self.__give_the_waiting_job_time_to_run_if_it_can()
+        self.let_slow_steps_finish.set()
+        await asyncio.gather(sentence, preview)
+
+        self.assertEqual(
+            self.log,
+            [
+                "load other",
+                "generate start",
+                "generate end",
+                "load celeste",
+                "generate start",
+                "generate end",
+            ],
+        )
+
+    async def test_a_clone_started_during_a_sentence_waits_for_the_sentence(self):
+        sentence = asyncio.create_task(
+            self.provider.synthesize("Long", self.params, self.celeste_profile_path)
+        )
+        await self.__wait_until_logged("generate start")
+        clone = asyncio.create_task(
+            self.provider.create_voice_profile(
+                "reference.wav", self.other_profile_path, self.params
+            )
+        )
+        await self.__give_the_waiting_job_time_to_run_if_it_can()
+        self.let_slow_steps_finish.set()
+        await asyncio.gather(sentence, clone)
+
+        self.assertEqual(
+            self.log,
+            [
+                "load celeste",
+                "generate start",
+                "generate end",
+                "learn start",
+                "learn end",
+            ],
+        )
+
+    async def test_a_sentence_started_during_a_clone_waits_for_the_clone(self):
+        clone = asyncio.create_task(
+            self.provider.create_voice_profile(
+                "reference.wav", self.other_profile_path, self.params
+            )
+        )
+        await self.__wait_until_logged("learn start")
+        sentence = asyncio.create_task(
+            self.provider.synthesize("Long", self.params, self.celeste_profile_path)
+        )
+        await self.__give_the_waiting_job_time_to_run_if_it_can()
+        self.let_slow_steps_finish.set()
+        await asyncio.gather(sentence, clone)
+
+        self.assertEqual(
+            self.log,
+            [
+                "learn start",
+                "learn end",
+                "load celeste",
+                "generate start",
+                "generate end",
+            ],
+        )
+
+    async def test_a_preview_between_two_pieces_of_a_reply_does_not_change_its_voice(
+        self,
+    ):
+        self.let_slow_steps_finish.set()
+        conds_when_a_piece_was_made: list[Mock] = []
+
+        def make_pieces(model, text):
+            for _ in range(2):
+                conds_when_a_piece_was_made.append(model.conds)
+                yield np.zeros(2, dtype=np.float32)
+
+        with (
+            patch.object(
+                self.provider, _mangled("make_audio_pieces"), side_effect=make_pieces
+            ),
+            patch.object(chatterbox_tts_provider.torch.cuda, "empty_cache"),
+        ):
+            pieces_given = 0
+            async for _ in self.provider.synthesize_stream(
+                "Hello", self.params, self.celeste_profile_path
+            ):
+                pieces_given += 1
+                if pieces_given == 1:
+                    await self.provider.synthesize(
+                        "Preview", self.params, self.other_profile_path
+                    )
+
+        self.assertEqual(pieces_given, 2)
+        self.assertEqual(
+            conds_when_a_piece_was_made,
+            [self.conds_of_profile["celeste"]] * 2,
+        )
+        self.assertEqual(self.conds_when_generating, [self.conds_of_profile["other"]])
 
 
 class ChatterboxTTSProviderGroupTokensTest(unittest.TestCase):
