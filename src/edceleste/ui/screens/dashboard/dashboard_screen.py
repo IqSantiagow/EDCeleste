@@ -162,9 +162,17 @@ class DashboardScreen(Screen):
         Textual worker that never ends. An LLMStatus (thinking / idle) goes to
         the input row, every other item is a COMMS message and goes to COMMS.
         Messages typed by the pilot and replies to journal events both come
-        through here."""
+        through here.
+
+        The last item (the IDLE after a reply) can come while the app closes.
+        Textual removes the widgets first and cancels this worker only after,
+        so an item that comes in that gap would find no widget (NoMatches).
+        The app stops "running" before the first widget is removed, so the
+        worker ends when it sees that."""
         logger.debug("Starting to stream LLM items")
         async for item in self.dashboard_repository.stream_llm_responses():
+            if not self.app.is_running:
+                return
             if isinstance(item, LLMStatus):
                 self.query_one("#input-row", WidgetCommsInput).llm_state = item
             else:
