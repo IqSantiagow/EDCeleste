@@ -13,7 +13,9 @@ import httpx
 
 from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.protocols.keybinds_protocol import KeybindsProtocol
-from edceleste.protocols.tool_protocol import ToolProtocol
+from edceleste.protocols.perform_game_action_protocol import (
+    PerformGameActionProtocol,
+)
 from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
     DownloadCancelled,
@@ -131,7 +133,7 @@ class InstinctService:
         download_service: DecisionModelDownloadService,
         keybinds_protocol: KeybindsProtocol,
         game_state_protocol: GameStateProtocol,
-        perform_game_action: ToolProtocol,
+        perform_game_action: PerformGameActionProtocol,
     ) -> None:
         """Only stores the dependencies and creates the lock that lets one
         thread at a time use the model. Nothing is downloaded or loaded here,
@@ -471,7 +473,7 @@ class InstinctService:
             # Read before the press: the key changes the ship, and a toggle is
             # named after what it did, not after what the ship is now
             ship_before_press = self.game_state_protocol.get_game_stats().ship
-            tool_result = await self.perform_game_action.execute(action)
+            tool_result = await self.perform_game_action.perform_game_action(action)
         except TimeoutError:
             logger.warning(
                 "Fast command %r: the model needed more than %.1f s, the message "

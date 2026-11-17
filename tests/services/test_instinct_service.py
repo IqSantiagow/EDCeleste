@@ -124,7 +124,7 @@ class FakePerformGameAction:
         self.error = error
         self.executed: list[EdAction] = []
 
-    async def execute(self, action: EdAction) -> ToolReturn:
+    async def perform_game_action(self, action: EdAction) -> ToolReturn:
         self.executed.append(action)
         if self.error is not None:
             raise self.error
@@ -1022,16 +1022,16 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_reads_the_ship_before_the_key_is_pressed(self):
         service = make_fast_command_service(choice="LandingGearToggle")
-        real_execute = service.perform_game_action.execute
+        real_perform_game_action = service.perform_game_action.perform_game_action
 
         async def press_and_lower_the_gear(action):
             # The key changes the ship: the gear is down when the tool returns
             service.game_state_protocol.ship = make_ship_stats(  # type: ignore[attr-defined]
                 is_landing_gear_down=True
             )
-            return await real_execute(action)
+            return await real_perform_game_action(action)
 
-        service.perform_game_action.execute = press_and_lower_the_gear  # type: ignore[method-assign]
+        service.perform_game_action.perform_game_action = press_and_lower_the_gear  # type: ignore[method-assign]
 
         reply = await service.try_fast_command("deploy landing gear")
 

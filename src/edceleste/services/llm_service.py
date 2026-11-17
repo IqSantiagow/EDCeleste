@@ -12,8 +12,9 @@ from edceleste.services.models.message_block import (
     ToolCall,
     ToolResult,
 )
-from edceleste.protocols.tool_protocol import ToolProtocol
+from edceleste.protocols.tool_register_protocol import ToolRegisterProtocol
 from edceleste.services.event_bus import EventBus
+from edceleste.services.models.mcp_tool import McpTool
 from edceleste.services.models.event_reaction_event import EventReactionEvent
 from edceleste.services.models.game_state_changed_event import GameStateChangedEvent
 from edceleste.services.models.llm_status import LLMStatus
@@ -110,7 +111,7 @@ class LLMService:
         self,
         event_bus: EventBus,
         settings_service: SettingsService,
-        tools: list[ToolProtocol],
+        tool_register: ToolRegisterProtocol,
     ) -> None:
         """Only stores the dependencies and subscribes to the event bus.
 
@@ -127,13 +128,12 @@ class LLMService:
 
         self.__settings_service = settings_service
         self.__event_bus = event_bus
+        self.__tool_register = tool_register
 
         self.__llm_queue: asyncio.Queue[str | ReplyWithoutLLM] = asyncio.Queue()
         self.__status_stream = ServiceStatusStream(
             ServiceStatus(ServiceState.OFF, "Not checked yet")
         )
-
-        self.__tools = tools
 
         self.__event_bus.subscribe(
             EventReactionEvent, self.queue_reply_to_journal_event
@@ -316,15 +316,25 @@ class LLMService:
         )
 
     def __build_tools(self) -> list[Tool]:
-        """Wraps every tool's execute method in pydantic_ai.Tool. pydantic_ai
-        reads the arguments from the execute signature and the description from
-        its docstring, so no tool writes a JSON schema by hand."""
-        return [Tool(tool.execute, name=tool.name) for tool in self.__tools]
+        """Wraps the function of every registered tool in pydantic_ai.Tool.
+        pydantic_ai reads the arguments from the function signature and the
+        description from its docstring, so no tool writes a JSON schema by
+        hand."""
+        return [
+            Tool(tool.func, name=tool.name) for tool in self.__tool_register.get_tools()
+        ]
 
-    def __find_tool(self, tool_name: str) -> ToolProtocol | None:
-        """Returns the tool whose name is tool_name. Returns None when the LLM
-        asked for a tool name we do not have."""
-        return next((tool for tool in self.__tools if tool.name == tool_name), None)
+    def __find_tool(self, tool_name: str) -> McpTool | None:
+        """Returns the registered tool whose name is tool_name. Returns None
+        when the LLM asked for a tool name we do not have."""
+        return next(
+            (
+                tool
+                for tool in self.__tool_register.get_tools()
+                if tool.name == tool_name
+            ),
+            None,
+        )
 
     async def validate_settings(
         self, new_settings: SettingsModel

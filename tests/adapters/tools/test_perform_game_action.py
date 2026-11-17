@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 from pydantic_ai import Tool
 
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
+from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.services.exceptions.game_window_exception import (
     GameWindowNotFoundException,
@@ -65,7 +66,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_should_press_keys_for_known_action_value(self):
-        result = await self.tool.execute(EdAction.TOGGLE_FLIGHT_ASSIST)
+        result = await self.tool.perform_game_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.keybind_service.press_keys_for_action.assert_awaited_once_with(
             EdAction.TOGGLE_FLIGHT_ASSIST
@@ -82,7 +83,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
             game_actions=GameActionsModel(enabled=False),
         )
 
-        result = await self.tool.execute(EdAction.TOGGLE_FLIGHT_ASSIST)
+        result = await self.tool.perform_game_action(EdAction.TOGGLE_FLIGHT_ASSIST)
 
         self.keybind_service.press_keys_for_action.assert_not_awaited()
         self.assertTrue(result.metadata["is_error"])
@@ -94,7 +95,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
     async def test_should_return_error_when_action_has_no_keyboard_key(self):
         self.keybind_service.is_bound.return_value = False
 
-        result = await self.tool.execute(EdAction.USE_SHIELD_CELL)
+        result = await self.tool.perform_game_action(EdAction.USE_SHIELD_CELL)
 
         self.keybind_service.is_bound.assert_called_once_with(EdAction.USE_SHIELD_CELL)
         self.keybind_service.press_keys_for_action.assert_not_awaited()
@@ -107,7 +108,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
     async def test_should_return_error_when_keybinds_are_not_loaded(self):
         self.keybind_service.is_bound.side_effect = KeyError(EdAction.USE_SHIELD_CELL)
 
-        result = await self.tool.execute(EdAction.USE_SHIELD_CELL)
+        result = await self.tool.perform_game_action(EdAction.USE_SHIELD_CELL)
 
         self.keybind_service.press_keys_for_action.assert_not_awaited()
         self.assertTrue(result.metadata["is_error"])
@@ -121,7 +122,7 @@ class TestPerformGameAction(unittest.IsolatedAsyncioTestCase):
             GameWindowNotFoundException()
         )
 
-        result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+        result = await self.tool.perform_game_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertTrue(result.metadata["is_error"])
         self.assertEqual(
@@ -162,7 +163,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
                     **BLOCKING_STATES[state_name]
                 )
 
-                result = await self.tool.execute(action)
+                result = await self.tool.perform_game_action(action)
 
                 self.assertEqual(
                     result.return_value,
@@ -185,7 +186,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
                     is_docked=True
                 )
 
-                result = await self.tool.execute(action)
+                result = await self.tool.perform_game_action(action)
 
                 self.assertIn(str(result.return_value).split(":")[0], REPLY_TEXTS)
 
@@ -217,7 +218,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
             is_in_supercruise=True
         )
 
-        result = await self.tool.execute(EdAction.DEPLOY_HARDPOINT_TOGGLE)
+        result = await self.tool.perform_game_action(EdAction.DEPLOY_HARDPOINT_TOGGLE)
 
         self.keybind_service.press_keys_for_action.assert_awaited_once_with(
             EdAction.DEPLOY_HARDPOINT_TOGGLE
@@ -225,7 +226,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.metadata, {"is_error": False})
 
     async def test_should_press_the_landing_gear_when_no_blocking_state_is_true(self):
-        result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+        result = await self.tool.perform_game_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.keybind_service.press_keys_for_action.assert_awaited_once_with(
             EdAction.LANDING_GEAR_TOGGLE
@@ -243,7 +244,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
             is_in_fsd_jump=True,
         )
 
-        result = await self.tool.execute(EdAction.SET_SPEED_ZERO)
+        result = await self.tool.perform_game_action(EdAction.SET_SPEED_ZERO)
 
         self.keybind_service.press_keys_for_action.assert_awaited_once_with(
             EdAction.SET_SPEED_ZERO
@@ -255,7 +256,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
             is_docked=True, is_landed=True
         )
 
-        result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+        result = await self.tool.perform_game_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(
             result.return_value, "Landing gear unavailable: the ship is docked."
@@ -270,7 +271,7 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
             is_docked=True
         )
 
-        result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+        result = await self.tool.perform_game_action(EdAction.LANDING_GEAR_TOGGLE)
 
         self.assertEqual(result.return_value, "Game actions are disabled by the user.")
         self.assertEqual(result.metadata, {"is_error": True})
@@ -281,8 +282,10 @@ class TestPerformGameActionAvailability(unittest.IsolatedAsyncioTestCase):
             make_stats(),
         ]
 
-        first_result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
-        second_result = await self.tool.execute(EdAction.LANDING_GEAR_TOGGLE)
+        first_result = await self.tool.perform_game_action(EdAction.LANDING_GEAR_TOGGLE)
+        second_result = await self.tool.perform_game_action(
+            EdAction.LANDING_GEAR_TOGGLE
+        )
 
         self.assertTrue(first_result.metadata["unavailable"])
         self.assertEqual(second_result.metadata, {"is_error": False})
@@ -301,7 +304,8 @@ class TestPerformGameActionSchema(unittest.TestCase):
             settings_service=Mock(spec=SettingsService),
             game_state_protocol=Mock(spec=GameStateProtocol),
         )
-        self.pydantic_tool = Tool(self.tool.execute, name=self.tool.name)
+        registered_tool = ToolRegister(groups=[self.tool]).get_tools()[0]
+        self.pydantic_tool = Tool(registered_tool.func, name=registered_tool.name)
 
     def test_should_take_description_from_the_docstring(self):
         self.assertEqual(

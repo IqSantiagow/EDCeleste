@@ -1,7 +1,7 @@
 from pydantic_ai import ToolReturn
 
+from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.protocols.game_state_protocol import GameStateProtocol
-from edceleste.protocols.tool_protocol import ToolProtocol
 from edceleste.services.exceptions.game_window_exception import (
     GameWindowNotFoundException,
 )
@@ -11,13 +11,7 @@ from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.settings_service import SettingsService
 
 
-class PerformGameAction(ToolProtocol):
-    readable_name = "Perform Game Action"  # Its for UI display
-    # Its for UI display, Will be used to fetch a specific action from the
-    # tool call arguments, to later display it on UI.
-    param_name = "action"
-    name = "perform_game_action"
-
+class PerformGameAction:
     def __init__(
         self,
         keybind_service: KeybindService,
@@ -25,7 +19,7 @@ class PerformGameAction(ToolProtocol):
         game_state_protocol: GameStateProtocol,
     ) -> None:
         """Only stores the dependencies. The game_actions switch is read on
-        every execute(), so turning it off works without a reload."""
+        every perform_game_action(), so turning it off works without a reload."""
         self.keybind_service = keybind_service
         self.settings_service = settings_service
         self.game_state_protocol = game_state_protocol
@@ -41,7 +35,12 @@ class PerformGameAction(ToolProtocol):
     # unavailable=True and the reason as the text, nothing is pressed. The
     # LLM tells the pilot the reason in its own words, Instinct says the same
     # text as its reply. Any other error from KeybindService is raised as it is.
-    async def execute(self, action: EdAction) -> ToolReturn:
+    @ToolRegister.register_tool(
+        name="perform_game_action",
+        readable_name="Perform Game Action",
+        param_name="action",
+    )
+    async def perform_game_action(self, action: EdAction) -> ToolReturn:
         """Perform a game action based on the provided type of action"""
         if not self.settings_service.get_settings().game_actions.enabled:
             return ToolReturn(

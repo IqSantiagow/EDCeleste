@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
-from pydantic_ai import ModelHTTPError, models
+from pydantic_ai import ModelHTTPError, ToolReturn, models
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -33,6 +33,7 @@ from edceleste.services.models.message_block import (
     ToolCall,
     ToolResult,
 )
+from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.services.event_bus import EventBus
 from edceleste.services.llm_service import (
     EVENT_REACTION_PROMPT,
@@ -124,15 +125,19 @@ async def _latest_status(service: LLMService) -> ServiceStatus:
 
 
 class FakeTool:
-    """Minimal ToolProtocol implementation, so no real game services are needed."""
+    """A tool group with one tool, so no real game services are needed."""
 
-    readable_name = "Perform Game Action"
-    param_name = "action"
-    name = "perform_game_action"
-
-    async def execute(self, action: str) -> str:
+    @ToolRegister.register_tool(
+        name="perform_game_action",
+        readable_name="Perform Game Action",
+        param_name="action",
+    )
+    async def perform_game_action(self, action: str) -> ToolReturn:
         """Perform a game action"""
-        return f"Performed game action: {action}"
+        return ToolReturn(
+            return_value=f"Performed game action: {action}",
+            metadata={"is_error": False},
+        )
 
 
 class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
@@ -170,7 +175,7 @@ class LLMServiceTest(unittest.IsolatedAsyncioTestCase):
         self.llm_service = LLMService(
             event_bus=self.event_bus,
             settings_service=self.settings_service,
-            tools=[],
+            tool_register=ToolRegister(groups=[]),
         )
         # The agent is built in reload_service(), driven by the cold-start flow.
         self.llm_service.reload_service()
@@ -791,7 +796,7 @@ class TestLLMServiceProvider(unittest.TestCase):
         self.llm_service = LLMService(
             event_bus=EventBus(),
             settings_service=Mock(spec=SettingsService),
-            tools=[],
+            tool_register=ToolRegister(groups=[]),
         )
 
     def test_should_build_the_provider_class_pydantic_ai_knows_for_that_name(self):
@@ -874,7 +879,7 @@ class TestLLMServiceEventMapping(unittest.TestCase):
         self.llm_service = LLMService(
             event_bus=EventBus(),
             settings_service=Mock(spec=SettingsService),
-            tools=[self.tool],
+            tool_register=ToolRegister(groups=[self.tool]),
         )
 
     def test_should_map_a_finished_text_part_to_agent_text(self):
@@ -1010,7 +1015,7 @@ class TestLLMServiceStreamsFromAgent(unittest.IsolatedAsyncioTestCase):
         llm_service = LLMService(
             event_bus=EventBus(),
             settings_service=Mock(spec=SettingsService),
-            tools=[FakeTool()],
+            tool_register=ToolRegister(groups=[FakeTool()]),
         )
         with (
             patch.object(LLMService, "_LLMService__build_provider"),
@@ -1044,7 +1049,7 @@ class TestLLMServiceHistory(unittest.IsolatedAsyncioTestCase):
         self.llm_service = LLMService(
             event_bus=EventBus(),
             settings_service=Mock(spec=SettingsService),
-            tools=[],
+            tool_register=ToolRegister(groups=[]),
         )
         self.llm_service.game_state = "Docked at Jameson Memorial"
         self.requests_seen_by_model: list[tuple[list, str | None]] = []
@@ -1135,7 +1140,7 @@ class TestLLMServiceHistory(unittest.IsolatedAsyncioTestCase):
         llm_service = LLMService(
             event_bus=EventBus(),
             settings_service=Mock(spec=SettingsService),
-            tools=[FakeTool()],
+            tool_register=ToolRegister(groups=[FakeTool()]),
         )
         with (
             patch.object(LLMService, "_LLMService__build_provider"),
