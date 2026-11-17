@@ -1,6 +1,7 @@
 from dependency_injector import containers, providers
 
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
+from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
 from edceleste.services.game_state_service import GameStateService
@@ -181,7 +182,7 @@ class Container(containers.DeclarativeContainer):
 
     hotkey_service = providers.Singleton(HotkeyService)
 
-    perform_game_action = providers.Factory(
+    perform_game_action = providers.Singleton(
         PerformGameAction,
         keybind_service=keybinds_service,
         settings_service=settings_service,
@@ -193,8 +194,13 @@ class Container(containers.DeclarativeContainer):
         perform_game_action,
     )
 
+    tool_register = providers.Singleton(ToolRegister, groups=mcps)
+
     llm_service = providers.Singleton(
-        LLMService, event_bus=event_bus, settings_service=settings_service, tools=mcps
+        LLMService,
+        event_bus=event_bus,
+        settings_service=settings_service,
+        tool_register=tool_register,
     )
 
     decision_model_download_service = providers.Singleton(DecisionModelDownloadService)
