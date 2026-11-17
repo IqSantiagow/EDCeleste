@@ -184,8 +184,8 @@ class SettingsRepository:
         return await self.find_llm_connection_error_use_case(provider)
 
     def get_instinct_status(self) -> InstinctStatus:
-        """Snapshot of the local Instinct model: state, download progress, the
-        device it runs on and the last failure."""
+        """Snapshot of the local Instinct model: state, download progress and
+        the last failure."""
         return self.get_instinct_status_use_case()
 
     async def fetch_instinct_download_size(self) -> int | None:

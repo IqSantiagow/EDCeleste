@@ -40,10 +40,9 @@ class FakeSettingsRepository:
 def make_status(
     state: InstinctModelState,
     download_progress: DownloadProgress | None = None,
-    running_device: str | None = None,
     failure: InstinctFailure | None = None,
 ) -> InstinctStatus:
-    return InstinctStatus(state, download_progress, running_device, failure)
+    return InstinctStatus(state, download_progress, failure)
 
 
 class RowTestApp(App):
@@ -120,16 +119,16 @@ class TestWidgetInstinctStatusRow(unittest.IsolatedAsyncioTestCase):
             progress_bar = app.query_one("#instinct-download-bar", ProgressBar)
             self.assertFalse(progress_bar.display)
 
-    async def test_ready_names_the_device_and_has_no_button(self):
+    async def test_ready_has_no_button(self):
         repository = FakeSettingsRepository(
-            make_status(InstinctModelState.READY, running_device="cuda"), MODEL_BYTES
+            make_status(InstinctModelState.READY), MODEL_BYTES
         )
         app = RowTestApp(repository)
 
         async with app.run_test() as pilot:
             await pilot.pause(0.2)
 
-            self.assertEqual(status_text(app), "✓ Ready · running on cuda")
+            self.assertEqual(status_text(app), "✓ Ready")
             self.assertFalse(button(app).display)
 
     async def test_failed_download_shows_the_reason_and_retry(self):

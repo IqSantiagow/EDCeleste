@@ -11,8 +11,8 @@ from edceleste.services.models.instinct_status import DownloadProgress
 
 logger = logging.getLogger(__name__)
 
-MODEL_REPO = "IqSantiagow/edceleste-decider-0.8b"
-MODEL_VERSION = "v5"
+MODEL_REPO = "IqSantiagow/edceleste-command-classifier"
+MODEL_VERSION = "v1"
 
 # Written after the last file, so a half-downloaded model never counts as downloaded
 DOWNLOAD_COMPLETE_FILE = "download_complete"
@@ -58,7 +58,9 @@ class DecisionModelDownloadService:
         find_models_directory() is used. Every model version gets its own
         folder inside it. Nothing is created or downloaded here."""
         models_directory = models_directory or find_models_directory()
-        self.model_folder = models_directory / f"edceleste-decider-0.8b-{MODEL_VERSION}"
+        self.model_folder = (
+            models_directory / f"edceleste-command-classifier-{MODEL_VERSION}"
+        )
         self.cancel_requested = False
 
     def is_model_downloaded(self) -> bool:

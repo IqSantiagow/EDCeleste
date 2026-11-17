@@ -55,11 +55,10 @@ dependencies = [
     "openai-whisper==20250625",
     "chatterbox-tts==0.1.7",
     "onnxruntime==1.31.1",
+    "tokenizers>=0.22.0,<=0.23.0",
     "sentencepiece==0.2.3",
     "textual-slider==0.2.0",
     "textual-fspicker==1.0.1",
-    "decider-ai==1.10.0",
-    "triton-windows==3.9.0.post30; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -121,7 +120,7 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type information
-module = ["chatterbox.*", "decider.*", "onnxruntime", "pynput.*", "scipy.*", "sentencepiece", "sounddevice", "soundfile", "whisper", "yaml"]
+module = ["chatterbox.*", "onnxruntime", "pynput.*", "scipy.*", "sentencepiece", "sounddevice", "soundfile", "whisper", "yaml"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
