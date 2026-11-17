@@ -67,7 +67,7 @@ async def wait_for_instinct_reply_in_comms(edceleste, pilot) -> None:
 
 
 def let_instinct_pick(edceleste, message: str, action_name: str) -> list[str]:
-    """Game actions allowed, Instinct on the GPU picks the action for the message
+    """Game actions allowed, Instinct picks the action for the message
     and the LLM remembers its prompts. Returns the list of those prompts."""
     prompts_sent_to_llm: list[str] = []
     edceleste.allow_game_actions()
@@ -276,9 +276,7 @@ async def test_should_write_but_not_speak_the_command_reply_when_ship_replies_ar
     with allure.step("Given Ship replies are off in the settings"):
         edceleste.save_tts_settings(TTSModel(volume=1.0, play_ship_replies=False))
 
-    with allure.step(
-        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
-    ):
+    with allure.step("And Instinct picks the throttle for 'set throttle to zero'"):
         prompts_sent_to_llm = let_instinct_pick(
             edceleste, SET_THROTTLE_TO_ZERO, "SetSpeedZero"
         )
@@ -309,9 +307,7 @@ async def test_should_write_but_not_speak_the_command_reply_when_ship_replies_ar
 async def test_should_speak_the_reply_of_a_command_the_game_state_does_not_confirm(
     edceleste,
 ):
-    with allure.step(
-        "Given Instinct on the GPU picks the throttle for 'set throttle to zero'"
-    ):
+    with allure.step("Given Instinct picks the throttle for 'set throttle to zero'"):
         prompts_sent_to_llm = let_instinct_pick(
             edceleste, SET_THROTTLE_TO_ZERO, "SetSpeedZero"
         )
@@ -346,9 +342,7 @@ async def test_should_speak_the_reply_of_a_command_the_game_state_does_not_confi
 async def test_should_say_the_frame_shift_drive_once_when_the_game_reports_the_charge(
     edceleste,
 ):
-    with allure.step(
-        "Given Instinct on the GPU picks supercruise for 'engage supercruise'"
-    ):
+    with allure.step("Given Instinct picks supercruise for 'engage supercruise'"):
         prompts_sent_to_llm = let_instinct_pick(
             edceleste, ENGAGE_SUPERCRUISE, "Supercruise"
         )

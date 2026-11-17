@@ -46,7 +46,6 @@ from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeade
 
 PROVIDER_OPTIONS = SUPPORTED_LLM_PROVIDER_TYPES
 PROVIDER_VALUES = SUPPORTED_LLM_PROVIDER_TYPES
-INSTINCT_DEVICE_OPTIONS = ["auto", "cuda", "cpu"]
 INSTINCT_MODEL_NAME = f"{MODEL_REPO.split('/')[-1]} · {MODEL_VERSION} · fixed"
 
 
@@ -58,7 +57,6 @@ class SystemPromptsInputWidgetIds(enum.StrEnum):
     LLM_SYSTEM_PROMPT_INPUT = "llm-system-prompt-input"
     LLM_USER_PROMPT_INPUT = "llm-user-prompt-input"
     INSTINCT_ENABLED_INPUT = "instinct-enabled-input"
-    INSTINCT_DEVICE_INPUT = "instinct-device-input"
 
 
 class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
@@ -174,12 +172,6 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
                 hint="commands press keys before Celeste answers",
                 id=SystemPromptsInputWidgetIds.INSTINCT_ENABLED_INPUT,
             )
-            yield WidgetLabeledSelectRow(
-                "Device: ",
-                INSTINCT_DEVICE_OPTIONS,
-                self.llm_model.instinct.device,
-                id=SystemPromptsInputWidgetIds.INSTINCT_DEVICE_INPUT,
-            )
             yield WidgetLabeledValueRow("Model:", INSTINCT_MODEL_NAME)
             yield WidgetInstinctStatusRow(self.settings_repository)
 
@@ -255,8 +247,6 @@ class WidgetSystemPromptsContainer(WidgetBaseSettingsContainer):
             self.llm_model.user_prompt = message.new_value
         elif message.sender_id == SystemPromptsInputWidgetIds.INSTINCT_ENABLED_INPUT:
             self.llm_model.instinct.enabled = message.new_value
-        elif message.sender_id == SystemPromptsInputWidgetIds.INSTINCT_DEVICE_INPUT:
-            self.llm_model.instinct.device = message.new_value
 
         self.post_message(
             SectionSettingsChanged(

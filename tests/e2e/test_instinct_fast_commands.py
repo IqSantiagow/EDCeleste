@@ -23,9 +23,7 @@ async def test_should_press_the_key_and_reply_without_asking_the_llm(edceleste):
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -64,7 +62,7 @@ async def test_should_send_a_message_that_is_no_command_to_celeste_and_press_no_
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step("And Instinct runs on the GPU and finds no ship action to do"):
+    with allure.step("And Instinct finds no ship action to do"):
         instinct_model = edceleste.turn_instinct_on()
 
     with allure.step("And the LLM remembers every prompt it receives"):
@@ -104,9 +102,7 @@ async def test_should_speak_the_fast_command_reply_and_tell_celeste_about_it(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
-    ):
+    with allure.step("And Instinct picks the throttle for 'set throttle to zero'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
@@ -162,9 +158,7 @@ async def test_should_say_nothing_was_pressed_when_the_game_window_is_not_found(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -206,9 +200,7 @@ async def test_should_say_game_actions_are_disabled_and_press_no_key_when_they_a
     with allure.step("Given game actions are off in the settings"):
         assert edceleste.settings.game_actions.enabled is False
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -244,49 +236,6 @@ async def test_should_say_game_actions_are_disabled_and_press_no_key_when_they_a
 
         with allure.step("And Instinct was asked about the message"):
             assert instinct_model.messages_asked == [DEPLOY_LANDING_GEAR]
-
-
-@allure.title("A model that runs on the CPU is not used for commands")
-async def test_should_send_the_command_to_celeste_when_the_model_runs_on_the_cpu(
-    edceleste,
-):
-    prompts_sent_to_llm: list[str] = []
-
-    with allure.step("Given game actions are allowed in the settings"):
-        edceleste.allow_game_actions()
-
-    with allure.step(
-        "And Instinct on the CPU picks the gear for 'deploy the landing gear'"
-    ):
-        instinct_model = edceleste.turn_instinct_on(device="cpu")
-        instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
-
-    with allure.step("And the LLM remembers every prompt it receives"):
-        edceleste.use_scripted_model(prompt_remembering_llm(prompts_sent_to_llm))
-
-    async with edceleste.run_app() as pilot:
-        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
-
-        with allure.step("When the Commander sends 'deploy the landing gear' in COMMS"):
-            await send_comms_message(pilot, DEPLOY_LANDING_GEAR)
-
-        with allure.step("Then Celeste answers in COMMS"):
-            await edceleste.wait_until(
-                pilot,
-                lambda: comms_entries(pilot.app, "llm-response") != [],
-                "Celeste's answer in COMMS",
-            )
-            assert comms_entries(pilot.app, "llm-response") == [LLM_ANSWER]
-
-        with allure.step("And Celeste (the LLM) received the message"):
-            assert len(prompts_sent_to_llm) == 1
-            assert DEPLOY_LANDING_GEAR in prompts_sent_to_llm[0]
-
-        with allure.step("And no key is pressed in the game"):
-            assert edceleste.fake_keyboard.keyboard_log == []
-
-        with allure.step("And Instinct was not asked"):
-            assert instinct_model.messages_asked == []
 
 
 @allure.title("A slow Instinct model does not hold the message back")
@@ -343,9 +292,7 @@ async def test_should_speak_that_nothing_was_pressed_when_the_game_window_is_not
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 

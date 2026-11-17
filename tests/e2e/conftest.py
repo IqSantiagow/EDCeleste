@@ -41,6 +41,8 @@ from edceleste.services.decision_model_download_service import (
     DecisionModelDownloadService,
 )
 from edceleste.services.game_window import GameWindow
+from edceleste.services.instinct_service import WARM_UP_MESSAGE
+from edceleste.services.models.keybinds_model import EdAction
 from edceleste.services.models.settings_model import (
     EventReactionModel,
     LLMModel,
@@ -82,7 +84,7 @@ SCREEN_SIZE = (200, 50)
 
 NOT_SCRIPTED_ANSWER = "No answer was scripted for this test."
 EDGE_VOICES_WITHOUT_NETWORK = ["en-GB-SoniaNeural", "en-US-AriaNeural"]
-INSTINCT_MODEL_BYTES = 1_524_827_608
+INSTINCT_MODEL_BYTES = 23_514_671
 
 
 class FakeKeyboard:
@@ -128,14 +130,13 @@ NO_ACTION_CHOSEN = "none"
 SLOW_MODEL_GIVES_UP_AFTER_SECONDS = 3
 
 
-class FakeDecider:
-    """The Instinct decision model without GPU and weights. It picks the action
-    the test scripted for a pilot message and 'none' for every other message.
-    A test can make it slow: it then answers a command only after the test
-    lets it"""
+class FakeInstinctModel:
+    """The run of the Instinct model without the model files. It gives the
+    action the test scripted for a pilot message the whole score and 'none' to
+    every other message. A test can make it slow: it then answers a command
+    only after the test lets it"""
 
-    def __init__(self, device: str) -> None:
-        self.dev = device
+    def __init__(self) -> None:
         self.choices_by_message: dict[str, str] = {}
         self.messages_asked: list[str] = []
         self.model_may_answer: threading.Event | None = None
@@ -147,24 +148,18 @@ class FakeDecider:
         if self.model_may_answer is not None:
             self.model_may_answer.set()
 
-    def system_one(self, state: dict, questions: dict) -> dict:
-        if "action" not in questions:
-            # The warm up question at start-up, its answer is thrown away
-            return {
-                "answers": {
-                    name: {"choice": "false", "probabilities": {"false": 1.0}}
-                    for name in questions
-                }
-            }
-
-        pilot_message = state["pilot_said"]
+    def __call__(self, pilot_message: str) -> dict[str, float]:
+        scores = {
+            name: 0.0 for name in [*(action.value for action in EdAction), "none"]
+        }
+        if pilot_message == WARM_UP_MESSAGE:
+            # The warm up at start-up is no pilot message, its answer is thrown away
+            return scores
         self.messages_asked.append(pilot_message)
         if self.model_may_answer is not None:
             self.model_may_answer.wait(timeout=SLOW_MODEL_GIVES_UP_AFTER_SECONDS)
-        choice = self.choices_by_message.get(pilot_message, NO_ACTION_CHOSEN)
-        return {
-            "answers": {"action": {"choice": choice, "probabilities": {choice: 1.0}}}
-        }
+        scores[self.choices_by_message.get(pilot_message, NO_ACTION_CHOSEN)] = 1.0
+        return scores
 
 
 FAKE_SAMPLE_RATE = 24000
@@ -819,9 +814,9 @@ class EdCelesteTestEnvironment:
         self.settings.game_actions.enabled = True
         self.save_config()
 
-    def turn_instinct_on(self, device: str = "cuda") -> FakeDecider:
-        # The model counts as downloaded and loaded: no Hub, no download, no GPU.
-        # The preflight still runs its real start-up question through the fake
+    def turn_instinct_on(self) -> FakeInstinctModel:
+        # The model counts as downloaded and loaded: no Hub, no download, no
+        # model files. The preflight still runs its real warm up through the fake
         self.settings.llm.instinct.enabled = True
         self.save_config()
 
@@ -829,9 +824,11 @@ class EdCelesteTestEnvironment:
         model_folder.mkdir(parents=True)
         (model_folder / DOWNLOAD_COMPLETE_FILE).write_text("test")
 
-        fake_decider = FakeDecider(device)
-        self.container.instinct_service().decider = fake_decider
-        return fake_decider
+        fake_model = FakeInstinctModel()
+        instinct_service = self.container.instinct_service()
+        instinct_service.session = object()  # type: ignore[assignment]
+        instinct_service.score_every_class = fake_model  # type: ignore[method-assign]
+        return fake_model
 
     def close_the_game_window(self) -> None:
         self.container.keybinds_service().game_window = GameWindow(

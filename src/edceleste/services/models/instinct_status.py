@@ -27,7 +27,6 @@ class InstinctFailure:
 class InstinctStatus:
     state: InstinctModelState
     download_progress: DownloadProgress | None
-    running_device: str | None
     failure: InstinctFailure | None
 
 

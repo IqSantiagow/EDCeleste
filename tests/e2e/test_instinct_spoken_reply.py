@@ -55,9 +55,7 @@ async def test_should_play_the_clip_once_when_the_game_reports_the_gear_after_a_
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -137,9 +135,7 @@ async def test_should_retract_the_landing_gear_and_leave_the_voice_to_the_game_s
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -191,9 +187,7 @@ async def test_should_show_the_reply_in_comms_while_the_voice_is_still_speaking(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
-    ):
+    with allure.step("And Instinct picks the throttle for 'set throttle to zero'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
@@ -257,9 +251,7 @@ async def test_should_keep_the_reply_and_press_the_key_once_when_the_voice_break
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the throttle for 'set throttle to zero'"
-    ):
+    with allure.step("And Instinct picks the throttle for 'set throttle to zero'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[SET_THROTTLE_TO_ZERO] = "SetSpeedZero"
 
@@ -416,7 +408,7 @@ async def test_should_reply_the_opposite_of_the_ship_state_to_a_toggle_command(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(f"And Instinct on the GPU picks {action_name} for the command"):
+    with allure.step(f"And Instinct picks {action_name} for the command"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[command] = action_name
 

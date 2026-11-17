@@ -1,14 +1,15 @@
 import asyncio
-import functools
-import sys
+import json
+import shutil
+import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import httpx
+import numpy as np
 from pydantic_ai import ToolReturn
 
 from edceleste.services import instinct_service
@@ -17,12 +18,15 @@ from edceleste.services.decision_model_download_service import (
     DownloadCancelled,
 )
 from edceleste.services.instinct_service import (
+    CLASSES_FILE,
+    CONFIDENCE_THRESHOLD,
+    MAX_TOKENS,
+    MODEL_FILE,
+    TOKENIZER_FILE,
     InstinctService,
     ModelNotDownloaded,
     describe_top_scores,
-    switch_qwen_kernels_to_device,
 )
-from edceleste.services.models.instinct_actions import build_which_action_questions
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
     InstinctFailure,
@@ -50,16 +54,14 @@ MODEL_BYTES = 1_500_000_000
 MODULE = "edceleste.services.instinct_service"
 
 
-def make_settings(
-    enabled: bool, device: str = "auto", game_actions_enabled: bool = False
-) -> SettingsModel:
+def make_settings(enabled: bool, game_actions_enabled: bool = False) -> SettingsModel:
     return SettingsModel(
         paths=PathModel(journal_path="C:/j", keybindings_path="C:/k"),
         tts=TTSModel(volume=1.0),
         llm=LLMModel(
             system_prompt="sp",
             user_prompt="",
-            instinct=InstinctModel(enabled=enabled, device=device),
+            instinct=InstinctModel(enabled=enabled),
         ),
         stt=SttModel(model="tiny.en"),
         game_actions=GameActionsModel(enabled=game_actions_enabled),
@@ -143,32 +145,29 @@ class FakeGameState:
         return make_game_stats_snapshot(ship=self.ship)
 
 
-class FakeDecider:
-    """Stands for decider.infer.Decider. Answers the "action" question with a
-    fixed choice and records every call, also how many ran at the same time."""
+class FakeScorer:
+    """Stands for InstinctService.score_every_class, the run of the model. Gives
+    the chosen class a high score and every other class a low one, and records
+    every message, also how many ran at the same time."""
 
     def __init__(
         self,
         choice: str = "none",
-        device: str = "cuda",
         error: Exception | None = None,
     ):
-        self.dev = device
         self.choice = choice
         self.error = error
         self.seconds_per_call = 0.0
-        # The size of the input the model reports, None when it reports nothing
-        self.input_tokens: int | None = None
         self.release = threading.Event()  # clear it to keep the model busy
         self.release.set()
-        self.calls: list[tuple[dict, dict]] = []
+        self.calls: list[str] = []
         self.running_now = 0
         self.most_running_at_once = 0
         self.counter_lock = threading.Lock()
 
-    def system_one(self, state: dict, questions: dict) -> dict:
+    def __call__(self, pilot_message: str) -> dict[str, float]:
         with self.counter_lock:
-            self.calls.append((state, questions))
+            self.calls.append(pilot_message)
             self.running_now += 1
             self.most_running_at_once = max(self.most_running_at_once, self.running_now)
         try:
@@ -176,13 +175,9 @@ class FakeDecider:
             time.sleep(self.seconds_per_call)
             if self.error is not None:
                 raise self.error
-            probabilities = {name: 0.01 for name in questions["action"]["criteria"]}
-            probabilities[self.choice] = 0.9
-            answer = {"choice": self.choice, "probabilities": probabilities}
-            result: dict = {"answers": {"action": answer}}
-            if self.input_tokens is not None:
-                result["usage"] = {"input_tokens": self.input_tokens}
-            return result
+            scores = {name: 0.01 for name in [*(a.value for a in EdAction), "none"]}
+            scores[self.choice] = 0.9
+            return scores
         finally:
             with self.counter_lock:
                 self.running_now -= 1
@@ -190,16 +185,15 @@ class FakeDecider:
 
 def make_fast_command_service(
     enabled: bool = True,
-    device: str = "cuda",
     game_actions_enabled: bool = True,
     choice: str = "LandingGearToggle",
     keybinds: FakeKeybinds | None = None,
     game_state_text: str = "Commander name is NOVA.",
-    decider_error: Exception | None = None,
+    model_error: Exception | None = None,
     perform_game_action: FakePerformGameAction | None = None,
     ship=None,
 ) -> InstinctService:
-    """A service that is ready to decide: on, loaded on the GPU, game actions on,
+    """A service that is ready to decide: on, model loaded, game actions on,
     every action has a key, the tool presses it. Each test breaks exactly one of
     these."""
     settings_service = Mock()
@@ -214,7 +208,8 @@ def make_fast_command_service(
         perform_game_action or FakePerformGameAction(),  # type: ignore[arg-type]
     )
     service.enabled = enabled
-    service.decider = FakeDecider(choice=choice, device=device, error=decider_error)  # type: ignore[assignment]
+    service.session = object()  # type: ignore[assignment]
+    service.score_every_class = FakeScorer(choice=choice, error=model_error)  # type: ignore[method-assign]
     return service
 
 
@@ -235,26 +230,13 @@ class InstinctServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_instinct_unloads_the_model_and_downloads_nothing(self):
         download_service = FakeDownloadService()
         service = self.make_service(enabled=False, download_service=download_service)
-        service.decider = MagicMock()
-
-        with patch.dict(sys.modules, {"torch": MagicMock()}):
-            service.reload_service()
-
-        self.assertIsNone(service.decider)
-        self.assertIsNone(service.background_task)
-        self.assertEqual(service.get_model_state(), InstinctModelState.NOT_DOWNLOADED)
-
-    async def test_reload_passes_the_chosen_device_to_the_model(self):
-        service = self.make_service(
-            enabled=False, download_service=FakeDownloadService()
-        )
-        self.settings_service.get_settings.return_value = make_settings(
-            enabled=False, device="cpu"
-        )
+        service.session = MagicMock()
 
         service.reload_service()
 
-        self.assertEqual(service.device_choice, "cpu")
+        self.assertIsNone(service.session)
+        self.assertIsNone(service.background_task)
+        self.assertEqual(service.get_model_state(), InstinctModelState.NOT_DOWNLOADED)
 
     async def test_enabled_instinct_downloads_a_missing_model_and_loads_it(self):
         download_service = FakeDownloadService()
@@ -339,13 +321,13 @@ class InstinctServiceTest(unittest.IsolatedAsyncioTestCase):
         service = self.make_service(
             enabled=True, download_service=FakeDownloadService(downloaded=True)
         )
-        service.warm_up.side_effect = RuntimeError("CUDA out of memory")
+        service.warm_up.side_effect = RuntimeError("broken model file")
 
         service.reload_service()
         await self.wait_for_background_work(service)
 
         self.assertEqual(
-            service.get_status().failure, InstinctFailure("load", "CUDA out of memory")
+            service.get_status().failure, InstinctFailure("load", "broken model file")
         )
 
     async def test_retry_clears_the_last_failure(self):
@@ -428,24 +410,9 @@ class InstinctColdStartTest(unittest.IsolatedAsyncioTestCase):
             "Commands go through Celeste.",
         )
 
-    async def test_model_on_the_cpu_is_a_warning_that_commands_go_through_celeste(self):
+    async def test_a_loaded_model_gives_no_warning(self):
         service = self.make_service(True, FakeDownloadService(downloaded=True))
-        service.decider = FakeDecider(device="cpu")  # type: ignore[assignment]
-
-        statuses = [status async for status in service.cold_start()]
-
-        self.assertTrue(statuses[-1].completed)
-        self.assertTrue(statuses[-1].is_warning)
-        self.assertFalse(statuses[-1].is_critical)
-        self.assertEqual(
-            statuses[-1].message,
-            "model runs on the CPU, too slow for commands. "
-            "Commands go through Celeste.",
-        )
-
-    async def test_model_on_the_gpu_gives_no_warning(self):
-        service = self.make_service(True, FakeDownloadService(downloaded=True))
-        service.decider = FakeDecider(device="cuda")  # type: ignore[assignment]
+        service.session = object()  # type: ignore[assignment]
 
         statuses = [status async for status in service.cold_start()]
 
@@ -454,158 +421,135 @@ class InstinctColdStartTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(statuses[-1].message)
 
 
-class InstinctModelLoadingTest(unittest.IsolatedAsyncioTestCase):
+class InstinctModelLoadingTest(unittest.TestCase):
     def setUp(self):
+        self.model_folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.model_folder)
+        (self.model_folder / CLASSES_FILE).write_text(
+            json.dumps(["Supercruise", "none"]), encoding="utf-8"
+        )
         self.download_service = MagicMock(spec=DecisionModelDownloadService)
-        self.download_service.model_folder = Path("C:/models/decider")
+        self.download_service.model_folder = self.model_folder
         self.download_service.is_model_downloaded.return_value = True
         self.service = InstinctService(
             Mock(), self.download_service, Mock(), Mock(), Mock()
         )
+        tokenizer_patcher = patch(f"{MODULE}.Tokenizer")
+        self.tokenizer_class = tokenizer_patcher.start()
+        self.addCleanup(tokenizer_patcher.stop)
+        onnxruntime_patcher = patch(f"{MODULE}.onnxruntime")
+        self.onnxruntime = onnxruntime_patcher.start()
+        self.addCleanup(onnxruntime_patcher.stop)
 
-    def load_with_fake_decider(self, cuda_available: bool = True, triton=True):
-        fake_decider_module = MagicMock()
-        fake_torch = MagicMock()
-        fake_torch.cuda.is_available.return_value = cuda_available
-        with (
-            patch.dict(
-                sys.modules,
-                {
-                    "torch": fake_torch,
-                    "decider": MagicMock(),
-                    "decider.infer": fake_decider_module,
-                },
-            ),
-            patch(f"{MODULE}.switch_qwen_kernels_to_device") as switch_kernels_mock,
-            patch(
-                f"{MODULE}.importlib.util.find_spec",
-                return_value=MagicMock() if triton else None,
-            ),
-        ):
-            self.service.load_model()
-        return fake_decider_module.Decider, switch_kernels_mock
+    def test_load_model_reads_the_tokenizer_the_classes_and_the_model(self):
+        self.service.load_model_once()
 
-    def test_load_model_reads_the_downloaded_folder_on_the_gpu(self):
-        decider_class, switch_kernels_mock = self.load_with_fake_decider()
-
-        decider_class.assert_called_once_with(
-            str(self.download_service.model_folder), device="cuda"
+        self.tokenizer_class.from_file.assert_called_once_with(
+            str(self.model_folder / TOKENIZER_FILE)
         )
-        switch_kernels_mock.assert_called_once_with("cuda")
+        self.tokenizer_class.from_file.return_value.enable_truncation.assert_called_once_with(
+            MAX_TOKENS
+        )
+        self.assertEqual(self.service.class_names, ["Supercruise", "none"])
+        self.assertEqual(
+            self.onnxruntime.InferenceSession.call_args.args[0],
+            str(self.model_folder / MODEL_FILE),
+        )
+        self.assertIs(
+            self.service.session, self.onnxruntime.InferenceSession.return_value
+        )
 
-    def test_load_model_auto_falls_back_to_cpu_without_a_gpu(self):
-        decider_class, _ = self.load_with_fake_decider(cuda_available=False)
+    def test_load_model_runs_on_one_cpu_thread(self):
+        self.service.load_model_once()
 
-        self.assertEqual(decider_class.call_args.kwargs["device"], "cpu")
+        self.assertEqual(
+            self.onnxruntime.SessionOptions.return_value.intra_op_num_threads, 1
+        )
+        self.assertEqual(
+            self.onnxruntime.InferenceSession.call_args.kwargs["providers"],
+            ["CPUExecutionProvider"],
+        )
 
-    def test_load_model_uses_the_chosen_device(self):
-        self.service.change_device("cpu")
+    def test_load_model_loads_only_once(self):
+        self.service.load_model_once()
+        self.service.load_model_once()
 
-        decider_class, switch_kernels_mock = self.load_with_fake_decider()
-
-        self.assertEqual(decider_class.call_args.kwargs["device"], "cpu")
-        switch_kernels_mock.assert_called_once_with("cpu")
-
-    def test_load_model_runs_eager_forward_without_triton(self):
-        decider_class, _ = self.load_with_fake_decider(triton=False)
-
-        engine = decider_class.return_value.eng
-        self.assertIs(engine._fwd_impl, engine._fwd_eager)
+        self.onnxruntime.InferenceSession.assert_called_once()
 
     def test_load_model_refuses_a_model_that_is_not_downloaded(self):
         self.download_service.is_model_downloaded.return_value = False
 
         with self.assertRaises(ModelNotDownloaded):
-            self.service.load_model()
+            self.service.load_model_once()
 
-    def test_change_device_unloads_the_model(self):
-        self.service.decider = MagicMock()
+        self.onnxruntime.InferenceSession.assert_not_called()
 
-        with patch.dict(sys.modules, {"torch": MagicMock()}):
-            self.service.change_device("cpu")
+    def test_load_model_stays_unloaded_when_a_file_is_missing(self):
+        (self.model_folder / CLASSES_FILE).unlink()
 
-        self.assertIsNone(self.service.decider)
+        with self.assertRaises(FileNotFoundError):
+            self.service.load_model_once()
 
-    def test_running_device_is_none_before_loading(self):
-        self.assertIsNone(self.service.running_device())
+        self.assertIsNone(self.service.session)
 
-    def test_running_device_reports_where_the_model_runs(self):
-        self.service.decider = MagicMock(dev="cuda")
+    def test_unload_model_forgets_the_model(self):
+        self.service.session = MagicMock()
 
-        self.assertEqual(self.service.running_device(), "cuda")
+        self.service.unload_model()
 
-    def test_warm_up_asks_only_the_small_question_when_there_is_no_game_state(self):
-        self.service.ask_decision_model = MagicMock(
-            return_value={"warm_up": {"noul": 0.9}}
+        self.assertIsNone(self.service.session)
+
+    def test_unload_model_does_nothing_when_no_model_is_loaded(self):
+        self.service.unload_model()
+
+        self.assertIsNone(self.service.session)
+
+
+class ScoreEveryClassTest(unittest.TestCase):
+    def make_service(self, logits: list[float]) -> InstinctService:
+        service = InstinctService(Mock(), Mock(), Mock(), Mock(), Mock())
+        service.class_names = ["Supercruise", "LandingGearToggle", "none"]
+        service.tokenizer = MagicMock()
+        service.tokenizer.encode.return_value = MagicMock(
+            ids=[101, 7, 102], attention_mask=[1, 1, 1]
         )
-        self.service.game_state_protocol.get_game_state_projection.return_value = ""
+        service.session = MagicMock()
+        service.session.run.return_value = [np.array([logits])]
+        return service
 
-        self.service.warm_up()
+    def test_gives_the_softmax_of_the_logits_by_class_name(self):
+        service = self.make_service([2.0, 1.0, 0.0])
 
-        self.service.ask_decision_model.assert_called_once()
+        scores = service.score_every_class("engage supercruise")
 
-    def test_unload_model_frees_the_model(self):
-        self.service.decider = MagicMock()
+        exponents = np.exp([2.0, 1.0, 0.0])
+        expected = exponents / exponents.sum()
+        self.assertEqual(list(scores), ["Supercruise", "LandingGearToggle", "none"])
+        self.assertAlmostEqual(scores["Supercruise"], expected[0])
+        self.assertAlmostEqual(sum(scores.values()), 1.0)
 
-        with patch.dict(sys.modules, {"torch": MagicMock()}):
-            self.service.unload_model()
+    def test_feeds_the_ids_and_the_attention_mask_of_the_message(self):
+        service = self.make_service([0.0, 0.0, 0.0])
 
-        self.assertIsNone(self.service.decider)
+        service.score_every_class("engage supercruise")
 
+        service.tokenizer.encode.assert_called_once_with("engage supercruise")
+        feed = service.session.run.call_args.args[1]
+        self.assertEqual(feed["input_ids"].tolist(), [[101, 7, 102]])
+        self.assertEqual(feed["attention_mask"].tolist(), [[1, 1, 1]])
 
-class SwitchQwenKernelsToDeviceTest(unittest.TestCase):
-    def setUp(self):
-        def torch_chunk_gated_delta_rule():
-            return "torch"
+    def test_does_not_overflow_on_big_logits(self):
+        service = self.make_service([1000.0, 0.0, 0.0])
 
-        @functools.wraps(torch_chunk_gated_delta_rule)
-        def fast_chunk_gated_delta_rule():
-            return "gpu"
+        scores = service.score_every_class("engage supercruise")
 
-        def torch_recurrent_gated_delta_rule():
-            return "torch"
-
-        @functools.wraps(torch_recurrent_gated_delta_rule)
-        def fast_recurrent_gated_delta_rule():
-            return "gpu"
-
-        self.qwen_module = SimpleNamespace(
-            torch_chunk_gated_delta_rule=fast_chunk_gated_delta_rule,
-            torch_recurrent_gated_delta_rule=fast_recurrent_gated_delta_rule,
-        )
-        modules_patcher = patch.dict(
-            sys.modules,
-            {
-                "transformers.models.qwen3_5": SimpleNamespace(
-                    modeling_qwen3_5=self.qwen_module
-                ),
-            },
-        )
-        modules_patcher.start()
-        self.addCleanup(modules_patcher.stop)
-        kernels_patcher = patch.dict(instinct_service.gpu_kernels, clear=True)
-        kernels_patcher.start()
-        self.addCleanup(kernels_patcher.stop)
-
-    def test_cpu_gets_the_plain_torch_functions(self):
-        switch_qwen_kernels_to_device("cpu")
-
-        self.assertEqual(self.qwen_module.torch_chunk_gated_delta_rule(), "torch")
-        self.assertEqual(self.qwen_module.torch_recurrent_gated_delta_rule(), "torch")
-
-    def test_cuda_gets_the_gpu_kernels_back_after_cpu(self):
-        switch_qwen_kernels_to_device("cpu")
-
-        switch_qwen_kernels_to_device("cuda")
-
-        self.assertEqual(self.qwen_module.torch_chunk_gated_delta_rule(), "gpu")
-        self.assertEqual(self.qwen_module.torch_recurrent_gated_delta_rule(), "gpu")
+        self.assertAlmostEqual(scores["Supercruise"], 1.0)
 
 
 class IsModuleEnabledTest(unittest.TestCase):
     # Every test starts from a service that is ready and breaks one condition
 
-    def test_is_true_when_on_and_loaded_on_the_gpu(self):
+    def test_is_true_when_on_and_loaded(self):
         service = make_fast_command_service()
 
         self.assertTrue(service.is_module_enabled())
@@ -615,14 +559,9 @@ class IsModuleEnabledTest(unittest.TestCase):
 
         self.assertFalse(service.is_module_enabled())
 
-    def test_is_false_when_the_model_runs_on_the_cpu(self):
-        service = make_fast_command_service(device="cpu")
-
-        self.assertFalse(service.is_module_enabled())
-
     def test_is_false_when_the_model_is_not_loaded(self):
         service = make_fast_command_service()
-        service.decider = None
+        service.session = None
 
         self.assertFalse(service.is_module_enabled())
 
@@ -669,175 +608,128 @@ class FindActionsWithAKeyTest(unittest.TestCase):
 
 
 class AskWhichActionTest(unittest.TestCase):
-    def test_sends_the_state_and_the_question_to_the_model_and_returns_its_answer(self):
+    def test_sends_the_message_and_the_offered_actions_and_returns_the_answer(self):
         service = make_fast_command_service(choice="Supercruise")
         offered = [EdAction.SUPERCRUISE, EdAction.LANDING_GEAR_TOGGLE]
 
-        answer = service.ask_which_action("State text", "engage supercruise", offered)
+        answer = service.pick_offered_action("engage supercruise", offered)
 
         self.assertEqual(answer["choice"], "Supercruise")
         self.assertEqual(
-            service.decider.calls,  # type: ignore[union-attr]
-            [
-                (
-                    {"game_state": "State text", "pilot_said": "engage supercruise"},
-                    build_which_action_questions(offered),
-                )
-            ],
+            service.score_every_class.calls,  # type: ignore[attr-defined]
+            ["engage supercruise"],
+        )
+        self.assertEqual(
+            list(answer["probabilities"]),
+            ["Supercruise", "LandingGearToggle", "none"],
         )
 
+    def test_only_the_offered_actions_compete(self):
+        service = make_fast_command_service(choice="LandingGearToggle")
 
-class AskDecisionModelInputSizeTest(unittest.TestCase):
-    def ask_the_model(self, service: InstinctService) -> None:
-        questions = build_which_action_questions([EdAction.SUPERCRUISE])
-        service.ask_decision_model(
-            {"game_state": "State", "pilot_said": "go"}, questions
+        answer = service.pick_offered_action(
+            "deploy landing gear", [EdAction.SUPERCRUISE]
         )
 
-    def test_remembers_the_input_size_the_model_reported(self):
+        # The best class is not offered, so the best offered option is "none"
+        self.assertEqual(list(answer["probabilities"]), ["Supercruise", "none"])
+        self.assertEqual(answer["choice"], "none")
+
+    def test_an_offered_action_the_model_does_not_know_is_left_out(self):
         service = make_fast_command_service()
-        service.decider.input_tokens = 321  # type: ignore[union-attr]
+        service.score_every_class = lambda pilot_message: {  # type: ignore[method-assign]
+            "Supercruise": 0.9,
+            "none": 0.01,
+        }
 
-        self.ask_the_model(service)
+        answer = service.pick_offered_action(
+            "deploy landing gear", [EdAction.SUPERCRUISE, EdAction.LANDING_GEAR_TOGGLE]
+        )
 
-        self.assertEqual(service.last_input_tokens, 321)
+        self.assertEqual(list(answer["probabilities"]), ["Supercruise", "none"])
 
-    def test_forgets_the_old_input_size_when_the_model_reports_none(self):
+    def test_a_best_score_under_the_threshold_is_none(self):
         service = make_fast_command_service()
-        service.last_input_tokens = 99  # from a decision before
+        service.score_every_class = lambda pilot_message: {  # type: ignore[method-assign]
+            "Supercruise": CONFIDENCE_THRESHOLD - 0.01,
+            "none": 0.01,
+        }
 
-        self.ask_the_model(service)  # this answer has no "usage"
+        answer = service.pick_offered_action("hmm", [EdAction.SUPERCRUISE])
 
-        self.assertEqual(service.last_input_tokens, 0)
+        self.assertEqual(answer["choice"], "none")
+
+    def test_a_best_score_at_the_threshold_is_the_action(self):
+        service = make_fast_command_service()
+        service.score_every_class = lambda pilot_message: {  # type: ignore[method-assign]
+            "Supercruise": CONFIDENCE_THRESHOLD,
+            "none": 0.01,
+        }
+
+        answer = service.pick_offered_action(
+            "engage supercruise", [EdAction.SUPERCRUISE]
+        )
+
+        self.assertEqual(answer["choice"], "Supercruise")
+
+    def test_an_empty_offer_is_none(self):
+        service = make_fast_command_service(choice="Supercruise")
+
+        answer = service.pick_offered_action("engage supercruise", [])
+
+        self.assertEqual(answer["choice"], "none")
+        self.assertEqual(list(answer["probabilities"]), ["none"])
+
+    def test_logs_the_message_the_best_scores_and_the_time(self):
+        service = make_fast_command_service(choice="Supercruise")
+
+        with self.assertLogs(instinct_service.logger, level="INFO") as logs:
+            service.pick_offered_action("engage supercruise", [EdAction.SUPERCRUISE])
+
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn("'engage supercruise'", logs.output[0])
+        self.assertIn("Supercruise 0.90", logs.output[0])
+        self.assertIn(" ms", logs.output[0])
+
+    def test_loads_the_model_first_when_it_is_not_loaded(self):
+        service = make_fast_command_service(choice="Supercruise")
+        service.load_model_once = MagicMock()  # type: ignore[method-assign]
+
+        service.pick_offered_action("engage supercruise", [EdAction.SUPERCRUISE])
+
+        service.load_model_once.assert_called_once_with()
 
 
 class WarmUpTest(unittest.TestCase):
-    def make_service(
-        self, game_state_text: str = "State text", keybinds: FakeKeybinds | None = None
-    ) -> InstinctService:
-        """A service that is ready to decide, whose three questions of the warm
-        up are replaced, so only the order of the warm up is tested."""
+    def test_loads_the_model_and_runs_one_message_through_it(self):
+        service = make_fast_command_service()
+        service.load_model_once = MagicMock()  # type: ignore[method-assign]
+
+        service.warm_up()
+
+        service.load_model_once.assert_called_once_with()
+        self.assertEqual(
+            service.score_every_class.calls,  # type: ignore[attr-defined]
+            ["deploy hardpoints"],
+        )
+
+    def test_works_without_a_game_state_and_without_keys(self):
+        # The warm up asks no real command, so it does not need either
         service = make_fast_command_service(
-            game_state_text=game_state_text, keybinds=keybinds
+            game_state_text="", keybinds=FakeKeybinds(bound_actions=set())
         )
-        service.ask_decision_model = MagicMock(return_value={})  # type: ignore[method-assign]
-        service.ask_which_action = MagicMock()  # type: ignore[method-assign]
-        service.compile_engine_for_input_sizes_near = MagicMock()  # type: ignore[method-assign]
-        return service
-
-    def test_asks_the_real_command_question_with_the_game_state_and_the_keys(self):
-        service = self.make_service()
 
         service.warm_up()
 
-        service.ask_which_action.assert_called_once_with(  # type: ignore[attr-defined]
-            "State text", "deploy hardpoints", service.find_actions_with_a_key()
-        )
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
 
-    def test_skips_the_command_question_when_no_action_has_a_key(self):
-        service = self.make_service(keybinds=FakeKeybinds(bound_actions=set()))
+    def test_refuses_a_model_that_is_not_downloaded(self):
+        service = make_fast_command_service()
+        service.session = None
+        service.download_service.is_model_downloaded = MagicMock(return_value=False)  # type: ignore[method-assign]
 
-        service.warm_up()
-
-        service.ask_decision_model.assert_called_once()  # type: ignore[attr-defined]
-        service.ask_which_action.assert_not_called()  # type: ignore[attr-defined]
-        service.compile_engine_for_input_sizes_near.assert_not_called()  # type: ignore[attr-defined]
-
-    def test_skips_the_command_question_when_there_is_no_game_state(self):
-        service = self.make_service(game_state_text="")
-
-        service.warm_up()
-
-        service.ask_decision_model.assert_called_once()  # type: ignore[attr-defined]
-        service.ask_which_action.assert_not_called()  # type: ignore[attr-defined]
-        service.compile_engine_for_input_sizes_near.assert_not_called()  # type: ignore[attr-defined]
-
-    def test_compiles_the_input_sizes_near_what_the_command_needed(self):
-        service = self.make_service()
-
-        def ask_which_action(game_state, pilot_message, offered_actions):
-            service.last_input_tokens = 321  # what the real question reports
-
-        service.ask_which_action.side_effect = ask_which_action  # type: ignore[attr-defined]
-
-        service.warm_up()
-
-        service.compile_engine_for_input_sizes_near.assert_called_once_with(321)  # type: ignore[attr-defined]
-
-
-class CompileEngineForInputSizesNearTest(unittest.TestCase):
-    SIZES = [64, 128, 192, 256, 320, 384, 512]
-
-    def setUp(self):
-        modules_patcher = patch.dict(
-            sys.modules,
-            {
-                "decider": MagicMock(),
-                "decider.engine": SimpleNamespace(T_BUCKETS=self.SIZES),
-            },
-        )
-        modules_patcher.start()
-        self.addCleanup(modules_patcher.stop)
-
-        self.engine = Mock()
-        self.service = make_fast_command_service()
-        self.service.decider = SimpleNamespace(eng=self.engine)  # type: ignore[assignment]
-
-    def compiled_shapes(self) -> list[tuple[int, int]]:
-        """The (batch, size) shapes the engine was asked to compile."""
-        return [
-            shape
-            for engine_call in self.engine.warmup.call_args_list
-            for shape in engine_call.args[0]
-        ]
-
-    def test_compiles_the_size_of_the_command_and_the_sizes_next_to_it(self):
-        self.service.compile_engine_for_input_sizes_near(
-            300
-        )  # 320 is the smallest that holds it
-
-        self.assertEqual(self.compiled_shapes(), [(1, 256), (1, 320), (1, 384)])
-
-    def test_the_smallest_size_has_no_size_below_it(self):
-        self.service.compile_engine_for_input_sizes_near(10)
-
-        self.assertEqual(self.compiled_shapes(), [(1, 64), (1, 128)])
-
-    def test_the_largest_size_has_no_size_above_it(self):
-        self.service.compile_engine_for_input_sizes_near(500)
-
-        self.assertEqual(self.compiled_shapes(), [(1, 384), (1, 512)])
-
-    def test_an_input_that_fits_a_size_exactly_uses_that_size(self):
-        self.service.compile_engine_for_input_sizes_near(320)
-
-        self.assertEqual(self.compiled_shapes(), [(1, 256), (1, 320), (1, 384)])
-
-    def test_compiles_nothing_when_the_input_is_bigger_than_every_size(self):
-        self.service.compile_engine_for_input_sizes_near(600)
-
-        self.engine.warmup.assert_not_called()
-
-    def test_compiles_nothing_when_the_model_did_not_tell_its_input_size(self):
-        self.service.compile_engine_for_input_sizes_near(0)
-
-        self.engine.warmup.assert_not_called()
-
-    def test_does_not_fail_without_the_engine_of_the_model(self):
-        self.service.decider = FakeDecider(device="cpu")  # type: ignore[assignment]
-
-        self.service.compile_engine_for_input_sizes_near(300)
-
-    def test_holds_the_model_lock_while_compiling(self):
-        locked_while_compiling: list[bool] = []
-        self.engine.warmup.side_effect = lambda shapes: locked_while_compiling.append(
-            self.service.model_lock.locked()
-        )
-
-        self.service.compile_engine_for_input_sizes_near(300)
-
-        self.assertEqual(locked_while_compiling, [True])
-        self.assertFalse(self.service.model_lock.locked())
+        with self.assertRaises(ModelNotDownloaded):
+            service.warm_up()
 
 
 class DescribeTopScoresTest(unittest.TestCase):
@@ -859,11 +751,8 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
             service.perform_game_action.executed, [EdAction.LANDING_GEAR_TOGGLE]
         )
         self.assertEqual(
-            service.decider.calls[0][0],  # type: ignore[union-attr]
-            {
-                "game_state": "Commander name is NOVA.",
-                "pilot_said": "deploy landing gear",
-            },
+            service.score_every_class.calls,  # type: ignore[attr-defined]
+            ["deploy landing gear"],
         )
 
     async def test_logs_one_line_with_the_message_the_action_and_the_best_scores(self):
@@ -887,7 +776,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
             reply = await service.try_fast_command("how much fuel do I have")
 
         self.assertIsNone(reply)
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(service.perform_game_action.executed, [])
 
     async def test_does_not_ask_the_model_when_it_cannot_decide(self):
@@ -896,7 +785,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         reply = await service.try_fast_command("deploy landing gear")
 
         self.assertIsNone(reply)
-        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+        self.assertEqual(service.score_every_class.calls, [])  # type: ignore[attr-defined]
 
     async def test_does_not_ask_the_model_when_no_action_has_a_key(self):
         service = make_fast_command_service(keybinds=FakeKeybinds(bound_actions=set()))
@@ -904,7 +793,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         reply = await service.try_fast_command("deploy landing gear")
 
         self.assertIsNone(reply)
-        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+        self.assertEqual(service.score_every_class.calls, [])  # type: ignore[attr-defined]
 
     async def test_does_not_ask_the_model_when_the_game_state_is_empty(self):
         service = make_fast_command_service(game_state_text="")
@@ -912,11 +801,11 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         reply = await service.try_fast_command("deploy landing gear")
 
         self.assertIsNone(reply)
-        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+        self.assertEqual(service.score_every_class.calls, [])  # type: ignore[attr-defined]
 
     async def test_returns_none_when_the_model_runs_out_of_time(self):
         service = make_fast_command_service(choice="LandingGearToggle")
-        service.decider.release.clear()  # type: ignore[union-attr]
+        service.score_every_class.release.clear()  # type: ignore[attr-defined]
 
         with (
             patch.object(instinct_service, "FAST_COMMAND_TIMEOUT_SECONDS", 0.2),
@@ -926,18 +815,18 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
 
         # Checked before the model is let go: its late answer would press the key
         self.assertIsNone(reply)
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(service.perform_game_action.executed, [])
-        service.decider.release.set()  # type: ignore[union-attr]
+        service.score_every_class.release.set()  # type: ignore[attr-defined]
 
     async def test_returns_none_when_the_model_raises(self):
-        service = make_fast_command_service(decider_error=RuntimeError("boom"))
+        service = make_fast_command_service(model_error=RuntimeError("boom"))
 
         with self.assertLogs(instinct_service.logger, level="ERROR"):
             reply = await service.try_fast_command("deploy landing gear")
 
         self.assertIsNone(reply)
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(service.perform_game_action.executed, [])
 
     async def test_replies_at_once_when_the_game_window_is_not_found(self):
@@ -954,7 +843,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             reply, FastCommandReply("Game window not found, nothing was pressed.")
         )
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
     async def test_replies_with_the_reason_when_the_tool_says_unavailable(self):
@@ -972,7 +861,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         # gear is an action of the game state, but nothing changes in the game, so
         # the refusal is spoken here
         self.assertEqual(reply, FastCommandReply("Landing gear unavailable"))
-        self.assertTrue(reply.is_spoken)  # type: ignore[union-attr]
+        self.assertTrue(reply.is_spoken)  # type: ignore[attr-defined]
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
     async def test_replies_game_actions_disabled_for_a_command_when_they_are_off(
@@ -984,8 +873,8 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
             reply = await service.try_fast_command("deploy landing gear")
 
         self.assertEqual(reply, FastCommandReply("Game actions disabled"))
-        self.assertIn(reply.text, REPLY_TEXTS)  # type: ignore[union-attr]
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertIn(reply.text, REPLY_TEXTS)  # type: ignore[attr-defined]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(service.perform_game_action.executed, [])
         fast_command_lines = [line for line in logs.output if "Fast command" in line]
         self.assertEqual(len(fast_command_lines), 1)
@@ -997,7 +886,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         reply = await service.try_fast_command("how much fuel do I have")
 
         self.assertIsNone(reply)
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 1)  # type: ignore[attr-defined]
         self.assertEqual(service.perform_game_action.executed, [])
 
     async def test_does_not_ask_the_model_when_the_module_is_off_whatever_the_actions(
@@ -1008,7 +897,7 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         reply = await service.try_fast_command("deploy landing gear")
 
         self.assertIsNone(reply)
-        self.assertEqual(service.decider.calls, [])  # type: ignore[union-attr]
+        self.assertEqual(service.score_every_class.calls, [])  # type: ignore[attr-defined]
 
     async def test_names_a_toggle_after_the_direction_it_went(self):
         service = make_fast_command_service(
@@ -1091,26 +980,19 @@ class TryFastCommandTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(reply)
         self.assertEqual(tool.executed, [EdAction.LANDING_GEAR_TOGGLE])
 
-    async def test_returns_none_when_the_model_answers_an_unknown_action(self):
-        service = make_fast_command_service(choice="NotARealAction")
-
-        with self.assertLogs(instinct_service.logger, level="ERROR"):
-            reply = await service.try_fast_command("deploy landing gear")
-
-        self.assertIsNone(reply)
-        self.assertEqual(len(service.decider.calls), 1)  # type: ignore[union-attr]
-        self.assertEqual(service.perform_game_action.executed, [])
-
     async def test_one_model_call_runs_at_a_time(self):
         service = make_fast_command_service()
-        service.decider.seconds_per_call = 0.1  # type: ignore[union-attr]
-        state = {"game_state": "state", "pilot_said": "engage supercruise"}
-        questions = build_which_action_questions([EdAction.SUPERCRUISE])
+        service.score_every_class.seconds_per_call = 0.1  # type: ignore[attr-defined]
+        offered = [EdAction.SUPERCRUISE]
 
         await asyncio.gather(
-            asyncio.to_thread(service.ask_decision_model, state, questions),
-            asyncio.to_thread(service.ask_decision_model, state, questions),
+            asyncio.to_thread(
+                service.pick_offered_action, "engage supercruise", offered
+            ),
+            asyncio.to_thread(
+                service.pick_offered_action, "engage supercruise", offered
+            ),
         )
 
-        self.assertEqual(len(service.decider.calls), 2)  # type: ignore[union-attr]
-        self.assertEqual(service.decider.most_running_at_once, 1)  # type: ignore[union-attr]
+        self.assertEqual(len(service.score_every_class.calls), 2)  # type: ignore[attr-defined]
+        self.assertEqual(service.score_every_class.most_running_at_once, 1)  # type: ignore[attr-defined]

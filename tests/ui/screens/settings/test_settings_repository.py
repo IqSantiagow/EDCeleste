@@ -174,7 +174,6 @@ class TestSettingsRepository(unittest.IsolatedAsyncioTestCase):
         instinct_status = InstinctStatus(
             state=InstinctModelState.READY,
             download_progress=None,
-            running_device="cuda",
             failure=None,
         )
         get_instinct_status_use_case = Mock(return_value=instinct_status)

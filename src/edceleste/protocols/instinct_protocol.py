@@ -15,16 +15,15 @@ class InstinctProtocol(BaseServiceProtocol, Protocol):
         ...
 
     def reload_service(self) -> None:
-        """Reads llm.instinct from the saved settings. A new device unloads the
-        model, so it is loaded again on that device. Enabled: starts the
-        download and load in the background. Disabled: unloads the model and
-        gives the GPU memory back. Returns at once. Must run on the app event
-        loop, because it may start an asyncio task."""
+        """Reads llm.instinct from the saved settings. Enabled: starts the
+        download and load in the background. Disabled: unloads the model.
+        Returns at once. Must run on the app event loop, because it may start
+        an asyncio task."""
         ...
 
     def get_status(self) -> InstinctStatus:
         """Cheap snapshot for the settings screen, which polls it: model state,
-        download progress, the device it runs on and the last failure. Only
+        download progress and the last failure. Only
         reads memory and checks one file on disk, no network."""
         ...
 

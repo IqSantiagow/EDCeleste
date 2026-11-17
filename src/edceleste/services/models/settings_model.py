@@ -240,11 +240,6 @@ class InstinctModel(BaseModel, validate_assignment=True):
         default=False,
         description="Whether Instinct presses keys for commands before Celeste answers",
     )
-    # The GPU memory is shared with the game, so the pilot can keep it on the CPU
-    device: Literal["auto", "cuda", "cpu"] = Field(
-        default="auto",
-        description="The device the Instinct model runs on ('auto' picks CUDA when available)",  # noqa: E501
-    )
 
 
 class LLMModel(BaseModel):

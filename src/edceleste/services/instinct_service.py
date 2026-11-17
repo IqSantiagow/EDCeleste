@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
-import inspect
+import json
 import logging
 import threading
 import time
 from dataclasses import replace
-from typing import TYPE_CHECKING, AsyncGenerator, Literal
+from typing import AsyncGenerator, Literal
 
 import httpx
+import numpy as np
+import onnxruntime
+from tokenizers import Tokenizer
 
 from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.protocols.keybinds_protocol import KeybindsProtocol
@@ -20,11 +22,6 @@ from edceleste.services.decision_model_download_service import (
 )
 from edceleste.services.models.cold_start_status import ColdStartStatus
 from edceleste.services.models.fast_command_reply import FastCommandReply
-from edceleste.services.models.instinct_actions import (
-    COMMAND_QUESTION_NAME,
-    NO_ACTION,
-    build_which_action_questions,
-)
 from edceleste.services.models.instinct_status import (
     DownloadProgress,
     InstinctFailure,
@@ -41,9 +38,6 @@ from edceleste.services.models.reply_text import ReplyTexts
 from edceleste.services.models.settings_model import SettingsIssueModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
-if TYPE_CHECKING:
-    from decider.infer import Decider
-
 logger = logging.getLogger(__name__)
 
 SECONDS_BETWEEN_PROGRESS_UPDATES = 0.2
@@ -52,43 +46,23 @@ SECONDS_BETWEEN_PROGRESS_UPDATES = 0.2
 FAST_COMMAND_TIMEOUT_SECONDS = 1.0
 SCORES_IN_LOG = 3
 
-DeviceChoice = Literal["auto", "cuda", "cpu"]
+MODEL_FILE = "command_classifier_int8.onnx"
+TOKENIZER_FILE = "tokenizer.json"
+CLASSES_FILE = "classes.json"
+MAX_TOKENS = 32
+WARM_UP_MESSAGE = "deploy hardpoints"
 
-WARM_UP_QUESTIONS = {
-    "warm_up": {
-        "type": "noul",
-        "instructions": "Did the pilot ask for a ship action?",
-        "criteria": {"true": "yes", "false": "no"},
-    }
-}
+# The model's 42nd class, next to the 41 EdAction values: the pilot talks, asks
+# or refuses instead of asking for a ship action
+NO_ACTION = "none"
+
+# A best score below this is "none", so the message goes to the LLM. Without it
+# the model presses a key for talk about a ship part it does not understand.
+CONFIDENCE_THRESHOLD = 0.5
 
 
 class ModelNotDownloaded(Exception):
     pass
-
-
-# transformers swaps these for flash-linear-attention kernels, which run only on the GPU
-GPU_ONLY_KERNELS = ["torch_chunk_gated_delta_rule", "torch_recurrent_gated_delta_rule"]
-gpu_kernels: dict = {}
-
-
-def switch_qwen_kernels_to_device(device: str) -> None:
-    """Changes global state: swaps functions inside the transformers qwen3_5
-    module, so it affects every Qwen model in the process. Called right
-    before the model is loaded.
-
-    The first call saves the original GPU kernels in gpu_kernels. "cuda" puts
-    the GPU kernels back, any other device puts in the plain torch version
-    hidden under the GPU wrapper, which also runs on the CPU.
-    """
-    from transformers.models.qwen3_5 import modeling_qwen3_5
-
-    for kernel_name in GPU_ONLY_KERNELS:
-        gpu_kernel = gpu_kernels.setdefault(
-            kernel_name, getattr(modeling_qwen3_5, kernel_name)
-        )
-        kernel = gpu_kernel if device == "cuda" else inspect.unwrap(gpu_kernel)
-        setattr(modeling_qwen3_5, kernel_name, kernel)
 
 
 def describe_failure_reason(error: Exception) -> str:
@@ -114,16 +88,17 @@ def describe_top_scores(probabilities: dict[str, float]) -> str:
 
 
 class InstinctService:
+    """Instinct: all-MiniLM-L6-v2 with a 42-class head (int8 ONNX, on the CPU,
+    about 1 ms per message) from IqSantiagow/edceleste-command-classifier. It
+    knows only the actions it was trained on, which are the EdAction values."""
+
     enabled: bool = False
     background_task: asyncio.Task | None = None
     download_progress: DownloadProgress | None = None
     failure: InstinctFailure | None = None
     download_size: int | None = None
-    decider: Decider | None = None
-    device_choice: DeviceChoice = "auto"
-    # The size of the input of the last decision, as the model reported it. 0
-    # when there was none yet or the model did not report it.
-    last_input_tokens: int = 0
+    session: onnxruntime.InferenceSession | None = None
+    tokenizer: Tokenizer | None = None
 
     def __init__(
         self,
@@ -145,28 +120,26 @@ class InstinctService:
         self.game_state_protocol = game_state_protocol
         self.perform_game_action = perform_game_action
         self.model_lock = threading.Lock()
+        self.class_names: list[str] = []
 
     def validate_settings(
         self, new_settings: SettingsModel
     ) -> SettingsIssueModel | None:
-        """Always None. enabled and device are already limited by the
-        settings model, so Instinct never blocks saving the settings."""
+        """Always None. enabled is already limited by the settings model, so
+        Instinct never blocks saving the settings."""
         return None
 
     def reload_service(self) -> None:
         """Applies the saved Instinct settings. Called by cold_start() and
         after the settings change.
 
-        1. Stores enabled and the device. A new device unloads the model.
+        1. Stores enabled.
         2. Enabled -> starts the download and load in a background task and
            returns at once, it does not wait for the task.
-           Disabled -> unloads the model and frees the GPU memory. A download
-           that is already running is not cancelled, it finishes, but the
-           model is not loaded after it.
+           Disabled -> unloads the model. A download that is already running
+           is not cancelled, it finishes, but the model is not loaded after it.
         """
-        instinct_settings = self.settings_service.get_settings().llm.instinct
-        self.enabled = instinct_settings.enabled
-        self.change_device(instinct_settings.device)
+        self.enabled = self.settings_service.get_settings().llm.instinct.enabled
         if self.enabled:
             self.download_and_load_model_in_background()
         else:
@@ -200,9 +173,7 @@ class InstinctService:
            Face Hub and keeps the newest progress in download_progress, so the
            UI and cold_start() can show it.
         2. When Instinct is still enabled, loads the model and warms it up in a
-           worker thread (warm_up(): a small question and, when there is a game
-           state and keys, a real command question and the compile of the
-           sizes next to it), so the first real command is fast.
+           worker thread (warm_up()), so the first real command is fast.
 
         Errors are not raised. A cancelled download is only logged. Any other
         error is logged and saved in failure, together with the step that failed
@@ -241,154 +212,76 @@ class InstinctService:
 
     # ----- The model itself -----
 
-    def change_device(self, device_choice: DeviceChoice) -> None:
-        """A different device unloads the model, the same device keeps it. The
-        model is not loaded again here, only by the next load_model() call."""
-        if device_choice != self.device_choice:
-            self.unload_model()  # loaded again on the new device by the next call
-        self.device_choice = device_choice
-
     def unload_model(self) -> None:
-        """Forgets the loaded model and empties the CUDA cache. Does nothing
-        when no model is loaded. The files on disk stay."""
-        if self.decider is None:
-            return
-        self.decider = None
-        import torch
+        """Forgets the loaded model, so is_module_enabled() is False until
+        load_model_once() runs again. Does nothing when no model is loaded. The
+        files on disk stay. It does not take model_lock, so it does not wait for
+        a message that is being scored."""
+        self.session = None
 
-        torch.cuda.empty_cache()  # give the GPU memory back to the game
+    def load_model_once(self) -> None:
+        """Reads the model, the tokenizer and the class names from the model
+        folder on the first call, later calls do nothing. Blocking, so callers
+        run it in a worker thread.
 
-    def running_device(self) -> str | None:
-        """Device the loaded model really runs on, e.g. "cuda" or "cpu", so
-        the settings row can show where "auto" ended up. None when no model is
-        loaded."""
-        return str(self.decider.dev) if self.decider is not None else None
-
-    def load_model(self) -> Decider:
-        """Loads the model on the first call, later calls return the same one.
-        Slow and blocking, so callers run it in a worker thread.
-
-        1. Raises ModelNotDownloaded when the files are not on disk. It never
-           downloads anything.
-        2. "auto" becomes "cuda" when torch sees a GPU, otherwise "cpu".
-        3. Switches the Qwen kernels to that device.
-        4. Loads the model. Without Triton, torch.compile cannot run, so the
-           slower eager forward is used.
+        Raises ModelNotDownloaded when the files are not on disk. It never
+        downloads anything. A missing or broken file raises the error of the
+        library that reads it (FileNotFoundError, json.JSONDecodeError or an
+        onnxruntime error) and the model stays unloaded.
         """
-        if self.decider is not None:
-            return self.decider
+        if self.session is not None:
+            return
         if not self.download_service.is_model_downloaded():
             raise ModelNotDownloaded("The Instinct model is not downloaded yet.")
-        import torch
-        from decider.infer import Decider
-
-        device = self.device_choice
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        switch_qwen_kernels_to_device(device)
         start = time.perf_counter()
-        self.decider = Decider(str(self.download_service.model_folder), device=device)
-        if self.decider.eng is not None and importlib.util.find_spec("triton") is None:
-            # torch.compile needs Triton; without it run the slower eager forward
-            logger.warning(
-                "Triton is missing, the decision model runs without compile."
-            )
-            self.decider.eng._fwd_impl = self.decider.eng._fwd_eager
-        logger.info(
-            "Decision model loaded on %s in %.1f s",
-            self.decider.dev,
-            time.perf_counter() - start,
+        model_folder = self.download_service.model_folder
+        self.tokenizer = Tokenizer.from_file(str(model_folder / TOKENIZER_FILE))
+        self.tokenizer.enable_truncation(MAX_TOKENS)
+        self.class_names = json.loads(
+            (model_folder / CLASSES_FILE).read_text(encoding="utf-8")
         )
-        return self.decider
-
-    def ask_decision_model(self, state: dict, questions: dict) -> dict:
-        """Runs the local model once. Blocking, and slow when the model is not
-        loaded yet, because it loads it first (errors like ModelNotDownloaded
-        are raised). Logs what the pilot said or which event came, the answers
-        and how long it took. Remembers the size of the model's input in
-        last_input_tokens.
-
-        Only one thread uses the model at a time, a second caller waits for the
-        first, without a time limit (a call that ran out of time in
-        try_fast_command() is still running in its thread, and holds the model
-        until it ends).
-
-        state holds e.g. "game_state" and "pilot_said". questions maps a
-        question name to its type, instructions and criteria, see
-        WARM_UP_QUESTIONS. The answers are keyed by the same question names.
-        A "choice" answer holds "choice" (the chosen option) and
-        "probabilities" (a score for every option, together about 1), plus
-        fields we do not use. A "noul" (yes or no) answer holds "noul", the
-        probability of yes.
-
-        Raises ModelNotDownloaded when the model files are not on disk, and
-        whatever the model itself raises.
-        """
-        with self.model_lock:
-            decider = self.load_model()
-            start = time.perf_counter()
-            result = decider.system_one(state, questions)
-            answers = result["answers"]
-            self.last_input_tokens = result.get("usage", {}).get("input_tokens", 0)
-            logger.info(
-                "Decision model: %s -> %s in %.0f ms",
-                state.get("pilot_said") or state.get("event"),
-                answers,
-                (time.perf_counter() - start) * 1000,
-            )
-            return answers
+        # One thread is enough for a message of a few words, and the game keeps
+        # the other cores
+        session_options = onnxruntime.SessionOptions()
+        session_options.intra_op_num_threads = 1
+        self.session = onnxruntime.InferenceSession(
+            str(model_folder / MODEL_FILE),
+            session_options,
+            providers=["CPUExecutionProvider"],
+        )
+        logger.info(
+            "Instinct model loaded in %.0f ms", (time.perf_counter() - start) * 1000
+        )
 
     def warm_up(self) -> None:
-        """Loads the model and makes it ready for the real commands, so the slow
-        part happens at startup and not on the pilot's first command. The
-        answers are thrown away. Blocking.
-
-        The model is compiled again for every size of its input, and a
-        compile takes seconds, so one tiny question is not enough.
-        1. Asks one made up question, which loads the model.
-        2. Asks the real command question about the real game state and the
-           offered actions, which compiles the size of a real command.
-        3. Compiles the sizes next to it (compile_engine_for_input_sizes_near).
-        Steps 2 and 3 are left out when there is no game state yet or no action
-        has a key, because then commands are not decided either. The pilot
-        message of step 2 is a made up one, "deploy hardpoints". Called by
-        download_and_load_model() right after loading, in a worker thread.
-        Errors (ModelNotDownloaded, errors of the model) are raised.
-        """
-        state = {"game_state": "", "pilot_said": "deploy hardpoints"}
-        self.ask_decision_model(state, WARM_UP_QUESTIONS)
-
-        game_state = self.game_state_protocol.get_game_state_projection()
-        offered_actions = self.find_actions_with_a_key()
-        if not game_state or not offered_actions:
-            return
-        self.ask_which_action(game_state, "deploy hardpoints", offered_actions)
-        self.compile_engine_for_input_sizes_near(self.last_input_tokens)
-
-    def compile_engine_for_input_sizes_near(self, input_tokens: int) -> None:
-        """Compiles the input size of a command (the smallest size the model
-        has that holds input_tokens) and the size below and above it. A game
-        state that grows or shrinks a little moves the prompt to the next size,
-        and the first decision at a size that was never compiled takes seconds.
-        Then Instinct runs over its time limit and the message goes to the LLM,
-        and the compile, which runs in Python, slows the rest of the app
-        meanwhile. Blocking, holds the model lock.
-
-        Does nothing without the engine of the model (on a CPU), when
-        input_tokens is 0 (the model did not tell its input size), or when
-        input_tokens is bigger than the biggest size the engine has."""
-        engine = getattr(self.decider, "eng", None)
-        if engine is None or input_tokens <= 0:
-            return
-        from decider.engine import T_BUCKETS
-
-        command_size = next((size for size in T_BUCKETS if size >= input_tokens), None)
-        if command_size is None:
-            return
-        position = T_BUCKETS.index(command_size)
-        nearby_sizes = T_BUCKETS[max(0, position - 1) : position + 2]
+        """Loads the model and runs one made up message through it, so the
+        first real command does not pay for the start of the model. The answer
+        is thrown away. Blocking. Errors (ModelNotDownloaded, a broken model
+        file) are raised. Called by download_and_load_model() right after the
+        download, in a worker thread."""
         with self.model_lock:
-            engine.warmup([(1, size) for size in nearby_sizes])
+            self.load_model_once()
+            self.score_every_class(WARM_UP_MESSAGE)
+
+    def score_every_class(self, pilot_message: str) -> dict[str, float]:
+        """Runs the loaded model once and returns the softmax score of every
+        class by class name, in the order of classes.json (the 41 EdAction
+        values and "none"). The scores add up to 1. A message longer than
+        MAX_TOKENS is cut. The caller holds model_lock and has called
+        load_model_once(): with no model loaded this raises AssertionError. Has
+        no other effect."""
+        assert self.session is not None and self.tokenizer is not None
+        encoded = self.tokenizer.encode(pilot_message)
+        logits = self.session.run(
+            None,
+            {
+                "input_ids": np.array([encoded.ids], dtype=np.int64),
+                "attention_mask": np.array([encoded.attention_mask], dtype=np.int64),
+            },
+        )[0][0]
+        exponents = np.exp(logits - logits.max())
+        scores = exponents / exponents.sum()
+        return dict(zip(self.class_names, scores.tolist()))
 
     # ----- Fast commands -----
 
@@ -448,7 +341,7 @@ class InstinctService:
 
             answer = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.ask_which_action, game_state, pilot_message, offered_actions
+                    self.pick_offered_action, pilot_message, offered_actions
                 ),
                 timeout=FAST_COMMAND_TIMEOUT_SECONDS,
             )
@@ -523,12 +416,10 @@ class InstinctService:
 
     def is_module_enabled(self) -> bool:
         """True when Instinct may take a pilot message from the LLM: Instinct
-        is on, the model is loaded and runs on the GPU ("cuda"). On the CPU one
-        call takes about 2 s, so the LLM is faster there and Instinct stays out
-        of it. A model that is still loading or failed to load has no device,
-        so it gives False too. The first check of try_fast_command(). Only
-        reads memory."""
-        return self.enabled and self.running_device() == "cuda"
+        is on and the model is loaded. A model that is still loading or failed
+        to load gives False. The first check of try_fast_command(). Only reads
+        memory."""
+        return self.enabled and self.session is not None
 
     def can_decide_commands(self) -> bool:
         """True when game actions (game_actions.enabled) are switched on in the
@@ -549,21 +440,58 @@ class InstinctService:
         except KeyError:
             return []
 
-    def ask_which_action(
-        self, game_state: str, pilot_message: str, offered_actions: list[EdAction]
+    def pick_offered_action(
+        self, pilot_message: str, offered_actions: list[EdAction]
     ) -> dict:
-        """Blocking, so try_fast_command() runs it in a worker thread. Asks the
-        model the one "action" question about offered_actions (see
-        build_which_action_questions) and returns its answer: "choice" (an
-        EdAction value or "none") and "probabilities" with a score for every
-        option, together about 1. Raises what ask_decision_model raises
-        (ModelNotDownloaded, errors of the model), try_fast_command catches
-        them. May load the model first when it is not loaded."""
-        state = {"game_state": game_state, "pilot_said": pilot_message}
-        answers = self.ask_decision_model(
-            state, build_which_action_questions(offered_actions)
-        )
-        return answers[COMMAND_QUESTION_NAME]
+        """Blocking, so try_fast_command() runs it in a worker thread. Which of
+        offered_actions the pilot asked for, or none.
+
+        Scores all classes in one model run, then lets only the offered
+        actions and "none" compete, so an action without a key is never chosen.
+        An offered action that is not a class of the model (added after the
+        model was trained) is left out: the model cannot know it, so its
+        commands go to the LLM.
+
+        Returns {"choice": ..., "probabilities": ...}:
+        - "probabilities" holds the score of every offered action that is a
+          class of the model, in the offered order, and "none" last. The
+          scores come from the softmax over all classes, so they do not add up
+          to 1 when some classes are not offered.
+        - "choice" is the option with the best score (an EdAction value or
+          "none"), but "none" when that score is below CONFIDENCE_THRESHOLD.
+          "none" is also the answer for an empty offer, and when "none" itself
+          has the best score (the pilot is talking or asking).
+
+        Logs the message, the best scores and how long it took. Only one thread
+        uses the model at a time, a second caller waits for the first, without
+        a time limit. May load the model first when it is not loaded. Raises
+        ModelNotDownloaded when the model files are not on disk, and whatever
+        the model itself raises, try_fast_command catches them.
+        """
+        with self.model_lock:
+            self.load_model_once()
+            start = time.perf_counter()
+            scores_by_class = self.score_every_class(pilot_message)
+            offered_names = [
+                action.value
+                for action in offered_actions
+                if action.value in scores_by_class
+            ]
+            probabilities = {
+                name: scores_by_class[name] for name in [*offered_names, NO_ACTION]
+            }
+            best_name = max(probabilities, key=lambda name: probabilities[name])
+            is_sure = probabilities[best_name] >= CONFIDENCE_THRESHOLD
+            logger.info(
+                "Instinct: %r -> %s in %.1f ms",
+                pilot_message,
+                describe_top_scores(probabilities),
+                (time.perf_counter() - start) * 1000,
+            )
+            return {
+                "choice": best_name if is_sure else NO_ACTION,
+                "probabilities": probabilities,
+            }
 
     # ----- Status for the UI and the cold start -----
 
@@ -573,7 +501,6 @@ class InstinctService:
         return InstinctStatus(
             state=self.get_model_state(),
             download_progress=self.download_progress,
-            running_device=self.running_device(),
             failure=self.failure,
         )
 
@@ -607,8 +534,7 @@ class InstinctService:
            the download progress every 0.2 s.
         4. Yields completed. A failed download or load is only a warning with
            the reason, never critical, because without Instinct every command
-           still goes through Celeste. A model that runs on the CPU is a
-           warning too: it is too slow, so the commands go through Celeste.
+           still goes through Celeste.
         """
         status = ColdStartStatus(
             service="instinct",
@@ -632,16 +558,6 @@ class InstinctService:
             await asyncio.sleep(SECONDS_BETWEEN_PROGRESS_UPDATES)
 
         if self.failure is None:
-            device = self.running_device()
-            if device is not None and device != "cuda":
-                yield replace(
-                    status,
-                    completed=True,
-                    is_warning=True,
-                    message=f"model runs on the {device.upper()}, too slow for "
-                    "commands. Commands go through Celeste.",
-                )
-                return
             yield replace(status, completed=True)
             return
         # Not critical: without Instinct every command goes through Celeste

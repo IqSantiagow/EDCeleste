@@ -113,7 +113,7 @@ class WidgetInstinctStatusRow(HorizontalGroup):
         """Text, colour class and button for each state:
         - DOWNLOADING -> "Downloading", busy, [Cancel]
         - LOADING -> "Loading the model", busy, no button
-        - READY -> "✓ Ready", plus the device when known, no button
+        - READY -> "✓ Ready", no button
         - FAILED with a failure -> "✗ <step> failed: <reason>", [Retry]
         - anything else -> "○ Not downloaded", plus the size when known,
           [Download]
@@ -123,10 +123,6 @@ class WidgetInstinctStatusRow(HorizontalGroup):
                 return StatusLine("Downloading", "busy", "Cancel")
             case InstinctModelState.LOADING:
                 return StatusLine("Loading the model", "busy", None)
-            case InstinctModelState.READY if status.running_device:
-                return StatusLine(
-                    f"✓ Ready · running on {status.running_device}", "ready", None
-                )
             case InstinctModelState.READY:
                 return StatusLine("✓ Ready", "ready", None)
             case InstinctModelState.FAILED if status.failure:

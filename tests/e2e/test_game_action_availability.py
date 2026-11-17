@@ -55,9 +55,7 @@ async def test_should_refuse_the_landing_gear_in_supercruise_and_say_why(edceles
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -159,9 +157,7 @@ async def test_should_deploy_the_landing_gear_after_the_ship_leaves_supercruise(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
@@ -212,9 +208,7 @@ async def test_should_speak_that_the_landing_gear_is_unavailable_in_supercruise(
     with allure.step("Given game actions are allowed in the settings"):
         edceleste.allow_game_actions()
 
-    with allure.step(
-        "And Instinct on the GPU picks the gear for 'deploy the landing gear'"
-    ):
+    with allure.step("And Instinct picks the gear for 'deploy the landing gear'"):
         instinct_model = edceleste.turn_instinct_on()
         instinct_model.choices_by_message[DEPLOY_LANDING_GEAR] = "LandingGearToggle"
 
