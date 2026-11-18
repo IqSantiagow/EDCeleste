@@ -133,9 +133,7 @@ class TestEdsmToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
             return client
 
         container = Container()
-        container.edsm_http_client_factory.override(
-            providers.Object(client_factory)
-        )
+        container.edsm_http_client_factory.override(providers.Object(client_factory))
         container.perform_game_action.override(providers.Object(object()))
 
         tools = container.tool_register().get_tools()

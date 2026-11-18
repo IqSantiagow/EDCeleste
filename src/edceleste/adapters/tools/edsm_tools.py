@@ -24,9 +24,7 @@ class EdsmTools:
         self.client_factory = client_factory
         self.system_cache: dict[str, dict[str, Any]] = {}
 
-    async def _base_request_spec(
-        self, url: str, name: str, **params
-    ) -> dict[str, Any]:
+    async def _base_request_spec(self, url: str, name: str, **params) -> dict[str, Any]:
         async with self.client_factory() as client:
             response = await client.get(
                 url,
