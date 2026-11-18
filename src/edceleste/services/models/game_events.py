@@ -118,12 +118,43 @@ class FuelScoopEvent(GameEvent):
     Total: float
 
 
+class DockingRequestedEvent(GameEvent):
+    event: Literal["DockingRequested"]
+    StationName: str
+    StationType: str
+    MarketID: int
+
+
 class DockingGrantedEvent(GameEvent):
     event: Literal["DockingGranted"]
     StationName: str
     StationType: str
     MarketID: int
     LandingPad: int
+
+
+class DockingDeniedEvent(GameEvent):
+    event: Literal["DockingDenied"]
+    StationName: str
+    StationType: str
+    MarketID: int
+    # The journal docs list NoSpace, TooLarge, Hostile, Offences, Distance,
+    # ActiveFighter and NoReason, but say "include", so it stays a plain string.
+    Reason: str
+
+
+class DockingCancelledEvent(GameEvent):
+    event: Literal["DockingCancelled"]
+    StationName: str
+    StationType: str
+    MarketID: int
+
+
+class DockingTimeoutEvent(GameEvent):
+    event: Literal["DockingTimeout"]
+    StationName: str
+    StationType: str
+    MarketID: int
 
 
 class StartJumpEvent(GameEvent):

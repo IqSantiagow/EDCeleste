@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -8,7 +9,11 @@ from edceleste.services.models.game_events import (
     FSDTargetEvent,
     StartJumpEvent,
     DockedEvent,
+    DockingRequestedEvent,
     DockingGrantedEvent,
+    DockingDeniedEvent,
+    DockingCancelledEvent,
+    DockingTimeoutEvent,
     UndockedEvent,
     LocationEvent,
     SupercruiseEntryEvent,
@@ -57,6 +62,13 @@ class LocationProjection(Projection):
         self.nearest_settlement = None
         self.assigned_landing_pad = None
         self.assigned_landing_pad_station = None
+        # How the latest docking request ended: "Granted", "Denied", "Cancelled"
+        # or "TimedOut". None = no request has ended yet. The time lets a routine
+        # tell an old outcome from the one of its own request. The reason is
+        # filled only for "Denied" (e.g. "NoSpace", "Distance"), else None.
+        self.last_docking_outcome = None
+        self.last_docking_outcome_time = None
+        self.last_docking_denied_reason = None
         self.supercruise_drop_place = None
         self.route_next_star_system = None
         self.route_next_star_class = None
@@ -81,7 +93,11 @@ class LocationProjection(Projection):
         - FSDJump -> new current system and its facts. Clears the target
           system, and the route hop when we arrived at it.
         - Docked -> system and station. Clears body, settlement, drop place.
-        - DockingGranted -> landing pad and its station.
+        - DockingRequested -> nothing is stored, a request is not an outcome.
+        - DockingGranted -> landing pad and its station, outcome "Granted".
+        - DockingDenied -> outcome "Denied" with the reason of the game.
+        - DockingCancelled, DockingTimeout -> outcome "Cancelled" or
+          "TimedOut". The landing pad of the request is forgotten.
         - Undocked -> forgets the landing pad. The station stays, so the
           prompt can say "flying nearby".
         - Location -> system and station. System facts are updated only when
@@ -148,10 +164,32 @@ class LocationProjection(Projection):
             self.supercruise_drop_place = None
             return
 
+        if isinstance(event, DockingRequestedEvent):
+            logger.debug("Received location event: %s", event)
+            return
+
         if isinstance(event, DockingGrantedEvent):
             logger.debug("Received location event: %s", event)
             self.assigned_landing_pad = event.LandingPad
             self.assigned_landing_pad_station = event.StationName
+            self.__remember_docking_outcome("Granted", event.timestamp, None)
+            return
+
+        if isinstance(event, DockingDeniedEvent):
+            logger.debug("Received location event: %s", event)
+            self.__remember_docking_outcome("Denied", event.timestamp, event.Reason)
+            return
+
+        if isinstance(event, DockingCancelledEvent):
+            logger.debug("Received location event: %s", event)
+            self.__forget_landing_pad()
+            self.__remember_docking_outcome("Cancelled", event.timestamp, None)
+            return
+
+        if isinstance(event, DockingTimeoutEvent):
+            logger.debug("Received location event: %s", event)
+            self.__forget_landing_pad()
+            self.__remember_docking_outcome("TimedOut", event.timestamp, None)
             return
 
         if isinstance(event, UndockedEvent):
@@ -239,8 +277,10 @@ class LocationProjection(Projection):
         8. during the FSD jump, with the target system.
         The plotted route is not in the text, RouteProjection says it from
         NavRoute.json. The system facts (security, allegiance, government, economy,
-        population) are not in the text, only the dashboard shows them. Reads
-        the fields only, changes nothing."""
+        population) are not in the text, only the dashboard shows them. The last
+        docking outcome (last_docking_outcome and its fields) is not in the text
+        either, a routine reads it from the projection. Reads the fields only,
+        changes nothing."""
         sentences = []
 
         if self.current_star_system:
@@ -280,8 +320,22 @@ class LocationProjection(Projection):
 
         return " ".join(sentences)
 
+    def __remember_docking_outcome(
+        self, outcome: str, outcome_time: datetime, denied_reason: str | None
+    ) -> None:
+        """Replaces the whole previous docking outcome: the outcome name
+        ("Granted", "Denied", "Cancelled" or "TimedOut"), the time of the
+        event and the denial reason. The reason is None unless denied. Only
+        stores, it does not touch the landing pad and the text of
+        create_projection()."""
+        self.last_docking_outcome = outcome
+        self.last_docking_outcome_time = outcome_time
+        self.last_docking_denied_reason = denied_reason
+
     def __forget_landing_pad(self) -> None:
-        """A landing pad is only valid until we undock or leave for supercruise
-        or hyperspace."""
+        """A landing pad is only valid until we undock, leave for supercruise
+        or hyperspace, or the docking request is cancelled or times out. Clears
+        the pad number and its station name only. The current station and the
+        last docking outcome stay."""
         self.assigned_landing_pad = None
         self.assigned_landing_pad_station = None

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, call, patch
 
 import numpy as np
 import soundfile as sf
+from pydantic import TypeAdapter
 
 from edceleste.protocols.speaker_protocol import PRIORITY_ANSWER, PRIORITY_REACTION
 from edceleste.services.event_bus import EventBus
@@ -21,6 +22,7 @@ from edceleste.services.models.game_events import (
     StatusFlags,
     UnknownCheckedEvent,
 )
+from edceleste.services.models.journal_event import JournalEvent
 from edceleste.services.models.reply_texts import build_reply_wav_file_name
 from edceleste.services.models.reply_text import REPLY_TEXTS
 from edceleste.services.models.settings_model import (
@@ -514,6 +516,56 @@ class TTSServiceTest(unittest.IsolatedAsyncioTestCase):
         self.service._TTSService__play_reply.assert_awaited_once_with(
             "Docking request granted"
         )
+
+    def _parse_docking_line(self, event_name: str, is_startup_loading: bool = False):
+        """The journal line of a docking event, parsed like the watcher does."""
+        journal_line = {
+            "timestamp": "2026-11-18T12:00:00Z",
+            "event": event_name,
+            "StationName": "Hammel Terminal",
+            "StationType": "Orbis",
+            "MarketID": 3225450752,
+            "LandingPad": 3,
+            "Reason": "Distance",
+        }
+        event = TypeAdapter(JournalEvent).validate_python(journal_line)
+        event.is_startup_loading = is_startup_loading
+        return event
+
+    async def test_journal_event_says_a_parsed_docking_denied_event(self):
+        self.service._TTSService__play_reply = AsyncMock()
+
+        await self.service._TTSService__queue_reaction_for_journal_event(
+            self._parse_docking_line("DockingDenied")
+        )
+        await self.speaker.finish_speeches()
+
+        self.service._TTSService__play_reply.assert_awaited_once_with(
+            "Docking request denied"
+        )
+
+    async def test_journal_event_says_nothing_for_other_docking_outcomes(self):
+        self.service._TTSService__play_reply = AsyncMock()
+
+        for event_name in ("DockingRequested", "DockingCancelled", "DockingTimeout"):
+            await self.service._TTSService__queue_reaction_for_journal_event(
+                self._parse_docking_line(event_name)
+            )
+        await self.speaker.finish_speeches()
+
+        self.service._TTSService__play_reply.assert_not_awaited()
+
+    async def test_journal_event_says_nothing_for_a_startup_loading_docking_denial(
+        self,
+    ):
+        self.service._TTSService__play_reply = AsyncMock()
+
+        await self.service._TTSService__queue_reaction_for_journal_event(
+            self._parse_docking_line("DockingDenied", is_startup_loading=True)
+        )
+        await self.speaker.finish_speeches()
+
+        self.service._TTSService__play_reply.assert_not_awaited()
 
     async def test_journal_event_says_nothing_for_an_unknown_name(self):
         self.service._TTSService__play_reply = AsyncMock()

@@ -34,6 +34,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from textual.app import App
 from textual.pilot import Pilot
+from textual.widgets import Label
 
 from edceleste.containers.main_container import MODULES_USING_PROVIDE, Container
 from edceleste.services.decision_model_download_service import (
@@ -585,6 +586,20 @@ def recorded_journal_line(event_name: str) -> str:
     raise ValueError(f"No {event_name} event in {TEST_KNOWN_EVENTS_FILE_LOCATION}")
 
 
+# The game writes these two events too, but no recorded sample exists. The fields
+# are the ones of the Journal documentation
+DOCKING_EVENTS_WITHOUT_A_RECORDED_SAMPLE = ["DockingCancelled", "DockingTimeout"]
+
+
+def docking_journal_line(event_name: str) -> str:
+    if event_name not in DOCKING_EVENTS_WITHOUT_A_RECORDED_SAMPLE:
+        return recorded_journal_line(event_name)
+    return (
+        f'{{ "timestamp":"2026-02-20T19:40:00Z", "event":"{event_name}", '
+        '"MarketID":128016384, "StationName":"Galileo", "StationType":"Coriolis" }'
+    )
+
+
 def answer_preflight_connection_test(
     messages: list[ModelMessage], agent_info: AgentInfo
 ) -> ModelResponse:
@@ -650,6 +665,11 @@ async def send_comms_message(pilot: Pilot, message: str) -> None:
 def ship_log_events(app: App) -> list[str]:
     rail_rows = app.screen.query_one("#ship-log-rail").query(WidgetShipLogRow)
     return [row.entry.event for row in rail_rows]
+
+
+def ship_log_details(app: App) -> list[str]:
+    rail_rows = app.screen.query_one("#ship-log-rail").query(WidgetShipLogRow)
+    return [str(row.query_one(".log-details", Label).content) for row in rail_rows]
 
 
 def ship_log_systems(app: App) -> list[str]:
@@ -861,8 +881,11 @@ class EdCelesteTestEnvironment:
                 )
 
     def append_journal_event(self, event_name: str) -> None:
+        self.append_journal_line(recorded_journal_line(event_name))
+
+    def append_journal_line(self, line: str) -> None:
         with self.journal_file.open("a", encoding="utf-8") as journal:
-            journal.write(recorded_journal_line(event_name) + "\n")
+            journal.write(line + "\n")
 
     def game_writes_a_new_journal_file(self, lines: list[str]) -> None:
         # What the game does when it starts again: a new Journal file in the same
