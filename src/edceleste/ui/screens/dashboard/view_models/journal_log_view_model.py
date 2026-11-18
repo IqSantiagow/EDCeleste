@@ -8,7 +8,11 @@ from edceleste.services.models.game_events import (
     CommanderEvent,
     DiedEvent,
     DockedEvent,
+    DockingCancelledEvent,
+    DockingDeniedEvent,
     DockingGrantedEvent,
+    DockingRequestedEvent,
+    DockingTimeoutEvent,
     FSDJumpEvent,
     FSDTargetEvent,
     FuelScoopEvent,
@@ -93,9 +97,30 @@ def _details_undocked(event: UndockedEvent) -> str:
     return event.StationName
 
 
+def _details_docking_requested(event: DockingRequestedEvent) -> str:
+    """Like "Jameson Memorial · requested"."""
+    return f"{event.StationName} · requested"
+
+
 def _details_docking_granted(event: DockingGrantedEvent) -> str:
     """Like "Jameson Memorial · pad 12"."""
     return f"{event.StationName} · pad {event.LandingPad}"
+
+
+def _details_docking_denied(event: DockingDeniedEvent) -> str:
+    """Like "Jameson Memorial · denied: NoSpace" - the reason as the game
+    wrote it."""
+    return f"{event.StationName} · denied: {event.Reason}"
+
+
+def _details_docking_cancelled(event: DockingCancelledEvent) -> str:
+    """Like "Jameson Memorial · cancelled"."""
+    return f"{event.StationName} · cancelled"
+
+
+def _details_docking_timeout(event: DockingTimeoutEvent) -> str:
+    """Like "Jameson Memorial · timed out"."""
+    return f"{event.StationName} · timed out"
 
 
 def _details_location(event: LocationEvent) -> str:
@@ -253,7 +278,11 @@ _DETAILS_BUILDERS: dict[type, Callable] = {
     FSDTargetEvent: _details_fsd_target,
     DockedEvent: _details_docked,
     UndockedEvent: _details_undocked,
+    DockingRequestedEvent: _details_docking_requested,
     DockingGrantedEvent: _details_docking_granted,
+    DockingDeniedEvent: _details_docking_denied,
+    DockingCancelledEvent: _details_docking_cancelled,
+    DockingTimeoutEvent: _details_docking_timeout,
     LocationEvent: _details_location,
     SupercruiseEntryEvent: _details_supercruise_entry,
     SupercruiseExitEvent: _details_supercruise_exit,
@@ -281,7 +310,11 @@ _CATEGORIES: dict[type, str] = {
     FSDTargetEvent: CATEGORY_NAV,
     DockedEvent: CATEGORY_NAV,
     UndockedEvent: CATEGORY_NAV,
+    DockingRequestedEvent: CATEGORY_NAV,
     DockingGrantedEvent: CATEGORY_NAV,
+    DockingDeniedEvent: CATEGORY_NAV,
+    DockingCancelledEvent: CATEGORY_NAV,
+    DockingTimeoutEvent: CATEGORY_NAV,
     LocationEvent: CATEGORY_NAV,
     SupercruiseEntryEvent: CATEGORY_NAV,
     SupercruiseExitEvent: CATEGORY_NAV,

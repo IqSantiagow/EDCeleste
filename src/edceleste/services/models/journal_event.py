@@ -14,7 +14,11 @@ from edceleste.services.models.game_events import (
     DockedEvent,
     UndockedEvent,
     FuelScoopEvent,
+    DockingRequestedEvent,
     DockingGrantedEvent,
+    DockingDeniedEvent,
+    DockingCancelledEvent,
+    DockingTimeoutEvent,
     LocationEvent,
     SupercruiseEntryEvent,
     SupercruiseExitEvent,
@@ -44,7 +48,11 @@ class JournalEventType(str, Enum):
     Docked = "Docked"
     Undocked = "Undocked"
     FuelScoop = "FuelScoop"
+    DockingRequested = "DockingRequested"
     DockingGranted = "DockingGranted"
+    DockingDenied = "DockingDenied"
+    DockingCancelled = "DockingCancelled"
+    DockingTimeout = "DockingTimeout"
     Location = "Location"
     SupercruiseEntry = "SupercruiseEntry"
     SupercruiseExit = "SupercruiseExit"
@@ -93,7 +101,11 @@ JournalEvent = Annotated[
         Annotated[DockedEvent, Tag(JournalEventType.Docked)],
         Annotated[UndockedEvent, Tag(JournalEventType.Undocked)],
         Annotated[FuelScoopEvent, Tag(JournalEventType.FuelScoop)],
+        Annotated[DockingRequestedEvent, Tag(JournalEventType.DockingRequested)],
         Annotated[DockingGrantedEvent, Tag(JournalEventType.DockingGranted)],
+        Annotated[DockingDeniedEvent, Tag(JournalEventType.DockingDenied)],
+        Annotated[DockingCancelledEvent, Tag(JournalEventType.DockingCancelled)],
+        Annotated[DockingTimeoutEvent, Tag(JournalEventType.DockingTimeout)],
         Annotated[LocationEvent, Tag(JournalEventType.Location)],
         Annotated[SupercruiseEntryEvent, Tag(JournalEventType.SupercruiseEntry)],
         Annotated[SupercruiseExitEvent, Tag(JournalEventType.SupercruiseExit)],

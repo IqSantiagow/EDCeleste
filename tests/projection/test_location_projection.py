@@ -6,7 +6,11 @@ from edceleste.projection.event_projections.location_projection import (
 )
 from edceleste.services.models.game_events import (
     DockedEvent,
+    DockingCancelledEvent,
+    DockingDeniedEvent,
     DockingGrantedEvent,
+    DockingRequestedEvent,
+    DockingTimeoutEvent,
     UndockedEvent,
     LocationEvent,
     FSDJumpEvent,
@@ -540,3 +544,110 @@ class TestLocationProjection(unittest.TestCase):
         location_projection.process_event(self.start_jump_hyperspace_event)
 
         self.assertIsNone(location_projection.supercruise_drop_place)
+
+    def _make_docking_event(self, event_class, event_name: str, **extra_fields):
+        return event_class(
+            event=event_name,
+            timestamp=datetime(2026, 11, 18, 12, 0, 0),
+            StationName="Galileo",
+            StationType="Coriolis",
+            MarketID=12345,
+            **extra_fields,
+        )
+
+    def test_should_remember_docking_granted_as_the_latest_outcome_with_its_time(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+
+        self.assertEqual("Granted", location_projection.last_docking_outcome)
+        self.assertEqual(
+            self.docking_granted_event.timestamp,
+            location_projection.last_docking_outcome_time,
+        )
+        self.assertIsNone(location_projection.last_docking_denied_reason)
+
+    def test_should_keep_the_reason_of_a_docking_denial(self):
+        location_projection = LocationProjection()
+        denied = self._make_docking_event(
+            DockingDeniedEvent, "DockingDenied", Reason="NoSpace"
+        )
+
+        location_projection.process_event(denied)
+
+        self.assertEqual("Denied", location_projection.last_docking_outcome)
+        self.assertEqual("NoSpace", location_projection.last_docking_denied_reason)
+        self.assertEqual(
+            denied.timestamp, location_projection.last_docking_outcome_time
+        )
+
+    def test_should_remember_a_cancelled_docking_request(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(
+            self._make_docking_event(DockingCancelledEvent, "DockingCancelled")
+        )
+
+        self.assertEqual("Cancelled", location_projection.last_docking_outcome)
+        self.assertIsNone(location_projection.last_docking_denied_reason)
+
+    def test_should_remember_a_timed_out_docking_request(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(
+            self._make_docking_event(DockingTimeoutEvent, "DockingTimeout")
+        )
+
+        self.assertEqual("TimedOut", location_projection.last_docking_outcome)
+        self.assertIsNone(location_projection.last_docking_denied_reason)
+
+    def test_should_not_treat_a_docking_request_as_an_outcome(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(
+            self._make_docking_event(DockingRequestedEvent, "DockingRequested")
+        )
+
+        self.assertIsNone(location_projection.last_docking_outcome)
+        self.assertIsNone(location_projection.last_docking_outcome_time)
+
+    def test_should_replace_the_old_outcome_and_drop_its_denial_reason(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(
+            self._make_docking_event(
+                DockingDeniedEvent, "DockingDenied", Reason="Distance"
+            )
+        )
+        location_projection.process_event(self.docking_granted_event)
+
+        self.assertEqual("Granted", location_projection.last_docking_outcome)
+        self.assertIsNone(location_projection.last_docking_denied_reason)
+
+    def test_should_forget_landing_pad_when_the_request_is_cancelled(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(
+            self._make_docking_event(DockingCancelledEvent, "DockingCancelled")
+        )
+
+        self.assertIsNone(location_projection.assigned_landing_pad)
+
+    def test_should_forget_landing_pad_when_the_request_times_out(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(
+            self._make_docking_event(DockingTimeoutEvent, "DockingTimeout")
+        )
+
+        self.assertIsNone(location_projection.assigned_landing_pad)
+
+    def test_should_keep_the_outcome_after_undocking(self):
+        location_projection = LocationProjection()
+
+        location_projection.process_event(self.docking_granted_event)
+        location_projection.process_event(self.undocked_event)
+
+        self.assertEqual("Granted", location_projection.last_docking_outcome)

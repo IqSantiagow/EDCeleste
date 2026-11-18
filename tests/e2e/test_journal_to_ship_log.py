@@ -2,8 +2,10 @@ import allure
 import pytest
 
 from tests.e2e.conftest import (
+    docking_journal_line,
     recorded_journal_line,
     ship_log_counter,
+    ship_log_details,
     ship_log_events,
     ship_log_systems,
     wide_ship_log_counter,
@@ -14,6 +16,22 @@ pytestmark = [pytest.mark.anyio, allure.feature("Ship log")]
 
 MAX_ROWS = 200
 BURST_SYSTEMS = [f"System {number}" for number in range(1, 211)]
+
+DOCKING_EVENTS_IN_THE_SHIP_LOG = [
+    pytest.param(
+        "DockingRequested",
+        "Newberry Hydroponics Holding · requested",
+        id="docking-requested",
+    ),
+    pytest.param("DockingGranted", "Hammel Terminal · pad 44", id="docking-granted"),
+    pytest.param(
+        "DockingDenied",
+        "Newberry Hydroponics Holding · denied: NoSpace",
+        id="docking-denied",
+    ),
+    pytest.param("DockingCancelled", "Galileo · cancelled", id="docking-cancelled"),
+    pytest.param("DockingTimeout", "Galileo · timed out", id="docking-timeout"),
+]
 
 
 @allure.title("An event the game writes to the journal shows in the ship log")
@@ -123,3 +141,26 @@ async def test_should_keep_at_most_200_rows_in_the_full_width_ship_log_after_a_b
 
         with allure.step("And the counter still says 211 events this session"):
             assert wide_ship_log_counter(pilot.app) == "211 events this session"
+
+
+@allure.title("When the game writes {event_name} the ship log shows '{details}'")
+@pytest.mark.parametrize("event_name, details", DOCKING_EVENTS_IN_THE_SHIP_LOG)
+async def test_should_show_how_a_docking_request_went_in_the_ship_log(
+    edceleste, event_name, details
+):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step(f"When the game writes {event_name} to the journal"):
+            edceleste.append_journal_line(docking_journal_line(event_name))
+
+        with allure.step(f"Then the ship log shows {event_name}"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: event_name in ship_log_events(pilot.app),
+                f"{event_name} in the ship log",
+            )
+
+        with allure.step(f"And its row tells the station and the outcome: {details}"):
+            row_number = ship_log_events(pilot.app).index(event_name)
+            assert details in ship_log_details(pilot.app)[row_number]

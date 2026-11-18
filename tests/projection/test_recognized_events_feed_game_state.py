@@ -103,6 +103,18 @@ class RealEventsReachGameStateTest(unittest.IsolatedAsyncioTestCase):
             self.game_state.get_game_state_projection(),
         )
 
+    async def test_should_parse_real_docking_denied_with_its_reason(self):
+        event = load_real_sample("DockingDenied")
+
+        self.assertEqual("DockingDeniedEvent", type(event).__name__)
+        self.assertEqual("NoSpace", event.Reason)
+
+    async def test_should_parse_real_docking_requested(self):
+        event = load_real_sample("DockingRequested")
+
+        self.assertEqual("DockingRequestedEvent", type(event).__name__)
+        self.assertEqual("Newberry Hydroponics Holding", event.StationName)
+
     async def test_should_forget_assigned_pad_after_undocked(self):
         await self.event_bus.publish(load_real_sample("DockingGranted"))
         await self.event_bus.publish(load_real_sample("Undocked"))

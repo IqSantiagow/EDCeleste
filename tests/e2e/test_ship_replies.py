@@ -3,10 +3,16 @@ import numpy as np
 import pytest
 
 from edceleste.services.models.settings_model import DEFAULT_EDGE_VOICE, TTSModel
-from tests.e2e.conftest import comms_entries, send_comms_message, ship_log_events
+from tests.e2e.conftest import (
+    comms_entries,
+    docking_journal_line,
+    send_comms_message,
+    ship_log_details,
+    ship_log_events,
+)
 from tests.e2e.test_game_state_prompt import prompt_remembering_llm
 from tests.e2e.test_instinct_spoken_reply import write_prepared_reply_clip
-from tests.e2e.test_journal_to_dashboard_stats import label_text
+from tests.e2e.test_journal_to_dashboard_stats import header_value, label_text
 from tests.e2e.test_startup_loading import (
     fuel_in_the_hud,
     write_the_files_of_a_session_in_progress,
@@ -203,6 +209,101 @@ async def test_should_say_the_reply_of_the_journal_event_the_game_writes(
             )
             await pilot.pause(0.5)
             assert edceleste.spoken_texts == [reply_text]
+
+
+@allure.title(
+    "When the docking request is denied Celeste says it and the log shows why"
+)
+async def test_should_say_the_docking_request_was_denied_and_show_the_reason(
+    edceleste,
+):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("When the game writes a docking request and its denial"):
+            edceleste.append_journal_line(docking_journal_line("DockingRequested"))
+            edceleste.append_journal_line(docking_journal_line("DockingDenied"))
+
+        with allure.step("Then the ship log shows the request and the denial"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: "DockingDenied" in ship_log_events(pilot.app),
+                "DockingDenied in the ship log",
+            )
+            assert ship_log_events(pilot.app)[-2:] == [
+                "DockingRequested",
+                "DockingDenied",
+            ]
+
+        with allure.step("And the denial row tells the reason: denied: NoSpace"):
+            assert "denied: NoSpace" in ship_log_details(pilot.app)[-1]
+
+        with allure.step("And Celeste says 'Docking request denied' once"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: edceleste.spoken_texts != [],
+                "the reply handed to the voice engine",
+            )
+            await pilot.pause(0.5)
+            assert edceleste.spoken_texts == ["Docking request denied"]
+
+
+SILENT_DOCKING_ENDS = [
+    pytest.param("DockingCancelled", id="docking-cancelled"),
+    pytest.param("DockingTimeout", id="docking-timeout"),
+]
+
+
+@allure.title("When the docking request ends with {event_name} Celeste stays silent")
+@pytest.mark.parametrize("event_name", SILENT_DOCKING_ENDS)
+async def test_should_stay_silent_when_a_docking_request_is_cancelled_or_times_out(
+    edceleste, event_name
+):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step(f"When the game writes a docking request and {event_name}"):
+            edceleste.append_journal_line(docking_journal_line("DockingRequested"))
+            edceleste.append_journal_line(docking_journal_line(event_name))
+
+        with allure.step(f"Then the ship log shows {event_name}"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: event_name in ship_log_events(pilot.app),
+                f"{event_name} in the ship log",
+            )
+
+        with allure.step("And Celeste said and played nothing"):
+            await pilot.pause(0.5)
+            assert edceleste.spoken_texts == []
+            assert edceleste.played_audio == []
+
+
+@allure.title("Celeste says nothing about a docking denial from before she started")
+async def test_should_stay_silent_about_a_docking_denial_from_before_the_start(
+    edceleste,
+):
+    with allure.step("Given the game wrote a session with a docking request denied"):
+        write_the_files_of_a_session_in_progress(edceleste)
+        edceleste.append_journal_line(docking_journal_line("DockingRequested"))
+        edceleste.append_journal_line(docking_journal_line("DockingDenied"))
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.open_dashboard(pilot, step_keyword="When")
+
+        with allure.step(
+            "Then Celeste has read the journal: the header shows SANTIAGOW"
+        ):
+            await edceleste.wait_until(
+                pilot,
+                lambda: header_value(pilot.app, "#stat-cmdr") == "SANTIAGOW",
+                "the commander name in the header",
+            )
+
+        with allure.step("And Celeste said and played nothing"):
+            await pilot.pause(0.5)
+            assert edceleste.spoken_texts == []
+            assert edceleste.played_audio == []
 
 
 @allure.title("Celeste says nothing about what the game set before she started")

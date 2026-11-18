@@ -4,6 +4,11 @@ import unittest
 
 from edceleste.services.models.game_events import (
     DiedEvent,
+    DockingCancelledEvent,
+    DockingDeniedEvent,
+    DockingGrantedEvent,
+    DockingRequestedEvent,
+    DockingTimeoutEvent,
     FSDJumpEvent,
     FSDTargetEvent,
     FuelScoopEvent,
@@ -130,6 +135,42 @@ class TestJournalLogViewModelDetails(unittest.TestCase):
 
 
 class TestJournalLogViewModelSystemColumn(unittest.TestCase):
+    def test_docking_events_show_the_station_and_how_the_request_went(self):
+        station = dict(
+            timestamp=datetime.now(),
+            StationName="Jameson Memorial",
+            StationType="Orbis",
+            MarketID=1,
+        )
+        events_and_details = [
+            (
+                DockingRequestedEvent(event="DockingRequested", **station),
+                "Jameson Memorial · requested",
+            ),
+            (
+                DockingGrantedEvent(event="DockingGranted", LandingPad=12, **station),
+                "Jameson Memorial · pad 12",
+            ),
+            (
+                DockingDeniedEvent(event="DockingDenied", Reason="NoSpace", **station),
+                "Jameson Memorial · denied: NoSpace",
+            ),
+            (
+                DockingCancelledEvent(event="DockingCancelled", **station),
+                "Jameson Memorial · cancelled",
+            ),
+            (
+                DockingTimeoutEvent(event="DockingTimeout", **station),
+                "Jameson Memorial · timed out",
+            ),
+        ]
+
+        for event, expected_details in events_and_details:
+            view_model = JournalLogViewModel.from_event(event)
+
+            self.assertEqual(view_model.details, expected_details)
+            self.assertEqual(view_model.category, CATEGORY_NAV)
+
     def test_fsd_jump_fills_system_column(self):
         view_model = JournalLogViewModel.from_event(make_fsd_jump("Cemiess"))
 
