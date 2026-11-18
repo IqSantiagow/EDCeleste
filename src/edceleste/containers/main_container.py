@@ -1,5 +1,7 @@
+import httpx
 from dependency_injector import containers, providers
 
+from edceleste.adapters.tools.edsm_tools import EdsmTools
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
 from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.services.event_bus import EventBus
@@ -189,9 +191,15 @@ class Container(containers.DeclarativeContainer):
         game_state_protocol=game_state_service,
     )
 
+    edsm_http_client_factory = providers.Object(httpx.AsyncClient)
+    edsm_tools = providers.Singleton(
+        EdsmTools, client_factory=edsm_http_client_factory
+    )
+
     # ----- MCP------
     mcps = providers.List(
         perform_game_action,
+        edsm_tools,
     )
 
     tool_register = providers.Singleton(ToolRegister, groups=mcps)

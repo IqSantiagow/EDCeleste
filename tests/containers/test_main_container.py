@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import httpx
 import yaml
 from dependency_injector import providers
 
@@ -110,6 +111,41 @@ class TestMainContainer(unittest.TestCase):
         # test would pass for the wrong reason.
         with self.assertRaisesRegex(FileNotFoundError, "No config.yaml file found"):
             Container().settings_service()
+
+
+class TestEdsmToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
+    async def test_registered_edsm_tool_uses_container_client_factory(self):
+        requests = []
+        clients = []
+        coordinates = {
+            "Sol": {"x": 0, "y": 0, "z": 0},
+            "Alpha": {"x": 3, "y": 4, "z": 0},
+        }
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            name = request.url.params["systemName"]
+            requests.append(name)
+            return httpx.Response(200, json={"coords": coordinates[name]})
+
+        def client_factory() -> httpx.AsyncClient:
+            client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+            clients.append(client)
+            return client
+
+        container = Container()
+        container.edsm_http_client_factory.override(
+            providers.Object(client_factory)
+        )
+        container.perform_game_action.override(providers.Object(object()))
+
+        tools = container.tool_register().get_tools()
+        edsm_tool = next(tool for tool in tools if tool.name == "get_distance")
+        result = await edsm_tool.func("Sol", "Alpha")
+
+        self.assertEqual(result.return_value, 5)
+        self.assertEqual(requests, ["Sol", "Alpha"])
+        self.assertEqual(len(clients), 2)
+        self.assertTrue(all(client.is_closed for client in clients))
 
 
 if __name__ == "__main__":
