@@ -1,0 +1,1 @@
+ERROR    edceleste.services.game_watcher_service:game_watcher_service.py:282 Error during validation for event: { half a line

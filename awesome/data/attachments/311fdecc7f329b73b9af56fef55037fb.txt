@@ -1,0 +1,1 @@
+WARNING  edceleste.services.keybinds_service:keybinds_service.py:332 Actions without a keyboard key: ['Use shield cell']

@@ -1,0 +1,1 @@
+{"id":"5b38c187a64e158b388f34c1b566444a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_replies#test_should_say_the_docking_request_was_denied_and_show_the_reason","name":"When the docking request is denied Celeste says it and the log shows why","status":"passed","testResultsByEnv":{"default":"4ea69238d089d96ee9c947578a356849"}}
