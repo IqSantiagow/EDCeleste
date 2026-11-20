@@ -49,6 +49,9 @@ class EdsmTools:
         name="get_distance", readable_name="Get Distance", param_name="system1, system2"
     )
     async def get_distance(self, system1: str, system2: str) -> ToolReturn:
+        """Get the distance in light years between two Elite Dangerous star
+        systems, given by their exact names. Fails if EDSM does not know a
+        system or its coordinates."""
         distance = math.dist(
             await self._get_coords(system1), await self._get_coords(system2)
         )
