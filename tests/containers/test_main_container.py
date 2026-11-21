@@ -2,12 +2,14 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 import httpx
 import yaml
 from dependency_injector import providers
 
 from edceleste.containers.main_container import Container
+from edceleste.services.models.settings_model import ExternalApisModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
 
 CONFIG_EXAMPLE_FILE = Path(__file__).parents[2] / "config-example.yaml"
@@ -125,7 +127,7 @@ class TestEdsmToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
         def respond(request: httpx.Request) -> httpx.Response:
             name = request.url.params["systemName"]
             requests.append(name)
-            return httpx.Response(200, json={"coords": coordinates[name]})
+            return httpx.Response(200, json={"name": name, "coords": coordinates[name]})
 
         def client_factory() -> httpx.AsyncClient:
             client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
@@ -135,12 +137,17 @@ class TestEdsmToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
         container = Container()
         container.edsm_http_client_factory.override(providers.Object(client_factory))
         container.perform_game_action.override(providers.Object(object()))
+        settings_service = Mock(spec=SettingsService)
+        settings_service.get_settings.return_value = Mock(
+            spec=SettingsModel, external_apis=ExternalApisModel(enabled=True)
+        )
+        container.settings_service.override(providers.Object(settings_service))
 
         tools = container.tool_register().get_tools()
         edsm_tool = next(tool for tool in tools if tool.name == "get_distance")
         result = await edsm_tool.func("Sol", "Alpha")
 
-        self.assertEqual(result.return_value, 5)
+        self.assertEqual(result.return_value["distance_ly"], 5)
         self.assertEqual(requests, ["Sol", "Alpha"])
         self.assertEqual(len(clients), 2)
         self.assertTrue(all(client.is_closed for client in clients))

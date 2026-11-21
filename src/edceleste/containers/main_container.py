@@ -192,7 +192,12 @@ class Container(containers.DeclarativeContainer):
     )
 
     edsm_http_client_factory = providers.Object(httpx.AsyncClient)
-    edsm_tools = providers.Singleton(EdsmTools, client_factory=edsm_http_client_factory)
+    edsm_tools = providers.Singleton(
+        EdsmTools,
+        client_factory=edsm_http_client_factory,
+        settings_service=settings_service,
+        game_state_protocol=game_state_service,
+    )
 
     # ----- MCP------
     mcps = providers.List(

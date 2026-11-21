@@ -6,6 +6,9 @@ from edceleste.services.models.settings_model import SettingsModel
 from edceleste.ui.screens.settings.widgets.event_reactions import (
     widget_event_reactions_container,
 )
+from edceleste.ui.screens.settings.widgets.external_apis import (
+    widget_external_apis_container,
+)
 from edceleste.ui.screens.settings.widgets.game_actions import (
     widget_game_actions_container,
 )
@@ -61,4 +64,8 @@ class WidgetSettingsSectionContentColumn(Vertical):
             yield widget_game_actions_container.WidgetGameActionsContainer(
                 game_actions_model=self.settings.game_actions,
                 id="settings-game_actions",
+            )
+            yield widget_external_apis_container.WidgetExternalApisContainer(
+                external_apis_model=self.settings.external_apis,
+                id="settings-external_apis",
             )

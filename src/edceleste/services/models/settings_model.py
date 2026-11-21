@@ -270,6 +270,14 @@ class GameActionsModel(BaseModel, validate_assignment=True):
     )
 
 
+class ExternalApisModel(BaseModel, validate_assignment=True):
+    enabled: bool = Field(
+        default=False,
+        description="Whether the LLM tools may look up data on outside websites "
+        "(only system names are sent)",
+    )
+
+
 DEFAULT_EVENT_REACTION_SETTINGS = {JournalEventType.LoadGame.value: True}
 
 
@@ -337,6 +345,10 @@ class SettingsModel(BaseModel):
     game_actions: GameActionsModel = Field(
         description="The game actions settings",
         default_factory=GameActionsModel,
+    )
+    external_apis: ExternalApisModel = Field(
+        description="The settings of lookups on outside websites",
+        default_factory=ExternalApisModel,
     )
 
 
