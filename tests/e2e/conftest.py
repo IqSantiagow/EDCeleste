@@ -17,6 +17,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import allure
+import httpx
 import numpy as np
 import pytest
 import whisper
@@ -415,6 +416,37 @@ class FakePocketTtsProvider(PocketTTSProvider):
         params: TtsProviderParams,
     ) -> None:
         profile_path.write_bytes(b"fake voice profile")
+
+
+class FakeEdsm:
+    """The EDSM website without network: it answers from the systems and
+    stations the test gave it, like EDSM (an unknown system is an empty list),
+    and remembers every request that reached it. A test can make it time out
+    or answer with an error code"""
+
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+        self.systems: dict[str, dict] = {}
+        self.stations: dict[str, dict] = {}
+        self.error_status_code: int | None = None
+        self.is_timing_out = False
+
+    def time_out(self) -> None:
+        self.is_timing_out = True
+
+    def answer_with_error_code(self, status_code: int) -> None:
+        self.error_status_code = status_code
+
+    def answer(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.is_timing_out:
+            raise httpx.ReadTimeout("EDSM did not answer", request=request)
+        if self.error_status_code is not None:
+            return httpx.Response(self.error_status_code, request=request)
+        system_name = request.url.params["systemName"]
+        if request.url.path.endswith("/stations"):
+            return httpx.Response(200, json=self.stations.get(system_name, []))
+        return httpx.Response(200, json=self.systems.get(system_name, []))
 
 
 class FakeMouseButton(enum.Enum):
@@ -833,6 +865,19 @@ class EdCelesteTestEnvironment:
     def allow_game_actions(self) -> None:
         self.settings.game_actions.enabled = True
         self.save_config()
+
+    def allow_external_apis(self) -> None:
+        self.settings.external_apis.enabled = True
+        self.save_config()
+
+    def use_fake_edsm(self) -> FakeEdsm:
+        # The tools already exist when the fixture is ready (the LLM service
+        # holds them), so the HTTP client is replaced on the tools themselves
+        fake_edsm = FakeEdsm()
+        self.container.edsm_tools().client_factory = lambda: httpx.AsyncClient(
+            transport=httpx.MockTransport(fake_edsm.answer)
+        )
+        return fake_edsm
 
     def turn_instinct_on(self) -> FakeInstinctModel:
         # The model counts as downloaded and loaded: no Hub, no download, no
