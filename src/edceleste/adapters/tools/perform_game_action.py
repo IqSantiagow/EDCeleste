@@ -43,25 +43,17 @@ class PerformGameAction:
     async def perform_game_action(self, action: EdAction) -> ToolReturn:
         """Perform a game action based on the provided type of action"""
         if not self.settings_service.get_settings().game_actions.enabled:
-            return ToolReturn(
-                return_value="Game actions are disabled by the user.",
-                metadata={"is_error": True},
-            )
+            return self._error("Game actions are disabled by the user.")
 
         try:
             is_bound = self.keybind_service.is_bound(action)
         except KeyError:
-            return ToolReturn(
-                return_value="Game actions are not available: the keybindings "
-                "are not loaded.",
-                metadata={"is_error": True},
+            return self._error(
+                "Game actions are not available: the keybindings are not loaded."
             )
 
         if not is_bound:
-            return ToolReturn(
-                return_value=f"{action.value} is not bound to a keyboard key.",
-                metadata={"is_error": True},
-            )
+            return self._error(f"{action.value} is not bound to a keyboard key.")
 
         unavailable_reason = self.get_unavailable_reason(
             action, self.game_state_protocol.get_game_stats()
@@ -75,10 +67,7 @@ class PerformGameAction:
         try:
             await self.keybind_service.press_keys_for_action(action)
         except GameWindowNotFoundException:
-            return ToolReturn(
-                return_value="Game window not found, nothing was pressed.",
-                metadata={"is_error": True},
-            )
+            return self._error("Game window not found, nothing was pressed.")
 
         return ToolReturn(
             return_value=f"Performed game action: {action.value}",
@@ -140,4 +129,13 @@ class PerformGameAction:
         for state_name in blocking_states:
             if states[state_name]:
                 return f"{action_name} unavailable: the ship is {state_name}."
+
         return None
+
+    @staticmethod
+    def _error(message: str) -> ToolReturn:
+        """Return an error ToolReturn with the given message."""
+        return ToolReturn(
+            return_value=message,
+            metadata={"is_error": True},
+        )
