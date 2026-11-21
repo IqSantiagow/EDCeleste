@@ -2,6 +2,7 @@ from enum import Enum
 
 from edceleste.services.models.settings_model import (
     EventReactionModel,
+    ExternalApisModel,
     GameActionsModel,
     LLMModel,
     PathModel,
@@ -20,3 +21,4 @@ class SettingsSection(Enum):
     STT = SttModel
     EVENT_REACTIONS = EventReactionModel
     GAME_ACTIONS = GameActionsModel
+    EXTERNAL_APIS = ExternalApisModel

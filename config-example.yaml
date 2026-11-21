@@ -4,6 +4,10 @@ stt:
   hotkey: null
 game_actions:
   enabled: false
+# Lets Celeste look up systems on outside websites (EDSM), for example the distance between two
+# systems. Only the system names are sent. Off by default.
+external_apis:
+  enabled: false
 event_reactions:
   reactions:
     ApproachBody: false

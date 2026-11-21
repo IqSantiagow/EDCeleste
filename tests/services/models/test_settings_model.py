@@ -8,6 +8,7 @@ from edceleste.services.models.settings_model import (
     ChatterboxParamsModel,
     EdgeParamsModel,
     EventReactionModel,
+    ExternalApisModel,
     GameActionsModel,
     LLMModel,
     PathModel,
@@ -314,6 +315,24 @@ class TestGameActionsModel(unittest.TestCase):
         settings = SettingsModel(**_base_settings_kwargs())
 
         self.assertFalse(settings.game_actions.enabled)
+
+
+class TestExternalApisModel(unittest.TestCase):
+    def test_enabled_defaults_to_false(self):
+        self.assertFalse(ExternalApisModel().enabled)
+
+    def test_enabled_round_trips_through_model_dump(self):
+        external_apis_model = ExternalApisModel(enabled=True)
+
+        dumped = external_apis_model.model_dump()
+
+        self.assertEqual(dumped, {"enabled": True})
+        self.assertEqual(ExternalApisModel.model_validate(dumped), external_apis_model)
+
+    def test_settings_model_defaults_external_apis_to_disabled_when_key_absent(self):
+        settings = SettingsModel(**_base_settings_kwargs())
+
+        self.assertFalse(settings.external_apis.enabled)
 
 
 def _base_settings_kwargs() -> dict:
