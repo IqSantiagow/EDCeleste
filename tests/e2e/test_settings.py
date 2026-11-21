@@ -6,7 +6,7 @@ import pytest
 import yaml
 from textual.app import App
 from textual.pilot import Pilot
-from textual.widgets import Input, Label
+from textual.widgets import Input, Label, Switch
 
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
@@ -132,6 +132,46 @@ async def test_should_save_a_changed_setting_to_config_yaml_and_go_back_on_escap
 
         with allure.step("Then the dashboard is back"):
             assert isinstance(pilot.app.screen, DashboardScreen)
+
+
+@allure.title(
+    "Outside lookups are off by default and turning them on is saved to config.yaml"
+)
+async def test_should_keep_outside_lookups_off_by_default_and_save_turning_them_on(
+    edceleste,
+):
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("When the Commander opens Settings > External APIs"):
+            await open_settings_section(edceleste, pilot, "settings-external_apis")
+
+        with allure.step("Then the Enabled switch is off"):
+            switch = pilot.app.screen.query_one("#external-apis-enabled-input Switch")
+            assert isinstance(switch, Switch)
+            assert switch.value is False
+
+        with allure.step("When the Commander turns the switch on"):
+            await pilot.click("#external-apis-enabled-input Switch")
+            await pilot.pause()
+
+        with allure.step("Then the header and the section show MODIFIED"):
+            assert save_state_text(pilot.app) == "◉ MODIFIED"
+            assert section_shows_modified_indicator(pilot.app, "settings-external_apis")
+
+        with allure.step("When the Commander saves with Ctrl+S"):
+            await pilot.press("ctrl+s")
+
+        with allure.step("Then the header shows SAVED and config.yaml has the change"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: save_state_text(pilot.app) == "◉ SAVED",
+                "SAVED in the settings header",
+            )
+            assert saved_config(edceleste)["external_apis"]["enabled"] is True
+            assert not section_shows_modified_indicator(
+                pilot.app, "settings-external_apis"
+            )
 
 
 @allure.title("An invalid journal path shows an error and config.yaml stays as it was")
