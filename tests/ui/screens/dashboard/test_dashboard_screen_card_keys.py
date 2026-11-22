@@ -80,7 +80,6 @@ class DashboardCardKeysTest(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             self.assertEqual(SHIP_LOG_TAB_LOG, self.open_card_id(screen))
-            self.assertFalse(self.grid_is_expanded(screen))
 
     async def test_f3_opens_eng_card_with_no_data(self):
         async with self.run_dashboard() as pilot:
@@ -158,14 +157,18 @@ class DashboardCardKeysTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(TAB_SHIP, self.open_card_id(screen))
             self.assertTrue(self.grid_is_expanded(screen))
 
-    async def test_leaving_the_station_card_goes_back_to_the_rail(self):
+    async def test_leaving_the_station_card_keeps_the_log_expanded_until_ctrl_e(self):
         async with self.run_dashboard() as pilot:
             await pilot.pause()
             screen = pilot.app.screen
 
             await pilot.press("f4")
-            await pilot.press("ctrl+e")
             await pilot.press("f2")
+            await pilot.pause()
+
+            self.assertTrue(self.grid_is_expanded(screen))
+
+            await pilot.press("ctrl+e")
             await pilot.pause()
 
             self.assertFalse(self.grid_is_expanded(screen))

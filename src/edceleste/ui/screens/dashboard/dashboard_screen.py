@@ -63,9 +63,7 @@ class DashboardScreen(Screen):
         **kwargs,
     ):
         """Only keeps the dependencies. UIApp passes them in, they are not
-        injected. game_watcher_service is kept only to stop it on unmount.
-        ship_log_expanded_by_pilot starts False: the ship log is in the rail."""
-        self.ship_log_expanded_by_pilot = False
+        injected. game_watcher_service is kept only to stop it on unmount."""
         self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
         self.game_watcher_service = game_watcher_service
@@ -131,8 +129,10 @@ class DashboardScreen(Screen):
         1. A tab with no id is ignored.
         2. Switches every TabbedContent on the screen to the same tab, so the
            wide and the rail panel always show the same card.
-        3. Shows the log expanded or in the rail for that card, see
-           show_ship_log_for_card.
+        3. Expands the log (the "-ship-log-expanded" class on the grid) when
+           the card is in ALWAYS_EXPANDED_TABS. It never collapses the log: a
+           card opened by key or click stays in the mode the pilot is in, and
+           only ^e collapses it.
         """
         tab_id = event.pane.id
         if not tab_id:
@@ -144,27 +144,16 @@ class DashboardScreen(Screen):
 
         # Order matters: line the tabs up first, or the wide panel shows up
         # still on the previous card and flashes its contents.
-        self.show_ship_log_for_card(tab_id)
-
-    def show_ship_log_for_card(self, tab_id: str) -> None:
-        """Sets the "-ship-log-expanded" class on the grid: on when the pilot
-        expanded the log with ^e, or when the card is in ALWAYS_EXPANDED_TABS.
-        So a card opened by key or click keeps the mode the pilot chose, and a
-        card without a rail version only forces expanded while it is open."""
-        self.query_one("#app-container", Grid).set_class(
-            self.ship_log_expanded_by_pilot or tab_id in ALWAYS_EXPANDED_TABS,
-            "-ship-log-expanded",
-        )
+        if tab_id in ALWAYS_EXPANDED_TABS:
+            self.query_one("#app-container", Grid).add_class("-ship-log-expanded")
 
     def action_open_ship_log_card(self, tab_id: str) -> None:
         self.query_one("#ship-log-wide TabbedContent", TabbedContent).active = tab_id
 
     def action_toggle_ship_log_expanded(self) -> None:
-        open_card = self.active_ship_log_tab()
-        if open_card in ALWAYS_EXPANDED_TABS:
+        if self.active_ship_log_tab() in ALWAYS_EXPANDED_TABS:
             return
-        self.ship_log_expanded_by_pilot = not self.ship_log_expanded_by_pilot
-        self.show_ship_log_for_card(open_card)
+        self.query_one("#app-container", Grid).toggle_class("-ship-log-expanded")
 
     def active_ship_log_tab(self) -> str:
         """Id of the open card, read from the wide panel. Both panels always
