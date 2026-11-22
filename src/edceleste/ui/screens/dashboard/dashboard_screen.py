@@ -1,4 +1,5 @@
 import logging
+from textual.binding import Binding
 from textual.screen import Screen
 from textual.widgets import Footer, TabbedContent
 from textual.containers import Grid
@@ -12,6 +13,8 @@ from edceleste.ui.screens.dashboard.widgets.comms.widget_comms_input import (
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.ship_log_tabs import (
     ALWAYS_EXPANDED_TABS,
+    SHIP_LOG_CARD_KEYS,
+    SHIP_LOG_TAB_LOG_KEY,
 )
 from edceleste.ui.screens.dashboard.widgets.ship_log.widget_ship_log_panel import (
     WidgetShipLogPanel,
@@ -39,6 +42,17 @@ class DashboardScreen(Screen):
     BINDINGS = [
         ("ctrl+r", "app.push_settings", "Settings"),
         ("ctrl+e", "toggle_ship_log_expanded", "Expand log"),
+        # The footer shows only the first card key, as one "f1–f7 Cards" entry.
+        *(
+            Binding(
+                key,
+                f"open_ship_log_card('{tab_id}')",
+                "Cards",
+                show=key == SHIP_LOG_TAB_LOG_KEY,
+                key_display="f1–f7",
+            )
+            for key, tab_id in SHIP_LOG_CARD_KEYS
+        ),
     ]
 
     def __init__(
@@ -49,7 +63,9 @@ class DashboardScreen(Screen):
         **kwargs,
     ):
         """Only keeps the dependencies. UIApp passes them in, they are not
-        injected. game_watcher_service is kept only to stop it on unmount."""
+        injected. game_watcher_service is kept only to stop it on unmount.
+        ship_log_expanded_by_pilot starts False: the ship log is in the rail."""
+        self.ship_log_expanded_by_pilot = False
         self.dashboard_repository = dashboard_repository
         self.settings_repository = settings_repository
         self.game_watcher_service = game_watcher_service
@@ -115,8 +131,8 @@ class DashboardScreen(Screen):
         1. A tab with no id is ignored.
         2. Switches every TabbedContent on the screen to the same tab, so the
            wide and the rail panel always show the same card.
-        3. Sets the "-ship-log-expanded" class on the grid when the card is in
-           ALWAYS_EXPANDED_TABS, and removes it otherwise.
+        3. Shows the log expanded or in the rail for that card, see
+           show_ship_log_for_card.
         """
         tab_id = event.pane.id
         if not tab_id:
@@ -128,14 +144,27 @@ class DashboardScreen(Screen):
 
         # Order matters: line the tabs up first, or the wide panel shows up
         # still on the previous card and flashes its contents.
+        self.show_ship_log_for_card(tab_id)
+
+    def show_ship_log_for_card(self, tab_id: str) -> None:
+        """Sets the "-ship-log-expanded" class on the grid: on when the pilot
+        expanded the log with ^e, or when the card is in ALWAYS_EXPANDED_TABS.
+        So a card opened by key or click keeps the mode the pilot chose, and a
+        card without a rail version only forces expanded while it is open."""
         self.query_one("#app-container", Grid).set_class(
-            tab_id in ALWAYS_EXPANDED_TABS, "-ship-log-expanded"
+            self.ship_log_expanded_by_pilot or tab_id in ALWAYS_EXPANDED_TABS,
+            "-ship-log-expanded",
         )
 
+    def action_open_ship_log_card(self, tab_id: str) -> None:
+        self.query_one("#ship-log-wide TabbedContent", TabbedContent).active = tab_id
+
     def action_toggle_ship_log_expanded(self) -> None:
-        if self.active_ship_log_tab() in ALWAYS_EXPANDED_TABS:
+        open_card = self.active_ship_log_tab()
+        if open_card in ALWAYS_EXPANDED_TABS:
             return
-        self.query_one("#app-container", Grid).toggle_class("-ship-log-expanded")
+        self.ship_log_expanded_by_pilot = not self.ship_log_expanded_by_pilot
+        self.show_ship_log_for_card(open_card)
 
     def active_ship_log_tab(self) -> str:
         """Id of the open card, read from the wide panel. Both panels always

@@ -11,7 +11,7 @@ class TestShipLogTabsCatalog(unittest.TestCase):
         """Both journal panels are kept on the same card, and Tabs.validate_active
         raises for an id no panel has. Dropping one of these from the catalog
         would crash the app the moment the card is selected."""
-        catalog_tab_ids = [tab_id for _, tab_id in SHIP_LOG_PLACEHOLDER_TABS]
+        catalog_tab_ids = [tab_id for _, tab_id, _ in SHIP_LOG_PLACEHOLDER_TABS]
 
         for tab_id in ALWAYS_EXPANDED_TABS:
             with self.subTest(tab_id=tab_id):
