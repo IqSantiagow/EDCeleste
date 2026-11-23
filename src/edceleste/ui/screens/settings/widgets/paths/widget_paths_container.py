@@ -1,4 +1,6 @@
 import enum
+from pathlib import Path
+from textual.validation import ValidationResult, Validator
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from edceleste.ui.screens.settings.events.settings_events import (
@@ -20,6 +22,13 @@ from edceleste.ui.widgets.common.widget_section_header import WidgetSectionHeade
 from edceleste.ui.screens.settings.widgets.widget_base_settings_container import (
     WidgetBaseSettingsContainer,
 )
+
+
+class PathValidator(Validator):
+    def validate(self, value: str) -> ValidationResult:
+        if bool(value) and Path(value).exists():
+            return self.success()
+        return self.failure("Path does not exist")
 
 
 class PathsInputWidgetIds(enum.StrEnum):
@@ -44,16 +53,16 @@ class WidgetPathsContainer(WidgetBaseSettingsContainer):
             yield WidgetLabeledDynamicInputRow(
                 "Journal Path:",
                 f"{self.path_model.journal_path}",
-                # TODO: Implement validation logic
                 lambda value: self.log(f"Journal Path submitted: {value}"),
                 type="text",
+                validators=[PathValidator()],
                 id=PathsInputWidgetIds.JOURNAL_PATH_INPUT,
             )
             yield WidgetLabeledDynamicInputRow(
                 "Keybinds Path:",
                 f"{self.path_model.keybindings_path}",
-                # TODO: Implement validation logic
                 lambda value: self.log(f"Keybinds Path submitted: {value}"),
+                validators=[PathValidator()],
                 type="text",
                 id=PathsInputWidgetIds.KEYBINDS_PATH_INPUT,
             )

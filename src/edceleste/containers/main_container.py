@@ -145,7 +145,6 @@ def _build_loaded_settings_service() -> SettingsService:
     need the settings while they are built. A missing or broken config.yaml
     raises here (see SettingsService.load_settings) and the app does not
     start."""
-    # TODO: Add initial setting to further load it during the app settings screen
     settings_service = SettingsService()
     settings_service.load_settings()
     return settings_service

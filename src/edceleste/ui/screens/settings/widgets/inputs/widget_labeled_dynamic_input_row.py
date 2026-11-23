@@ -141,6 +141,14 @@ class WidgetLabeledDynamicInputRow(WidgetBaseInput):
 
     def on_descendant_blur(self, _: events.DescendantBlur) -> None:
         if self.is_being_edited:
+            current_value = self.query_one(Input).value
+            validation_result = self.query_one(Input).validate(current_value)
+
+            if validation_result is not None and not validation_result.is_valid:
+                failure_descriptions = " ".join(validation_result.failure_descriptions)
+                self.notify(f"Invalid input: {failure_descriptions}")
+                self.is_being_edited = False
+                return
             self._submit_value(self.query_one(Input))
 
     def _send_value_changed_event(self, new_value: str) -> None:
