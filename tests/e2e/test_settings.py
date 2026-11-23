@@ -7,6 +7,7 @@ import yaml
 from textual.app import App
 from textual.pilot import Pilot
 from textual.widgets import Input, Label, Switch
+from textual.widgets._toast import Toast
 
 from edceleste.ui.screens.dashboard.dashboard_screen import DashboardScreen
 from edceleste.ui.screens.settings.settings_screen import SettingsScreen
@@ -174,7 +175,10 @@ async def test_should_keep_outside_lookups_off_by_default_and_save_turning_them_
             )
 
 
-@allure.title("An invalid journal path shows an error and config.yaml stays as it was")
+@allure.title(
+    "A journal folder that disappears before saving shows an error and config.yaml "
+    "stays as it was"
+)
 async def test_should_show_the_validation_error_in_the_section_and_keep_config_yaml(
     edceleste,
 ):
@@ -186,19 +190,19 @@ async def test_should_show_the_validation_error_in_the_section_and_keep_config_y
         with allure.step("And the Commander opens Settings > Paths"):
             await open_settings_section(edceleste, pilot, "settings-paths")
 
-        with allure.step(
-            "When the Commander changes the journal path to a missing folder"
-        ):
-            await pilot.click("#journal-path-input")
+        with allure.step("And the Commander changes the journal path to a new folder"):
+            make_journal_folder_with_a_log_file(edceleste, "_missing")
+            await edit_the_end_of_a_path(
+                edceleste, pilot, JOURNAL_PATH_ROW, *"_missing"
+            )
             await edceleste.wait_until(
                 pilot,
-                lambda: isinstance(pilot.app.focused, Input),
-                "the journal path field focused for typing",
+                lambda: path_is_shown_in_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the changed journal path in yellow",
             )
-            await pilot.press("end", *"_missing", "enter")
-            await pilot.pause()
 
-        with allure.step("And saves with Ctrl+S"):
+        with allure.step("When that folder is deleted and the Commander saves"):
+            shutil.rmtree(edceleste.settings.paths.journal_path + "_missing")
             await pilot.press("ctrl+s")
 
         with allure.step("Then the header shows ERROR DURING SAVING"):
@@ -571,7 +575,10 @@ async def test_should_not_show_the_path_in_yellow_when_the_saved_value_is_typed_
         with allure.step("And the Commander opens Settings > Paths"):
             await open_settings_section(edceleste, pilot, "settings-paths")
 
-        with allure.step("And the Commander changes the journal path"):
+        with allure.step("And a folder with a journal file exists next to the journal"):
+            make_journal_folder_with_a_log_file(edceleste, "_x")
+
+        with allure.step("And the Commander changes the journal path to that folder"):
             await edit_the_end_of_a_path(edceleste, pilot, JOURNAL_PATH_ROW, *"_x")
             await edceleste.wait_until(
                 pilot,
@@ -649,3 +656,157 @@ async def test_should_show_a_saving_error_when_config_yaml_is_read_only(edcelest
                 "SAVED in the settings header",
             )
             assert saved_config(edceleste)["game_actions"]["enabled"] is True
+
+
+INVALID_PATH_NOTIFICATION = "Invalid input: Path does not exist"
+
+
+def invalid_path_notification_is_shown(app: App) -> bool:
+    toast_texts = [str(toast.render()) for toast in app.screen.query(Toast)]
+    return INVALID_PATH_NOTIFICATION in toast_texts
+
+
+@allure.title("A journal path that does not exist is refused when Enter is pressed")
+async def test_should_refuse_a_missing_journal_path_on_enter(edceleste):
+    saved_journal_path = edceleste.settings.paths.journal_path
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step("When the Commander types a journal path that does not exist"):
+            await edit_the_end_of_a_path(
+                edceleste, pilot, JOURNAL_PATH_ROW, *"_missing"
+            )
+
+        with allure.step("Then a notification says the path does not exist"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: invalid_path_notification_is_shown(pilot.app),
+                "the notification that the path does not exist",
+            )
+
+        with allure.step("And the journal path keeps the saved value, not in yellow"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_without_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the journal path as a plain label",
+            )
+            assert path_text(pilot.app, JOURNAL_PATH_ROW) == saved_journal_path
+
+        with allure.step("And the header does not show MODIFIED"):
+            assert save_state_text(pilot.app) == ""
+
+
+@allure.title("A keybinds path that does not exist is refused when Enter is pressed")
+async def test_should_refuse_a_missing_keybinds_path_on_enter(edceleste):
+    saved_keybinds_path = edceleste.settings.paths.keybindings_path
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step(
+            "When the Commander types a keybinds path that does not exist"
+        ):
+            await edit_the_end_of_a_path(
+                edceleste, pilot, KEYBINDS_PATH_ROW, *"_missing"
+            )
+
+        with allure.step("Then a notification says the path does not exist"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: invalid_path_notification_is_shown(pilot.app),
+                "the notification that the path does not exist",
+            )
+
+        with allure.step("And the keybinds path keeps the saved value, not in yellow"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_without_yellow(pilot.app, KEYBINDS_PATH_ROW),
+                "the keybinds path as a plain label",
+            )
+            assert path_text(pilot.app, KEYBINDS_PATH_ROW) == saved_keybinds_path
+
+        with allure.step("And the header does not show MODIFIED"):
+            assert save_state_text(pilot.app) == ""
+
+
+@allure.title(
+    "Leaving the field with a journal path that does not exist does not keep it"
+)
+async def test_should_not_keep_a_missing_journal_path_when_the_field_is_left(
+    edceleste,
+):
+    saved_journal_path = edceleste.settings.paths.journal_path
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step("And the Commander types a journal path that does not exist"):
+            await pilot.click(f"#{JOURNAL_PATH_ROW}")
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.focused, Input),
+                "the journal path field focused for typing",
+            )
+            await pilot.press("end", *"_missing")
+
+        with allure.step("When the Commander leaves the field with Tab"):
+            await pilot.press("tab")
+            await pilot.pause()
+
+        with allure.step("Then the journal path keeps the saved value, not in yellow"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_without_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the journal path as a plain label",
+            )
+            assert path_text(pilot.app, JOURNAL_PATH_ROW) == saved_journal_path
+
+        with allure.step("And the header does not show MODIFIED"):
+            assert save_state_text(pilot.app) == ""
+
+
+@allure.title("An empty journal path is refused and the saved value stays")
+async def test_should_refuse_an_empty_journal_path(edceleste):
+    saved_journal_path = edceleste.settings.paths.journal_path
+
+    async with edceleste.run_app(show_notifications=True) as pilot:
+        await edceleste.boot_to_dashboard(pilot)
+
+        with allure.step("And the Commander opens Settings > Paths"):
+            await open_settings_section(edceleste, pilot, "settings-paths")
+
+        with allure.step(
+            "When the Commander clears the journal path and presses Enter"
+        ):
+            await pilot.click(f"#{JOURNAL_PATH_ROW}")
+            await edceleste.wait_until(
+                pilot,
+                lambda: isinstance(pilot.app.focused, Input),
+                "the journal path field focused for typing",
+            )
+            await pilot.press("end", "shift+home", "backspace", "enter")
+
+        with allure.step("Then a notification says the path does not exist"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: invalid_path_notification_is_shown(pilot.app),
+                "the notification that the path does not exist",
+            )
+
+        with allure.step("And the journal path keeps the saved value, not in yellow"):
+            await edceleste.wait_until(
+                pilot,
+                lambda: path_is_shown_without_yellow(pilot.app, JOURNAL_PATH_ROW),
+                "the journal path as a plain label",
+            )
+            assert path_text(pilot.app, JOURNAL_PATH_ROW) == saved_journal_path
