@@ -153,5 +153,53 @@ class TestEdsmToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(client.is_closed for client in clients))
 
 
+class TestSpanshToolContainerIntegration(unittest.IsolatedAsyncioTestCase):
+    async def test_registered_spansh_tool_uses_container_client_factory(self):
+        requests = []
+        clients = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "reference": {"name": "Sol"},
+                    "results": [
+                        {
+                            "name": "Galileo",
+                            "system_name": "Sol",
+                            "distance": 0.0,
+                            "distance_to_arrival": 505.0,
+                            "type": "Ocellus Starport",
+                        }
+                    ],
+                },
+            )
+
+        def client_factory() -> httpx.AsyncClient:
+            client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+            clients.append(client)
+            return client
+
+        container = Container()
+        container.spansh_http_client_factory.override(providers.Object(client_factory))
+        container.perform_game_action.override(providers.Object(object()))
+        settings_service = Mock(spec=SettingsService)
+        settings_service.get_settings.return_value = Mock(
+            spec=SettingsModel, external_apis=ExternalApisModel(enabled=True)
+        )
+        container.settings_service.override(providers.Object(settings_service))
+
+        tools = container.tool_register().get_tools()
+        spansh_tool = next(tool for tool in tools if tool.name == "find_stations")
+        result = await spansh_tool.func("Sol")
+
+        self.assertEqual(spansh_tool.readable_name, "Find Stations")
+        self.assertEqual(result.return_value["stations"][0]["name"], "Galileo")
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(len(clients), 1)
+        self.assertTrue(clients[0].is_closed)
+
+
 if __name__ == "__main__":
     unittest.main()

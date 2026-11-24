@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 
 from edceleste.adapters.tools.edsm_tools import EdsmTools
 from edceleste.adapters.tools.perform_game_action import PerformGameAction
+from edceleste.adapters.tools.spansh_tools import SpanshTools
 from edceleste.adapters.tools.tool_register import ToolRegister
 from edceleste.services.event_bus import EventBus
 from edceleste.services.event_reactions_service import EventReactionsService
@@ -198,10 +199,19 @@ class Container(containers.DeclarativeContainer):
         game_state_protocol=game_state_service,
     )
 
+    spansh_http_client_factory = providers.Object(httpx.AsyncClient)
+    spansh_tools = providers.Singleton(
+        SpanshTools,
+        client_factory=spansh_http_client_factory,
+        settings_service=settings_service,
+        game_state_protocol=game_state_service,
+    )
+
     # ----- MCP------
     mcps = providers.List(
         perform_game_action,
         edsm_tools,
+        spansh_tools,
     )
 
     tool_register = providers.Singleton(ToolRegister, groups=mcps)
