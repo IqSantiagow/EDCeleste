@@ -6,6 +6,7 @@ and edge-tts voices.
 
 import asyncio
 import enum
+import json
 import os
 import shutil
 import sys
@@ -449,6 +450,71 @@ class FakeEdsm:
         return httpx.Response(200, json=self.systems.get(system_name, []))
 
 
+class FakeSpansh:
+    """The Spansh website without network: it answers the station search from
+    the stations the test gave it, around each system. Like Spansh it keeps
+    only the stations inside the radius and with every asked service, drops
+    the types the search says NOT, puts the nearest first, and answers HTTP
+    400 for a system it does not know. An unknown service finds nothing. It
+    remembers every request that reached it. A test can make it time out, be
+    unreachable or answer with an error code"""
+
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+        self.stations_around: dict[str, list[dict]] = {}
+        self.error_status_code: int | None = None
+        self.is_timing_out = False
+        self.is_unreachable = False
+
+    def time_out(self) -> None:
+        self.is_timing_out = True
+
+    def cannot_be_reached(self) -> None:
+        self.is_unreachable = True
+
+    def answer_with_error_code(self, status_code: int) -> None:
+        self.error_status_code = status_code
+
+    def sent_bodies(self) -> list[dict]:
+        return [json.loads(request.content) for request in self.requests]
+
+    def answer(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.is_timing_out:
+            raise httpx.ReadTimeout("Spansh did not answer", request=request)
+        if self.is_unreachable:
+            raise httpx.ConnectError("No network", request=request)
+        if self.error_status_code is not None:
+            return httpx.Response(self.error_status_code, request=request)
+
+        body = json.loads(request.content)
+        system_name = body["reference_system"]
+        if system_name not in self.stations_around:
+            return httpx.Response(400, json={"error": "System not found"})
+
+        filters = body["filters"]
+        biggest_distance = float(filters["distance"]["max"])
+        asked_services = [service["name"] for service in filters.get("services", [])]
+        left_out_types = filters["type"]["value"]
+        assert filters["type"]["logic"] == "NOT"
+        found = [
+            station
+            for station in self.stations_around[system_name]
+            if station["distance"] <= biggest_distance
+            and station["type"] not in left_out_types
+            and all(service in station["services"] for service in asked_services)
+        ]
+        found.sort(key=lambda station: station["distance"])
+        return httpx.Response(
+            200,
+            json={
+                "reference": {"name": system_name},
+                "count": len(found),
+                "results": found[: body["size"]],
+            },
+        )
+
+
 class FakeMouseButton(enum.Enum):
     """The mouse buttons of pynput, named the same way: str() gives 'Button.x1'"""
 
@@ -878,6 +944,15 @@ class EdCelesteTestEnvironment:
             transport=httpx.MockTransport(fake_edsm.answer)
         )
         return fake_edsm
+
+    def use_fake_spansh(self) -> FakeSpansh:
+        # Same as the EDSM fake: the tools already exist, so their HTTP client
+        # is replaced on the tools themselves
+        fake_spansh = FakeSpansh()
+        self.container.spansh_tools().client_factory = lambda: httpx.AsyncClient(
+            transport=httpx.MockTransport(fake_spansh.answer)
+        )
+        return fake_spansh
 
     def turn_instinct_on(self) -> FakeInstinctModel:
         # The model counts as downloaded and loaded: no Hub, no download, no
