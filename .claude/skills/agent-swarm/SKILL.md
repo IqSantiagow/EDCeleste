@@ -41,10 +41,6 @@ itself. Nine testers at once is the top: do not split an area into more.
    an earlier swarm is deleted first. Check that `/tests/e2e/swarm` is in `.gitignore`, add it if not.
 3. Run `python -m pytest tests/e2e` once. If it is red, stop and tell the user: a swarm on
    a red base only finds noise. Do not go on without their answer.
-4. Check for the remote runner: are the `mcp__edceleste-runner__*` tools connected? The testers
-   follow the section "Run them" of `.claude/agents/e2e-test-writer.md` (runner when connected,
-   local otherwise). The runner runs one job at a time, so with it the swarm is slower but
-   does not load this machine.
 
 ## Step 3 — Release the swarm
 

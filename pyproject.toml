@@ -69,10 +69,6 @@ test = [
     "mypy==2.4.1",
     "pytest==9.2.0",
 ]
-# mutmut runs only on Linux/macOS (it needs fork); on Windows use mutation_testing/run_in_docker.sh
-mutation = [
-    "mutmut==3.8.1",
-]
 dev = [
     "aiohttp-jinja2==1.6",
     "ast_serialize==0.13.1",
@@ -127,14 +123,6 @@ ignore_missing_imports = true
 # A copy of another project, kept unchanged (see src/pocket_tts_onnx/VENDORED.md)
 module = ["pocket_tts_onnx", "pocket_tts_onnx.*"]
 ignore_errors = true
-
-[tool.mutmut]
-source_paths = ["src/edceleste/"]
-pytest_add_cli_args_test_selection = ["tests/"]
-# Same parts as skipped by coverage: the UI is not unit tested
-do_not_mutate = ["src/edceleste/ui/*", "src/edceleste/__main__.py"]
-# A changed log message is not a bug, so mutants of logger calls are only noise
-do_not_mutate_patterns = ['logger[.]']
 
 [tool.coverage.run]
 # Only our package: compiled dependency_injector reports its code under a

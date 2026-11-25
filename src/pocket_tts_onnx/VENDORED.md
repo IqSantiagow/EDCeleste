@@ -10,8 +10,8 @@ which runs Kyutai's Pocket TTS on ONNX Runtime without torch.
   byte for byte. The exporter (`export/`) is left out, it needs torch.
 
 Do not edit these files. To update, copy the files of a newer commit over them
-and change the commit above. They are left out of ruff, mypy, coverage and
-mutation tests (see `pyproject.toml`). The app uses only `PocketTTS` through
+and change the commit above. They are left out of ruff, mypy and coverage
+(see `pyproject.toml`). The app uses only `PocketTTS` through
 `edceleste/services/tts_providers/pocket_tts_provider.py`, which downloads a
 fixed revision of the model itself, so `hub.py`, `g2p.py` and the Hebrew and
 phoneme code stay unused.
