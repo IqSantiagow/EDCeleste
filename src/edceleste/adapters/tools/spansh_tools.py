@@ -9,11 +9,16 @@ from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.services.settings_service import SettingsService
 
 STATION_SEARCH_URL = "https://spansh.co.uk/api/stations/search"
+SYSTEM_SEARCH_URL = "https://spansh.co.uk/api/systems/search"
 USER_AGENT = "EDCeleste"
 TIMEOUT = 10
 MAX_STATIONS_SHOWN = 5
 # More than MAX_STATIONS_SHOWN, because junk entries are dropped after the search.
 STATIONS_ASKED_FOR = 20
+# A short list keeps a long answer out of the conversation history.
+MAX_SYSTEMS_SHOWN = 10
+# More than MAX_SYSTEMS_SHOWN, because junk entries are dropped after the search.
+SYSTEMS_ASKED_FOR = 20
 FLEET_CARRIER_TYPE = "Drake-Class Carrier"
 # Lower-case names of systems that only hold junk entries. Their stations are
 # dropped from the answer.
@@ -79,22 +84,18 @@ class SpanshTools:
         self.settings_service = settings_service
         self.game_state_protocol = game_state_protocol
 
-    async def _fetch_stations_from_spansh(
+    async def _fetch_raw_station_search_answer(
         self, from_system: str, max_distance_ly: float, services: list[str]
     ) -> dict[str, Any]:
-        """One POST to the Spansh station search (network, no retry, TIMEOUT
-        seconds). Sends only the system name, the radius and the service names:
-        stations nearest first, fleet carriers excluded, every service in
-        services required (one filter entry per service). Asks for
-        STATIONS_ASKED_FOR stations, more than the pilot gets, because the
-        caller drops junk systems afterwards. The User-Agent is set here, the
-        http client is closed after the call.
+        """One search at the Spansh station search (see
+        _post_search_to_spansh for the network part and the errors). Sends only
+        the system name, the radius and the service names: stations nearest
+        first, fleet carriers excluded, every service in services required (one
+        filter entry per service). Asks for STATIONS_ASKED_FOR stations, more
+        than the pilot gets, because the caller drops junk systems afterwards.
         Returns the JSON answer of Spansh as it is: "reference" (with the name
         of the searched system as Spansh spells it) and "results" (the
-        stations, nearest first, an empty list when none is in range).
-        Raises httpx errors (timeout, no network, error status) and ValueError
-        for an unknown system (Spansh answers it with HTTP 400) and for an
-        answer that is not JSON."""
+        stations, nearest first, an empty list when none is in range)."""
         filters: dict[str, Any] = {
             "distance": {"min": "0", "max": str(max_distance_ly)},
             "type": {"value": [FLEET_CARRIER_TYPE], "logic": "NOT"},
@@ -108,17 +109,63 @@ class SpanshTools:
             "page": 0,
             "reference_system": from_system,
         }
+        return await self._post_search_to_spansh(STATION_SEARCH_URL, body)
 
+    async def _fetch_raw_system_search_answer(
+        self, from_system: str, max_distance_ly: float, controlling_faction: str
+    ) -> dict[str, Any]:
+        """One search at the Spansh system search (see _post_search_to_spansh
+        for the network part and the errors). Sends only the system name, the
+        radius and the faction name: systems nearest first, and when
+        controlling_faction is not empty only the systems that faction
+        controls (Spansh matches the name exactly, letter case too). An empty
+        controlling_faction is no filter. Asks for SYSTEMS_ASKED_FOR systems,
+        more than the pilot gets, because the caller drops junk systems
+        afterwards.
+        Returns the JSON answer of Spansh as it is: "count" (all matching
+        systems, also those past this page), "reference" (with the name of the
+        searched system as Spansh spells it) and "results" (the systems,
+        nearest first, the searched system itself included, an empty list
+        when none matches)."""
+        filters: dict[str, Any] = {
+            "distance": {"min": "0", "max": str(max_distance_ly)},
+        }
+        if controlling_faction:
+            filters["controlling_minor_faction"] = {"value": [controlling_faction]}
+        body = {
+            "filters": filters,
+            "sort": [{"distance": {"direction": "asc"}}],
+            "size": SYSTEMS_ASKED_FOR,
+            "page": 0,
+            "reference_system": from_system,
+        }
+        return await self._post_search_to_spansh(SYSTEM_SEARCH_URL, body)
+
+    async def _post_search_to_spansh(
+        self, url: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """One POST of body as JSON to a Spansh search url (network, no retry,
+        TIMEOUT seconds). The User-Agent is set here. A new http client is
+        made for the call and closed after it, also when it fails.
+        Returns the JSON answer as it is, its shape is not checked.
+        Raises:
+        - ValueError "System '<body["reference_system"]>' not found" for every
+          HTTP 400 (that is how Spansh answers an unknown system),
+        - httpx.HTTPStatusError for any other 4xx or 5xx status,
+        - httpx.TimeoutException when Spansh does not answer in time, other
+          httpx.HTTPError (for example ConnectError) when there is no network,
+        - ValueError "Spansh returned an invalid response" for an answer that
+          is not JSON."""
         async with self.client_factory() as client:
             response = await client.post(
-                STATION_SEARCH_URL,
+                url,
                 json=body,
                 headers={"User-Agent": USER_AGENT},
                 timeout=TIMEOUT,
             )
 
         if response.status_code == 400:
-            raise ValueError(f"System '{from_system}' not found")
+            raise ValueError(f"System '{body['reference_system']}' not found")
         response.raise_for_status()
 
         try:
@@ -235,7 +282,7 @@ class SpanshTools:
         async def look_up_stations() -> dict[str, Any]:
             system_name = self._name_or_current_system(from_system)
             spelled_services = self._spell_services_or_raise_if_unknown(services or [])
-            answer = await self._fetch_stations_from_spansh(
+            answer = await self._fetch_raw_station_search_answer(
                 system_name, max_distance_ly, spelled_services
             )
             stations = [
@@ -249,6 +296,60 @@ class SpanshTools:
             }
 
         return await self._run_lookup_if_enabled_or_return_error(look_up_stations)
+
+    @tr.register_tool(
+        name="find_systems",
+        readable_name="Find Systems",
+        param_name="from_system, max_distance_ly, faction",
+    )
+    async def find_systems(
+        self,
+        from_system: str = "",
+        max_distance_ly: float = 50,
+        faction: str = "",
+    ) -> ToolReturn:
+        """Find the star systems around a star system, from outside data: use
+        it for "which systems are within 20 light years of here" or "where is
+        the nearest system of the faction X". Leave from_system empty to search
+        around the system the pilot is in now. max_distance_ly is the search
+        radius in light years; for a faction use a large one, for example 1000,
+        because its systems can be far away. faction is the exact name of a
+        minor faction, letter case included (for example "Mother Gaia"); with
+        it only the systems that faction controls are listed, leave it empty to
+        list all systems.
+        Answers with a dict of "from_system" (as Spansh spells it), "systems":
+        at most the 10 nearest systems (the junk system "Test" left out),
+        nearest first, each with name and distance_ly (the searched system
+        itself is there too, at 0 ly, but with a faction only when that faction
+        controls it), and "systems_left_out": how many more systems match but
+        are not listed (all matches Spansh counted, minus the ones it sent,
+        plus the ones sent but cut by the limit of 10; a dropped "Test" is not
+        counted, so it is never below 0). An empty systems list is not an
+        error: nothing is within the radius, or no faction has exactly that
+        name. Answers with an error text when lookups are switched off, the
+        current system is not known yet, the system is unknown, or Spansh does
+        not answer."""
+
+        async def look_up_systems() -> dict[str, Any]:
+            system_name = self._name_or_current_system(from_system)
+            answer = await self._fetch_raw_system_search_answer(
+                system_name, max_distance_ly, faction
+            )
+            systems_without_junk = [
+                {"name": system["name"], "distance_ly": round(system["distance"], 2)}
+                for system in answer["results"]
+                if system["name"].lower() not in JUNK_SYSTEM_NAMES
+            ]
+            systems_shown = systems_without_junk[:MAX_SYSTEMS_SHOWN]
+            systems_past_this_page = answer["count"] - len(answer["results"])
+            systems_cut_from_this_page = len(systems_without_junk) - len(systems_shown)
+            return {
+                "from_system": answer["reference"]["name"],
+                "systems": systems_shown,
+                "systems_left_out": systems_past_this_page + systems_cut_from_this_page,
+            }
+
+        return await self._run_lookup_if_enabled_or_return_error(look_up_systems)
 
     @staticmethod
     def _pick_station_fields_for_pilot(station: dict[str, Any]) -> dict[str, Any]:
