@@ -25,10 +25,6 @@ coverage report -m
 
 # Run a single test file
 python -m pytest tests/services/journal/test_journal_watcher.py
-
-# Mutation tests (mutmut needs Linux; on Windows this runs in Docker, report in mutation_testing/report/)
-bash mutation_testing/run_in_docker.sh src/edceleste/services/event_bus.py   # given files
-bash mutation_testing/run_in_docker.sh                                       # whole project, ~30 min
 ```
 
 > **Note:** Always activate the virtualenv before running any of these commands — nothing is installed globally.
@@ -40,14 +36,9 @@ bash mutation_testing/run_in_docker.sh                                       # w
 The CI pipelines have a built-in Allure report of the test results, published from `main` to
 https://iqsantiagow.github.io/EDCeleste/. The e2e conventions that feed it live in the `e2e-test-writer` agent.
 
-The mutation tests and the e2e tests of the pipeline run on a remote runner (a VPS) when the
-`edceleste-runner` MCP connector is connected, otherwise on this machine. The two subagents pick
-by themselves. They send the working copy with `bash mutation_testing/send_code.sh`, which needs
-`RUNNER_URL` (with the port, e.g. `http://100.x.y.z:8765`) and `RUNNER_TOKEN` in the environment.
-
 ## Pipeline of a feature or a bug fix
 
-Go through the steps in order. Do not call the work done before step 6 is done.
+Go through the steps in order. Do not call the work done before step 4 is done.
 
 1. **Implement** the feature or the fix. For a bug, first make it fail in the form closest to how the user
    meets it (a failing test, or a run of the real flow) and say what you saw; the issue text is a lead, not a

@@ -19,8 +19,6 @@ LOG.md
 /dist
 /build
 /.dev-data
-/mutants
-/mutation_testing/report
 /allure-results
 /allure-report
 /signature_check/stripped
