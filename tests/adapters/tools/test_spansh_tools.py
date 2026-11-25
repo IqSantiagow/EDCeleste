@@ -37,9 +37,23 @@ def make_station(
     }
 
 
+def make_system(name: str, distance: float = 5.0, **extra: Any) -> dict[str, Any]:
+    """A system as the Spansh system search lists it, with the fields the tool
+    reads plus a few it must ignore."""
+    return {
+        "name": name,
+        "distance": distance,
+        "population": 1000,
+        "controlling_minor_faction": "Mother Gaia",
+        **extra,
+    }
+
+
 class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.found_stations: list[dict[str, Any]] = [make_station("Near Port")]
+        self.found_systems: list[dict[str, Any]] = [make_system("Alpha Centauri")]
+        self.systems_count: int | None = None
         self.unknown_systems: set[str] = set()
         self.reference_spellings: dict[str, str] = {}
         self.sent_requests: list[httpx.Request] = []
@@ -70,8 +84,10 @@ class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
         )
 
     def respond(self, request: httpx.Request) -> httpx.Response:
-        """Answers like Spansh: the stations the test gave, HTTP 400 for a
-        system it does not know, or the trouble the test switched on."""
+        """Answers like Spansh: the stations or (for the system search) the
+        systems the test gave, HTTP 400 for a system it does not know, or the
+        trouble the test switched on. count is systems_count when the test set
+        it, else the number of listed results."""
         if self.transport_error is not None:
             raise self.transport_error
         self.sent_requests.append(request)
@@ -83,12 +99,18 @@ class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
         if reference_system in self.unknown_systems:
             return httpx.Response(400, json={"error": "Invalid request"})
         spelled_name = self.reference_spellings.get(reference_system, reference_system)
+        if request.url.path == "/api/systems/search":
+            results = self.found_systems
+            count = self.systems_count
+        else:
+            results = self.found_stations
+            count = None
         return httpx.Response(
             200,
             json={
-                "count": len(self.found_stations),
+                "count": len(results) if count is None else count,
                 "reference": {"name": spelled_name},
-                "results": self.found_stations,
+                "results": results,
             },
         )
 
@@ -369,6 +391,178 @@ class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(self.clients), 2)
         self.assertTrue(all(client.is_closed for client in self.clients))
+
+    async def test_find_systems_should_list_system_names_with_rounded_distances(self):
+        self.found_systems = [make_system("Sirius", distance=8.58874854460765)]
+
+        result = await self.tools.find_systems("Sol", 10)
+
+        self.assertFalse(result.metadata["is_error"])
+        self.assertEqual(
+            result.return_value,
+            {
+                "from_system": "Sol",
+                "systems": [{"name": "Sirius", "distance_ly": 8.59}],
+                "systems_left_out": 0,
+            },
+        )
+
+    async def test_find_systems_should_show_at_most_ten_systems_nearest_first(self):
+        self.found_systems = [
+            make_system(f"System {number}", distance=float(number))
+            for number in range(1, 16)
+        ]
+
+        result = await self.tools.find_systems("Sol", 50)
+
+        shown_names = [system["name"] for system in result.return_value["systems"]]
+        self.assertEqual(shown_names, [f"System {number}" for number in range(1, 11)])
+        self.assertEqual(result.return_value["systems_left_out"], 5)
+
+    async def test_find_systems_should_count_the_systems_left_out_of_the_list(self):
+        self.found_systems = [
+            make_system(f"System {number}", distance=float(number))
+            for number in range(1, 21)
+        ]
+        self.systems_count = 430
+
+        result = await self.tools.find_systems("Sol", 1000)
+
+        self.assertEqual(len(result.return_value["systems"]), 10)
+        self.assertEqual(result.return_value["systems_left_out"], 420)
+
+    async def test_find_systems_should_drop_the_test_system_without_counting_it(
+        self,
+    ):
+        self.found_systems = [
+            make_system("Sol", distance=0.0),
+            make_system("Test", distance=1.0),
+            make_system("Alpha Centauri", distance=4.38),
+            make_system("Barnard's Star", distance=5.95),
+            make_system("Luhman 16", distance=6.57),
+        ]
+
+        result = await self.tools.find_systems("Sol", 10)
+
+        shown_names = [system["name"] for system in result.return_value["systems"]]
+        self.assertEqual(
+            shown_names, ["Sol", "Alpha Centauri", "Barnard's Star", "Luhman 16"]
+        )
+        self.assertEqual(result.return_value["systems_left_out"], 0)
+
+    async def test_find_systems_should_return_empty_list_without_error_when_no_match(
+        self,
+    ):
+        self.found_systems = []
+
+        result = await self.tools.find_systems("Sol", 5, "No Such Faction")
+
+        self.assertFalse(result.metadata["is_error"])
+        self.assertEqual(result.return_value["systems"], [])
+        self.assertEqual(result.return_value["systems_left_out"], 0)
+
+    async def test_find_systems_should_send_only_system_and_radius_without_faction(
+        self,
+    ):
+        await self.tools.find_systems("Sol", 20)
+
+        body = self.sent_body()
+        self.assertEqual(
+            str(self.sent_requests[0].url), "https://spansh.co.uk/api/systems/search"
+        )
+        self.assertEqual(
+            set(body), {"filters", "sort", "size", "page", "reference_system"}
+        )
+        self.assertEqual(body["filters"], {"distance": {"min": "0", "max": "20"}})
+        self.assertEqual(body["reference_system"], "Sol")
+        self.assertEqual(self.sent_requests[0].headers["User-Agent"], "EDCeleste")
+
+    async def test_find_systems_should_send_the_faction_as_a_controlling_faction_filter(
+        self,
+    ):
+        await self.tools.find_systems("Sol", 1000, "Mother Gaia")
+
+        filters = self.sent_body()["filters"]
+        self.assertEqual(
+            filters["controlling_minor_faction"], {"value": ["Mother Gaia"]}
+        )
+        self.assertEqual(filters["distance"], {"min": "0", "max": "1000"})
+
+    async def test_find_systems_should_ask_spansh_for_the_nearest_systems_first(self):
+        await self.tools.find_systems("Sol", 20)
+
+        self.assertEqual(self.sent_body()["sort"], [{"distance": {"direction": "asc"}}])
+
+    async def test_find_systems_should_search_fifty_light_years_when_no_radius_given(
+        self,
+    ):
+        await self.tools.find_systems("Sol")
+
+        self.assertEqual(
+            self.sent_body()["filters"]["distance"], {"min": "0", "max": "50"}
+        )
+
+    async def test_find_systems_should_use_the_current_system_when_from_system_is_empty(
+        self,
+    ):
+        self.current_star_system = "Alpha Centauri"
+
+        result = await self.tools.find_systems("")
+
+        self.assertEqual(self.sent_body()["reference_system"], "Alpha Centauri")
+        self.assertEqual(result.return_value["from_system"], "Alpha Centauri")
+
+    async def test_find_systems_should_not_send_a_request_when_no_current_system(
+        self,
+    ):
+        self.current_star_system = ""
+
+        result = await self.tools.find_systems("")
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertIn("current system", result.return_value)
+        self.assertEqual(self.sent_requests, [])
+
+    async def test_find_systems_should_name_the_system_when_spansh_answers_400(self):
+        self.unknown_systems = {"Nowhere"}
+
+        result = await self.tools.find_systems("Nowhere", 10)
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(result.return_value, "System 'Nowhere' not found")
+
+    async def test_find_systems_should_return_error_when_spansh_does_not_answer_in_time(
+        self,
+    ):
+        self.transport_error = httpx.ReadTimeout("too slow")
+
+        result = await self.tools.find_systems("Sol", 10)
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(result.return_value, "Spansh did not answer in time.")
+
+    async def test_find_systems_should_return_error_without_request_when_switch_is_off(
+        self,
+    ):
+        self.external_apis_enabled = False
+
+        result = await self.tools.find_systems("Sol", 10, "Mother Gaia")
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertEqual(
+            result.return_value, "Outside lookups are disabled by the user."
+        )
+        self.assertEqual(self.clients, [])
+        self.assertEqual(self.sent_requests, [])
+
+    async def test_find_systems_should_answer_with_the_system_name_as_spansh_spells_it(
+        self,
+    ):
+        self.reference_spellings = {"colonia": "Colonia"}
+
+        result = await self.tools.find_systems("colonia", 10)
+
+        self.assertEqual(result.return_value["from_system"], "Colonia")
 
 
 if __name__ == "__main__":

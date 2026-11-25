@@ -455,13 +455,17 @@ class FakeSpansh:
     the stations the test gave it, around each system. Like Spansh it keeps
     only the stations inside the radius and with every asked service, drops
     the types the search says NOT, puts the nearest first, and answers HTTP
-    400 for a system it does not know. An unknown service finds nothing. It
-    remembers every request that reached it. A test can make it time out, be
-    unreachable or answer with an error code"""
+    400 for a system it does not know. An unknown service finds nothing. The
+    system search answers the same way from the systems the test gave it,
+    keeps only the systems of the asked faction (exact name), and counts all
+    matches, also those past the asked size. It remembers every request that
+    reached it. A test can make it time out, be unreachable or answer with an
+    error code"""
 
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
         self.stations_around: dict[str, list[dict]] = {}
+        self.systems_around: dict[str, list[dict]] = {}
         self.error_status_code: int | None = None
         self.is_timing_out = False
         self.is_unreachable = False
@@ -488,6 +492,9 @@ class FakeSpansh:
             return httpx.Response(self.error_status_code, request=request)
 
         body = json.loads(request.content)
+        if request.url.path == "/api/systems/search":
+            return self.answer_system_search(body)
+
         system_name = body["reference_system"]
         if system_name not in self.stations_around:
             return httpx.Response(400, json={"error": "System not found"})
@@ -505,6 +512,33 @@ class FakeSpansh:
             and all(service in station["services"] for service in asked_services)
         ]
         found.sort(key=lambda station: station["distance"])
+        return httpx.Response(
+            200,
+            json={
+                "reference": {"name": system_name},
+                "count": len(found),
+                "results": found[: body["size"]],
+            },
+        )
+
+    def answer_system_search(self, body: dict) -> httpx.Response:
+        system_name = body["reference_system"]
+        if system_name not in self.systems_around:
+            return httpx.Response(400, json={"error": "System not found"})
+
+        filters = body["filters"]
+        biggest_distance = float(filters["distance"]["max"])
+        asked_factions = filters.get("controlling_minor_faction", {}).get("value")
+        found = [
+            system
+            for system in self.systems_around[system_name]
+            if system["distance"] <= biggest_distance
+            and (
+                asked_factions is None
+                or system.get("controlling_minor_faction") in asked_factions
+            )
+        ]
+        found.sort(key=lambda system: system["distance"])
         return httpx.Response(
             200,
             json={
