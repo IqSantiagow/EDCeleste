@@ -26,7 +26,7 @@ User/runtime settings, loaded via `services/settings_service.py` (`SettingsServi
 - `stt.enabled` / `stt.model` / `stt.input_device`
 - `event_reactions.reactions` — per-journal-event booleans for automatic replies
 - `game_actions.enabled` — safety toggle for the `PerformGameAction` tool (default `false`)
-- `external_apis.enabled` — switch for the LLM tools that look up data on outside websites (EDSM, Spansh); only system names, faction names, service names and the search radius are sent, read on every call (default `false`)
+- `external_apis.enabled` — switch for the LLM tools that look up data on outside websites (EDSM, Spansh); only system names, faction names, service, module and ship names (with module class and rating) and the search radius are sent, read on every call (default `false`)
 
 ## Loading
 

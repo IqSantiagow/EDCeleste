@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 
 import allure
 import pytest
@@ -503,3 +504,472 @@ async def test_should_tell_the_commander_when_spansh_has_trouble(
                 "Celeste's second reply in COMMS",
             )
             assert celestes_last_reply(pilot.app) == what_celeste_says
+
+
+def spansh_time_days_ago(days: int) -> str:
+    # The extra hour keeps the whole number of days the same during the test
+    moment = datetime.now(UTC) - timedelta(days=days, hours=1)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def spansh_module(name: str, module_class: int, rating: str) -> dict:
+    return {"name": name, "class": module_class, "rating": rating}
+
+
+def outfitting_station(
+    name: str, distance: float, modules: list[dict], data_age_days: int = 3
+) -> dict:
+    return {
+        "name": name,
+        "system_name": "Sol" if distance == 0 else "Alpha Centauri",
+        "distance": distance,
+        "distance_to_arrival": 100,
+        "type": "Coriolis Starport",
+        "services": ["Dock", "Outfitting"],
+        "modules": modules,
+        "outfitting_updated_at": spansh_time_days_ago(data_age_days),
+    }
+
+
+def shipyard_station(
+    name: str,
+    distance: float,
+    ships: list[str],
+    services: list[str],
+    shipyard_updated_at: str | None,
+) -> dict:
+    return {
+        "name": name,
+        "system_name": "Sol",
+        "distance": distance,
+        "distance_to_arrival": 100,
+        "type": "Coriolis Starport",
+        "services": ["Dock", *services],
+        "ships": [{"name": ship} for ship in ships],
+        "shipyard_updated_at": shipyard_updated_at,
+    }
+
+
+FSD_5A = spansh_module("Frame Shift Drive", 5, "A")
+FSD_5C = spansh_module("Frame Shift Drive", 5, "C")
+THRUSTERS_4D = spansh_module("Thrusters", 4, "D")
+
+
+def assert_only_a_system_name_a_radius_and_names_to_buy_were_sent(body: dict) -> None:
+    assert set(body) == {"filters", "sort", "size", "page", "reference_system"}
+    assert set(body["filters"]) <= {"distance", "type", "services", "modules", "ships"}
+    assert set(body["filters"]["distance"]) == {"min", "max"}
+    for module in body["filters"].get("modules", []):
+        assert set(module) <= {"name", "class", "rating"}
+    for ship in body["filters"].get("ships", []):
+        assert set(ship) == {"name"}
+
+
+@allure.title(
+    "Celeste finds where to buy a 5A frame shift drive, nearest first, "
+    "with the age of the data"
+)
+async def test_should_find_where_to_buy_a_module_nearest_first_with_data_age(
+    edceleste,
+):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step(
+        "And Spansh knows a station selling a 5A frame shift drive, a farther one "
+        "seen 400 days ago and one selling only a 5C drive"
+    ):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            outfitting_station("Old Outfitter", 4.3812, [FSD_5A], data_age_days=400),
+            outfitting_station("Wrong Rating", 0.0, [FSD_5C, THRUSTERS_4D]),
+            outfitting_station("Fresh Outfitter", 0.0, [FSD_5C, FSD_5A]),
+        ]
+
+    with allure.step(
+        "And the LLM searches for a 5A frame shift drive near Sol, written in "
+        "small letters, and repeats what the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [
+                    (
+                        "find_stations",
+                        '{"from_system": "Sol", "modules": '
+                        '[{"name": "frame shift drive", "class": 5, "rating": "a"}]}',
+                    )
+                ]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(
+            "When the Commander asks where to buy a 5A frame shift drive near Sol"
+        ):
+            await ask_and_wait_for_celestes_reply(
+                edceleste, pilot, "Where can I buy a 5A frame shift drive near Sol?"
+            )
+
+        with allure.step("Then COMMS lists both stations selling it, nearest first"):
+            answer = json.loads(celestes_last_reply(pilot.app))
+            assert answer["from_system"] == "Sol"
+            assert station_names(answer) == ["Fresh Outfitter", "Old Outfitter"]
+
+        with allure.step(
+            "And COMMS shows how many days ago each outfitting was seen, the old "
+            "one too"
+        ):
+            assert [s["outfitting_data_age_days"] for s in answer["stations"]] == [
+                3,
+                400,
+            ]
+
+        with allure.step("And the station selling only a 5C drive is left out"):
+            assert "Wrong Rating" not in celestes_last_reply(pilot.app)
+
+        with allure.step(
+            "And Spansh was asked once, only for the module as Spansh spells it"
+        ):
+            assert len(fake_spansh.requests) == 1
+            body = fake_spansh.sent_bodies()[0]
+            assert body["reference_system"] == "Sol"
+            assert_only_a_system_name_a_radius_and_names_to_buy_were_sent(body)
+            assert body["filters"]["modules"] == [
+                {
+                    "name": {"value": ["Frame Shift Drive"]},
+                    "class": {"value": ["5"]},
+                    "rating": {"value": ["A"]},
+                }
+            ]
+
+
+@allure.title(
+    "Asking for a 5A frame shift drive and a 4D thruster shows only stations "
+    "that sell both"
+)
+async def test_should_show_only_stations_that_sell_both_asked_modules(edceleste):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step(
+        "And Spansh knows one station selling both modules and two selling only one"
+    ):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            outfitting_station("Drive Only", 0.0, [FSD_5A]),
+            outfitting_station("Thrusters Only", 1.0, [THRUSTERS_4D]),
+            outfitting_station("Both Modules", 2.0, [THRUSTERS_4D, FSD_5A]),
+        ]
+
+    with allure.step(
+        "And the LLM searches for both modules near Sol and repeats what the "
+        "tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [
+                    (
+                        "find_stations",
+                        '{"from_system": "Sol", "modules": ['
+                        '{"name": "Frame Shift Drive", "class": 5, "rating": "A"}, '
+                        '{"name": "Thrusters", "class": 4, "rating": "D"}]}',
+                    )
+                ]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(
+            "When the Commander asks where to buy a 5A frame shift drive and a "
+            "4D thruster"
+        ):
+            await ask_and_wait_for_celestes_reply(
+                edceleste,
+                pilot,
+                "Where can I buy a 5A frame shift drive and a 4D thruster?",
+            )
+
+        with allure.step("Then COMMS lists only the station selling both"):
+            answer = json.loads(celestes_last_reply(pilot.app))
+            assert station_names(answer) == ["Both Modules"]
+
+
+@allure.title("Celeste names the stations that sell a ship nearby")
+async def test_should_name_the_stations_that_sell_a_ship_nearby(edceleste):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step(
+        "And Spansh knows two stations selling an Anaconda, one of them with no "
+        "shipyard time, and one selling other ships"
+    ):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            shipyard_station("Small Ships", 0.0, ["Sidewinder", "Hauler"], [], None),
+            shipyard_station(
+                "Big Yard", 1.0, ["Anaconda", "Python"], [], spansh_time_days_ago(2)
+            ),
+            shipyard_station("Unknown Age Yard", 3.0, ["Anaconda"], [], None),
+        ]
+
+    with allure.step(
+        "And the LLM searches for an Anaconda near Sol, written in small letters, "
+        "and repeats what the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [("find_stations", '{"from_system": "Sol", "ships": ["anaconda"]}')]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander asks where to buy an Anaconda"):
+            await ask_and_wait_for_celestes_reply(
+                edceleste, pilot, "Where can I buy an Anaconda?"
+            )
+
+        with allure.step("Then COMMS lists both stations selling it, nearest first"):
+            answer = json.loads(celestes_last_reply(pilot.app))
+            assert station_names(answer) == ["Big Yard", "Unknown Age Yard"]
+
+        with allure.step(
+            "And COMMS shows how many days ago each shipyard was seen, unknown "
+            "when Spansh does not say"
+        ):
+            assert [s["shipyard_data_age_days"] for s in answer["stations"]] == [
+                2,
+                None,
+            ]
+
+        with allure.step("And Spansh was asked for the ship as Spansh spells it"):
+            body = fake_spansh.sent_bodies()[0]
+            assert_only_a_system_name_a_radius_and_names_to_buy_were_sent(body)
+            assert body["filters"]["ships"] == [{"name": {"value": ["Anaconda"]}}]
+
+
+@allure.title(
+    "Asking for repair and an Anaconda in one question shows only stations "
+    "that have both"
+)
+async def test_should_show_only_stations_with_the_asked_service_and_ship(edceleste):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step(
+        "And Spansh knows one station with repair and an Anaconda, one with only "
+        "repair and one with only the Anaconda"
+    ):
+        fake_spansh = edceleste.use_fake_spansh()
+        one_day_ago = spansh_time_days_ago(1)
+        fake_spansh.stations_around["Sol"] = [
+            shipyard_station(
+                "Repair Only", 0.0, ["Sidewinder"], ["Repair"], one_day_ago
+            ),
+            shipyard_station("Anaconda Only", 1.0, ["Anaconda"], [], one_day_ago),
+            shipyard_station(
+                "Repair And Anaconda", 2.0, ["Anaconda"], ["Repair"], one_day_ago
+            ),
+        ]
+
+    with allure.step(
+        "And the LLM searches for repair and an Anaconda near Sol in one search "
+        "and repeats what the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [
+                    (
+                        "find_stations",
+                        '{"from_system": "Sol", "services": ["Repair"], '
+                        '"ships": ["Anaconda"]}',
+                    )
+                ]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step("When the Commander asks where to repair and buy an Anaconda"):
+            await ask_and_wait_for_celestes_reply(
+                edceleste, pilot, "Where can I repair and buy an Anaconda?"
+            )
+
+        with allure.step("Then COMMS lists only the station with both"):
+            answer = json.loads(celestes_last_reply(pilot.app))
+            assert station_names(answer) == ["Repair And Anaconda"]
+
+        with allure.step("And Spansh was asked once for the service and the ship"):
+            assert len(fake_spansh.requests) == 1
+            body = fake_spansh.sent_bodies()[0]
+            assert_only_a_system_name_a_radius_and_names_to_buy_were_sent(body)
+            assert body["filters"]["services"] == [{"name": "Repair"}]
+            assert body["filters"]["ships"] == [{"name": {"value": ["Anaconda"]}}]
+
+
+@allure.title(
+    "With no station selling the module in range Celeste says nothing was "
+    "found, not an error"
+)
+async def test_should_say_nothing_was_found_when_no_station_in_range_sells_the_module(
+    edceleste,
+):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step(
+        "And the only station selling a 5A frame shift drive is 25 light years from Sol"
+    ):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            outfitting_station("Distant Outfitter", 25.0, [FSD_5A])
+        ]
+
+    with allure.step(
+        "And the LLM searches for a 5A frame shift drive within 10 light years "
+        "of Sol and repeats what the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [
+                    (
+                        "find_stations",
+                        '{"from_system": "Sol", "max_distance_ly": 10, '
+                        '"modules": [{"name": "Frame Shift Drive", "class": 5, '
+                        '"rating": "A"}]}',
+                    )
+                ]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(
+            "When the Commander asks for a 5A frame shift drive within 10 ly"
+        ):
+            await ask_and_wait_for_celestes_reply(
+                edceleste,
+                pilot,
+                "Can I buy a 5A frame shift drive within 10 light years?",
+            )
+
+        with allure.step("Then COMMS shows an empty list of stations"):
+            answer = json.loads(celestes_last_reply(pilot.app))
+            assert answer == {"from_system": "Sol", "stations": []}
+
+
+@pytest.mark.parametrize(
+    ("kind", "tool_arguments", "unknown_name", "close_name"),
+    [
+        (
+            "module",
+            '{"from_system": "Sol", "modules": [{"name": "Frame Shift Driv"}]}',
+            "Frame Shift Driv",
+            "Frame Shift Drive",
+        ),
+        (
+            "ship",
+            '{"from_system": "Sol", "ships": ["Anakonda"]}',
+            "Anakonda",
+            "Anaconda",
+        ),
+    ],
+)
+@allure.title(
+    "A {kind} that does not exist makes Celeste say she does not know it and "
+    "give close names"
+)
+async def test_should_say_an_unknown_name_to_buy_is_unknown_and_give_close_names(
+    edceleste, kind, tool_arguments, unknown_name, close_name
+):
+    with allure.step("Given outside lookups are allowed in the settings"):
+        edceleste.allow_external_apis()
+
+    with allure.step("And Spansh knows stations around Sol"):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            outfitting_station("Fresh Outfitter", 0.0, [FSD_5A])
+        ]
+
+    with allure.step(
+        f"And the LLM searches for a {kind} named {unknown_name} and repeats what "
+        "the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered([("find_stations", tool_arguments)])
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(f"When the Commander asks where to buy {unknown_name}"):
+            await ask_and_wait_for_celestes_reply(
+                edceleste, pilot, f"Where can I buy a {unknown_name}?"
+            )
+
+        with allure.step(f"Then COMMS says the {kind} {unknown_name} is unknown"):
+            reply = celestes_last_reply(pilot.app)
+            assert f"Unknown {kind}: '{unknown_name}'" in reply
+
+        with allure.step(f"And COMMS names {close_name} as a close name"):
+            assert f"closest: {close_name}" in reply
+
+        with allure.step("And Spansh was not asked anything"):
+            assert fake_spansh.requests == []
+
+
+@allure.title(
+    "With lookups off a module or ship search says lookups are disabled and "
+    "nothing is sent"
+)
+async def test_should_say_lookups_are_disabled_for_a_module_or_ship_search_when_off(
+    edceleste,
+):
+    with allure.step("Given outside lookups are off, as they are by default"):
+        fake_spansh = edceleste.use_fake_spansh()
+        fake_spansh.stations_around["Sol"] = [
+            outfitting_station("Fresh Outfitter", 0.0, [FSD_5A])
+        ]
+
+    with allure.step(
+        "And the LLM searches for a 5A frame shift drive and an Anaconda near Sol "
+        "and repeats what the tool answers"
+    ):
+        edceleste.use_scripted_model(
+            call_tools_then_tell_what_they_answered(
+                [
+                    (
+                        "find_stations",
+                        '{"from_system": "Sol", "modules": [{"name": '
+                        '"Frame Shift Drive", "class": 5, "rating": "A"}], '
+                        '"ships": ["Anaconda"]}',
+                    )
+                ]
+            )
+        )
+
+    async with edceleste.run_app() as pilot:
+        await edceleste.boot_to_dashboard(pilot, step_keyword="And")
+
+        with allure.step(
+            "When the Commander asks where to buy a 5A frame shift drive and an "
+            "Anaconda"
+        ):
+            await ask_and_wait_for_celestes_reply(
+                edceleste,
+                pilot,
+                "Where can I buy a 5A frame shift drive and an Anaconda?",
+            )
+
+        with allure.step("Then COMMS says the lookups are disabled"):
+            assert comms_entries(pilot.app, "llm-response") == [LOOKUPS_DISABLED]
+
+        with allure.step("And no request left the computer"):
+            assert fake_spansh.requests == []

@@ -455,7 +455,10 @@ class FakeSpansh:
     the stations the test gave it, around each system. Like Spansh it keeps
     only the stations inside the radius and with every asked service, drops
     the types the search says NOT, puts the nearest first, and answers HTTP
-    400 for a system it does not know. An unknown service finds nothing. The
+    400 for a system it does not know. An unknown service finds nothing. A
+    station is kept for a module or ship search only when its own "modules"
+    list has every asked module (same name, and same class and rating when
+    asked) and its "ships" list every asked ship. The
     system search answers the same way from the systems the test gave it,
     keeps only the systems of the asked faction (exact name), and counts all
     matches, also those past the asked size. It remembers every request that
@@ -510,6 +513,15 @@ class FakeSpansh:
             if station["distance"] <= biggest_distance
             and station["type"] not in left_out_types
             and all(service in station["services"] for service in asked_services)
+            and all(
+                self.sells_module(station, module_filter)
+                for module_filter in filters.get("modules", [])
+            )
+            and all(
+                ship_filter["name"]["value"][0]
+                in [ship["name"] for ship in station.get("ships", [])]
+                for ship_filter in filters.get("ships", [])
+            )
         ]
         found.sort(key=lambda station: station["distance"])
         return httpx.Response(
@@ -520,6 +532,24 @@ class FakeSpansh:
                 "results": found[: body["size"]],
             },
         )
+
+    @staticmethod
+    def sells_module(station: dict, module_filter: dict) -> bool:
+        for module in station.get("modules", []):
+            if module["name"] not in module_filter["name"]["value"]:
+                continue
+            if (
+                "class" in module_filter
+                and str(module["class"]) not in module_filter["class"]["value"]
+            ):
+                continue
+            if (
+                "rating" in module_filter
+                and module["rating"] not in module_filter["rating"]["value"]
+            ):
+                continue
+            return True
+        return False
 
     def answer_system_search(self, body: dict) -> httpx.Response:
         system_name = body["reference_system"]
