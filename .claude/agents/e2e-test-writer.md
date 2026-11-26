@@ -67,17 +67,19 @@ ruff check tests/e2e
 ruff format --diff tests/e2e
 ```
 
-Run the new test file once, then the whole `tests/e2e/` folder once to be sure the new tests
-do not break the others.
+Every run goes over several processes with `-n auto` (`pytest-xdist`, one worker per physical CPU core).
+Each test has its own `tmp_path` and its own app, so the tests do not share anything. Run the new
+test file, then the whole `tests/e2e/` folder to be sure the new tests do not break the others.
 
 ```bash
-python -m pytest tests/e2e/<file>.py
-python -m pytest tests/e2e
+python -m pytest tests/e2e/<file>.py -n auto
+python -m pytest tests/e2e -n auto
 ```
 
-A race shows only in repeated runs. Run each new test file 10 times and the whole `tests/e2e/`
-folder 3 times before you report green. One green run of one test proves nothing. A test that
-fails in some runs is flaky: it is your test to fix, even when the first run passed.
+A race shows only in repeated runs. Run each new test file 3 times and the whole `tests/e2e/`
+folder once before you report green. Run the whole folder a second time only when the first run
+shows a failure. One green run of one test proves nothing. A test that fails in some runs is
+flaky: it is your test to fix, even when the first run passed.
 
 Start a long run in the background (Bash `run_in_background: true`) so it has a PID, and stop it
 only by that PID. Never kill by image or process name (`taskkill /IM python.exe`, `pkill python`,
