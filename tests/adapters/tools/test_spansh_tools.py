@@ -1,11 +1,13 @@
 import json
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import Mock
 
 import httpx
+from pydantic_ai import Tool
 
-from edceleste.adapters.tools.spansh_tools import SpanshTools
+from edceleste.adapters.tools.spansh_tools import ModuleQuery, SpanshTools
 from edceleste.protocols.game_state_protocol import GameStateProtocol
 from edceleste.services.models.settings_model import ExternalApisModel, SettingsModel
 from edceleste.services.settings_service import SettingsService
@@ -47,6 +49,33 @@ def make_system(name: str, distance: float = 5.0, **extra: Any) -> dict[str, Any
         "controlling_minor_faction": "Mother Gaia",
         **extra,
     }
+
+
+def make_module_query(
+    name: str, module_class: int | None = None, rating: str | None = None
+) -> ModuleQuery:
+    """A module as the LLM asks for it, with the class under the key "class"."""
+    return ModuleQuery.model_validate(
+        {"name": name, "class": module_class, "rating": rating}
+    )
+
+
+def make_sold_module(name: str, module_class: int, rating: str) -> dict[str, Any]:
+    """A module as Spansh lists it in the "modules" list of a station."""
+    return {
+        "name": name,
+        "class": module_class,
+        "rating": rating,
+        "category": "standard",
+        "ed_symbol": "Int_Some_Module",
+    }
+
+
+def make_spansh_time_days_ago(days: int) -> str:
+    """A Spansh UTC time ("2026-11-26T11:13:33Z") that many days and one hour
+    before now. The extra hour keeps the whole number of days stable."""
+    moment = datetime.now(UTC) - timedelta(days=days, hours=1)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
@@ -391,6 +420,254 @@ class TestSpanshTools(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(self.clients), 2)
         self.assertTrue(all(client.is_closed for client in self.clients))
+
+    async def test_should_send_one_module_filter_entry_with_class_and_rating(self):
+        await self.tools.find_stations(
+            "Sol",
+            modules=[
+                make_module_query("Frame Shift Drive", 5, "A"),
+                make_module_query("Thrusters", 4, "D"),
+            ],
+        )
+
+        self.assertEqual(
+            self.sent_body()["filters"]["modules"],
+            [
+                {
+                    "name": {"value": ["Frame Shift Drive"]},
+                    "class": {"value": ["5"]},
+                    "rating": {"value": ["A"]},
+                },
+                {
+                    "name": {"value": ["Thrusters"]},
+                    "class": {"value": ["4"]},
+                    "rating": {"value": ["D"]},
+                },
+            ],
+        )
+
+    async def test_should_send_only_the_module_name_when_class_and_rating_are_not_given(
+        self,
+    ):
+        await self.tools.find_stations("Sol", modules=[make_module_query("Fuel Scoop")])
+
+        self.assertEqual(
+            self.sent_body()["filters"]["modules"],
+            [{"name": {"value": ["Fuel Scoop"]}}],
+        )
+
+    async def test_should_spell_module_name_and_rating_like_spansh(self):
+        await self.tools.find_stations(
+            "Sol", modules=[make_module_query("frame shift drive", 5, "a")]
+        )
+
+        module_filter = self.sent_body()["filters"]["modules"][0]
+        self.assertEqual(module_filter["name"], {"value": ["Frame Shift Drive"]})
+        self.assertEqual(module_filter["rating"], {"value": ["A"]})
+
+    async def test_should_send_one_ship_filter_entry_per_ship_together_with_services(
+        self,
+    ):
+        await self.tools.find_stations(
+            "Sol", services=["Repair"], ships=["anaconda", "Type-9 Heavy"]
+        )
+
+        filters = self.sent_body()["filters"]
+        self.assertEqual(filters["services"], [{"name": "Repair"}])
+        self.assertEqual(
+            filters["ships"],
+            [
+                {"name": {"value": ["Anaconda"]}},
+                {"name": {"value": ["Type-9 Heavy"]}},
+            ],
+        )
+
+    async def test_should_leave_modules_and_ships_out_of_the_request_when_none_given(
+        self,
+    ):
+        await self.tools.find_stations("Sol", 50, ["Repair"])
+
+        filters = self.sent_body()["filters"]
+        self.assertNotIn("modules", filters)
+        self.assertNotIn("ships", filters)
+
+    async def test_should_read_class_from_the_field_name_the_llm_sends(self):
+        tool = Tool(self.tools.find_stations, name="find_stations")
+        module_schema = tool.tool_def.parameters_json_schema["$defs"]["ModuleQuery"]
+
+        self.assertIn("class", module_schema["properties"])
+        self.assertEqual(
+            ModuleQuery.model_validate({"name": "Thrusters", "class": 4}).module_class,
+            4,
+        )
+
+    async def test_should_drop_a_station_that_lacks_one_of_the_asked_modules(self):
+        self.found_stations = [
+            make_station(
+                "Wrong Rating Port",
+                distance=3,
+                modules=[
+                    make_sold_module("Frame Shift Drive", 5, "A"),
+                    make_sold_module("Thrusters", 4, "C"),
+                ],
+            ),
+            make_station(
+                "Both Modules Port",
+                distance=6,
+                modules=[
+                    make_sold_module("Frame Shift Drive", 5, "A"),
+                    make_sold_module("Thrusters", 4, "D"),
+                ],
+            ),
+        ]
+
+        result = await self.tools.find_stations(
+            "Sol",
+            modules=[
+                make_module_query("Frame Shift Drive", 5, "A"),
+                make_module_query("Thrusters", 4, "D"),
+            ],
+        )
+
+        self.assertEqual(
+            [station["name"] for station in result.return_value["stations"]],
+            ["Both Modules Port"],
+        )
+
+    async def test_should_drop_a_station_that_sells_the_module_only_in_another_class(
+        self,
+    ):
+        self.found_stations = [
+            make_station(
+                "Class Four Port",
+                distance=3,
+                modules=[make_sold_module("Frame Shift Drive", 4, "A")],
+            ),
+            make_station(
+                "Class Five Port",
+                distance=6,
+                modules=[make_sold_module("Frame Shift Drive", 5, "A")],
+            ),
+        ]
+
+        result = await self.tools.find_stations(
+            "Sol", modules=[make_module_query("Frame Shift Drive", 5, "A")]
+        )
+
+        self.assertEqual(
+            [station["name"] for station in result.return_value["stations"]],
+            ["Class Five Port"],
+        )
+
+    async def test_should_drop_a_station_that_does_not_sell_the_asked_ship(self):
+        self.found_stations = [
+            make_station("Python Yard", distance=3, ships=[{"name": "Python"}]),
+            make_station(
+                "Anaconda Yard",
+                distance=6,
+                ships=[{"name": "Python"}, {"name": "Anaconda"}],
+            ),
+        ]
+
+        result = await self.tools.find_stations("Sol", ships=["Anaconda"])
+
+        self.assertEqual(
+            [station["name"] for station in result.return_value["stations"]],
+            ["Anaconda Yard"],
+        )
+
+    async def test_should_add_outfitting_data_age_in_days_when_modules_were_asked(
+        self,
+    ):
+        self.found_stations = [
+            make_station(
+                "Outfitting Port",
+                modules=[make_sold_module("Fuel Scoop", 3, "A")],
+                outfitting_updated_at=make_spansh_time_days_ago(3),
+                shipyard_updated_at=make_spansh_time_days_ago(9),
+            )
+        ]
+
+        result = await self.tools.find_stations(
+            "Sol", modules=[make_module_query("Fuel Scoop")]
+        )
+
+        station = result.return_value["stations"][0]
+        self.assertEqual(station["outfitting_data_age_days"], 3)
+        self.assertNotIn("shipyard_data_age_days", station)
+
+    async def test_should_add_shipyard_data_age_in_days_when_ships_were_asked(self):
+        self.found_stations = [
+            make_station(
+                "Shipyard Port",
+                ships=[{"name": "Anaconda"}],
+                outfitting_updated_at=make_spansh_time_days_ago(3),
+                shipyard_updated_at=make_spansh_time_days_ago(9),
+            )
+        ]
+
+        result = await self.tools.find_stations("Sol", ships=["Anaconda"])
+
+        station = result.return_value["stations"][0]
+        self.assertEqual(station["shipyard_data_age_days"], 9)
+        self.assertNotIn("outfitting_data_age_days", station)
+
+    async def test_should_add_no_data_age_when_only_services_were_asked(self):
+        self.found_stations = [
+            make_station(
+                "Repair Port",
+                outfitting_updated_at=make_spansh_time_days_ago(3),
+                shipyard_updated_at=make_spansh_time_days_ago(9),
+            )
+        ]
+
+        result = await self.tools.find_stations("Sol", 50, ["Repair"])
+
+        station = result.return_value["stations"][0]
+        self.assertNotIn("outfitting_data_age_days", station)
+        self.assertNotIn("shipyard_data_age_days", station)
+
+    async def test_should_answer_none_as_data_age_when_spansh_gives_no_update_time(
+        self,
+    ):
+        self.found_stations = [
+            make_station(
+                "Unknown Age Port",
+                modules=[make_sold_module("Fuel Scoop", 3, "A")],
+                outfitting_updated_at=None,
+            )
+        ]
+
+        result = await self.tools.find_stations(
+            "Sol", modules=[make_module_query("Fuel Scoop")]
+        )
+
+        self.assertFalse(result.metadata["is_error"])
+        self.assertIsNone(
+            result.return_value["stations"][0]["outfitting_data_age_days"]
+        )
+
+    async def test_should_suggest_closest_names_for_an_unknown_module_without_request(
+        self,
+    ):
+        result = await self.tools.find_stations(
+            "Sol", modules=[make_module_query("Warp Drive", 5, "A")]
+        )
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertIn("Unknown module: 'Warp Drive'", result.return_value)
+        self.assertIn("closest: Frame Shift Drive", result.return_value)
+        self.assertEqual(self.sent_requests, [])
+
+    async def test_should_suggest_closest_names_for_an_unknown_ship_without_request(
+        self,
+    ):
+        result = await self.tools.find_stations("Sol", ships=["Anakonda"])
+
+        self.assertTrue(result.metadata["is_error"])
+        self.assertIn("Unknown ship: 'Anakonda'", result.return_value)
+        self.assertIn("closest: Anaconda", result.return_value)
+        self.assertEqual(self.sent_requests, [])
 
     async def test_find_systems_should_list_system_names_with_rounded_distances(self):
         self.found_systems = [make_system("Sirius", distance=8.58874854460765)]
