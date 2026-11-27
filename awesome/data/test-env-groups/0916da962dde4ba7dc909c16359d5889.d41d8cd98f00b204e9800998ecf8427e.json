@@ -1,0 +1,1 @@
+{"id":"0916da962dde4ba7dc909c16359d5889.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_return_error_when_the_answer_is_not_json","name":"test_should_return_error_when_the_answer_is_not_json","status":"passed","testResultsByEnv":{"default":"2b27366a62f7651aae8c8c53f5abe518"}}

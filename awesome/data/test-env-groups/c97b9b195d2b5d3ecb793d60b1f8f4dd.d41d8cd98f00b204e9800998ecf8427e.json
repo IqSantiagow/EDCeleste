@@ -1,0 +1,1 @@
+{"id":"c97b9b195d2b5d3ecb793d60b1f8f4dd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_refuse_a_missing_journal_path_on_enter","name":"A journal path that does not exist is refused when Enter is pressed","status":"passed","testResultsByEnv":{"default":"fc9c0f28fbd2fb04def611362ab62548"}}

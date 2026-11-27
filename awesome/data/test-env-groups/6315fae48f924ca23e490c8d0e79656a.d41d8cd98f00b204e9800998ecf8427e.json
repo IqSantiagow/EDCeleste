@@ -1,0 +1,1 @@
+{"id":"6315fae48f924ca23e490c8d0e79656a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_find_systems_should_not_send_a_request_when_no_current_system","name":"test_find_systems_should_not_send_a_request_when_no_current_system","status":"passed","testResultsByEnv":{"default":"938fb9e6a18622e5958abfbbbc3c4d61"}}

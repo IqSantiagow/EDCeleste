@@ -1,0 +1,1 @@
+WARNING  asyncio:base_events.py:1994 Executing <Task finished name='Task-461366' coro=<LLMServiceTest.test_cold_start_sets_ok_status_when_the_llm_answers() done, defined at /home/runner/work/EDCeleste/EDCeleste/tests/services/llm/test_llm_service.py:557> result=None created at /opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/asyncio/runners.py:100> took 0.394 seconds

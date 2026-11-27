@@ -1,0 +1,1 @@
+{"id":"373de432f0115bb331f97435e9a75405.e2f7ce64e36cf74ae62c2722f7ab422f","fullName":"tests.e2e.test_ship_replies#test_should_stay_silent_when_a_docking_request_is_cancelled_or_times_out","name":"When the docking request ends with DockingCancelled Celeste stays silent","status":"passed","testResultsByEnv":{"default":"dac5d936d0181935442884d71c95cb3b"}}

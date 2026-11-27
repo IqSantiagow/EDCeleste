@@ -1,0 +1,1 @@
+{"id":"7f2aa7031a53cedd8bebb4baae8f0bf1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_show_only_stations_with_the_asked_service_and_ship","name":"Asking for repair and an Anaconda in one question shows only stations that have both","status":"passed","testResultsByEnv":{"default":"dfca41e86ceb274d837530c77b4d3bb3"}}

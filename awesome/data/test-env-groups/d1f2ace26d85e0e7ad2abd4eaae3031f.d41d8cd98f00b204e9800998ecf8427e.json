@@ -1,0 +1,1 @@
+{"id":"d1f2ace26d85e0e7ad2abd4eaae3031f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_system_search#test_should_list_the_systems_near_the_commander_nearest_first","name":"Celeste lists the systems near the Commander, nearest first, with distances","status":"passed","testResultsByEnv":{"default":"42c10d7a8b4838c81127bffdacb33970"}}

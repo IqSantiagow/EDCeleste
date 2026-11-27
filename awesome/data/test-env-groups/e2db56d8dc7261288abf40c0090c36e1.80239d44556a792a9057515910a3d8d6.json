@@ -1,0 +1,1 @@
+{"id":"e2db56d8dc7261288abf40c0090c36e1.80239d44556a792a9057515910a3d8d6","fullName":"tests.e2e.test_journal_to_ship_log#test_should_show_how_a_docking_request_went_in_the_ship_log","name":"When the game writes DockingRequested the ship log shows 'Newberry Hydroponics Holding · requested'","status":"passed","testResultsByEnv":{"default":"6bba4e4e5ca80623944a851c47272585"}}

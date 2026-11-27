@@ -1,0 +1,1 @@
+{"id":"b00c0d2141550252cf4f48e0c4411793.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_close_the_http_client_after_each_request","name":"test_should_close_the_http_client_after_each_request","status":"passed","testResultsByEnv":{"default":"fcc710078c79b1ff7cca447415d88e8c"}}

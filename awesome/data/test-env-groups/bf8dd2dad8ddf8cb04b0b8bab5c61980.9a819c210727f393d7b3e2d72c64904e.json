@@ -1,0 +1,1 @@
+{"id":"bf8dd2dad8ddf8cb04b0b8bab5c61980.9a819c210727f393d7b3e2d72c64904e","fullName":"tests.e2e.test_spansh_station_search#test_should_tell_the_commander_when_spansh_has_trouble","name":"Spansh answering with an error code is told to the Commander and Celeste goes on","status":"passed","testResultsByEnv":{"default":"94a0c2dc5f40d3fa10b65eafbeb4dce1"}}

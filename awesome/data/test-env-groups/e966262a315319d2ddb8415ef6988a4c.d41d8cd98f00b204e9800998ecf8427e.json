@@ -1,0 +1,1 @@
+{"id":"e966262a315319d2ddb8415ef6988a4c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_find_systems_should_return_error_without_request_when_switch_is_off","name":"test_find_systems_should_return_error_without_request_when_switch_is_off","status":"passed","testResultsByEnv":{"default":"a4ce1759e3b4b07fa49c3d8af7d141c3"}}

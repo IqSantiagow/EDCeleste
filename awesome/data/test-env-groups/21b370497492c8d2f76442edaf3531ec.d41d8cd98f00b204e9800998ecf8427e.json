@@ -1,0 +1,1 @@
+{"id":"21b370497492c8d2f76442edaf3531ec.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_say_lookups_are_disabled_for_a_module_or_ship_search_when_off","name":"With lookups off a module or ship search says lookups are disabled and nothing is sent","status":"passed","testResultsByEnv":{"default":"a6f978f7507c8c693d0d517a05505fb2"}}

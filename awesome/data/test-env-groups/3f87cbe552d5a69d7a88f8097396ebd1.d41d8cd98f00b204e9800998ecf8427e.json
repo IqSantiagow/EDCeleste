@@ -1,0 +1,1 @@
+{"id":"3f87cbe552d5a69d7a88f8097396ebd1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_return_error_with_status_code_when_spansh_answers_500","name":"test_should_return_error_with_status_code_when_spansh_answers_500","status":"passed","testResultsByEnv":{"default":"da7250a50737030b9d2d17b777e78e7b"}}

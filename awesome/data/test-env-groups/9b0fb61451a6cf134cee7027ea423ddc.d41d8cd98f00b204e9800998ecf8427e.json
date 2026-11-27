@@ -1,0 +1,1 @@
+{"id":"9b0fb61451a6cf134cee7027ea423ddc.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_refuse_an_empty_journal_path","name":"An empty journal path is refused and the saved value stays","status":"passed","testResultsByEnv":{"default":"0545ec445f341ad9bd7bc2e0703b6567"}}

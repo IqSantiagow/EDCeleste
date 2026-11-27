@@ -1,0 +1,1 @@
+{"id":"ccb7bcf8294bf616aa8558b6beaa0001.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_edsm_system_lookup#test_should_list_the_stations_of_a_system_without_fleet_carriers","name":"Celeste lists the real stations of a system with their types","status":"passed","testResultsByEnv":{"default":"0e67ebb1d82bc3661cab6e48dac7cc1a"}}

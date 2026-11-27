@@ -1,0 +1,1 @@
+{"id":"b13d39f668e6977c5d7bf82a7a4a807d.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.ScoreEveryClassTest#test_gives_the_softmax_of_the_logits_by_class_name","name":"test_gives_the_softmax_of_the_logits_by_class_name","status":"passed","testResultsByEnv":{"default":"18a69ceae034ab6f51a785c47369c406"}}

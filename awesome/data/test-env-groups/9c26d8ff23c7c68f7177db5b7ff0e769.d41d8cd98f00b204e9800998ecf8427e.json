@@ -1,0 +1,1 @@
+{"id":"9c26d8ff23c7c68f7177db5b7ff0e769.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_leave_services_out_of_the_request_when_the_list_is_empty","name":"test_should_leave_services_out_of_the_request_when_the_list_is_empty","status":"passed","testResultsByEnv":{"default":"bc47573be1e00d8493e494f47a9fa1d7"}}

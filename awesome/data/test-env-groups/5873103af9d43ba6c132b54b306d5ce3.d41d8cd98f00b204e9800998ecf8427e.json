@@ -1,0 +1,1 @@
+{"id":"5873103af9d43ba6c132b54b306d5ce3.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_say_station_search_is_disabled_and_send_no_request_when_off","name":"With lookups off Celeste says they are disabled and nothing is sent","status":"passed","testResultsByEnv":{"default":"2180f2fbf32388da2f4ccb80ffaa44f3"}}

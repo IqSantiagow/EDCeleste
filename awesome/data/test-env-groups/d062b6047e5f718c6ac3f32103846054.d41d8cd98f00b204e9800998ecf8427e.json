@@ -1,0 +1,1 @@
+{"id":"d062b6047e5f718c6ac3f32103846054.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_show_only_stations_that_have_both_asked_services","name":"Asking for repair and refuel shows only stations that have both","status":"passed","testResultsByEnv":{"default":"928ff35ac6abd0a0e5ac612dc9372c7e"}}

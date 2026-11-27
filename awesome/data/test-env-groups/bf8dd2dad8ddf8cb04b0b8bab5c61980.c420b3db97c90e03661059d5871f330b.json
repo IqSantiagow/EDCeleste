@@ -1,0 +1,1 @@
+{"id":"bf8dd2dad8ddf8cb04b0b8bab5c61980.c420b3db97c90e03661059d5871f330b","fullName":"tests.e2e.test_spansh_station_search#test_should_tell_the_commander_when_spansh_has_trouble","name":"Spansh not reachable because the network is off is told to the Commander and Celeste goes on","status":"passed","testResultsByEnv":{"default":"bfc2e36bcbf616e4aebf967acf06f4a1"}}

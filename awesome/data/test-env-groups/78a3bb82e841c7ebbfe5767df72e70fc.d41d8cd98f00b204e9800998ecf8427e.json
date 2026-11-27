@@ -1,0 +1,1 @@
+{"id":"78a3bb82e841c7ebbfe5767df72e70fc.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.projection.test_recognized_events_feed_game_state.RealEventsReachGameStateTest#test_should_parse_real_docking_denied_with_its_reason","name":"test_should_parse_real_docking_denied_with_its_reason","status":"passed","testResultsByEnv":{"default":"af8517d15e566da42536ddcb298e8be2"}}

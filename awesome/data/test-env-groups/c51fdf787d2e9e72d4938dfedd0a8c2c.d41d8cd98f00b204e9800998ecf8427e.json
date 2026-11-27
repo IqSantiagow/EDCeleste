@@ -1,0 +1,1 @@
+{"id":"c51fdf787d2e9e72d4938dfedd0a8c2c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_system_search#test_should_answer_with_only_the_searched_system_when_nothing_is_in_range","name":"With no other system in range Celeste says so, not an error","status":"passed","testResultsByEnv":{"default":"62ae7d6a0436a61379fc4fb4db5d04d9"}}

@@ -1,0 +1,1 @@
+{"id":"ead4f288fe226dfe25a20f9d966f0be2.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_edsm_system_lookup#test_should_say_lookups_are_disabled_and_send_no_request_when_they_are_off","name":"With lookups off Celeste says they are disabled and nothing is sent","status":"passed","testResultsByEnv":{"default":"c4367711057e031b5b7dad01c034c430"}}

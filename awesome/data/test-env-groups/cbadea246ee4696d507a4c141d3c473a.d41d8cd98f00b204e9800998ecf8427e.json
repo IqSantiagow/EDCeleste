@@ -1,0 +1,1 @@
+{"id":"cbadea246ee4696d507a4c141d3c473a.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_say_nothing_was_found_when_no_station_is_in_range","name":"With no station in range Celeste says nothing was found, not an error","status":"passed","testResultsByEnv":{"default":"f2c6188088ef0c9ca7b620a40c496a91"}}

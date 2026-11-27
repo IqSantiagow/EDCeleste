@@ -1,0 +1,1 @@
+{"id":"2194704e6d5508020ec53b8c6a941fcd.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_refuse_a_missing_keybinds_path_on_enter","name":"A keybinds path that does not exist is refused when Enter is pressed","status":"passed","testResultsByEnv":{"default":"dc12ddce8306b52612a1be6e465b241d"}}

@@ -1,0 +1,1 @@
+{"id":"3c67074a8b8309d2967633b2fc2dc47f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_answer_none_as_data_age_when_spansh_gives_no_update_time","name":"test_should_answer_none_as_data_age_when_spansh_gives_no_update_time","status":"passed","testResultsByEnv":{"default":"b567aed27a4e287b10e31f75dfdb3b05"}}

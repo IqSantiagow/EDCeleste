@@ -1,0 +1,1 @@
+{"id":"5eec3259d103f16a5c1914bc9fb8b795.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.services.test_instinct_service.InstinctModelLoadingTest#test_load_model_reads_the_tokenizer_the_classes_and_the_model","name":"test_load_model_reads_the_tokenizer_the_classes_and_the_model","status":"passed","testResultsByEnv":{"default":"8714a4ada2040aca8b3b37b3cef6f580"}}

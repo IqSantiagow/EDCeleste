@@ -1,0 +1,1 @@
+{"id":"4f8f92272fe1ed1a7f3781afce69870f.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_log_cards#test_should_open_its_own_card_on_each_of_the_keys_f1_to_f7","name":"Keys F1 to F7 open the LOG, SHIP, ENG, STN, SYS, NAV and LDG cards","status":"passed","testResultsByEnv":{"default":"a81e5506bee1f973777ef59b42c67067"}}

@@ -1,0 +1,1 @@
+{"id":"8ed7ddb62d0c677e7c7fa75c886f80a1.d9027fbc517557803987fb46eee97e2d","fullName":"tests.e2e.test_edsm_system_lookup#test_should_tell_the_commander_when_edsm_has_trouble","name":"EDSM answering with an error code is told to the Commander and the reply still comes","status":"passed","testResultsByEnv":{"default":"2a3d803713a826bb2a6b129584ac8e01"}}

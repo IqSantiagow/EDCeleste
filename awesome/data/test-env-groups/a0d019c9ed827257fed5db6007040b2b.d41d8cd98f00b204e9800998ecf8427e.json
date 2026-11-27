@@ -1,0 +1,1 @@
+{"id":"a0d019c9ed827257fed5db6007040b2b.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_say_nothing_was_found_when_no_station_in_range_sells_the_module","name":"With no station selling the module in range Celeste says nothing was found, not an error","status":"passed","testResultsByEnv":{"default":"8fdaf57ebe25999ee79b2212b23020fa"}}

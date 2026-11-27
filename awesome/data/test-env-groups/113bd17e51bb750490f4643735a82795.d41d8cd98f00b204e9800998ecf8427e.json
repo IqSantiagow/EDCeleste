@@ -1,0 +1,1 @@
+{"id":"113bd17e51bb750490f4643735a82795.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_settings#test_should_not_keep_a_missing_journal_path_when_the_field_is_left","name":"Leaving the field with a journal path that does not exist does not keep it","status":"passed","testResultsByEnv":{"default":"24dbce1bfe20d49ffa0162c0de85a5a3"}}

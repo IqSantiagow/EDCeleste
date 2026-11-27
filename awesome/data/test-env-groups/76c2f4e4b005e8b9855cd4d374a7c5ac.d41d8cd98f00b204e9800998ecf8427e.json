@@ -1,0 +1,1 @@
+{"id":"76c2f4e4b005e8b9855cd4d374a7c5ac.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_list_the_known_services_when_a_service_does_not_exist","name":"A service that does not exist makes Celeste list the services she knows","status":"passed","testResultsByEnv":{"default":"8c429789b2525ae58bd4995f32724b1b"}}

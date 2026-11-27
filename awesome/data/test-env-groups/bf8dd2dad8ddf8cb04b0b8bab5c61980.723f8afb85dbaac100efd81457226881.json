@@ -1,0 +1,1 @@
+{"id":"bf8dd2dad8ddf8cb04b0b8bab5c61980.723f8afb85dbaac100efd81457226881","fullName":"tests.e2e.test_spansh_station_search#test_should_tell_the_commander_when_spansh_has_trouble","name":"Spansh not knowing the system is told to the Commander and Celeste goes on","status":"passed","testResultsByEnv":{"default":"9cedfb4d3ffca4e50ef9f8f83555ebb1"}}

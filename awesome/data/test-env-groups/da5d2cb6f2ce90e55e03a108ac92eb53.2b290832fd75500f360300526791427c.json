@@ -1,0 +1,1 @@
+{"id":"da5d2cb6f2ce90e55e03a108ac92eb53.2b290832fd75500f360300526791427c","fullName":"tests.e2e.test_spansh_station_search#test_should_say_an_unknown_name_to_buy_is_unknown_and_give_close_names","name":"A ship that does not exist makes Celeste say she does not know it and give close names","status":"passed","testResultsByEnv":{"default":"381d8f40137e50dfeb62341e829cf2e9"}}

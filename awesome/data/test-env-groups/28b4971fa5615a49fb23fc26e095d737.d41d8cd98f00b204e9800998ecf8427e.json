@@ -1,0 +1,1 @@
+{"id":"28b4971fa5615a49fb23fc26e095d737.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_spansh_tools.TestSpanshTools#test_should_drop_a_station_that_lacks_one_of_the_asked_modules","name":"test_should_drop_a_station_that_lacks_one_of_the_asked_modules","status":"passed","testResultsByEnv":{"default":"120e067f49439335abec0dc370c7a0f8"}}

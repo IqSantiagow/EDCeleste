@@ -1,0 +1,1 @@
+{"id":"2400c2ece13597cc41ba2ed5fc465de1.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_ship_log_cards#test_should_keep_the_focus_and_the_typed_text_in_comms_on_a_card_key","name":"A card key does not take the focus or the typed text from COMMS","status":"passed","testResultsByEnv":{"default":"6297b511dd3aabe09836c3554b925564"}}

@@ -1,0 +1,1 @@
+{"id":"aa4ddab85790eac69b4271231c137b4c.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_current_screen#test_should_make_the_screen_unknown_when_status_json_has_no_screen","name":"A Status.json without the screen makes it unknown and Celeste keeps running","status":"passed","testResultsByEnv":{"default":"aaa37e1892e289dceee43d588f9aefe7"}}

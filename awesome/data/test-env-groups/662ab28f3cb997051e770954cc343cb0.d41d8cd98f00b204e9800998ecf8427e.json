@@ -1,0 +1,1 @@
+{"id":"662ab28f3cb997051e770954cc343cb0.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.adapters.tools.test_edsm_tools.TestEdsmTools#test_system_info_should_return_error_when_edsm_does_not_answer","name":"test_system_info_should_return_error_when_edsm_does_not_answer","status":"passed","testResultsByEnv":{"default":"f5940ddfe36459e7fbaaae68456cb830"}}

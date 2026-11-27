@@ -1,0 +1,1 @@
+{"id":"4205b340a4850b2147d070cdaad62e68.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_current_screen#test_should_not_log_a_change_while_the_screen_stays_the_same","name":"The same screen written again is not logged as a change","status":"passed","testResultsByEnv":{"default":"e0751a4fd7a451205ab00cef17911845"}}

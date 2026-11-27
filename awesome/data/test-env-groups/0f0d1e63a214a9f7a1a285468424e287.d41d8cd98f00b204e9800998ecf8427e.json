@@ -1,0 +1,1 @@
+{"id":"0f0d1e63a214a9f7a1a285468424e287.d41d8cd98f00b204e9800998ecf8427e","fullName":"tests.e2e.test_spansh_station_search#test_should_show_only_stations_that_sell_both_asked_modules","name":"Asking for a 5A frame shift drive and a 4D thruster shows only stations that sell both","status":"passed","testResultsByEnv":{"default":"62ba62a611ebd698d7bb35853d23cea8"}}
